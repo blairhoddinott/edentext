@@ -8,6 +8,8 @@
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
   import Icon from './ribbon/Icon.svelte';
   import Toggle from './Toggle.svelte';
+  import { aiSettings, setAi, aiConfig, AI_PRESETS, presetOf } from '../storage/ai.svelte';
+  import { streamChat, aiErrorText } from '../ai/client';
 
   // App-wide settings, one section per side-bar entry. Each control writes through the
   // store that already owns the setting, so the ribbon and the dialogs stay in step.
@@ -35,11 +37,12 @@
     onAutoCorrect: () => void;
   } = $props();
 
-  type Section = 'general' | 'editing' | 'view' | 'privacy';
-  const SECTIONS: { id: Section; icon: 'settings' | 'autoCorrect' | 'ruler' | 'lock' }[] = [
+  type Section = 'general' | 'editing' | 'view' | 'ai' | 'privacy';
+  const SECTIONS: { id: Section; icon: 'settings' | 'autoCorrect' | 'ruler' | 'sparkle' | 'lock' }[] = [
     { id: 'general', icon: 'settings' },
     { id: 'editing', icon: 'autoCorrect' },
     { id: 'view', icon: 'ruler' },
+    { id: 'ai', icon: 'sparkle' },
     { id: 'privacy', icon: 'lock' },
   ];
   const THEMES: ThemeMode[] = ['light', 'dark', 'allBlack', 'auto'];
@@ -56,6 +59,29 @@
     applyAccent(a);
   }
   let wc = $derived(wordCompletion());
+  let ai = $derived(aiSettings());
+
+  // One short request, so a wrong address, key or a CORS refusal shows here and not
+  // in the middle of a chat.
+  let aiTest = $state<{ busy: boolean; ok: boolean; text: string } | null>(null);
+  async function testAi() {
+    const cfg = aiConfig();
+    if (!cfg) { aiTest = { busy: false, ok: false, text: t().ai.notConfigured }; return; }
+    aiTest = { busy: true, ok: false, text: t().ai.testing };
+    try {
+      await streamChat(cfg, { system: 'Reply with the single word OK.', messages: [{ role: 'user', content: 'OK?' }] }, () => {});
+      aiTest = { busy: false, ok: true, text: t().ai.testOk };
+    } catch (e) {
+      aiTest = { busy: false, ok: false, text: aiErrorText(e, t().ai.errors, cfg.endpoint) };
+    }
+  }
+
+  function pickPreset(id: string) {
+    const p = AI_PRESETS.find((x) => x.id === id);
+    if (p) setAi({ provider: p.provider, endpoint: p.endpoint });
+    else setAi({ provider: 'openai' });
+    aiTest = null;
+  }
 
   $effect(() => {
     const el = dialogEl;
@@ -175,6 +201,40 @@
         <div class="row">
           <div class="info"><div class="name">{t().view.fieldShadings}</div><div class="desc">{t().view.fieldShadingsTitle}</div></div>
           <Toggle label={t().view.fieldShadings} checked={showFieldShading} onchange={(on) => (showFieldShading = on)} />
+        </div>
+
+      {:else if section === 'ai'}
+        <div class="row">
+          <div class="info"><div class="name">{t().ai.enable}</div><div class="desc">{t().ai.enableHint}</div></div>
+          <Toggle label={t().ai.enable} checked={ai.enabled} onchange={(on) => setAi({ enabled: on })} />
+        </div>
+        <div class="row sub" class:dim={!ai.enabled}>
+          <div class="info"><div class="name">{t().ai.provider}</div><div class="desc">{t().ai.providerHint}</div></div>
+          <select value={presetOf(ai)} disabled={!ai.enabled} onchange={(e) => pickPreset(e.currentTarget.value)}>
+            {#each AI_PRESETS as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
+            <option value="custom">{t().ai.custom}</option>
+          </select>
+        </div>
+        <div class="row sub" class:dim={!ai.enabled}>
+          <div class="info"><div class="name">{t().ai.endpoint}</div><div class="desc">{t().ai.endpointHint}</div></div>
+          <input class="field" type="url" spellcheck="false" value={ai.endpoint} disabled={!ai.enabled}
+            placeholder="https://…/v1" onchange={(e) => { setAi({ endpoint: e.currentTarget.value.trim() }); aiTest = null; }} />
+        </div>
+        <div class="row sub" class:dim={!ai.enabled}>
+          <div class="info"><div class="name">{t().ai.model}</div><div class="desc">{t().ai.modelHint}</div></div>
+          <input class="field" type="text" spellcheck="false" value={ai.model} disabled={!ai.enabled}
+            onchange={(e) => { setAi({ model: e.currentTarget.value.trim() }); aiTest = null; }} />
+        </div>
+        <div class="row sub" class:dim={!ai.enabled}>
+          <div class="info"><div class="name">{t().ai.apiKey}</div><div class="desc">{t().ai.apiKeyHint}</div></div>
+          <input class="field" type="password" autocomplete="off" spellcheck="false" value={ai.apiKey} disabled={!ai.enabled}
+            onchange={(e) => { setAi({ apiKey: e.currentTarget.value.trim() }); aiTest = null; }} />
+        </div>
+        <div class="row sub" class:dim={!ai.enabled}>
+          <div class="info">
+            <div class="desc" class:ok={aiTest?.ok} role="status">{aiTest?.text ?? ''}</div>
+          </div>
+          <button class="btn" disabled={!ai.enabled || aiTest?.busy} onclick={testAi}>{t().ai.test}</button>
         </div>
 
       {:else}
@@ -302,7 +362,7 @@
     font-weight: 600;
   }
 
-  .btn, select, .num {
+  .btn, select, .num, .field {
     flex: none;
     border: 1px solid var(--color-border);
     border-radius: 6px;
@@ -316,6 +376,9 @@
   .btn:disabled, .num:disabled { opacity: 0.45; cursor: default; }
   select { max-width: 200px; cursor: pointer; }
   .num { width: 64px; padding: 5px 8px; }
+  .field { width: 230px; padding: 5px 8px; }
+  .field:disabled, select:disabled { opacity: 0.45; cursor: default; }
+  .desc.ok { color: var(--w-accent); font-weight: 600; }
 
   .segmented {
     display: grid;

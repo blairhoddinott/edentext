@@ -26,8 +26,9 @@
   import { styleLabel, t } from '../../../i18n/i18n.svelte';
   import { withShortcut } from '../../../i18n/shortcut';
   import { shortcutHint, type ShortcutId } from '../../../editor/shortcuts';
+  import { aiEnabled, OPEN_AI_PROMPT_EVENT, type AiPromptMode } from '../../../storage/ai.svelte';
 
-  let { editor, tick, showFormattingMarks = $bindable(false), onManageStyles, onFind, onParagraphDialog, asianDocument = false, scripts = { cjk: false, cyrillic: false } }: {
+  let { editor, tick, showFormattingMarks = $bindable(false), onManageStyles, onFind, onParagraphDialog, asianDocument = false, scripts = { cjk: false, cyrillic: false }, aiOpen = false, onToggleAi }: {
     editor: Editor | null;
     tick: number;
     asianDocument?: boolean;
@@ -36,9 +37,15 @@
     onManageStyles?: (family: StyleFamily) => void;
     onFind?: (mode: 'find' | 'replace') => void;
     onParagraphDialog?: () => void;
+    aiOpen?: boolean;
+    onToggleAi?: () => void;
   } = $props();
 
   let sheet = $derived(styleSheet());
+
+  function openAiPrompt(mode: AiPromptMode) {
+    window.dispatchEvent(new CustomEvent(OPEN_AI_PROMPT_EVENT, { detail: { mode } }));
+  }
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
 
   // A heading or a header-row cell renders bold by default (CSS), so there the
@@ -442,6 +449,18 @@
     <RibbonButton variant="small" icon="replace" cmd="replace" label={t().ribbon.replace} title={`${t().ribbon.replace} (${shortcutHint('replace')})`} onclick={() => onFind?.('replace')} />
   </div>
 </RibbonGroup>
+
+<!-- Copilot's place: the end of Home. Gone entirely while the assistant is switched off. -->
+{#if aiEnabled()}
+  <div class="ribbon-sep"></div>
+  <RibbonGroup label={t().ai.group}>
+    <RibbonButton variant="big" icon="sparkle" cmd="aiPane" label={t().ai.chat} title={t().ai.chatTitle} active={aiOpen} onclick={() => onToggleAi?.()} />
+    <div class="rb-col">
+      <RibbonButton variant="small" icon="sparkle" cmd="aiDraft" label={t().ai.draft} title={`${t().ai.draftTitle} (${shortcutHint('aiDraft')})`} onclick={() => openAiPrompt('draft')} />
+      <RibbonButton variant="small" icon="sparkle" cmd="aiRewrite" label={t().ai.rewriteHeading} title={t().ai.rewriteHeading} disabled={!hasSelection} onclick={() => openAiPrompt('rewrite')} />
+    </div>
+  </RibbonGroup>
+{/if}
 
 {#snippet boldIcon()}<span class="glyph" style="font-weight: 800">{t().toolbar.glyphs.bold}</span>{/snippet}
 {#snippet italicIcon()}<span class="glyph" style="font-style: italic; font-family: serif">{t().toolbar.glyphs.italic}</span>{/snippet}

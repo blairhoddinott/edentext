@@ -7,6 +7,7 @@ import { OPEN_COMMENT_EVENT } from './extensions/comment';
 import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames } from './extensions/bookmark';
 import { OPEN_CROSS_REF_DIALOG_EVENT, hasRefTargets } from './extensions/crossReference';
 import { OPEN_THESAURUS_EVENT } from '../spell/thesaurus';
+import { aiEnabled, OPEN_AI_PROMPT_EVENT, type AiPromptMode } from '../storage/ai.svelte';
 
 // The right-click menu's contents, the usual text menu mapped onto this editor. Pure
 // data + closures — ContextMenu.svelte only renders it.
@@ -101,6 +102,16 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
     { kind: 'item', label: m.pasteWithoutFormatting, hint: withShortcut('Ctrl+Shift+V'), run: () => void readClipboard(editor, true) },
     { kind: 'sep' },
   );
+
+  // The body only: a header or footer has no tracked changes for the assistant's edits.
+  if (aiEnabled() && editor.schema.marks.insertion) {
+    const open = (mode: AiPromptMode) => window.dispatchEvent(new CustomEvent(OPEN_AI_PROMPT_EVENT, { detail: { mode } }));
+    entries.push(
+      { kind: 'item', label: t().ai.rewriteMenu, disabled: !hasSelection, run: () => open('rewrite') },
+      { kind: 'item', label: t().ai.draftMenu, hint: shortcutHint('aiDraft'), run: () => open('draft') },
+      { kind: 'sep' },
+    );
+  }
 
   const onLink = editor.isActive('link');
   entries.push({

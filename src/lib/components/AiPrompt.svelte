@@ -1,0 +1,294 @@
+<script lang="ts">
+  import type { Editor } from '@tiptap/core';
+  import { Slice } from '@tiptap/pm/model';
+  import { TextSelection } from '@tiptap/pm/state';
+  import { t, locale } from '../i18n/i18n.svelte';
+  import { dragWindow } from '../utils/dragWindow';
+  import { aiConfig, OPEN_AI_PROMPT_EVENT, type AiPromptMode } from '../storage/ai.svelte';
+  import { LANGUAGES } from '../storage/documentLanguage';
+  import { streamChat, aiErrorText, isAbort } from '../ai/client';
+  import { contentToDom, htmlToSlice, selectionHtml, serializeDoc } from '../ai/doc';
+  import { REWRITE_PROMPT, REWRITE_PRESETS, draftPrompt, startRequest, endRequest } from '../ai/tools';
+
+  // Copilot's two inline flows in one window: rewrite the selection, or draft new content
+  // at the caret. The reply streams into a preview and touches the document only when
+  // the user takes it, so a half-written answer never lands in the text or the history.
+  let { editor }: { editor: Editor | null } = $props();
+
+  type Preset = keyof typeof REWRITE_PRESETS;
+  const PRESETS: Preset[] = ['rephrase', 'shorten', 'formal', 'fix', 'translate'];
+  const TARGETS = [...new Set(LANGUAGES.map((l) => l.label))];
+
+  let open = $state(false);
+  let mode = $state<AiPromptMode>('draft');
+  let instruction = $state('');
+  let language = $state('');
+  let reply = $state('');
+  let error = $state('');
+  let busy = $state(false);
+  let win = $state<HTMLElement | null>(null);
+  let input = $state<HTMLTextAreaElement | null>(null);
+  let preview = $state<HTMLElement | null>(null);
+  let pos = $state<{ left: number; top: number } | null>(null);
+  // What the window works on, fixed when it opens.
+  let target = { from: 0, to: 0, original: '', html: '' };
+  let request: AbortController | null = null;
+
+  function show(m: AiPromptMode) {
+    if (!editor) return;
+    const { state, view } = editor;
+    const { from, to } = state.selection;
+    if (m === 'rewrite' && from === to) return;
+    stop();
+    mode = m;
+    target = { from, to, original: state.doc.textBetween(from, to, '\n', ''), html: m === 'rewrite' ? selectionHtml(state) : '' };
+    instruction = '';
+    reply = '';
+    error = '';
+    language ||= LANGUAGES.find((l) => l.code === locale() || l.code.startsWith(locale().split('-')[0]))?.label ?? 'English (US)';
+    const at = view.coordsAtPos(to);
+    pos = { left: Math.max(8, Math.min(window.innerWidth - 440, at.left)), top: Math.max(8, Math.min(window.innerHeight - 380, at.bottom + 8)) };
+    open = true;
+    queueMicrotask(() => input?.focus());
+  }
+
+  $effect(() => {
+    const onOpen = (e: Event) => show((e as CustomEvent<{ mode: AiPromptMode }>).detail?.mode ?? 'draft');
+    window.addEventListener(OPEN_AI_PROMPT_EVENT, onOpen);
+    return () => { window.removeEventListener(OPEN_AI_PROMPT_EVENT, onOpen); stop(); };
+  });
+
+  $effect(() => {
+    if (!win) return;
+    if (open && !win.matches(':popover-open')) win.showPopover();
+    else if (!open && win.matches(':popover-open')) win.hidePopover();
+  });
+
+  // The streamed reply re-parsed once a frame, through the schema like the final insert.
+  let frame = 0;
+  $effect(() => {
+    const text = reply;
+    if (!preview || !editor) return;
+    const el = preview;
+    const ed = editor;
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => el.replaceChildren(text ? contentToDom(htmlToSlice(text, ed.state).content, ed.schema) : ''));
+  });
+
+  function stop() {
+    request?.abort();
+    if (request) endRequest(request);
+    request = null;
+    busy = false;
+  }
+
+  function close() {
+    stop();
+    open = false;
+    editor?.commands.focus();
+  }
+
+  async function generate(preset?: Preset) {
+    if (!editor || busy) return;
+    const cfg = aiConfig();
+    if (!cfg) { error = t().ai.notConfigured; return; }
+    const ask = preset === 'translate' ? REWRITE_PRESETS.translate(language) : preset ? REWRITE_PRESETS[preset] : instruction.trim();
+    if (!ask) return;
+    const req = mode === 'rewrite'
+      ? { system: REWRITE_PROMPT, messages: [{ role: 'user' as const, content: `${ask}\n\nPassage:\n${target.html}` }] }
+      : { system: draftPrompt(), messages: [{ role: 'user' as const, content: `${serializeDoc(editor.state)}\n\n---\n\nWrite this at the cursor: ${ask}` }] };
+    reply = '';
+    error = '';
+    busy = true;
+    const mine = (request = startRequest());
+    try {
+      await streamChat(cfg, req, (d) => (reply += d), mine.signal);
+    } catch (e) {
+      if (!isAbort(e)) error = aiErrorText(e, t().ai.errors, cfg.endpoint);
+    } finally {
+      endRequest(mine);
+      if (request === mine) { request = null; busy = false; }
+    }
+  }
+
+  // The range must still hold the text the reply was written for.
+  function stillThere(): boolean {
+    if (!editor) return false;
+    const { from, to, original } = target;
+    const ok = to <= editor.state.doc.content.size && editor.state.doc.textBetween(from, to, '\n', '') === original;
+    if (!ok) error = t().ai.selectionChanged;
+    return ok;
+  }
+
+  function replaceTarget() {
+    if (!editor || !reply || !stillThere()) return;
+    const { from, to } = target;
+    editor.chain().focus().setTextSelection({ from, to }).run();
+    editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(reply, editor.state)).scrollIntoView());
+    close();
+  }
+
+  function insertBelow() {
+    if (!editor || !reply || !stillThere()) return;
+    const end = editor.state.doc.resolve(target.to);
+    const at = end.after(end.depth);
+    const slice = htmlToSlice(reply, editor.state);
+    const tr = editor.state.tr.replace(at, at, new Slice(slice.content, 0, 0));
+    editor.view.dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(at, 1)))).scrollIntoView());
+    close();
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'Enter' && !e.shiftKey && e.target === input) { e.preventDefault(); void generate(); }
+  }
+</script>
+
+<div
+  bind:this={win}
+  class="aip"
+  popover="manual"
+  role="dialog"
+  aria-label={mode === 'rewrite' ? t().ai.rewriteHeading : t().ai.draftHeading}
+  tabindex="-1"
+  onkeydown={onKeydown}
+  style={pos ? `left:${pos.left}px; top:${pos.top}px;` : undefined}
+>
+  <div class="aip-bar" use:dragWindow={(p) => (pos = p)}>
+    <span>{mode === 'rewrite' ? t().ai.rewriteHeading : t().ai.draftHeading}</span>
+    <button class="aip-x" onclick={close} aria-label={t().common.close}>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
+  {#if mode === 'rewrite'}
+    <div class="aip-presets">
+      {#each PRESETS as p (p)}
+        <button disabled={busy} onclick={() => generate(p)}>{t().ai.presets[p]}</button>
+      {/each}
+      <select bind:value={language} disabled={busy} aria-label={t().ai.presets.translate}>
+        {#each TARGETS as l (l)}<option value={l}>{l}</option>{/each}
+      </select>
+    </div>
+  {/if}
+
+  <div class="aip-ask">
+    <textarea
+      bind:this={input}
+      bind:value={instruction}
+      rows="2"
+      placeholder={mode === 'rewrite' ? t().ai.rewritePlaceholder : t().ai.draftPlaceholder}
+    ></textarea>
+    {#if busy}
+      <button onclick={stop}>{t().ai.stop}</button>
+    {:else}
+      <button class="aip-go" disabled={!instruction.trim()} onclick={() => generate()}>{t().ai.generate}</button>
+    {/if}
+  </div>
+
+  <div class="aip-preview" class:empty={!reply} bind:this={preview} aria-live="polite"></div>
+  {#if error}<div class="aip-error" role="alert">{error}</div>{/if}
+
+  <div class="aip-actions">
+    <span class="aip-note">{t().ai.disclaimer}</span>
+    {#if mode === 'rewrite'}
+      <button class="aip-go" disabled={!reply || busy} onclick={replaceTarget}>{t().ai.replace}</button>
+      <button disabled={!reply || busy} onclick={insertBelow}>{t().ai.insertBelow}</button>
+    {:else}
+      <button class="aip-go" disabled={!reply || busy} onclick={replaceTarget}>{t().ai.insert}</button>
+    {/if}
+    <button onclick={close}>{t().ai.discard}</button>
+  </div>
+</div>
+
+<style>
+  .aip {
+    position: fixed;
+    inset: 9rem 2rem auto auto;
+    margin: 0;
+    z-index: 300;
+    width: 27rem;
+    max-width: calc(100vw - 16px);
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-toolbar-bg, #fff);
+    color: var(--color-text);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+    font-size: 0.8rem;
+  }
+  .aip[style] { right: auto; }
+
+  .aip-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.4rem 0.35rem 0.7rem;
+    border-bottom: 1px solid var(--color-border);
+    font-weight: 600;
+    cursor: move;
+    touch-action: none;
+  }
+  .aip-bar span { flex: 1; }
+  .aip-x {
+    display: flex;
+    padding: 0.25rem;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  .aip-x:hover { background: var(--color-hover, rgba(0, 0, 0, 0.06)); }
+
+  .aip-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.6rem 0.7rem 0; }
+  .aip-ask { display: flex; gap: 0.4rem; align-items: flex-end; padding: 0.6rem 0.7rem; }
+  textarea {
+    flex: 1;
+    resize: vertical;
+    min-height: 2.6rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+  }
+
+  .aip-preview {
+    max-height: 16rem;
+    overflow-y: auto;
+    margin: 0 0.7rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-page-bg, #fff);
+    color: #000;
+    font-family: var(--font-serif, serif);
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+  .aip-preview.empty { display: none; }
+  .aip-preview :global(p) { margin: 0 0 0.4em; }
+  .aip-preview :global(table) { border-collapse: collapse; }
+  .aip-preview :global(td), .aip-preview :global(th) { border: 1px solid #999; padding: 2px 4px; }
+  .aip-error { margin: 0.5rem 0.7rem 0; color: #c0392b; }
+
+  .aip-actions { display: flex; align-items: center; gap: 0.4rem; padding: 0.6rem 0.7rem 0.7rem; }
+  .aip-note { flex: 1; color: var(--color-text-muted); font-size: 0.72rem; }
+
+  button, select {
+    height: 1.8rem;
+    padding: 0 0.6rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .aip-presets select { max-width: 9rem; }
+  button:hover:not(:disabled) { background: var(--color-hover, rgba(0, 0, 0, 0.06)); }
+  button:disabled, select:disabled { opacity: 0.5; cursor: default; }
+  .aip-go { border-color: var(--color-accent, #1a56db); color: var(--color-accent, #1a56db); }
+</style>

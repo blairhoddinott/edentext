@@ -45,6 +45,7 @@
   import { DEFAULT_PAGE_NUMBERING, type PageNumbering } from '../../storage/pageNumbering';
   import { EMPTY_PAGE_DECOR, type PageDecor } from '../../storage/pageDecor';
   import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../../storage/lineNumbering';
+  import { aiEnabled } from '../../storage/ai.svelte';
 
   let {
     editor,
@@ -89,6 +90,7 @@
     hasPassword = false,
     onNew, onNewFromTemplate, onOpen, onSave, onSaveAs, onSaveTemplate, onExportPdf, onPrintPdf, onPrint, onAbout, onSettings, onDocProperties, onBrowserDocuments, onProtect, onAutoCorrect, onAutoText, onNewComment,
     navigatorOpen = false, onToggleNavigator,
+    aiOpen = false, onToggleAi,
     recentFiles = [], onOpenRecent, onForgetRecent,
   }: {
     editor: Editor | null;
@@ -153,6 +155,8 @@
     onNewComment?: () => void;
     navigatorOpen?: boolean;
     onToggleNavigator?: () => void;
+    aiOpen?: boolean;
+    onToggleAi?: () => void;
   } = $props();
 
   // Word opens on Home every time, so the active tab is not persisted.
@@ -310,7 +314,7 @@
   let searchable = $derived([
     ...RIBBON_COMMANDS,
     ...styleCommands(visibleStyles(styleSheet(), showAllStyles()).map((s) => s.name)),
-  ].filter((c) => c.tab === null || tabOf(c)));
+  ].filter((c) => (c.tab === null || tabOf(c)) && (aiEnabled() || !c.id.startsWith('ai'))));
 
   // A colour split's own half applies the last colour; its palette is behind the chevron.
   function act(id: string) {
@@ -511,7 +515,7 @@
   {#if !collapsed}
   <div class="ribbon-body" use:pinPanels>
     {#if tab === 'home'}
-      <HomeTab {editor} {tick} asianDocument={isAsianTag(tagForLanguage(documentLanguage) ?? '') || isAsianTag(locale())} scripts={numberingScripts(documentLanguage, documentLanguageOther, locale())} bind:showFormattingMarks {onManageStyles} {onFind} onParagraphDialog={() => (paragraphDialogOpen = true)} />
+      <HomeTab {editor} {tick} asianDocument={isAsianTag(tagForLanguage(documentLanguage) ?? '') || isAsianTag(locale())} scripts={numberingScripts(documentLanguage, documentLanguageOther, locale())} bind:showFormattingMarks {onManageStyles} {onFind} onParagraphDialog={() => (paragraphDialogOpen = true)} {aiOpen} {onToggleAi} />
     {:else if tab === 'insert'}
       <InsertTab {editor} {tick} {hfActive} {pageMargins} {pageOrientation} {pageFormat} bind:hfDistances bind:differentFirstPage bind:differentOddEven {onEditZone} {onManageTableStyles} {onAutoText} />
     {:else if tab === 'layout'}
