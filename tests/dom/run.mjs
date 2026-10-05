@@ -812,6 +812,62 @@ try {
   }
   check(contrastFaults.size === 0, `the dark theme draws no menu glyph or label in a colour of its own${contrastFaults.size ? `: ${[...contrastFaults].slice(0, 8).join('; ')}` : ''}`);
 
+  // The AI assistant against a mocked provider. Switched off, none of it shows and nothing
+  // goes out; switched on, a chat turn's tool call lands as the assistant's tracked change
+  // and a rewrite replaces the selection.
+  let aiRequests = 0;
+  await page.route('http://mock.test/**', async (route) => {
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    aiRequests++;
+    const body = JSON.parse(route.request().postData() ?? '{}');
+    const sse = (delta) => `data: ${JSON.stringify({ choices: [{ delta }] })}\n\ndata: [DONE]\n\n`;
+    const reply = body.messages?.at(-1)?.role === 'tool' ? { content: '<p>Done.</p>' }
+      : body.tools ? { tool_calls: [{ index: 0, id: 'c1', function: { name: 'replace_text', arguments: '{"paragraph":1,"find":"quick","replace":"slow"}' } }] }
+      : { content: '<p>A slow fox.</p>' };
+    await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: sse(reply) });
+  });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.tiptap', { timeout: 15_000 });
+  await page.click('.tiptap');
+  await page.keyboard.type('The quick fox');
+  await page.click('.tiptap', { button: 'right' });
+  const offMenu = await page.$$eval('.cm-label', (els) => els.map((e) => e.textContent));
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Alt+i');
+  check(!(await page.$('[data-cmd="aiPane"]')) && !offMenu.some((l) => /AI/.test(l))
+    && !(await page.evaluate(() => document.querySelector('.aip')?.matches(':popover-open'))) && aiRequests === 0,
+  'with the assistant off, no AI button, menu item or window shows and nothing is sent');
+
+  await page.waitForFunction(() => (localStorage.getItem('edentext-doc') ?? '').includes('quick'), null, { timeout: 15_000 });
+  await page.evaluate(() => localStorage.setItem('edentext-ai', JSON.stringify({ enabled: true, provider: 'openai', endpoint: 'http://mock.test/v1', apiKey: '', model: 'm' })));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.tiptap', { timeout: 15_000 });
+  await page.click('[data-cmd="aiPane"]');
+  await page.fill('.ai-pane textarea', 'Make it slow');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.tiptap [data-insertion]', { timeout: 15_000 }).catch(() => {});
+  const tracked = await page.evaluate(() => ({
+    ins: document.querySelector('.tiptap [data-insertion]')?.textContent,
+    del: document.querySelector('.tiptap [data-deletion]')?.textContent,
+    author: document.querySelector('.tiptap [data-insertion]')?.getAttribute('data-rev-author'),
+  }));
+  check(tracked.ins === 'slow' && tracked.del === 'quick' && tracked.author === 'AI',
+    `a chat turn's edit is the assistant's tracked change (${JSON.stringify(tracked)})`);
+  await page.waitForSelector('.ai-pane .tool', { timeout: 5_000 }).catch(() => {});
+  check(!!(await page.$('.ai-pane .tool')), 'the pane lists what the assistant changed');
+
+  await page.click('.tiptap');
+  await page.keyboard.press(`${MOD}+a`);
+  await page.click('.tiptap', { button: 'right' });
+  await page.locator('.cm-item', { hasText: 'Rewrite with AI' }).click();
+  await page.locator('.aip button', { hasText: 'Shorten' }).click();
+  await page.waitForFunction(() => (document.querySelector('.aip-preview')?.textContent ?? '').includes('A slow fox.'), null, { timeout: 10_000 }).catch(() => {});
+  await page.locator('.aip button', { hasText: 'Replace' }).click();
+  const rewritten = await page.evaluate(() => document.querySelector('.tiptap')?.textContent);
+  check(rewritten === 'A slow fox.', `a rewrite replaces the selection (${rewritten})`);
+
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);
 } finally {
