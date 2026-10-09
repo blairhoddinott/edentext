@@ -77,12 +77,23 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   a revision by the localized author `t().ai.author`, whether or not recording is on.
   The Review pane accepts or rejects it. An edit over another author's pending change
   is refused: `markDeleted` would delete their insertion outright.
-- **`format`** uses `applyFormat`, the search-replace formatting, plus mark removal. Track
+- **`format`** uses `applyFormat`, the search-replace formatting, plus mark removal and the
+  highlight; alignment, spacing, indent, line height, shading and a page break before are
+  paragraph attributes set on the whole paragraphs, and `list` runs the list commands. Track
   changes cannot record formatting, so it applies directly and is undoable.
+- **`set_style`** creates or changes a paragraph style (`putStyle`), by internal or display
+  name; `heading_numbers` sets the chapter numbering (`setOutline`).
+- **`insert_frame`** builds the dialect's `<aside>` or `<img alt>` and inserts the frame at the
+  start of the paragraph, directly.
+- Numbers and booleans may come as strings, and every error names what is accepted ("unknown
+  style …; styles are: …"), for small models.
+- After a round that changed the text, `runTurn` waits two frames for the layout pass and
+  appends `document now N pages, last page about X% full` to the round's last tool result.
 - **`add_comment`** comments as the assistant; **`reply_comment`** answers a thread and
   **`resolve_comment`** closes it, both directly and undoable.
-- **`table_insert`** adds a row or column with the table commands; the structure applies
-  directly, the new cells' text is tracked. Removing rows or columns is left to the user.
+- **`table`** (`table_insert` stays as an alias) adds a row or column with the table
+  commands and tracks the new cells' text; deleting rows or columns, `widths` (each cell's
+  `colwidth` weights), `merge_right`, `shade`, `borders` and `style` apply directly.
 - **`set_columns`** runs `setColumns` over the paragraphs' range, which refuses a bare
   cursor's whole-document case; columns apply directly.
 - **`set_header_footer`** and **`set_page`** go through the `AiHost` that `App.svelte` hands

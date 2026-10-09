@@ -6,16 +6,19 @@ import type { Editor } from '@tiptap/core';
 import { Fragment, Slice, type Mark, type Node as PMNode } from '@tiptap/pm/model';
 import { Mapping } from '@tiptap/pm/transform';
 import type { Transaction } from '@tiptap/pm/state';
-import { TableMap } from '@tiptap/pm/tables';
+import { CellSelection, TableMap } from '@tiptap/pm/tables';
 import { trackedReplace } from '../editor/extensions/trackChanges';
 import { applyFormat, FORMAT_MARKS, type FormatSpec } from '../editor/extensions/searchReplace';
 import { comments } from '../editor/extensions/comment';
-import { styleSheet } from '../styles/sheet.svelte';
-import { visibleStyles } from '../styles/styleSheet';
+import { putStyle, setOutline, styleSheet } from '../styles/sheet.svelte';
+import { decimalOutline, romanOutline } from '../styles/outlineNumbering';
+import { DEFAULT_BORDER_COLOR, DEFAULT_BORDER_WIDTH_PT } from '../editor/extensions/tableCellBorders';
+import { normalizeColor } from '../utils/color';
+import { DEFAULT_STYLE, visibleStyles, type Style } from '../styles/styleSheet';
 import { styleLabel, t } from '../i18n/i18n.svelte';
 import type { AiConfig } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
-import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, type Block } from './doc';
+import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, type CellAt, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, type Block } from './doc';
 import { nameLookup, parseMargins, splitDocumentHtml, type PageSpec } from './dialect';
 import { PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
 import type { Orientation } from '../storage/pageOrientation';
@@ -46,7 +49,8 @@ export function chatSystemPrompt(): string {
     'A number after li or a heading level, as [57 li VI], is the number the page shows. [12–28] (empty) stands for empty paragraphs 12 to 28. — page 2 — lines mark where a page starts.',
     '— 2 columns — lines mark where text columns start or end; set_columns changes them. The page setup and the page headers and footers are shown after the document; set_page and set_header_footer change them.',
     'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
-    'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1]. Add rows and columns with table_insert, never by rebuilding the table.',
+    'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1]. Change a table (rows, columns, widths, merging, shading, borders) with the table tool, never by rebuilding it.',
+    'Paragraph styles change with set_style; frames (a text box, a picture placeholder) go in with insert_frame or in the HTML.',
     'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
     'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
     `Paragraph styles: ${styles}.`,
@@ -69,6 +73,8 @@ export const REWRITE_PRESETS = {
   fix: 'Correct spelling, grammar and punctuation; change nothing else.',
   translate: (language: string) => `Translate it into ${language}.`,
 };
+
+const TABLE_ACTIONS = ['row_above', 'row_below', 'column_left', 'column_right', 'delete_row', 'delete_column', 'widths', 'merge_right', 'shade', 'borders', 'style'];
 
 const num = (description: string) => ({ type: 'integer', description });
 const str = (description: string) => ({ type: 'string', description });
@@ -123,9 +129,55 @@ export const TOOLS: ToolDef[] = [
         font: str('Font family'),
         size_pt: { type: 'number', description: 'Font size in points' },
         color: str('Font colour, #rrggbb'),
+        highlight: str('Highlight colour, #rrggbb, or none'),
         style: str('Paragraph style name'),
+        align: { type: 'string', enum: ['left', 'center', 'right', 'justify'] },
+        space_before_pt: { type: 'number' },
+        space_after_pt: { type: 'number' },
+        indent_cm: { type: 'number' },
+        line_height: { type: 'number', description: 'Line spacing, 1 = single' },
+        background: str('Paragraph shading, #rrggbb, or none'),
+        page_break_before: { type: 'boolean' },
+        list: { type: 'string', enum: ['bullet', 'number', 'none'] },
       },
       required: ['from'],
+    },
+  },
+  {
+    name: 'set_style',
+    description: 'Creates or changes a paragraph style; every paragraph in it follows.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: str('Style name'),
+        based_on: str('Parent style of a new style'),
+        font: str('Font family'),
+        size_pt: { type: 'number' },
+        bold: { type: 'boolean' },
+        italic: { type: 'boolean' },
+        color: str('#rrggbb'),
+        align: { type: 'string', enum: ['left', 'center', 'right', 'justify'] },
+        space_before_pt: { type: 'number' },
+        space_after_pt: { type: 'number' },
+        heading_numbers: { type: 'string', enum: ['none', '1.1', 'I.'], description: 'Numbering of all heading levels' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'insert_frame',
+    description: 'Anchors a text box or a picture placeholder at the start of a paragraph.',
+    parameters: {
+      type: 'object',
+      properties: {
+        paragraph: num('Paragraph number'),
+        kind: { type: 'string', enum: ['text_box', 'picture'] },
+        width_cm: { type: 'number' },
+        height_cm: { type: 'number' },
+        wrap: { type: 'string', enum: ['left', 'right', 'inline'], description: 'Which side the frame floats to' },
+        html: str('Text box content as HTML, or the picture\'s label'),
+      },
+      required: ['paragraph', 'kind'],
     },
   },
   {
@@ -139,16 +191,20 @@ export const TOOLS: ToolDef[] = [
     parameters: { type: 'object', properties: { comment: num('Comment number, as C1 → 1') }, required: ['comment'] },
   },
   {
-    name: 'table_insert',
-    description: 'Inserts a row or column next to the cell that holds a paragraph, and fills its new cells in order (top to bottom, or left to right).',
+    name: 'table',
+    description: 'Changes the table around a paragraph\'s cell: rows, columns, widths, merging, shading, borders, style.',
     parameters: {
       type: 'object',
       properties: {
-        paragraph: num('A paragraph in the cell next to which the row or column goes'),
-        where: { type: 'string', enum: ['row_above', 'row_below', 'column_left', 'column_right'] },
-        cells: { type: 'array', items: { type: 'string' }, description: 'Content of the new cells as inline HTML; fewer leaves the rest empty' },
+        paragraph: num('A paragraph in the cell'),
+        action: { type: 'string', enum: TABLE_ACTIONS },
+        cells: { type: 'array', items: { type: 'string' }, description: 'New row or column: its cells as inline HTML, in order' },
+        widths: { type: 'array', items: { type: 'number' }, description: 'widths: one relative width per column, as 25, 75' },
+        color: str('shade: the cell\'s background, #rrggbb, or none'),
+        borders: { type: 'string', enum: ['all', 'outer', 'inner', 'none'] },
+        style: str('style: a table style name'),
       },
-      required: ['paragraph', 'where'],
+      required: ['paragraph', 'action'],
     },
   },
   {
@@ -237,6 +293,24 @@ export function applyDocumentParts(html: string, host: AiHost | undefined, dropp
   return { body, summaries };
 }
 
+// Small models send numbers and booleans as strings too.
+const numArg = (v: unknown): number | undefined => (v === '' || v == null || !Number.isFinite(Number(v)) ? undefined : Number(v));
+const boolArg = (v: unknown): boolean | undefined => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : undefined);
+const colorArg = (v: unknown, what: string): string | null | undefined => {
+  if (v == null || v === '') return undefined;
+  if (/^(none|transparent)$/i.test(String(v))) return null;
+  const c = normalizeColor(String(v));
+  if (!c) throw new ToolError(`${what} is a colour as #rrggbb, or none`);
+  return c;
+};
+const ALIGNS = ['left', 'center', 'right', 'justify'];
+const alignArg = (v: unknown) => {
+  if (v == null || v === '') return undefined;
+  const a = String(v).toLowerCase().replace('centre', 'center');
+  if (!ALIGNS.includes(a)) throw new ToolError(`align is one of ${ALIGNS.join(', ')}`);
+  return a as 'left' | 'center' | 'right' | 'justify';
+};
+
 const withDropped = (dropped: string[]) => (dropped.length ? `ok; left out: ${dropped.join('; ')}` : 'ok');
 export type ToolResult = { result: string; summary: string | null };
 
@@ -291,6 +365,78 @@ function guardRevisions(ctx: TurnContext, from: number, to: number): void {
 }
 
 const plainMarks = (marks: readonly Mark[]) => marks.filter((m) => !['insertion', 'deletion', 'comment'].includes(m.type.name));
+
+function setList(ctx: TurnContext, from: number, to: number, kind: string): void {
+  const ed = ctx.editor;
+  ed.commands.setTextSelection({ from, to });
+  if (kind === 'none') {
+    for (let i = 0; i < 10 && ed.isActive('listItem'); i++) if (!ed.commands.liftListItem('listItem')) break;
+    return;
+  }
+  const type = ['number', 'numbered', 'ordered'].includes(kind) ? 'orderedList' : ['bullet', 'bullets', 'unordered'].includes(kind) ? 'bulletList' : null;
+  if (!type) throw new ToolError('list is bullet, number or none');
+  if (!ed.isActive(type) && !(type === 'orderedList' ? ed.commands.toggleOrderedList() : ed.commands.toggleBulletList())) throw new ToolError('these paragraphs cannot become a list');
+}
+
+const escapeAttr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/** The table actions other than inserting: they apply directly, like the ribbon's. */
+function tableChange(ctx: TurnContext, pos: number, at: CellAt, action: string, a: Record<string, unknown>): string {
+  const ed = ctx.editor;
+  const into = () => ed.chain().setTextSelection(pos + 1);
+  const ok = (done: boolean, why: string) => { if (!done) throw new ToolError(why); return 'ok'; };
+  switch (action) {
+    case 'delete_row': return ok(into().deleteRow().run(), 'the row cannot be deleted');
+    case 'delete_column': return ok(into().deleteColumn().run(), 'the column cannot be deleted');
+    case 'merge_right': {
+      const table = ed.state.doc.nodeAt(at.tablePos)!;
+      const map = TableMap.get(table);
+      const start = at.tablePos + 1;
+      const here = map.map[(at.row - 1) * map.width + at.col - 1];
+      const rect = map.findCell(here);
+      if (rect.right >= map.width) throw new ToolError('there is no cell to the right');
+      const right = map.map[(at.row - 1) * map.width + rect.right];
+      ed.view.dispatch(ed.state.tr.setSelection(CellSelection.create(ed.state.doc, start + here, start + right)));
+      return ok(ed.commands.mergeCells(), 'the cells cannot be merged');
+    }
+    case 'shade': {
+      const color = colorArg(a.color, 'color');
+      if (color === undefined) throw new ToolError('give color');
+      return ok(into().setCellAttribute('backgroundColor', color).run(), 'the cell cannot be shaded');
+    }
+    case 'borders': {
+      const kind = String(a.borders ?? 'all').toLowerCase();
+      if (!['all', 'outer', 'inner', 'none'].includes(kind)) throw new ToolError('borders is all, outer, inner or none');
+      const table = ed.state.doc.nodeAt(at.tablePos)!;
+      ed.view.dispatch(ed.state.tr.setSelection(CellSelection.create(ed.state.doc, at.tablePos + 2, at.tablePos + table.nodeSize - 2 - table.lastChild!.lastChild!.nodeSize)));
+      const spec = { widthPt: DEFAULT_BORDER_WIDTH_PT, color: DEFAULT_BORDER_COLOR };
+      return ok(kind === 'none' ? ed.commands.setTableBorders('all', null) : ed.commands.setTableBorders(kind as 'all' | 'outer' | 'inner', spec), 'the borders cannot be set');
+    }
+    case 'style': {
+      const name = nameLookup(Object.keys(styleSheet().table), styleLabel)(String(a.style ?? ''));
+      if (!name) throw new ToolError(`unknown table style "${String(a.style ?? '')}"; styles are: ${Object.keys(styleSheet().table).map(styleLabel).join(', ')}`);
+      return ok(into().setTableStyle(name).run(), 'the style cannot be set');
+    }
+    case 'widths': {
+      const widths = (Array.isArray(a.widths) ? a.widths : String(a.widths ?? '').split(/[\s,]+/)).map(Number);
+      const table = ed.state.doc.nodeAt(at.tablePos)!;
+      const map = TableMap.get(table);
+      if (widths.length !== map.width || widths.some((w) => !(w > 0))) throw new ToolError(`give ${map.width} positive widths, one per column`);
+      dispatch(ctx, (tr) => {
+        const seen = new Set<number>();
+        for (let i = 0; i < map.map.length; i++) {
+          const cellPos = map.map[i];
+          if (seen.has(cellPos)) continue;
+          seen.add(cellPos);
+          const rect = map.findCell(cellPos);
+          tr.setNodeAttribute(at.tablePos + 1 + cellPos, 'colwidth', widths.slice(rect.left, rect.right).map((w) => Math.round(w)));
+        }
+      });
+      return 'ok';
+    }
+  }
+  throw new ToolError(`unknown action "${action}"`);
+}
 
 function dispatch(ctx: TurnContext, build: (tr: Transaction) => void): void {
   const tr = ctx.editor.state.tr;
@@ -365,15 +511,28 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       const style = typeof a.style === 'string' ? nameLookup(Object.keys(sheet.paragraph), styleLabel)(a.style) ?? undefined : undefined;
       if (typeof a.style === 'string' && !style) throw new ToolError(`unknown paragraph style "${a.style}"; styles are: ${visibleStyles(sheet).map((x) => styleLabel(x.name)).join(', ')}`);
       const spec: FormatSpec = {
-        bold: a.bold === true, italic: a.italic === true, underline: a.underline === true,
+        bold: boolArg(a.bold) === true, italic: boolArg(a.italic) === true, underline: boolArg(a.underline) === true,
         font: typeof a.font === 'string' ? a.font : undefined,
-        sizePt: typeof a.size_pt === 'number' ? a.size_pt : undefined,
+        sizePt: numArg(a.size_pt),
         color: typeof a.color === 'string' ? a.color : undefined,
         style,
       };
+      const highlight = colorArg(a.highlight, 'highlight');
+      // What a paragraph holds as its own attributes, whatever `find` narrows the runs to.
+      const block: Record<string, unknown> = {};
+      const align = alignArg(a.align);
+      if (align) block.textAlign = align;
+      if (numArg(a.space_before_pt) != null) block.spaceBefore = numArg(a.space_before_pt);
+      if (numArg(a.space_after_pt) != null) block.spaceAfter = numArg(a.space_after_pt);
+      if (numArg(a.indent_cm) != null) block.indent = numArg(a.indent_cm) || null;
+      if (numArg(a.line_height) != null) block.lineHeight = String(numArg(a.line_height));
+      const bg = colorArg(a.background, 'background');
+      if (bg !== undefined) block.backgroundColor = bg;
+      const breakBefore = boolArg(a.page_break_before);
+      if (breakBefore != null) block.breakBefore = breakBefore ? 'page' : null;
+      const paras = Array.from({ length: toN - fromN + 1 }, (_, k) => current(ctx, fromN + k));
       const ranges: [number, number][] = [];
-      for (let n = fromN; n <= toN; n++) {
-        const p = current(ctx, n);
+      for (const p of paras) {
         if (typeof a.find === 'string' && a.find) ranges.push(...findAll(p, a.find));
         else ranges.push(contentRange(p));
       }
@@ -381,22 +540,31 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       dispatch(ctx, (tr) => {
         for (const [from, to] of ranges) {
           applyFormat(tr, schema, from, to, spec, styleSheet());
-          for (const name of FORMAT_MARKS) if (a[name] === false && schema.marks[name]) tr.removeMark(from, to, schema.marks[name]);
+          for (const name of FORMAT_MARKS) if (boolArg(a[name]) === false && schema.marks[name]) tr.removeMark(from, to, schema.marks[name]);
+          if (highlight === null) tr.removeMark(from, to, schema.marks.highlight);
+          else if (highlight) tr.addMark(from, to, schema.marks.highlight.create({ color: highlight }));
+        }
+        for (const p of paras) {
+          const pos = tr.mapping.map(p.pos);
+          for (const [attr, value] of Object.entries(block)) if (attr in p.node.attrs) tr.setNodeAttribute(pos, attr, value);
         }
       });
+      if (a.list != null && a.list !== '') setList(ctx, current(ctx, fromN).pos + 1, contentRange(current(ctx, toN))[1], String(a.list).toLowerCase());
       return { result: 'ok', summary: m.format(fromN, toN) };
     }
+    case 'table':
     case 'table_insert': {
       const p = current(ctx, a.paragraph);
       const at = cellAt(ctx.editor.state.doc, p.pos);
       if (!at) throw new ToolError(`paragraph ${String(a.paragraph)} is not in a table`);
-      const where = String(a.where);
+      const where = String(a.action ?? a.where ?? '').toLowerCase();
+      if (!TABLE_ACTIONS.includes(where)) throw new ToolError(`action is one of ${TABLE_ACTIONS.join(', ')}`);
+      if (!where.startsWith('row_') && !where.startsWith('column_')) return { result: tableChange(ctx, p.pos, at, where, a), summary: m.table(at.table) };
       const chain = ctx.editor.chain().setTextSelection(p.pos + 1);
       const done = where === 'row_above' ? chain.addRowBefore().run()
         : where === 'row_below' ? chain.addRowAfter().run()
         : where === 'column_left' ? chain.addColumnBefore().run()
-        : where === 'column_right' ? chain.addColumnAfter().run()
-        : (() => { throw new ToolError(`unknown where "${where}"`); })();
+        : chain.addColumnAfter().run();
       if (!done) throw new ToolError('the table cannot take a row or column there');
       // The structure cannot be tracked; the new cells' text is, as any insertion.
       const table = ctx.editor.state.doc.nodeAt(at.tablePos)!;
@@ -424,6 +592,52 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       if (from >= to) throw new ToolError('the paragraphs are empty; name a range that holds text');
       if (!ctx.editor.chain().setTextSelection({ from, to }).setColumns(count).run()) throw new ToolError('columns cannot be set there (a table or frame in the range, or no columns to remove)');
       return { result: 'ok', summary: m.textColumns(count) };
+    }
+    case 'set_style': {
+      const sheet = styleSheet();
+      const lookup = nameLookup(Object.keys(sheet.paragraph), styleLabel);
+      const name = String(a.name ?? '').trim();
+      if (!name) throw new ToolError('name the style');
+      const known = lookup(name);
+      const parent = a.based_on ? lookup(String(a.based_on)) : null;
+      if (a.based_on && !parent) throw new ToolError(`unknown style "${String(a.based_on)}"; styles are: ${visibleStyles(sheet).map((x) => styleLabel(x.name)).join(', ')}`);
+      const base: Style = known ? sheet.paragraph[known] : { name, parent: parent ?? DEFAULT_STYLE, next: null, para: {}, text: {} };
+      const text = { ...base.text };
+      const para = { ...base.para };
+      if (typeof a.font === 'string' && a.font) text.fontFamily = a.font;
+      if (numArg(a.size_pt)) text.fontSizePt = numArg(a.size_pt);
+      if (boolArg(a.bold) != null) text.bold = boolArg(a.bold);
+      if (boolArg(a.italic) != null) text.italic = boolArg(a.italic);
+      const color = colorArg(a.color, 'color');
+      if (color !== undefined) text.color = color ?? undefined;
+      const align = alignArg(a.align);
+      if (align) para.textAlign = align;
+      if (numArg(a.space_before_pt) != null) para.spaceBefore = numArg(a.space_before_pt);
+      if (numArg(a.space_after_pt) != null) para.spaceAfter = numArg(a.space_after_pt);
+      putStyle({ ...base, ...(known || !parent ? {} : { parent }), para, text });
+      const numbers = a.heading_numbers == null || a.heading_numbers === '' ? null : String(a.heading_numbers);
+      if (numbers) setOutline(numbers === 'none' ? null : /^i/i.test(numbers) ? romanOutline() : decimalOutline());
+      return { result: 'ok', summary: m.style(styleLabel(known ?? name)) };
+    }
+    case 'insert_frame': {
+      const p = current(ctx, a.paragraph);
+      const kind = /pic|image|photo|img/i.test(String(a.kind)) ? 'picture' : 'text_box';
+      const w = numArg(a.width_cm) ?? (kind === 'picture' ? 4 : 6);
+      const h = numArg(a.height_cm) ?? (kind === 'picture' ? 5 : 3);
+      const wrap = String(a.wrap ?? '').toLowerCase();
+      const float = wrap === 'left' || wrap === 'right' ? `float:${wrap}` : '';
+      const label = String(a.html ?? '').trim();
+      const frameHtml = kind === 'picture'
+        ? `<img alt="${escapeAttr(label.replace(/<[^>]*>/g, '') || 'Picture')}" width="${w}cm" height="${h}cm" style="${float}">`
+        : `<aside style="width:${w}cm;height:${h}cm;${float}">${label || '<p></p>'}</aside>`;
+      let frame: PMNode | null = null;
+      htmlToSlice(`<p>${frameHtml}</p>`, ctx.editor.state).content.descendants((n) => {
+        frame ??= n.type.name === 'textBox' || n.type.name === 'image' ? n : null;
+        return !frame;
+      });
+      if (!frame) throw new ToolError('the frame could not be built');
+      dispatch(ctx, (tr) => tr.insert(p.pos + 1, frame!));
+      return { result: 'ok', summary: m.frame(Number(a.paragraph)) };
     }
     case 'set_header_footer': {
       if (!ctx.host) throw new ToolError('headers and footers cannot be changed here');
@@ -529,11 +743,20 @@ export async function runTurn(opts: {
       answer += res.text;
       turn.push({ role: 'assistant', content: res.text, toolCalls: res.toolCalls });
       if (!res.toolCalls.length) break;
+      const before = editor.state.doc;
       for (const call of res.toolCalls) {
         if (opts.signal.aborted) break;
         const r = runTool(ctx, call);
         if (r.summary) opts.onTool(r.summary);
         turn.push({ role: 'tool', id: call.id, content: r.result });
+      }
+      // After a round that changed the text, the next layout pass tells the model how
+      // long the document now is, so "two pages" is something it can check.
+      if (!editor.state.doc.eq(before) && typeof requestAnimationFrame === 'function') {
+        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+        const layout = pageLayout(editor.view, blockTexts(editor.state.doc));
+        const last = turn[turn.length - 1];
+        if (layout && last.role === 'tool') last.content += `\n(document now ${layout.pages[layout.pages.length - 1]} pages, last page about ${layout.lastFill}% full)`;
       }
     }
   } finally {

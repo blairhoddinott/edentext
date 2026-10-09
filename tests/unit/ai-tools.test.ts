@@ -7,6 +7,8 @@ import { Mapping } from '@tiptap/pm/transform';
 import { extensions } from '../../src/lib/editor/extensions';
 import { revisions, trackedReplace } from '../../src/lib/editor/extensions/trackChanges';
 import { blockLine, blockTexts, htmlToSlice, serializeDoc } from '../../src/lib/ai/doc';
+import { deleteStyle, setOutline, styleSheet } from '../../src/lib/styles/sheet.svelte';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { runTool, runTurn, type AiHost, type PageSetup, type TurnContext } from '../../src/lib/ai/tools';
 import type { ToolCall } from '../../src/lib/ai/client';
 
@@ -302,6 +304,70 @@ describe('runTurn', () => {
     expect(JSON.stringify(zones[2][2])).toContain('Letterhead');
     expect(texts(editor)).toEqual(['Body', 'New']);
     expect(runTool(turn(editor), call('set_page', { size: 'A4' })).result).toMatch(/cannot be changed here/);
+    editor.destroy();
+  });
+
+  it('formats paragraphs as blocks, makes lists and highlights', () => {
+    const editor = makeEditor('<p>one</p><p>two</p><p>three</p>');
+    const ctx = turn(editor);
+    expect(runTool(ctx, call('format', { from: 1, to: 2, align: 'centre', space_after_pt: '6', indent_cm: 1, line_height: 1.5, background: '#eee', page_break_before: 'true' })).result).toBe('ok');
+    const first = editor.state.doc.firstChild!;
+    expect(first.attrs).toMatchObject({ textAlign: 'center', spaceAfter: 6, indent: 1, lineHeight: '1.5', backgroundColor: '#EEEEEE', breakBefore: 'page' });
+    expect(runTool(ctx, call('format', { from: 3, find: 'hre', highlight: '#ffff00' })).result).toBe('ok');
+    expect(editor.state.doc.lastChild!.child(1).marks.map((x) => x.type.name)).toContain('highlight');
+    expect(runTool(ctx, call('format', { from: 2, to: 3, list: 'number' })).result).toBe('ok');
+    expect(editor.state.doc.child(1).type.name).toBe('orderedList');
+    expect(runTool(ctx, call('format', { from: 1, align: 'middle' })).result).toMatch(/align is one of/);
+    editor.destroy();
+  });
+
+  it('creates and changes paragraph styles and the heading numbers', () => {
+    const editor = makeEditor('<h1>Title</h1><p>x</p>');
+    const ctx = turn(editor);
+    expect(runTool(ctx, call('set_style', { name: 'Ad Copy', based_on: 'quote', size_pt: '14', bold: true, align: 'center' })).result).toBe('ok');
+    expect(styleSheet().paragraph['Ad Copy']).toMatchObject({ parent: 'Quotations', text: { fontSizePt: 14, bold: true }, para: { textAlign: 'center' } });
+    expect(runTool(ctx, call('set_style', { name: 'ad copy', color: '#c00000' })).result).toBe('ok');
+    expect(styleSheet().paragraph['Ad Copy'].text).toMatchObject({ fontSizePt: 14, color: '#C00000' });
+    expect(runTool(ctx, call('set_style', { name: 'Heading 1', heading_numbers: '1.1' })).result).toBe('ok');
+    expect(styleSheet().outline).toBeTruthy();
+    expect(runTool(ctx, call('set_style', { name: 'X', based_on: 'Nope' })).result).toMatch(/unknown style "Nope"; styles are:/);
+    deleteStyle('Ad Copy');
+    setOutline(null);
+    editor.destroy();
+  });
+
+  it('changes widths, merges, shades, deletes and styles through the table tool', () => {
+    const editor = makeEditor('<table><tr><td><p>A</p></td><td><p>B</p></td><td><p>C</p></td></tr><tr><td><p>1</p></td><td><p>2</p></td><td><p>3</p></td></tr></table>');
+    const ctx = turn(editor);
+    const cells = () => { const out: PMNode[] = []; editor.state.doc.descendants((n) => { if (n.type.name === 'tableCell') out.push(n); return n.type.name !== 'tableCell'; }); return out; };
+    expect(runTool(ctx, call('table', { paragraph: 1, action: 'widths', widths: [20, 40, 40] })).result).toBe('ok');
+    expect(cells().map((c) => c.attrs.colwidth)).toEqual([[20], [40], [40], [20], [40], [40]]);
+    expect(runTool(ctx, call('table', { paragraph: 4, action: 'shade', color: '#dddddd' })).result).toBe('ok');
+    expect(cells()[3].attrs.backgroundColor).toBe('#DDDDDD');
+    expect(runTool(ctx, call('table', { paragraph: 2, action: 'merge_right' })).result).toBe('ok');
+    expect(cells()[1].attrs.colspan).toBe(2);
+    expect(runTool(ctx, call('table', { paragraph: 1, action: 'borders', borders: 'none' })).result).toBe('ok');
+    expect(cells()[0].attrs.borderTop).toBe('none');
+    expect(runTool(ctx, call('table', { paragraph: 1, action: 'style', style: 'simple grid' })).result).toBe('ok');
+    expect(editor.state.doc.firstChild!.attrs.tableStyle).toBe('Simple Grid');
+    expect(runTool(ctx, call('table', { paragraph: 4, action: 'delete_row' })).result).toBe('ok');
+    expect(cells().length).toBe(2);
+    expect(runTool(ctx, call('table', { paragraph: 1, action: 'explode' })).result).toMatch(/action is one of/);
+    editor.destroy();
+  });
+
+  it('anchors a text box or a picture placeholder at a paragraph', () => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+    const editor = makeEditor('<p>Name</p><p>Rest</p>');
+    const ctx = turn(editor);
+    expect(runTool(ctx, call('insert_frame', { paragraph: 1, kind: 'picture', width_cm: 4, height_cm: 5, wrap: 'right', html: 'Photo' })).result).toBe('ok');
+    const img = editor.state.doc.firstChild!.firstChild!;
+    expect(img.type.name).toBe('image');
+    expect(img.attrs).toMatchObject({ alt: 'Photo', width: 151, wrap: 'right' });
+    expect(runTool(ctx, call('insert_frame', { paragraph: 2, kind: 'text_box', html: '<p>Contact</p>' })).result).toBe('ok');
+    const box = editor.state.doc.child(1).firstChild!;
+    expect(box.type.name).toBe('textBox');
+    expect(box.textContent).toBe('Contact');
     editor.destroy();
   });
 });
