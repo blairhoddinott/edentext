@@ -352,6 +352,11 @@
     savePageColumns(pageColumns);
   });
 
+  // An empty document at startup is one page, as after New, so it opens without the page grid.
+  $effect(() => {
+    if (editor) untrack(() => { if (!isDocNonEmpty()) pageColumns = 1; });
+  });
+
   $effect(() => {
     savePageMargins(pageMargins);
   });
@@ -749,6 +754,8 @@
     lineGrid = { ...DEFAULT_LINE_GRID };
     balanceSpaces = false;
     foldMarks = false;
+    // A new document is one page, so the page grid would show only empty cells.
+    pageColumns = 1;
     // Recording belongs to the document, so a new one starts off, as it does in both.
     setRecordChanges(false);
     docProps = { ...EMPTY_DOC_PROPERTIES };
