@@ -47,7 +47,7 @@ describe('serializeDoc', () => {
       '[3] big x {size 14pt: "big"}',
     ]);
     const pic = makeEditor('<p>see <img src="data:image/png;base64,AA==" alt="A red logo"> and <img src="data:image/png;base64,AA=="></p>');
-    expect(blockTexts(pic.state.doc).map(blockLine)).toEqual(['[1] see  and  {image "A red logo"; image}']);
+    expect(blockTexts(pic.state.doc).map(blockLine)).toEqual(['[1] see {image "A red logo"} and {image}']);
     pic.destroy();
     editor.destroy();
   });
@@ -139,6 +139,9 @@ describe('tools', () => {
   it('labels cells by table, row and column, and inserts a filled row or column', () => {
     const editor = makeEditor('<p>x</p><table><tr><td><p>A</p></td><td><p>B</p></td></tr><tr><td><p>1</p></td><td><p>2</p></td></tr></table>');
     expect(blockTexts(editor.state.doc).map((b) => b.kind)).toEqual(['', 'cell T1 r1 c1', 'cell T1 r1 c2', 'cell T1 r2 c1', 'cell T1 r2 c2']);
+    const listed = makeEditor('<table><tr><td><p>A</p></td><td><ul><li><p>B</p></li></ul></td></tr></table>');
+    expect(blockTexts(listed.state.doc).map((b) => b.kind)).toEqual(['cell T1 r1 c1', 'cell T1 r1 c2 li']);
+    listed.destroy();
     const ctx = turn(editor);
     expect(runTool(ctx, call('table_insert', { paragraph: 3, where: 'column_right', cells: ['<strong>C</strong>', '3'] })).result).toBe('ok');
     expect(runTool(ctx, call('table_insert', { paragraph: 2, where: 'row_above', cells: ['h'] })).result).toBe('ok');
@@ -262,6 +265,18 @@ describe('runTurn', () => {
       throw init.signal?.reason ?? new DOMException('aborted', 'AbortError');
     }));
     await expect(runTurn({ cfg, editor, history: [], question: 'q', author: AI, onText: () => {}, onTool: () => {}, signal: ctrl.signal })).rejects.toBeDefined();
+    editor.destroy();
+  });
+
+  it('reads placeholders, fields and text boxes, and replaces a placeholder by its token', () => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+    const editor = makeEditor('<p>Dear <span data-placeholder-field="Name"></span>, <span data-datetime-field="date"></span></p>');
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    editor.commands.insertTextBox();
+    const blocks = blockTexts(editor.state.doc);
+    expect(blocks.map((b) => [b.kind, b.text])).toEqual([['', 'Dear ‹Name›, {date}'], ['box 1', '']]);
+    expect(runTool(turn(editor), call('replace_text', { paragraph: 1, find: '‹Name›', replace: 'Ada' })).result).toBe('ok');
+    expect(editor.state.doc.firstChild!.textContent).toContain('Ada');
     editor.destroy();
   });
 });

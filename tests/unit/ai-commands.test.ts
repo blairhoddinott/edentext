@@ -5,7 +5,7 @@ import { Editor } from '@tiptap/core';
 import { extensions } from '../../src/lib/editor/extensions';
 import { blockTexts } from '../../src/lib/ai/doc';
 import { REWRITE_PROMPT } from '../../src/lib/ai/tools';
-import { captureTarget, commandRequest, insertBelowTarget, parseCommand, replaceTarget } from '../../src/lib/ai/commands';
+import { captureTarget, commandRequest, insertAtCursor, insertBelowTarget, parseCommand, replaceTarget } from '../../src/lib/ai/commands';
 
 function makeEditor(html: string) {
   const el = document.createElement('div');
@@ -56,6 +56,13 @@ describe('placing the reply', () => {
     expect(texts(editor)).toEqual(['The slow fox', 'New', 'End']);
     expect(replaceTarget(editor, target, 'fast')).toBe(false);
     expect(texts(editor)).toEqual(['The slow fox', 'New', 'End']);
+    editor.destroy();
+  });
+
+  it('drafts into an empty document without a paragraph per line break of the reply', () => {
+    const editor = makeEditor('<p></p>');
+    insertAtCursor(editor, '<h1>CV</h1>\n<p>Ada</p>\n');
+    expect(texts(editor)).toEqual(['CV', 'Ada']);
     editor.destroy();
   });
 });

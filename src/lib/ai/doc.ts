@@ -40,9 +40,15 @@ export function blockText(node: PMNode, pos: number): { text: string; map: numbe
       if (child.marks.some((m) => m.type.name === 'deletion')) return;
       const t = child.text ?? '';
       for (let k = 0; k < t.length; k++) { text += t[k]; map.push(at + k); }
-    } else if (child.type.name === 'hardBreak') {
-      text += '\n';
-      map.push(at);
+    } else {
+      // An inline atom reads as a token that covers it whole, so find can name it.
+      const name = child.type.name;
+      const token = name === 'hardBreak' ? '\n'
+        : name === 'placeholderField' ? `‹${child.attrs.text}›`
+        : name === 'dateTimeField' ? `{${child.attrs.kind}}`
+        : name === 'image' ? (child.attrs.alt ? `{image ${JSON.stringify(clip(child.attrs.alt, 60))}}` : '{image}')
+        : '';
+      for (const ch of token) { text += ch; map.push(at); }
     }
   });
   return { text, map };
@@ -55,20 +61,27 @@ export function blockTexts(doc: PMNode, sheet: StyleSheet = styleSheet()): Block
   const out: Block[] = [];
   const tables: number[] = [];
   const headings = headingNumbers(doc, sheet.outline);
+  const boxes: number[] = [];
   let section = { end: -1, count: 1 };
   doc.descendants((node, pos, parent, index) => {
     if (node.type.spec.tableRole === 'table') tables.push(pos);
+    if (node.type.name === 'textBox') boxes.push(pos);
     if (node.type.name === 'columns') section = { end: pos + node.nodeSize, count: node.attrs.count };
     if (!node.isTextblock) return true;
     const p = parent?.type.name ?? '';
-    const at = p === 'tableCell' || p === 'tableHeader' ? cellAt(doc, pos, tables) : null;
+    // Where it sits (a text box, a cell, both), then what it is: a list item in a cell is both.
+    const box = boxAt(doc, pos, boxes);
+    const at = cellAt(doc, pos, tables);
     // The number the page shows ("VI", "2.1"), which the text refers to and the model can't count.
     const label = node.type.name === 'heading' ? headings.get(pos)?.label.trim()
       : p === 'listItem' && index === 0 ? listNumberAt(doc, pos, sheet)?.parts.join('.') : undefined;
-    const kind = (node.type.name === 'heading' ? `h${node.attrs.level}`
-      : p === 'listItem' ? 'li' : at ? `cell T${at.table} r${at.row} c${at.col}` : '') + (label ? ` ${label}` : '');
+    const kind = [box ? `box ${box}` : '', at ? `cell T${at.table} r${at.row} c${at.col}` : '',
+      node.type.name === 'heading' ? `h${node.attrs.level}` : p === 'listItem' ? 'li' : '', label ?? ''].filter(Boolean).join(' ');
     out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos), fmt: formatNote(node, sheet), columns: pos < section.end ? section.count : 1 });
-    return false;
+    // A text box rides in the text; its paragraphs follow the one it is anchored in.
+    let framed = false;
+    node.forEach((child) => { framed ||= child.type.name === 'textBox'; });
+    return framed;
   });
   return out;
 }
@@ -92,7 +105,7 @@ function runLabels(child: PMNode, base: ResolvedStyle): string[] {
 }
 
 /**
- * A textblock's style, images and the direct formatting its style does not already give,
+ * A textblock's style and the direct formatting its style does not already give,
  * quoting the runs that carry it.
  */
 export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): string {
@@ -106,7 +119,6 @@ export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): stri
   let whole = '';
   let prev: string[] = [];
   node.forEach((child) => {
-    if (child.type.name === 'image') parts.push(child.attrs.alt ? `image ${JSON.stringify(clip(child.attrs.alt, 60))}` : 'image');
     if (!child.isText || child.marks.some((m) => m.type.name === 'deletion')) return;
     const text = child.text ?? '';
     whole += text;
@@ -138,6 +150,13 @@ export function cellAt(doc: PMNode, pos: number, tables: number[] = []): CellAt 
     return { table: index < 0 ? 0 : index + 1, tablePos, row: rect.top + 1, col: rect.left + 1 };
   }
   return null;
+}
+
+/** The text box around `pos`, numbered in document order (`boxes` holds those seen so far); 0 outside one. */
+function boxAt(doc: PMNode, pos: number, boxes: number[]): number {
+  const $p = doc.resolve(pos);
+  for (let d = $p.depth; d > 0; d--) if ($p.node(d).type.name === 'textBox') return boxes.indexOf($p.before(d)) + 1;
+  return 0;
 }
 
 /** The block the position lies in, or the last one before it. */
@@ -310,6 +329,9 @@ export function htmlToSlice(html: string, state: EditorState): Slice {
     ? markdownEmphasis(clean)
     : clean.split(/\n+/).map((l) => `<p>${markdownEmphasis(escapeHtml(l))}</p>`).join('');
   const body = new DOMParser().parseFromString(markup, 'text/html').body;
+  // The line breaks between a reply's blocks are layout, not text: at the top they would
+  // each become a paragraph holding a space.
+  for (const n of [...body.childNodes]) if (n.nodeType === Node.TEXT_NODE && !n.textContent!.trim()) n.remove();
   const slice = PMDOMParser.fromSchema(state.schema).parseSlice(body);
   return fitPastedSlice(slice, state);
 }

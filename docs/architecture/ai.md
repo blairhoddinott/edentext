@@ -37,9 +37,12 @@ Pages origin can read it, and the settings row says so.
 **Input.** Every textblock is one line, `[n kind] text`; a cell's kind names its table, row
 and column (`cell T1 r2 c3`, from `TableMap`, so merged cells count once); a list item or
 numbered heading also carries the number the page shows (`li VI`, from `listNumberAt` and
-`headingNumbers`), since the text refers to it. Style, images (by alt text; the model sees
-no pixels), and the alignment and direct formatting the paragraph style does not already give
-follow in braces (`formatNote`), quoting the runs, so `find` still matches the bare text. A run
+`headingNumbers`), since the text refers to it; a text box's paragraphs follow their anchor
+as `box 1`, and a list item in a cell carries both (`cell T1 r1 c2 li`). Inline atoms read as
+tokens that cover them whole (`{image "alt"}`, `‹Name›` for a placeholder, `{date}`), so
+`replace_text` can replace one. Style, alignment and the direct formatting the paragraph style
+does not already give follow in braces (`formatNote`), quoting the runs, so `find` still
+matches the bare text. A run
 of empty paragraphs folds to `[12–28] (empty)`. Lines mark where a page starts (`— page 2 —`,
 from the last layout pass, `pageLayout`), how full the last page is, and where text columns
 begin and end; the headers and footers follow as read-only text. Comment threads follow the document as `[C1 on paragraph 4 «quote», by Ada,
@@ -50,7 +53,8 @@ the rest. The selection goes along as quoted text; a chip above the chat field s
 and its × deselects.
 
 **Output.** The model is asked for a small HTML subset. `htmlToSlice` parses it in an
-inert `DOMParser` document, then through the schema, then `fitPastedSlice` (the paste
+inert `DOMParser` document, drops the whitespace between top-level blocks (each would become
+a paragraph holding a space), then goes through the schema, then `fitPastedSlice` (the paste
 path's fixes). That drops scripts, handlers, unknown tags and remote images. Previews
 serialize the slice back with `DOMSerializer`, so they show only what would be inserted.
 
