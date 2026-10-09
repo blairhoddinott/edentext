@@ -4,6 +4,7 @@
 
 import { DOMParser as PMDOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode, type Schema } from '@tiptap/pm/model';
 import type { EditorState } from '@tiptap/pm/state';
+import { TableMap } from '@tiptap/pm/tables';
 import { fitPastedSlice } from '../editor/paste';
 
 export type Block = {
@@ -35,17 +36,36 @@ export function blockText(node: PMNode, pos: number): { text: string; map: numbe
   return { text, map };
 }
 
+/** Where a cell sits: its table (numbered in document order), row and column, 1-based. */
+export type CellAt = { table: number; tablePos: number; row: number; col: number };
+
 export function blockTexts(doc: PMNode): Block[] {
   const out: Block[] = [];
+  const tables: number[] = [];
   doc.descendants((node, pos, parent) => {
+    if (node.type.spec.tableRole === 'table') tables.push(pos);
     if (!node.isTextblock) return true;
     const p = parent?.type.name ?? '';
+    const at = p === 'tableCell' || p === 'tableHeader' ? cellAt(doc, pos, tables) : null;
     const kind = node.type.name === 'heading' ? `h${node.attrs.level}`
-      : p === 'listItem' ? 'li' : p === 'tableCell' || p === 'tableHeader' ? 'cell' : '';
+      : p === 'listItem' ? 'li' : at ? `cell T${at.table} r${at.row} c${at.col}` : '';
     out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos) });
     return false;
   });
   return out;
+}
+
+/** The cell around the textblock at `pos`; `tables` holds the table positions seen so far. */
+export function cellAt(doc: PMNode, pos: number, tables: number[] = []): CellAt | null {
+  const $p = doc.resolve(pos);
+  for (let d = $p.depth; d > 0; d--) {
+    if ($p.node(d).type.spec.tableRole !== 'table') continue;
+    const tablePos = $p.before(d);
+    const rect = TableMap.get($p.node(d)).findCell($p.before(d + 2) - $p.start(d));
+    const index = tables.indexOf(tablePos);
+    return { table: index < 0 ? 0 : index + 1, tablePos, row: rect.top + 1, col: rect.left + 1 };
+  }
+  return null;
 }
 
 /** The block the position lies in, or the last one before it. */
@@ -154,15 +174,16 @@ export function contentToDom(content: Fragment, schema: Schema): HTMLElement | D
 export function inlineContent(slice: Slice, schema: Schema): Fragment {
   const out: PMNode[] = [];
   const br = schema.nodes.hardBreak;
+  const take = (block: PMNode) => {
+    if (out.length && br) out.push(br.create());
+    block.forEach((n) => out.push(n));
+  };
   slice.content.forEach((node) => {
     if (node.isInline) return void out.push(node);
+    if (node.isTextblock) return take(node);
     node.descendants((child) => {
-      if (child.isTextblock) {
-        if (out.length && br) out.push(br.create());
-        child.forEach((n) => out.push(n));
-        return false;
-      }
-      return true;
+      if (child.isTextblock) take(child);
+      return !child.isTextblock;
     });
   });
   return Fragment.fromArray(out);

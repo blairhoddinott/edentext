@@ -110,6 +110,8 @@ const ru: Messages = {
       delete: (a: number, b: number) => (a === b ? `Абзац ${a} удалён` : `Абзацы ${a}–${b} удалены`),
       format: (a: number, b: number) => (a === b ? `Абзац ${a} отформатирован` : `Абзацы ${a}–${b} отформатированы`),
       comment: (n: number) => `Добавлено примечание к абзацу ${n}`,
+      row: (t: number) => `Строка вставлена в таблицу ${t}`,
+      column: (t: number) => `Столбец вставлен в таблицу ${t}`,
       failed: (msg: string) => `Не выполнено: ${msg}`,
     },
   },

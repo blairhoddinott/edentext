@@ -108,6 +108,8 @@ const zhHant: Messages = {
       delete: (a: number, b: number) => (a === b ? `已刪除第 ${a} 段` : `已刪除第 ${a}–${b} 段`),
       format: (a: number, b: number) => (a === b ? `已設定第 ${a} 段的格式` : `已設定第 ${a}–${b} 段的格式`),
       comment: (n: number) => `已為第 ${n} 段新增註解`,
+      row: (t: number) => `已在表格 ${t} 中插入列`,
+      column: (t: number) => `已在表格 ${t} 中插入欄`,
       failed: (msg: string) => `未執行：${msg}`,
     },
   },

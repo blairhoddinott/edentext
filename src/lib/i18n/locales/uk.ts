@@ -110,6 +110,8 @@ const uk: Messages = {
       delete: (a: number, b: number) => (a === b ? `Абзац ${a} видалено` : `Абзаци ${a}–${b} видалено`),
       format: (a: number, b: number) => (a === b ? `Абзац ${a} відформатовано` : `Абзаци ${a}–${b} відформатовано`),
       comment: (n: number) => `Додано примітку до абзацу ${n}`,
+      row: (t: number) => `Рядок вставлено в таблицю ${t}`,
+      column: (t: number) => `Стовпець вставлено в таблицю ${t}`,
       failed: (msg: string) => `Не виконано: ${msg}`,
     },
   },

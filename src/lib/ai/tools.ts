@@ -6,6 +6,7 @@ import type { Editor } from '@tiptap/core';
 import { Fragment, Slice, type Mark, type Node as PMNode } from '@tiptap/pm/model';
 import { Mapping } from '@tiptap/pm/transform';
 import type { Transaction } from '@tiptap/pm/state';
+import { TableMap } from '@tiptap/pm/tables';
 import { trackedReplace } from '../editor/extensions/trackChanges';
 import { applyFormat, FORMAT_MARKS, type FormatSpec } from '../editor/extensions/searchReplace';
 import { styleSheet } from '../styles/sheet.svelte';
@@ -13,7 +14,7 @@ import { visibleStyles } from '../styles/styleSheet';
 import { t } from '../i18n/i18n.svelte';
 import type { AiConfig } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
-import { blockLine, blockText, blockTexts, htmlToSlice, inlineContent, serializeDoc, type Block } from './doc';
+import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, inlineContent, serializeDoc, type Block } from './doc';
 
 const HTML_RULE = 'Write content as HTML using only p, h1, h2, h3, strong, em, u, s, ul, ol, li, table, tr, th, td, br and a — no markdown, no code fences, no wrapper element.';
 
@@ -22,6 +23,7 @@ export function chatSystemPrompt(): string {
   return [
     'You are the writing assistant of a word processor. Each user message starts with the document, one numbered paragraph per line.',
     'Answer in the language the user writes in, briefly. ' + HTML_RULE,
+    'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3. Add rows and columns with table_insert, never by rebuilding the table.',
     'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
     'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did.',
     `Paragraph styles: ${styles}.`,
@@ -98,6 +100,19 @@ export const TOOLS: ToolDef[] = [
         style: str('Paragraph style name'),
       },
       required: ['from'],
+    },
+  },
+  {
+    name: 'table_insert',
+    description: 'Inserts a row or column next to the cell that holds a paragraph, and fills its new cells in order (top to bottom, or left to right).',
+    parameters: {
+      type: 'object',
+      properties: {
+        paragraph: num('A paragraph in the cell next to which the row or column goes'),
+        where: { type: 'string', enum: ['row_above', 'row_below', 'column_left', 'column_right'] },
+        cells: { type: 'array', items: { type: 'string' }, description: 'Content of the new cells as inline HTML; fewer leaves the rest empty' },
+      },
+      required: ['paragraph', 'where'],
     },
   },
   {
@@ -243,6 +258,34 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
         }
       });
       return { result: 'ok', summary: m.format(fromN, toN) };
+    }
+    case 'table_insert': {
+      const p = current(ctx, a.paragraph);
+      const at = cellAt(ctx.editor.state.doc, p.pos);
+      if (!at) throw new ToolError(`paragraph ${String(a.paragraph)} is not in a table`);
+      const where = String(a.where);
+      const chain = ctx.editor.chain().setTextSelection(p.pos + 1);
+      const done = where === 'row_above' ? chain.addRowBefore().run()
+        : where === 'row_below' ? chain.addRowAfter().run()
+        : where === 'column_left' ? chain.addColumnBefore().run()
+        : where === 'column_right' ? chain.addColumnAfter().run()
+        : (() => { throw new ToolError(`unknown where "${where}"`); })();
+      if (!done) throw new ToolError('the table cannot take a row or column there');
+      // The structure cannot be tracked; the new cells' text is, as any insertion.
+      const table = ctx.editor.state.doc.nodeAt(at.tablePos)!;
+      const map = TableMap.get(table);
+      const row = where.startsWith('row');
+      const line = row ? (where === 'row_above' ? at.row - 1 : at.row) : (where === 'column_left' ? at.col - 1 : at.col);
+      const cells = [...new Set(Array.from({ length: row ? map.width : map.height }, (_, k) => map.map[row ? line * map.width + k : k * map.width + line]))];
+      const texts = Array.isArray(a.cells) ? a.cells.map(String) : [];
+      dispatch(ctx, (tr) => {
+        for (let k = Math.min(cells.length, texts.length) - 1; k >= 0; k--) {
+          const content = inlineContent(htmlToSlice(texts[k], ctx.editor.state), schema);
+          const into = at.tablePos + 1 + cells[k] + 2;
+          if (content.size) trackedReplace(tr, into, into, new Slice(content, 0, 0), ctx.author);
+        }
+      });
+      return { result: 'ok', summary: row ? m.row(at.table) : m.column(at.table) };
     }
     case 'add_comment': {
       if (!schema.marks.comment) throw new ToolError('comments are not available here');

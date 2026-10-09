@@ -108,6 +108,8 @@ const ja: Messages = {
       delete: (a: number, b: number) => (a === b ? `段落 ${a} を削除しました` : `段落 ${a}–${b} を削除しました`),
       format: (a: number, b: number) => (a === b ? `段落 ${a} を書式設定しました` : `段落 ${a}–${b} を書式設定しました`),
       comment: (n: number) => `段落 ${n} にコメントを付けました`,
+      row: (t: number) => `表 ${t} に行を挿入しました`,
+      column: (t: number) => `表 ${t} に列を挿入しました`,
       failed: (msg: string) => `実行できませんでした: ${msg}`,
     },
   },

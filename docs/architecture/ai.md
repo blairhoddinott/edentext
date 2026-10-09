@@ -33,7 +33,8 @@ Pages origin can read it, and the settings row says so.
 
 ## Document in, content out
 
-**Input.** Every textblock is one line, `[n kind] text`. Text marked as a deletion is
+**Input.** Every textblock is one line, `[n kind] text`; a cell's kind names its table, row
+and column (`cell T1 r2 c3`, from `TableMap`, so merged cells count once). Text marked as a deletion is
 left out, so the model reads the text as it will look once accepted. Past 60k characters,
 the head and the paragraphs around the selection are kept, and `read_paragraphs` returns
 the rest. The selection goes along as quoted text; a chip above the chat field shows it
@@ -54,6 +55,8 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
 - **`format`** uses `applyFormat`, the search-replace formatting, plus mark removal. Track
   changes cannot record formatting, so it applies directly and is undoable.
 - **`add_comment`** comments as the assistant.
+- **`table_insert`** adds a row or column with the table commands; the structure applies
+  directly, the new cells' text is tracked. Removing rows or columns is left to the user.
 - **Paragraph numbers** come from the turn's snapshot. Every transaction during the turn
   is appended to a `Mapping`, so a number still finds its paragraph after earlier edits.
   Inserted paragraphs only get a number in the next turn.

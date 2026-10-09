@@ -106,6 +106,8 @@ const fr: Messages = {
       delete: (a: number, b: number) => (a === b ? `Paragraphe ${a} supprimé` : `Paragraphes ${a} à ${b} supprimés`),
       format: (a: number, b: number) => (a === b ? `Paragraphe ${a} mis en forme` : `Paragraphes ${a} à ${b} mis en forme`),
       comment: (n: number) => `Commentaire ajouté au paragraphe ${n}`,
+      row: (t: number) => `Ligne insérée dans le tableau ${t}`,
+      column: (t: number) => `Colonne insérée dans le tableau ${t}`,
       failed: (msg: string) => `Non effectué : ${msg}`,
     },
   },

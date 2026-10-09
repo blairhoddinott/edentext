@@ -84,6 +84,11 @@ describe('tools', () => {
     expect(texts(editor)).toEqual(['keep', '', 'new text']);
     editor.commands.rejectRevisions(true);
     expect(texts(editor)).toEqual(['keep', 'drop me', 'old text']);
+    // Plain text and a whole <p> are a paragraph's new text too.
+    runTool(ctx, call('rewrite_paragraph', { paragraph: 1, html: 'plain' }));
+    runTool(ctx, call('rewrite_paragraph', { paragraph: 2, html: '<p>wrapped</p>' }));
+    editor.commands.acceptRevisions(true);
+    expect(texts(editor)).toEqual(['plain', 'wrapped', 'old text']);
     editor.destroy();
   });
 
@@ -108,6 +113,22 @@ describe('tools', () => {
     const r = runTool(ctx, call('rewrite_paragraph', { paragraph: 1, html: 'other' }));
     expect(r.result).toMatch(/^error: .*tracked changes/);
     expect(revisions(editor.state.doc).map((x) => x.author)).toEqual(['Ada']);
+    editor.destroy();
+  });
+
+  it('labels cells by table, row and column, and inserts a filled row or column', () => {
+    const editor = makeEditor('<p>x</p><table><tr><td><p>A</p></td><td><p>B</p></td></tr><tr><td><p>1</p></td><td><p>2</p></td></tr></table>');
+    expect(blockTexts(editor.state.doc).map((b) => b.kind)).toEqual(['', 'cell T1 r1 c1', 'cell T1 r1 c2', 'cell T1 r2 c1', 'cell T1 r2 c2']);
+    const ctx = turn(editor);
+    expect(runTool(ctx, call('table_insert', { paragraph: 3, where: 'column_right', cells: ['<strong>C</strong>', '3'] })).result).toBe('ok');
+    expect(runTool(ctx, call('table_insert', { paragraph: 2, where: 'row_above', cells: ['h'] })).result).toBe('ok');
+    expect(revisions(editor.state.doc).map((r) => [r.kind, r.text, r.author])).toEqual([['insertion', 'h', AI], ['insertion', 'C', AI], ['insertion', '3', AI]]);
+    expect(blockTexts(editor.state.doc).map((b) => `${b.kind}=${b.text}`).slice(1, 10)).toEqual([
+      'cell T1 r1 c1=h', 'cell T1 r1 c2=', 'cell T1 r1 c3=',
+      'cell T1 r2 c1=A', 'cell T1 r2 c2=B', 'cell T1 r2 c3=C',
+      'cell T1 r3 c1=1', 'cell T1 r3 c2=2', 'cell T1 r3 c3=3',
+    ]);
+    expect(runTool(ctx, call('table_insert', { paragraph: 1, where: 'row_below' })).result).toMatch(/not in a table/);
     editor.destroy();
   });
 

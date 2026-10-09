@@ -106,6 +106,8 @@ const pt: Messages = {
       delete: (a: number, b: number) => (a === b ? `Parágrafo ${a} eliminado` : `Parágrafos ${a}–${b} eliminados`),
       format: (a: number, b: number) => (a === b ? `Parágrafo ${a} formatado` : `Parágrafos ${a}–${b} formatados`),
       comment: (n: number) => `Comentário adicionado ao parágrafo ${n}`,
+      row: (t: number) => `Linha inserida na tabela ${t}`,
+      column: (t: number) => `Coluna inserida na tabela ${t}`,
       failed: (msg: string) => `Não efetuado: ${msg}`,
     },
   },
