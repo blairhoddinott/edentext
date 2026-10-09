@@ -989,6 +989,11 @@
 .paper.pdf-list-markers li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before {
   content: none !important;
 }
+/* Only an item's first paragraph or heading carries the label, as both exports number
+   it; the blocks after it continue the item unnumbered. */
+.paper .tiptap li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10) ~ :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before {
+  content: none !important;
+}
 
 .paper .tiptap li {
   margin-top: 0;
