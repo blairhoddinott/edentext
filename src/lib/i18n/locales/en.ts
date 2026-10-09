@@ -90,6 +90,7 @@ const en = {
     discard: 'Discard',
     insertAtCursor: 'Insert at cursor',
     newChat: 'New chat',
+    paneWidth: 'Chat pane width',
     intro: 'Ask about this document, or ask for changes: text changes appear as tracked changes you accept or reject.',
     disclaimer: 'AI-generated content may be wrong.',
     selectionChanged: 'The text changed in the meantime; select it again.',

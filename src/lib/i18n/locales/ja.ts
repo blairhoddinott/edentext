@@ -91,6 +91,7 @@ const ja: Messages = {
     discard: '破棄',
     insertAtCursor: 'カーソル位置に挿入',
     newChat: '新しいチャット',
+    paneWidth: 'チャット ウィンドウの幅',
     intro: 'この文書について質問したり、変更を依頼したりできます。テキストの変更は変更履歴として表示され、承諾または元に戻すことができます。',
     disclaimer: 'AI が生成した内容は誤っている可能性があります。',
     selectionChanged: 'その間にテキストが変更されました。もう一度選択してください。',

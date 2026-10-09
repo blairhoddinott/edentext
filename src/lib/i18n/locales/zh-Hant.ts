@@ -91,6 +91,7 @@ const zhHant: Messages = {
     discard: '捨棄',
     insertAtCursor: '在游標處插入',
     newChat: '新聊天',
+    paneWidth: '聊天窗格寬度',
     intro: '可以詢問此文件的內容，也可以要求修改：文字修改會顯示為追蹤修訂，由您接受或拒絕。',
     disclaimer: 'AI 產生的內容可能有誤。',
     selectionChanged: '文字在此期間已變更，請重新選取。',

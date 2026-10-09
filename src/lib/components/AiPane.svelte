@@ -78,6 +78,38 @@
 
   $effect(() => () => stop());
 
+  // Dragged wider or narrower by its left edge, as an editor's side bar; kept per browser.
+  const WIDTH_KEY = 'edentext-ai-width';
+  const MIN_WIDTH = 260;
+  const maxWidth = () => Math.max(MIN_WIDTH, Math.round(window.innerWidth * 0.6));
+  const clampWidth = (w: number) => Math.round(Math.min(maxWidth(), Math.max(MIN_WIDTH, w)));
+  let width = $state(clampWidth((() => { try { return Number(localStorage.getItem(WIDTH_KEY)) || 320; } catch { return 320; } })()));
+
+  function setWidth(w: number) {
+    width = clampWidth(w);
+    try { localStorage.setItem(WIDTH_KEY, String(width)); } catch { /* not kept */ }
+  }
+
+  function startResize(e: PointerEvent) {
+    const handle = e.currentTarget as HTMLElement;
+    const x0 = e.clientX;
+    const w0 = width;
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => setWidth(w0 + x0 - ev.clientX);
+    const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    e.preventDefault();
+  }
+
+  function resizeKey(e: KeyboardEvent) {
+    const step = e.shiftKey ? 64 : 16;
+    if (e.key === 'ArrowLeft') setWidth(width + step);
+    else if (e.key === 'ArrowRight') setWidth(width - step);
+    else return;
+    e.preventDefault();
+  }
+
   $effect(() => {
     if (prefill === null || !field) return;
     const el = field;
@@ -216,7 +248,12 @@
   }
 </script>
 
-<aside class="ai-pane" aria-label={t().ai.name}>
+<aside class="ai-pane" aria-label={t().ai.name} style:flex-basis="{width}px">
+  <!-- A focusable separator is a widget (ARIA), which Svelte does not know. -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+  <div class="resize" role="separator" aria-orientation="vertical" aria-label={t().ai.paneWidth}
+    aria-valuenow={width} aria-valuemin={MIN_WIDTH} tabindex="0" title={t().ai.paneWidth}
+    onpointerdown={startResize} onkeydown={resizeKey} ondblclick={() => setWidth(320)}></div>
   <header>
     <Icon name="sparkle" size={16} />
     <span class="title">{t().ai.name}</span>
@@ -301,6 +338,7 @@
   .ai-pane {
     display: flex;
     flex-direction: column;
+    position: relative;
     flex: 0 0 320px;
     min-width: 0;
     border-left: 1px solid var(--color-border);
@@ -310,6 +348,19 @@
     /* As the Navigator: the modern chrome's island overlays the top of the row. */
     margin-top: var(--toolbar-overlay-h, 0px);
   }
+
+  /* The grab strip straddles the border, wider than it looks. */
+  .resize {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -3px;
+    width: 6px;
+    cursor: col-resize;
+    z-index: 1;
+    touch-action: none;
+  }
+  .resize:hover, .resize:focus-visible { background: var(--color-primary); opacity: 0.6; outline: none; }
 
   header {
     display: flex;

@@ -89,6 +89,7 @@ const de: Messages = {
     discard: 'Verwerfen',
     insertAtCursor: 'An Cursorposition einfügen',
     newChat: 'Neuer Chat',
+    paneWidth: 'Breite der Chatleiste',
     intro: 'Fragen Sie zu diesem Dokument oder bitten Sie um Änderungen: Textänderungen erscheinen als Überarbeitungen, die Sie annehmen oder ablehnen.',
     disclaimer: 'KI-generierte Inhalte können falsch sein.',
     selectionChanged: 'Der Text hat sich inzwischen geändert; markieren Sie ihn erneut.',

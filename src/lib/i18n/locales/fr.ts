@@ -89,6 +89,7 @@ const fr: Messages = {
     discard: 'Ignorer',
     insertAtCursor: 'Insérer au curseur',
     newChat: 'Nouvelle discussion',
+    paneWidth: 'Largeur du volet de discussion',
     intro: 'Posez une question sur ce document ou demandez des modifications : elles apparaissent comme des modifications suivies que vous acceptez ou refusez.',
     disclaimer: 'Le contenu généré par l’IA peut être erroné.',
     selectionChanged: 'Le texte a changé entre-temps ; sélectionnez-le à nouveau.',

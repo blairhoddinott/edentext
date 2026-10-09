@@ -89,6 +89,7 @@ const pt: Messages = {
     discard: 'Descartar',
     insertAtCursor: 'Inserir no cursor',
     newChat: 'Novo chat',
+    paneWidth: 'Largura do painel de chat',
     intro: 'Pergunte sobre este documento ou peça alterações: as alterações de texto aparecem como alterações registadas que aceita ou rejeita.',
     disclaimer: 'O conteúdo gerado por IA pode estar errado.',
     selectionChanged: 'O texto mudou entretanto; selecione-o novamente.',

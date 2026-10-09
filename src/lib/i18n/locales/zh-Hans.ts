@@ -90,6 +90,7 @@ const zhHans: Messages = {
     discard: '放弃',
     insertAtCursor: '在光标处插入',
     newChat: '新聊天',
+    paneWidth: '聊天窗格宽度',
     intro: '可以询问此文档的内容，也可以要求修改：文本修改会显示为修订，由您接受或拒绝。',
     disclaimer: 'AI 生成的内容可能有误。',
     selectionChanged: '文本在此期间已更改，请重新选择。',
