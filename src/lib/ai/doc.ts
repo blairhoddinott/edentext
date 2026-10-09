@@ -17,6 +17,8 @@ export type Block = {
   to: number;
   /** map[i] = document position of text character i. */
   map: number[];
+  /** Style and direct formatting, ` {bold: "x"; style "Quote"}`, or ''. */
+  fmt: string;
 };
 
 export function blockText(node: PMNode, pos: number): { text: string; map: number[] } {
@@ -49,10 +51,55 @@ export function blockTexts(doc: PMNode): Block[] {
     const at = p === 'tableCell' || p === 'tableHeader' ? cellAt(doc, pos, tables) : null;
     const kind = node.type.name === 'heading' ? `h${node.attrs.level}`
       : p === 'listItem' ? 'li' : at ? `cell T${at.table} r${at.row} c${at.col}` : '';
-    out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos) });
+    out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos), fmt: formatNote(node) });
     return false;
   });
   return out;
+}
+
+const MARK_LABELS = ['bold', 'italic', 'underline', 'strike', 'superscript', 'subscript', 'highlight'];
+
+// The formatting a run carries, as the labels the model reads.
+function runLabels(child: PMNode): string[] {
+  const out: string[] = [];
+  for (const m of child.marks) {
+    if (MARK_LABELS.includes(m.type.name)) out.push(m.type.name);
+    else if (m.type.name === 'textStyle') {
+      if (m.attrs.fontFamily) out.push(`font "${m.attrs.fontFamily}"`);
+      if (m.attrs.fontSize) out.push(`size ${m.attrs.fontSize}`);
+      if (m.attrs.color) out.push(`color ${m.attrs.color}`);
+    }
+  }
+  return out;
+}
+
+/** A textblock's style, alignment and direct formatting, quoting the runs that carry it. */
+export function formatNote(node: PMNode): string {
+  const parts: string[] = [];
+  if (node.attrs.styleName && node.type.name !== 'heading') parts.push(`style "${node.attrs.styleName}"`);
+  if (node.attrs.textAlign && !['left', 'start'].includes(node.attrs.textAlign)) parts.push(`align ${node.attrs.textAlign}`);
+  const runs = new Map<string, string[]>();
+  let whole = '';
+  let prev: string[] = [];
+  node.forEach((child) => {
+    if (!child.isText || child.marks.some((m) => m.type.name === 'deletion')) return;
+    const text = child.text ?? '';
+    whole += text;
+    const labels = runLabels(child);
+    for (const l of labels) {
+      const list = runs.get(l) ?? [];
+      if (prev.includes(l) && list.length) list[list.length - 1] += text;
+      else list.push(text);
+      runs.set(l, list);
+    }
+    prev = labels;
+  });
+  for (const [label, list] of runs) {
+    const quoted = list.length === 1 && list[0] === whole ? 'all'
+      : list.slice(0, 4).map((x) => JSON.stringify(x.length > 30 ? x.slice(0, 30) + '…' : x)).join(', ') + (list.length > 4 ? ', …' : '');
+    parts.push(`${label}: ${quoted}`);
+  }
+  return parts.length ? ` {${parts.join('; ')}}` : '';
 }
 
 /** The cell around the textblock at `pos`; `tables` holds the table positions seen so far. */
@@ -79,7 +126,7 @@ export function blockAt(blocks: Block[], pos: number): Block | undefined {
 }
 
 export function blockLine(b: Block): string {
-  return `[${b.n}${b.kind ? ' ' + b.kind : ''}] ${b.text.replace(/\n/g, ' ⏎ ')}`;
+  return `[${b.n}${b.kind ? ' ' + b.kind : ''}] ${b.text.replace(/\n/g, ' ⏎ ')}${b.fmt}`;
 }
 
 // A fixed character budget (~15k tokens); small local models may want less.

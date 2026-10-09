@@ -6,7 +6,7 @@ import { Editor } from '@tiptap/core';
 import { Mapping } from '@tiptap/pm/transform';
 import { extensions } from '../../src/lib/editor/extensions';
 import { revisions, trackedReplace } from '../../src/lib/editor/extensions/trackChanges';
-import { blockTexts, htmlToSlice, serializeDoc } from '../../src/lib/ai/doc';
+import { blockLine, blockTexts, htmlToSlice, serializeDoc } from '../../src/lib/ai/doc';
 import { runTool, runTurn, type TurnContext } from '../../src/lib/ai/tools';
 import type { ToolCall } from '../../src/lib/ai/client';
 
@@ -36,6 +36,16 @@ describe('serializeDoc', () => {
     view.dispatch(trackedReplace(state.tr, 12, 18, null, 'Ada'));
     editor.commands.setTextSelection(3);
     expect(serializeDoc(editor.state)).toBe('Document, one paragraph per line, numbered:\n[1 h1] Title\n[2] The fox\n[3 li] item\n\nThe cursor is in paragraph 1.');
+    editor.destroy();
+  });
+
+  it('notes style, alignment and the runs that carry direct formatting', () => {
+    const editor = makeEditor('<p style="text-align:center"><strong>all bold</strong></p><p>a <em>b</em> c <em>d</em><strong><em>e</em></strong></p><p><span style="font-size:14pt">big</span> x</p>');
+    expect(blockTexts(editor.state.doc).map(blockLine)).toEqual([
+      '[1] all bold {align center; bold: all}',
+      '[2] a b c de {italic: "b", "de"; bold: "e"}',
+      '[3] big x {size 14pt: "big"}',
+    ]);
     editor.destroy();
   });
 

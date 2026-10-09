@@ -34,7 +34,9 @@ Pages origin can read it, and the settings row says so.
 ## Document in, content out
 
 **Input.** Every textblock is one line, `[n kind] text`; a cell's kind names its table, row
-and column (`cell T1 r2 c3`, from `TableMap`, so merged cells count once). Text marked as a deletion is
+and column (`cell T1 r2 c3`, from `TableMap`, so merged cells count once). Style, alignment
+and direct formatting follow in braces (`formatNote`), quoting the runs, so `find` still
+matches the bare text. Text marked as a deletion is
 left out, so the model reads the text as it will look once accepted. Past 60k characters,
 the head and the paragraphs around the selection are kept, and `read_paragraphs` returns
 the rest. The selection goes along as quoted text; a chip above the chat field shows it
