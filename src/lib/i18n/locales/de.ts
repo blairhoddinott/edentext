@@ -106,6 +106,8 @@ const de: Messages = {
       delete: (a: number, b: number) => (a === b ? `Absatz ${a} gelöscht` : `Absätze ${a}–${b} gelöscht`),
       format: (a: number, b: number) => (a === b ? `Absatz ${a} formatiert` : `Absätze ${a}–${b} formatiert`),
       comment: (n: number) => `Absatz ${n} kommentiert`,
+      reply: (n: number) => `Auf Kommentar C${n} geantwortet`,
+      resolve: (n: number) => `Kommentar C${n} erledigt`,
       row: (t: number) => `Zeile in Tabelle ${t} eingefügt`,
       column: (t: number) => `Spalte in Tabelle ${t} eingefügt`,
       failed: (msg: string) => `Nicht ausgeführt: ${msg}`,

@@ -107,6 +107,8 @@ const zhHans: Messages = {
       delete: (a: number, b: number) => (a === b ? `已删除第 ${a} 段` : `已删除第 ${a}–${b} 段`),
       format: (a: number, b: number) => (a === b ? `已设置第 ${a} 段的格式` : `已设置第 ${a}–${b} 段的格式`),
       comment: (n: number) => `已为第 ${n} 段添加批注`,
+      reply: (n: number) => `已回复批注 C${n}`,
+      resolve: (n: number) => `已解决批注 C${n}`,
       row: (t: number) => `已在表格 ${t} 中插入行`,
       column: (t: number) => `已在表格 ${t} 中插入列`,
       failed: (msg: string) => `未执行：${msg}`,

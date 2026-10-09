@@ -142,6 +142,19 @@ describe('tools', () => {
     editor.destroy();
   });
 
+  it('lists comment threads, replies to one and resolves it', () => {
+    const editor = makeEditor('<p>alpha</p><p>beta gamma</p>');
+    editor.chain().setTextSelection({ from: 8, to: 12 }).addComment({ author: 'Ada', text: 'Why beta?' }).run();
+    editor.commands.setTextSelection(1);
+    expect(serializeDoc(editor.state)).toContain('Comments, numbered:\n[C1 on paragraph 2 «beta», by Ada, open] Why beta?');
+    const ctx = { ...turn(editor), commentIds: undefined };
+    expect(runTool(ctx, call('reply_comment', { comment: 1, text: 'It is the second letter.' })).result).toBe('ok');
+    expect(runTool(ctx, call('resolve_comment', { comment: 1 })).result).toBe('ok');
+    expect(runTool(ctx, call('resolve_comment', { comment: 2 })).result).toMatch(/no comment C2/);
+    expect(serializeDoc(editor.state)).toContain('[C1 on paragraph 2 «beta», by Ada, resolved] Why beta?\n  ↳ AI: It is the second letter.');
+    editor.destroy();
+  });
+
   it('returns failures to the model as text', () => {
     const editor = makeEditor('<p>x</p>');
     const ctx = turn(editor);

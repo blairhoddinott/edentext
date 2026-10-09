@@ -6,6 +6,7 @@ import { DOMParser as PMDOMParser, DOMSerializer, Fragment, Slice, type Node as 
 import type { EditorState } from '@tiptap/pm/state';
 import { TableMap } from '@tiptap/pm/tables';
 import { fitPastedSlice } from '../editor/paste';
+import { comments } from '../editor/extensions/comment';
 
 export type Block = {
   /** 1-based, as the model sees it. */
@@ -165,10 +166,22 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
     }
     body = out.join('\n');
   }
+  const notes = commentLines(state.doc, blocks);
+  if (notes.length) body += `\n\nComments, numbered:\n${notes.join('\n')}`;
   const where = empty
     ? `The cursor is in paragraph ${first?.n ?? 1}.`
     : `Selected: paragraphs ${first?.n ?? 1}–${last?.n ?? 1}: «${state.doc.textBetween(from, to, '\n', '')}»`;
   return `Document, one paragraph per line, numbered:\n${body}\n\n${where}`;
+}
+
+const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n) + '…' : s);
+
+/** Every comment thread as `[C1 on paragraph 4 «quote», by Ada, open] text`, replies indented. */
+export function commentLines(doc: PMNode, blocks = blockTexts(doc)): string[] {
+  return comments(doc).flatMap((c, i) => [
+    `[C${i + 1} on paragraph ${blockAt(blocks, c.from)?.n ?? 1} «${clip(c.quote, 60)}», by ${c.author || '?'}, ${c.resolved ? 'resolved' : 'open'}] ${c.text}`,
+    ...c.replies.map((r) => `  ↳ ${r.author || '?'}: ${r.text}`),
+  ]);
 }
 
 /** The selection as HTML, so its formatting reaches the model. */

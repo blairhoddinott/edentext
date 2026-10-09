@@ -9,6 +9,7 @@ import type { Transaction } from '@tiptap/pm/state';
 import { TableMap } from '@tiptap/pm/tables';
 import { trackedReplace } from '../editor/extensions/trackChanges';
 import { applyFormat, FORMAT_MARKS, type FormatSpec } from '../editor/extensions/searchReplace';
+import { comments } from '../editor/extensions/comment';
 import { styleSheet } from '../styles/sheet.svelte';
 import { visibleStyles } from '../styles/styleSheet';
 import { t } from '../i18n/i18n.svelte';
@@ -24,6 +25,7 @@ export function chatSystemPrompt(): string {
     'You are the writing assistant of a word processor. Each user message starts with the document, one numbered paragraph per line.',
     'Answer in the language the user writes in, briefly. ' + HTML_RULE,
     'Formatting follows a paragraph in braces, as {bold: "word"; style "Quote"}; "all" means the whole paragraph. It is not part of the text.',
+    'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
     'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3. Add rows and columns with table_insert, never by rebuilding the table.',
     'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
     'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did.',
@@ -104,6 +106,16 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'reply_comment',
+    description: 'Replies to a comment thread.',
+    parameters: { type: 'object', properties: { comment: num('Comment number, as C1 → 1'), text: str('The reply') }, required: ['comment', 'text'] },
+  },
+  {
+    name: 'resolve_comment',
+    description: 'Marks a comment thread as resolved.',
+    parameters: { type: 'object', properties: { comment: num('Comment number, as C1 → 1') }, required: ['comment'] },
+  },
+  {
     name: 'table_insert',
     description: 'Inserts a row or column next to the cell that holds a paragraph, and fills its new cells in order (top to bottom, or left to right).',
     parameters: {
@@ -124,7 +136,7 @@ export const TOOLS: ToolDef[] = [
 ];
 
 /** One turn's view of the document: numbers from its snapshot, positions mapped since. */
-export type TurnContext = { editor: Editor; blocks: Block[]; mapping: Mapping; author: string };
+export type TurnContext = { editor: Editor; blocks: Block[]; mapping: Mapping; author: string; commentIds?: string[] };
 export type ToolResult = { result: string; summary: string | null };
 
 class ToolError extends Error {}
@@ -288,6 +300,17 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       });
       return { result: 'ok', summary: row ? m.row(at.table) : m.column(at.table) };
     }
+    case 'reply_comment':
+    case 'resolve_comment': {
+      const n = Number(a.comment);
+      const id = (ctx.commentIds ?? comments(ctx.editor.state.doc).map((c) => c.id))[n - 1];
+      if (!id) throw new ToolError(`no comment C${String(a.comment)}`);
+      const done = call.name === 'reply_comment'
+        ? ctx.editor.commands.replyToComment(id, { author: ctx.author, text: String(a.text ?? '') })
+        : ctx.editor.commands.updateComment(id, { resolved: true });
+      if (!done) throw new ToolError(`comment C${n} no longer exists, or the reply is empty`);
+      return { result: 'ok', summary: call.name === 'reply_comment' ? m.reply(n) : m.resolve(n) };
+    }
     case 'add_comment': {
       if (!schema.marks.comment) throw new ToolError('comments are not available here');
       const p = current(ctx, a.paragraph);
@@ -347,7 +370,7 @@ export async function runTurn(opts: {
 }): Promise<string> {
   const { editor } = opts;
   const blocks = blockTexts(editor.state.doc);
-  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author };
+  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id) };
   const track = ({ transaction }: { transaction: Transaction }) => ctx.mapping.appendMapping(transaction.mapping);
   editor.on('transaction', track);
   const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks)}\n\n---\n\n${opts.question}` }];

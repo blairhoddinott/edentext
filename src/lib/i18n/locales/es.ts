@@ -106,6 +106,8 @@ const es: Messages = {
       delete: (a: number, b: number) => (a === b ? `Párrafo ${a} eliminado` : `Párrafos ${a}–${b} eliminados`),
       format: (a: number, b: number) => (a === b ? `Formato aplicado al párrafo ${a}` : `Formato aplicado a los párrafos ${a}–${b}`),
       comment: (n: number) => `Comentario añadido al párrafo ${n}`,
+      reply: (n: number) => `Respuesta al comentario C${n}`,
+      resolve: (n: number) => `Comentario C${n} resuelto`,
       row: (t: number) => `Fila insertada en la tabla ${t}`,
       column: (t: number) => `Columna insertada en la tabla ${t}`,
       failed: (msg: string) => `No realizado: ${msg}`,

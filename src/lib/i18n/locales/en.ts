@@ -107,6 +107,8 @@ const en = {
       delete: (a: number, b: number) => (a === b ? `Deleted paragraph ${a}` : `Deleted paragraphs ${a}–${b}`),
       format: (a: number, b: number) => (a === b ? `Formatted paragraph ${a}` : `Formatted paragraphs ${a}–${b}`),
       comment: (n: number) => `Commented on paragraph ${n}`,
+      reply: (n: number) => `Replied to comment C${n}`,
+      resolve: (n: number) => `Resolved comment C${n}`,
       row: (t: number) => `Inserted a row in table ${t}`,
       column: (t: number) => `Inserted a column in table ${t}`,
       failed: (msg: string) => `Not done: ${msg}`,
