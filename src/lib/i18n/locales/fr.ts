@@ -65,6 +65,8 @@ const fr: Messages = {
     endpointHint: 'L’URL de base de l’API',
     model: 'Modèle',
     modelHint: 'Tel que le fournisseur le nomme, p. ex. gpt-4.1-mini, claude-sonnet-5 ou qwen2.5:7b',
+    contextSize: 'Taille du contexte',
+    contextSizeHint: 'La fenêtre de contexte du modèle en jetons ; elle détermine la part du document envoyée. Ollama la reçoit.',
     apiKey: 'Clé d’API',
     apiKeyHint: 'Enregistrée sans chiffrement dans ce navigateur. Un serveur local n’en a pas besoin.',
     test: 'Tester',

@@ -65,6 +65,8 @@ const es: Messages = {
     endpointHint: 'La URL base de la API',
     model: 'Modelo',
     modelHint: 'Como lo llama el proveedor, p. ej. gpt-4.1-mini, claude-sonnet-5 o qwen2.5:7b',
+    contextSize: 'Tamaño de contexto',
+    contextSizeHint: 'La ventana de contexto del modelo en tokens; decide cuánto del documento se envía. Ollama la recibe.',
     apiKey: 'Clave de API',
     apiKeyHint: 'Se guarda sin cifrar en este navegador. Un servidor local no la necesita.',
     test: 'Probar',

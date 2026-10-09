@@ -2,7 +2,7 @@
 // textblock is one numbered line, so a tool can name a paragraph by its number; text
 // struck through as a deletion is left out — the model sees the text as it would read.
 
-import { getSchema } from '@tiptap/core';
+import { getSchema, type Editor } from '@tiptap/core';
 import { DOMParser as PMDOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode, type Schema } from '@tiptap/pm/model';
 import type { EditorState } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
@@ -15,7 +15,9 @@ import { listNumberAt } from '../editor/extensions/listStyle';
 import { pageOfElement, readVerticalMargins, topInEditor } from '../editor/extensions/pageBreaks';
 import { styleSheet } from '../styles/sheet.svelte';
 import { styleLabel } from '../i18n/i18n.svelte';
-import { nameLookup, normalizeAiHtml, pageFields } from './dialect';
+import { nameLookup, normalizeAiHtml, pageFields, type NoteText } from './dialect';
+import { newNoteId } from '../editor/extensions/notes';
+import { trackedReplace } from '../editor/extensions/trackChanges';
 import { loadPageFormat } from '../storage/pageFormat';
 import { loadOrientation } from '../storage/pageOrientation';
 import { loadPageMargins } from '../storage/pageMargins';
@@ -333,7 +335,7 @@ function markdownEmphasis(s: string): string {
  * document (no script runs, no image loads) and through the schema, which keeps only
  * what the editor knows; a reply without tags becomes one paragraph per line.
  */
-function dialectBody(html: string, dropped: string[]): { body: HTMLElement; tabs: boolean } {
+function dialectBody(html: string, dropped: string[], notes: NoteText[] = []): { body: HTMLElement; tabs: boolean } {
   const clean = stripFences(html).trim();
   const markup = /<\/?[a-z][\s\S]*>/i.test(clean)
     ? markdownEmphasis(clean)
@@ -346,8 +348,10 @@ function dialectBody(html: string, dropped: string[]): { body: HTMLElement; tabs
   const dialect = normalizeAiHtml(body, {
     style: nameLookup(Object.keys(sheet.paragraph), styleLabel),
     tableStyle: nameLookup(Object.keys(sheet.table), styleLabel),
+    noteId: newNoteId,
   });
   dropped.push(...dialect.dropped);
+  notes.push(...dialect.notes);
   return { body, tabs: dialect.tabs };
 }
 
@@ -362,13 +366,36 @@ export function zoneDocFromHtml(html: string, dropped: string[] = []): HfDoc {
   return PMDOMParser.fromSchema(zoneSchema).parse(body, { preserveWhitespace: tabs }).toJSON() as HfDoc;
 }
 
-export function htmlToSlice(html: string, state: EditorState, dropped: string[] = []): Slice {
-  const { body, tabs } = dialectBody(html, dropped);
+export function htmlToSlice(html: string, state: EditorState, dropped: string[] = [], notes: NoteText[] = []): Slice {
+  const { body, tabs } = dialectBody(html, dropped, notes);
   const parsed = PMDOMParser.fromSchema(state.schema).parseSlice(body, { preserveWhitespace: tabs });
   // A table of contents written as <nav> has no entries yet: null builds them on mount.
   const content: PMNode[] = [];
   parsed.content.forEach((n) => content.push(n.type.name === 'tableOfContents' && !n.attrs.entries?.length ? n.type.create({ ...n.attrs, entries: null }) : n));
   return fitPastedSlice(new Slice(Fragment.from(content), parsed.openStart, parsed.openEnd), state);
+}
+
+/**
+ * Writes each note's text into the note its anchor got once inserted; with an `author`
+ * as that author's tracked insertion.
+ */
+export function fillNotes(editor: Editor, notes: NoteText[], author?: string): void {
+  for (const n of notes) {
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (at < 0 && node.type.name === 'note' && node.attrs.id === n.id) at = pos;
+      return at < 0;
+    });
+    const note = at < 0 ? null : editor.state.doc.nodeAt(at);
+    if (!note) continue;
+    const content = inlineContent(htmlToSlice(n.html, editor.state), editor.schema);
+    if (!content.size) continue;
+    const tr = editor.state.tr;
+    const [from, to] = [at + 1, at + 1 + note.content.size];
+    if (author) trackedReplace(tr, from, to, new Slice(content, 0, 0), author);
+    else tr.replaceWith(from, to, content);
+    editor.view.dispatch(tr);
+  }
 }
 
 /** Editor content as DOM for a preview: only nodes the schema knows, so nothing runs. */

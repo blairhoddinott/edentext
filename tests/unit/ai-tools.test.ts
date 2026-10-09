@@ -370,4 +370,14 @@ describe('runTurn', () => {
     expect(box.textContent).toBe('Contact');
     editor.destroy();
   });
+
+  it('writes a footnote\'s text into the note its anchor gets', () => {
+    const editor = makeEditor('<p>Intro</p>');
+    expect(runTool(turn(editor), call('insert_paragraphs', { after: 1, html: '<p>Claim<sup class="footnote">Source, <em>2024</em>.</sup> here.</p>' })).result).toBe('ok');
+    let note: PMNode | null = null;
+    editor.state.doc.descendants((n) => { note ??= n.type.name === 'note' ? n : null; return !note; });
+    expect(note!.textContent).toBe('Source, 2024.');
+    expect(texts(editor)).toContain('Claim here.');
+    editor.destroy();
+  });
 });

@@ -45,7 +45,7 @@ paragraph's `w:pStyle` and defines it; only a note naming none falls to the stoc
 renumbers each class. It runs in two rounds by design — structure first, numbering on the
 pass after — because doing both at once would need positions out of a document the same
 transaction is still rewriting. An anchor pasted twice gets a fresh id and a clone of the
-note it was copied from; an anchor that ends up *inside* a note is dropped, and inserting
+note it was copied from (its parse rule outranks the superscript mark's `sup`); an anchor that ends up *inside* a note is dropped, and inserting
 one there is refused (LibreOffice and Word refuse it too). A settings change is no
 document change, so the dialog's path carries the `RESYNC_NOTES` meta.
 A note body holds inline content, so a paste of several blocks is flattened to text with a

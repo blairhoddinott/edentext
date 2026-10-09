@@ -8,7 +8,7 @@
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
   import Icon from './ribbon/Icon.svelte';
   import Toggle from './Toggle.svelte';
-  import { aiSettings, setAi, aiConfig, AI_PRESETS, presetOf } from '../storage/ai.svelte';
+  import { aiSettings, setAi, aiConfig, AI_PRESETS, presetOf, DEFAULT_CONTEXT_TOKENS } from '../storage/ai.svelte';
   import { streamChat, aiErrorText } from '../ai/client';
 
   // App-wide settings, one section per side-bar entry. Each control writes through the
@@ -226,6 +226,11 @@
             onchange={(e) => { setAi({ model: e.currentTarget.value.trim() }); aiTest = null; }} />
         </div>
         <div class="row sub" class:dim={!ai.enabled}>
+          <div class="info"><div class="name">{t().ai.contextSize}</div><div class="desc">{t().ai.contextSizeHint}</div></div>
+          <input class="field short" type="number" min="2048" step="1024" value={ai.contextTokens} disabled={!ai.enabled}
+            onchange={(e) => { const n = Math.round(Number(e.currentTarget.value)); setAi({ contextTokens: n >= 2048 ? n : DEFAULT_CONTEXT_TOKENS }); }} />
+        </div>
+        <div class="row sub" class:dim={!ai.enabled}>
           <div class="info"><div class="name">{t().ai.apiKey}</div><div class="desc">{t().ai.apiKeyHint}</div></div>
           <input class="field" type="password" autocomplete="off" spellcheck="false" value={ai.apiKey} disabled={!ai.enabled}
             onchange={(e) => { setAi({ apiKey: e.currentTarget.value.trim() }); aiTest = null; }} />
@@ -366,6 +371,7 @@
   select { max-width: 200px; cursor: pointer; }
   .num { width: 64px; padding: 5px 8px; }
   .field { width: 230px; padding: 5px 8px; }
+  .field.short { width: 100px; }
   .field:disabled, select:disabled { opacity: 0.45; cursor: default; }
   .desc.ok { color: var(--w-accent); font-weight: 600; }
 

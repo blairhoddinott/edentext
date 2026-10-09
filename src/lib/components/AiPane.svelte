@@ -26,7 +26,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { t } from '../i18n/i18n.svelte';
-  import { aiConfig } from '../storage/ai.svelte';
+  import { aiConfig, docBudget } from '../storage/ai.svelte';
   import { showChanges, setShowChanges } from '../storage/markup.svelte';
   import { revisions } from '../editor/extensions/trackChanges';
   import { aiErrorText, isAbort, streamChat } from '../ai/client';
@@ -166,7 +166,7 @@
     if ('unknown' in parsed) return void (reply.error = t().ai.unknownCommand(parsed.unknown));
     const target = captureTarget(editor.state);
     if (parsed.command.kind === 'rewrite' && !target.html) return void (reply.error = t().ai.needSelection);
-    const made = commandRequest(parsed.command, parsed.arg, editor.state, target, uiLanguage());
+    const made = commandRequest(parsed.command, parsed.arg, editor.state, target, uiLanguage(), docBudget(cfg));
     if (!made) return void (reply.error = t().ai.needInstruction);
     reply.proposal = { kind: parsed.command.kind, target, applied: false };
     busy = true;

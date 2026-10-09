@@ -75,7 +75,8 @@ export const NoteRef = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: 'sup[data-note-ref]' }];
+    // Ahead of the superscript mark's `sup`, which would otherwise take the anchor.
+    return [{ tag: 'sup[data-note-ref]', priority: 60 }];
   },
 
   renderHTML({ node, HTMLAttributes }) {

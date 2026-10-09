@@ -8,7 +8,7 @@ directly with the key from Settings ▸ AI.
 ## Kill switch
 
 `storage/ai.svelte.ts` holds one app-wide key, `edentext-ai`, with `{enabled, provider,
-endpoint, apiKey, model}`. Off is the default. `aiEnabled()` gates every surface:
+endpoint, apiKey, model, contextTokens}`. Off is the default. `aiEnabled()` gates every surface:
 
 - the Home tab's AI group (`aiPane`, `aiDraft`, `aiRewrite`) and their command-search entries;
 - the two context-menu items (body editor only);
@@ -48,8 +48,9 @@ from the last layout pass, `pageLayout`), how full the last page is, and where t
 begin and end; the page setup (`Page: A4 portrait, margins …`) and the headers and footers
 (`{page}` for the field) follow. Comment threads follow the document as `[C1 on paragraph 4 «quote», by Ada,
 open]` with their replies; their numbers come from the turn's snapshot. Text marked as a deletion is
-left out, so the model reads the text as it will look once accepted. Past 60k characters,
-the head and the paragraphs around the selection are kept, and `read_paragraphs` returns
+left out, so the model reads the text as it will look once accepted. Past the budget
+(`docBudget`: half the context size set in Settings ▸ AI, at four characters a token), the
+head and the paragraphs around the selection are kept, and `read_paragraphs` returns
 the rest. The selection goes along as quoted text; a chip above the chat field shows it
 and its × deselects.
 
@@ -62,8 +63,10 @@ weight (the `<col>`s go, since TipTap reads them by cell index and skips the fir
 `<aside>` to a text box anchored in the next paragraph; `<img alt>` without `src` to a
 placeholder picture (a canvas PNG, which DOCX keeps; an SVG without a canvas); `<input
 placeholder>`, `<time>`/`{date}`, `<section columns>` and `<nav>` to a placeholder, a date
-field, text columns and a table of contents. A remote image is dropped and reported back. Text
-with a tab is parsed with whitespace preserved, after the dialect collapsed the rest itself.
+field, text columns and a table of contents. `<sup class="footnote">` (or `endnote`) becomes
+an anchor with a fresh id; its text cannot ride the slice, so `fillNotes` writes it into the
+note the sync plugin made once the slice is in. A remote image is dropped and reported back.
+Text with a tab is parsed with whitespace preserved, after the dialect collapsed the rest itself.
 `htmlToSlice` parses the result in an
 inert `DOMParser` document, drops the whitespace between top-level blocks (each would become
 a paragraph holding a space), then goes through the schema, then `fitPastedSlice` (the paste
@@ -127,6 +130,9 @@ with `/draft ` filled in (`OPEN_AI_CHAT_EVENT`, `askAi`). The popover only rewri
 ## Providers
 
 - **Anthropic** needs `anthropic-dangerous-direct-browser-access: true` to answer a browser.
+- **Ollama** on its default port is spoken to natively (`/api/chat`, JSON lines): its `/v1`
+  ignores a context size and loads the model with its own default, cutting a longer prompt
+  silently; the native call sends `num_ctx` from the context size.
 - **Ollama** accepts `app://` (the desktop shell) by default. A web origin has to be
   listed in `OLLAMA_ORIGINS`; the network error says so for a localhost endpoint.
 - **Models without tool support**: a 400 that mentions tools is retried once without tools,

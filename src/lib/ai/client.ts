@@ -1,6 +1,6 @@
 // Streaming chat against the provider the user configured: the OpenAI-compatible
-// /chat/completions (OpenAI, Mistral, OpenRouter, Gemini, Ollama, LM Studio, …) or
-// Anthropic's /messages. Plain fetch and server-sent events; the one place AI talks to
+// /chat/completions (OpenAI, Mistral, OpenRouter, Gemini, LM Studio, …), Ollama's own
+// /api/chat or Anthropic's /messages. Plain fetch and server-sent events; the one place AI talks to
 // the network, and only with a config, which storage/ai hands out while the switch is on.
 
 import type { AiConfig } from '../storage/ai.svelte';
@@ -82,6 +82,60 @@ function openaiRequest(cfg: AiConfig, req: ChatRequest): RequestInit & { url: st
       ...(req.tools?.length ? { tools: req.tools.map((t) => ({ type: 'function', function: t })) } : {}),
     }),
   };
+}
+
+/** Ollama's own default port: its /v1 ignores a context size, so its native API is used. */
+export const isOllama = (cfg: AiConfig) => cfg.provider === 'openai' && /^https?:\/\/[^/]+:11434(\/|$)/i.test(cfg.endpoint.trim());
+
+// Ollama's native /api/chat: the OpenAI message shape, arguments as objects, and the
+// context window as `num_ctx`, which it would otherwise cut the prompt to silently.
+function ollamaRequest(cfg: AiConfig, req: ChatRequest): RequestInit & { url: string } {
+  const messages: unknown[] = [{ role: 'system', content: req.system }];
+  for (const m of req.messages) {
+    if (m.role === 'tool') messages.push({ role: 'tool', content: m.content });
+    else if (m.role === 'assistant' && m.toolCalls?.length) {
+      messages.push({ role: 'assistant', content: m.content, tool_calls: m.toolCalls.map((c) => ({ function: { name: c.name, arguments: parseArgs(c.args) } })) });
+    } else messages.push({ role: m.role, content: m.content });
+  }
+  return {
+    url: cfg.endpoint.trim().replace(/\/+$/, '').replace(/\/v1$/, '') + '/api/chat',
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: cfg.model.trim(),
+      stream: true,
+      messages,
+      options: { num_ctx: cfg.contextTokens },
+      ...(req.tools?.length ? { tools: req.tools.map((t) => ({ type: 'function', function: t })) } : {}),
+    }),
+  };
+}
+
+async function readOllama(body: ReadableStream<Uint8Array>, onText: (t: string) => void): Promise<ChatResult> {
+  let text = '';
+  const calls: ToolCall[] = [];
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (let done = false; !done;) {
+    const chunk = await reader.read();
+    done = chunk.done;
+    buf += decoder.decode(chunk.value, { stream: !done });
+    const lines = buf.split('\n');
+    buf = done ? '' : lines.pop()!;
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const json = JSON.parse(line);
+      if (json.error) throw new AiError('http', 0, String(json.error));
+      const msg = json.message;
+      if (typeof msg?.content === 'string' && msg.content) { text += msg.content; onText(msg.content); }
+      for (const tc of msg?.tool_calls ?? []) {
+        const a = tc.function?.arguments;
+        calls.push({ id: `call_${calls.length}`, name: tc.function?.name ?? '', args: typeof a === 'string' ? a : JSON.stringify(a ?? {}) });
+      }
+    }
+  }
+  return { text, toolCalls: calls };
 }
 
 type AnthropicBlock = Record<string, unknown>;
@@ -196,7 +250,8 @@ async function httpError(res: Response): Promise<AiError> {
  * fetch's AbortError when `signal` fires.
  */
 export async function streamChat(cfg: AiConfig, req: ChatRequest, onText: (t: string) => void, signal?: AbortSignal): Promise<ChatResult> {
-  const build = cfg.provider === 'anthropic' ? anthropicRequest : openaiRequest;
+  const ollama = isOllama(cfg);
+  const build = cfg.provider === 'anthropic' ? anthropicRequest : ollama ? ollamaRequest : openaiRequest;
   const { url: target, ...init } = build(cfg, req);
   let res: Response;
   try {
@@ -215,7 +270,7 @@ export async function streamChat(cfg: AiConfig, req: ChatRequest, onText: (t: st
     throw err;
   }
   if (!res.body) throw new AiError('http', res.status, 'empty response');
-  return cfg.provider === 'anthropic' ? readAnthropic(res.body, onText) : readOpenai(res.body, onText);
+  return cfg.provider === 'anthropic' ? readAnthropic(res.body, onText) : ollama ? readOllama(res.body, onText) : readOpenai(res.body, onText);
 }
 
 export function isAbort(e: unknown): boolean {

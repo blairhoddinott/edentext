@@ -16,10 +16,10 @@ import { DEFAULT_BORDER_COLOR, DEFAULT_BORDER_WIDTH_PT } from '../editor/extensi
 import { normalizeColor } from '../utils/color';
 import { DEFAULT_STYLE, visibleStyles, type Style } from '../styles/styleSheet';
 import { styleLabel, t } from '../i18n/i18n.svelte';
-import type { AiConfig } from '../storage/ai.svelte';
+import { docBudget, type AiConfig } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
-import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, type CellAt, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, type Block } from './doc';
-import { nameLookup, parseMargins, splitDocumentHtml, type PageSpec } from './dialect';
+import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, type CellAt, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, fillNotes, type Block } from './doc';
+import { nameLookup, parseMargins, splitDocumentHtml, type NoteText, type PageSpec } from './dialect';
 import { PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
 import type { Orientation } from '../storage/pageOrientation';
 import type { PageMargins } from '../storage/pageMargins';
@@ -33,7 +33,7 @@ export const HTML_GUIDE = [
   'Run CSS on <span>: font-size, font-family, color. <hr> starts a new page.',
   'Tables: <td width="30%"> or <col width="30%"> sets column widths; <table border="0"> removes the lines; td takes background and vertical-align.',
   'A text box: <aside style="width:5cm;height:6cm;float:right">…</aside>, anchored to the paragraph after it. A picture placeholder: <img alt="Photo" width="4cm" height="5cm"> without src (no other images).',
-  'A fill-in field: <input placeholder="Your name">. Today\'s date: <time></time>. Text columns: <section columns="2">…</section>. A table of contents: <nav></nav>. Tabs stay tabs.',
+  'A footnote: <sup class="footnote">its text</sup> where the anchor goes (class="endnote" for an endnote). A fill-in field: <input placeholder="Your name">. Today\'s date: <time></time>. Text columns: <section columns="2">…</section>. A table of contents: <nav></nav>. Tabs stay tabs.',
   'Page header and footer: <header>…</header>, <footer>…</footer>, with {page} and {pages} as page fields; data-page="first" or "even" for those pages only. Page setup: <page size="A4" orientation="portrait" margin="2cm 2cm 2cm 2.5cm">.',
   'Example: <h1>Ada Lovelace</h1><aside style="width:4cm;height:5cm;float:right"><p><img alt="Photo" width="3.5cm" height="4.5cm"></p></aside><p><input placeholder="Address"></p><h2>Experience</h2><table border="0"><tr><td width="25%">1843</td><td><strong>Notes on the Analytical Engine</strong></td></tr></table>',
 ].join('\n');
@@ -468,8 +468,10 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       const p = current(ctx, a.paragraph);
       const [from, to] = contentRange(p);
       guardRevisions(ctx, from, to);
-      const content = inlineContent(htmlToSlice(String(a.html ?? ''), ctx.editor.state), schema);
+      const notes: NoteText[] = [];
+      const content = inlineContent(htmlToSlice(String(a.html ?? ''), ctx.editor.state, [], notes), schema);
       dispatch(ctx, (tr) => trackedReplace(tr, from, to, content.size ? new Slice(content, 0, 0) : null, ctx.author));
+      fillNotes(ctx.editor, notes, ctx.author);
       return { result: 'ok', summary: m.rewrite(Number(a.paragraph)) };
     }
     case 'insert_paragraphs': {
@@ -489,9 +491,11 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
         const top = $p.depth ? $p.node(1).type.name : '';
         at = $p.depth && top !== 'noteSection' && top !== 'textBox' ? $p.after(1) : p.pos + p.node.nodeSize;
       }
-      const slice = htmlToSlice(parts.body, ctx.editor.state, dropped);
+      const notes: NoteText[] = [];
+      const slice = htmlToSlice(parts.body, ctx.editor.state, dropped, notes);
       if (!slice.size) throw new ToolError(dropped.length ? `nothing to insert: ${dropped.join('; ')}` : 'nothing to insert');
       dispatch(ctx, (tr) => trackedReplace(tr, at, at, new Slice(slice.content, 0, 0), ctx.author));
+      fillNotes(ctx.editor, notes, ctx.author);
       return { result: withDropped(dropped), summary: [m.insert(after), ...parts.summaries].join('; ') };
     }
     case 'delete_paragraphs': {
@@ -735,7 +739,7 @@ export async function runTurn(opts: {
   const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host: opts.host };
   const track = ({ transaction }: { transaction: Transaction }) => ctx.mapping.appendMapping(transaction.mapping);
   editor.on('transaction', track);
-  const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, undefined, pageLayout(editor.view, blocks))}\n\n---\n\n${opts.question}` }];
+  const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, docBudget(opts.cfg), pageLayout(editor.view, blocks))}\n\n---\n\n${opts.question}` }];
   let answer = '';
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {

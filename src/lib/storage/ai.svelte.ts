@@ -3,7 +3,8 @@
 // switching off keeps the provider so switching back on needs no retyping.
 
 export type AiProvider = 'openai' | 'anthropic';
-export type AiSettings = { enabled: boolean; provider: AiProvider; endpoint: string; apiKey: string; model: string };
+/** `contextTokens`: the model's context window, which sizes the document sent along. */
+export type AiSettings = { enabled: boolean; provider: AiProvider; endpoint: string; apiKey: string; model: string; contextTokens: number };
 export type AiConfig = Omit<AiSettings, 'enabled'>;
 
 const KEY = 'edentext-ai';
@@ -13,7 +14,13 @@ export const OPEN_AI_PROMPT_EVENT = 'edentext-ai-prompt';
 /** Opens the chat pane; detail `{ prefill }` fills its field, e.g. `/draft `. */
 export const OPEN_AI_CHAT_EVENT = 'edentext-ai-chat';
 
-const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '' };
+export const DEFAULT_CONTEXT_TOKENS = 32_000;
+const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '', contextTokens: DEFAULT_CONTEXT_TOKENS };
+
+/** The characters of document a request may carry: half the context, at about four a token. */
+export function docBudget(cfg: Pick<AiConfig, 'contextTokens'>): number {
+  return Math.max(4000, Math.round((cfg.contextTokens || DEFAULT_CONTEXT_TOKENS) * 2));
+}
 
 function load(): AiSettings {
   try {

@@ -9,8 +9,8 @@ import type { Messages } from '../i18n/locales/en';
 import { locale } from '../i18n/i18n.svelte';
 import { LANGUAGES } from '../storage/documentLanguage';
 import type { ChatRequest } from './client';
-import { htmlToSlice, selectionHtml, serializeDoc, stripFences } from './doc';
-import { splitDocumentHtml } from './dialect';
+import { fillNotes, htmlToSlice, selectionHtml, serializeDoc, stripFences } from './doc';
+import { splitDocumentHtml, type NoteText } from './dialect';
 import { REWRITE_PROMPT, REWRITE_PRESETS, applyDocumentParts, draftPrompt, type AiHost } from './tools';
 
 type Preset = keyof typeof REWRITE_PRESETS;
@@ -51,11 +51,11 @@ export function captureTarget(state: EditorState): Target {
  * The request a command sends, and the question it leaves in the chat history; null
  * while an instruction is missing. A preset takes `arg` as an addition, translate as the language.
  */
-export function commandRequest(command: Command, arg: string, state: EditorState, target: Target, language: string): { request: ChatRequest; asked: string } | null {
+export function commandRequest(command: Command, arg: string, state: EditorState, target: Target, language: string, budget?: number): { request: ChatRequest; asked: string } | null {
   if (command.kind === 'draft') {
     if (!arg) return null;
     const asked = `Write this at the cursor: ${arg}`;
-    return { request: { system: draftPrompt(state.doc.childCount <= 1 && !state.doc.textContent.trim()), messages: [{ role: 'user', content: `${serializeDoc(state)}\n\n---\n\n${asked}` }] }, asked };
+    return { request: { system: draftPrompt(state.doc.childCount <= 1 && !state.doc.textContent.trim()), messages: [{ role: 'user', content: `${serializeDoc(state, undefined, budget)}\n\n---\n\n${asked}` }] }, asked };
   }
   const p = command.preset;
   const ask = p === 'translate' ? REWRITE_PRESETS.translate(arg || language) : p ? `${REWRITE_PRESETS[p]} ${arg}`.trim() : arg;
@@ -74,7 +74,9 @@ export function targetIntact(editor: Editor, { from, to, original }: Target): bo
 export function replaceTarget(editor: Editor, target: Target, html: string): boolean {
   if (!targetIntact(editor, target)) return false;
   editor.chain().focus().setTextSelection({ from: target.from, to: target.to }).run();
-  editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(html, editor.state)).scrollIntoView());
+  const notes: NoteText[] = [];
+  editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(html, editor.state, [], notes)).scrollIntoView());
+  fillNotes(editor, notes);
   return true;
 }
 
@@ -83,9 +85,11 @@ export function insertBelowTarget(editor: Editor, target: Target, html: string):
   if (!targetIntact(editor, target)) return false;
   const end = editor.state.doc.resolve(target.to);
   const at = end.after(end.depth);
-  const slice = htmlToSlice(html, editor.state);
+  const notes: NoteText[] = [];
+  const slice = htmlToSlice(html, editor.state, [], notes);
   const tr = editor.state.tr.replace(at, at, new Slice(slice.content, 0, 0));
   editor.view.dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(at, 1)))).scrollIntoView());
+  fillNotes(editor, notes);
   editor.commands.focus();
   return true;
 }
@@ -94,5 +98,8 @@ export function insertBelowTarget(editor: Editor, target: Target, html: string):
 export function insertAtCursor(editor: Editor, html: string, host?: AiHost): void {
   const body = host ? applyDocumentParts(html, host).body : splitDocumentHtml(stripFences(html)).body;
   editor.commands.focus();
-  if (body.trim()) editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(body, editor.state)).scrollIntoView());
+  if (!body.trim()) return;
+  const notes: NoteText[] = [];
+  editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(body, editor.state, [], notes)).scrollIntoView());
+  fillNotes(editor, notes);
 }

@@ -9,7 +9,12 @@ export type DialectOptions = {
   /** A paragraph style by internal or display name, case-insensitive. */
   style?: (name: string) => string | null;
   tableStyle?: (name: string) => string | null;
+  /** A fresh note id, for `<sup class="footnote">`. */
+  noteId?: () => string;
 };
+
+/** A note's text, written into the note its anchor gets once the slice is in. */
+export type NoteText = { id: string; html: string };
 
 const PT_PER: Record<string, number> = { pt: 1, px: 0.75, cm: 72 / 2.54, mm: 72 / 25.4, in: 72, em: 12, rem: 12, pc: 12 };
 const PX_PER_CM = 96 / 2.54;
@@ -248,9 +253,21 @@ function field(doc: Document, kind: string): HTMLElement {
  * Rewrites `body` in place. Returns what it had to leave out, for a tool to report, and
  * whether the text holds tabs, which the parser keeps only with whitespace preserved.
  */
-export function normalizeAiHtml(body: HTMLElement, o: DialectOptions = {}): { dropped: string[]; tabs: boolean } {
+export function normalizeAiHtml(body: HTMLElement, o: DialectOptions = {}): { dropped: string[]; tabs: boolean; notes: NoteText[] } {
   const doc = body.ownerDocument;
   const dropped: string[] = [];
+  const notes: NoteText[] = [];
+  // A note's text cannot ride the slice (it lives at the document end), so it goes aside.
+  for (const sup of [...body.querySelectorAll('sup.footnote, sup.endnote')] as HTMLElement[]) {
+    if (!o.noteId) continue;
+    const id = o.noteId();
+    notes.push({ id, html: sup.innerHTML });
+    const ref = doc.createElement('sup');
+    ref.setAttribute('data-note-ref', id);
+    ref.setAttribute('data-note-kind', sup.classList.contains('endnote') ? 'endnote' : 'footnote');
+    ref.setAttribute('data-text', '');
+    sup.replaceWith(ref);
+  }
   for (const el of [...body.querySelectorAll('*')] as HTMLElement[]) {
     const tag = el.tagName;
     if (BLOCKS.has(tag)) paragraph(el, o, dropped);
@@ -286,7 +303,7 @@ export function normalizeAiHtml(body: HTMLElement, o: DialectOptions = {}): { dr
   replaceTokens(body, FIELD_TOKEN, (kind) => field(doc, kind));
   const tabs = (body.textContent ?? '').includes('\t');
   if (tabs) collapseSpaces(body);
-  return { dropped, tabs };
+  return { dropped, tabs, notes };
 }
 
 // What the parser does to whitespace, minus the tabs, for a parse that preserves it.

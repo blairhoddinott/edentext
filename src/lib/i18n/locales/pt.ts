@@ -65,6 +65,8 @@ const pt: Messages = {
     endpointHint: 'O URL base da API',
     model: 'Modelo',
     modelHint: 'Como o fornecedor lhe chama, p. ex. gpt-4.1-mini, claude-sonnet-5 ou qwen2.5:7b',
+    contextSize: 'Tamanho do contexto',
+    contextSizeHint: 'A janela de contexto do modelo em tokens; decide quanto do documento é enviado. O Ollama a recebe.',
     apiKey: 'Chave de API',
     apiKeyHint: 'Guardada sem encriptação neste navegador. Um servidor local não precisa dela.',
     test: 'Testar',

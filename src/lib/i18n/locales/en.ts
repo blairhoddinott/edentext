@@ -66,6 +66,8 @@ const en = {
     endpointHint: 'The base URL of the API',
     model: 'Model',
     modelHint: 'As the provider names it, e.g. gpt-4.1-mini, claude-sonnet-5 or qwen2.5:7b',
+    contextSize: 'Context size',
+    contextSizeHint: 'The model\'s context window in tokens; it decides how much of the document goes along. Ollama is given it.',
     apiKey: 'API key',
     apiKeyHint: 'Stored unencrypted in this browser. A local server needs none.',
     test: 'Test',

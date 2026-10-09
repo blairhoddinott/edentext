@@ -167,3 +167,27 @@ describe('kill switch', () => {
     expect(localStorage.getItem('edentext-ai')).toBeNull();
   });
 });
+
+describe('Ollama', () => {
+  it('talks to the native API with the context size and reads its JSON lines', async () => {
+    const fetch = mockFetch([
+      { message: { role: 'assistant', content: 'Hi' }, done: false },
+      { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'format', arguments: { from: 1, bold: true } } }] }, done: false },
+      { done: true },
+    ].map((l) => JSON.stringify(l)).join('\n'));
+    const cfg = { provider: 'openai' as const, endpoint: 'http://localhost:11434/v1', apiKey: '', model: 'granite', contextTokens: 16384 };
+    const deltas: string[] = [];
+    const res = await streamChat(cfg, {
+      system: 'S',
+      messages: [{ role: 'user', content: 'q' }, { role: 'assistant', content: '', toolCalls: [{ id: 'c', name: 'format', args: '{"from":2}' }] }, { role: 'tool', id: 'c', content: 'ok' }],
+      tools: [{ name: 'format', description: 'd', parameters: {} }],
+    }, (d) => deltas.push(d));
+    expect(fetch.mock.calls[0][0]).toBe('http://localhost:11434/api/chat');
+    const body = JSON.parse(String(fetch.mock.calls[0][1].body));
+    expect(body.options).toEqual({ num_ctx: 16384 });
+    expect(body.messages[2].tool_calls[0].function.arguments).toEqual({ from: 2 });
+    expect(body.messages[3]).toEqual({ role: 'tool', content: 'ok' });
+    expect(res).toEqual({ text: 'Hi', toolCalls: [{ id: 'call_0', name: 'format', args: '{"from":1,"bold":true}' }] });
+    expect(deltas).toEqual(['Hi']);
+  });
+});
