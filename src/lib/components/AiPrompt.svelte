@@ -9,6 +9,7 @@
   import { streamChat, aiErrorText, isAbort } from '../ai/client';
   import { contentToDom, htmlToSlice, selectionHtml, serializeDoc } from '../ai/doc';
   import { REWRITE_PROMPT, REWRITE_PRESETS, draftPrompt, startRequest, endRequest } from '../ai/tools';
+  import Icon from './ribbon/Icon.svelte';
 
   // Copilot's two inline flows in one window: rewrite the selection, or draft new content
   // at the caret. The reply streams into a preview and touches the document only when
@@ -155,6 +156,7 @@
   style={pos ? `left:${pos.left}px; top:${pos.top}px;` : undefined}
 >
   <div class="aip-bar" use:dragWindow={(p) => (pos = p)}>
+    <Icon name="sparkle" size={16} />
     <span>{mode === 'rewrite' ? t().ai.rewriteHeading : t().ai.draftHeading}</span>
     <button class="aip-x" onclick={close} aria-label={t().common.close}>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
@@ -164,7 +166,7 @@
   {#if mode === 'rewrite'}
     <div class="aip-presets">
       {#each PRESETS as p (p)}
-        <button disabled={busy} onclick={() => generate(p)}>{t().ai.presets[p]}</button>
+        <button class="aip-chip" disabled={busy} onclick={() => generate(p)}>{t().ai.presets[p]}</button>
       {/each}
       <select bind:value={language} disabled={busy} aria-label={t().ai.presets.translate}>
         {#each TARGETS as l (l)}<option value={l}>{l}</option>{/each}
@@ -202,66 +204,71 @@
 </div>
 
 <style>
+  /* The ribbon's accent tokens, so both themes and a picked accent stay readable. */
   .aip {
     position: fixed;
     inset: 9rem 2rem auto auto;
     margin: 0;
     z-index: 300;
-    width: 27rem;
+    width: 28rem;
     max-width: calc(100vw - 16px);
     padding: 0;
+    overflow: hidden;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+    border-radius: 12px;
     background: var(--color-toolbar-bg, #fff);
     color: var(--color-text);
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+    box-shadow: var(--w-menu-shadow, 0 8px 28px rgba(0, 0, 0, 0.22));
     font-size: 0.8rem;
   }
+  .aip::before { content: ''; display: block; height: 3px; background: var(--brand-gradient); }
   .aip[style] { right: auto; }
 
   .aip-bar {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.35rem 0.4rem 0.35rem 0.7rem;
-    border-bottom: 1px solid var(--color-border);
+    gap: 0.5rem;
+    padding: 0.5rem 0.5rem 0.2rem 0.8rem;
+    color: var(--w-accent);
     font-weight: 600;
     cursor: move;
     touch-action: none;
   }
-  .aip-bar span { flex: 1; }
+  .aip-bar span { flex: 1; color: var(--color-text); font-size: 0.85rem; }
   .aip-x {
     display: flex;
-    padding: 0.25rem;
+    height: auto;
+    padding: 0.3rem;
     border: none;
-    border-radius: var(--radius);
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
+    color: var(--color-text-muted);
   }
-  .aip-x:hover { background: var(--color-hover, rgba(0, 0, 0, 0.06)); }
+  .aip-x:hover { color: var(--color-text); }
 
-  .aip-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.6rem 0.7rem 0; }
-  .aip-ask { display: flex; gap: 0.4rem; align-items: flex-end; padding: 0.6rem 0.7rem; }
+  .aip-presets { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0.5rem 0.8rem 0; }
+  .aip-chip, .aip-presets select { border-radius: 999px; }
+  .aip-chip:hover:not(:disabled) { border-color: var(--w-accent); background: var(--w-accent-soft); }
+  .aip-ask { display: flex; gap: 0.4rem; align-items: flex-end; padding: 0.6rem 0.8rem; }
   textarea {
     flex: 1;
     resize: vertical;
     min-height: 2.6rem;
-    padding: 0.4rem 0.5rem;
+    padding: 0.45rem 0.6rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+    border-radius: 8px;
     background: var(--color-surface);
     color: var(--color-text);
     font: inherit;
   }
+  textarea:focus { outline: none; border-color: var(--w-accent); box-shadow: 0 0 0 3px var(--w-accent-soft); }
 
   .aip-preview {
     max-height: 16rem;
     overflow-y: auto;
-    margin: 0 0.7rem;
-    padding: 0.4rem 0.6rem;
+    margin: 0 0.8rem;
+    padding: 0.5rem 0.7rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+    border-left: 3px solid var(--w-accent);
+    border-radius: 8px;
     background: var(--color-page-bg, #fff);
     color: #000;
     font-family: var(--font-serif, serif);
@@ -272,23 +279,24 @@
   .aip-preview :global(p) { margin: 0 0 0.4em; }
   .aip-preview :global(table) { border-collapse: collapse; }
   .aip-preview :global(td), .aip-preview :global(th) { border: 1px solid #999; padding: 2px 4px; }
-  .aip-error { margin: 0.5rem 0.7rem 0; color: #c0392b; }
+  .aip-error { margin: 0.5rem 0.8rem 0; color: #e5534b; }
 
-  .aip-actions { display: flex; align-items: center; gap: 0.4rem; padding: 0.6rem 0.7rem 0.7rem; }
+  .aip-actions { display: flex; align-items: center; gap: 0.4rem; padding: 0.6rem 0.8rem 0.8rem; }
   .aip-note { flex: 1; color: var(--color-text-muted); font-size: 0.72rem; }
 
   button, select {
-    height: 1.8rem;
-    padding: 0 0.6rem;
+    height: 1.9rem;
+    padding: 0 0.7rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+    border-radius: 8px;
     background: transparent;
     color: var(--color-text);
     font-size: 0.8rem;
     cursor: pointer;
   }
   .aip-presets select { max-width: 9rem; }
-  button:hover:not(:disabled) { background: var(--color-hover, rgba(0, 0, 0, 0.06)); }
-  button:disabled, select:disabled { opacity: 0.5; cursor: default; }
-  .aip-go { border-color: var(--color-accent, #1a56db); color: var(--color-accent, #1a56db); }
+  button:hover:not(:disabled) { background: var(--color-btn-hover); }
+  button:disabled, select:disabled { opacity: 0.45; cursor: default; }
+  .aip-go { border-color: var(--w-accent-fill); background: var(--w-accent-fill); color: #fff; font-weight: 600; }
+  .aip-go:hover:not(:disabled) { border-color: var(--w-accent-fill-open); background: var(--w-accent-fill-open); }
 </style>

@@ -456,7 +456,7 @@
   <RibbonGroup label={t().ai.group}>
     <RibbonButton variant="big" icon="sparkle" cmd="aiPane" label={t().ai.chat} title={t().ai.chatTitle} active={aiOpen} onclick={() => onToggleAi?.()} />
     <div class="rb-col">
-      <RibbonButton variant="small" icon="sparkle" cmd="aiDraft" label={t().ai.draft} title={`${t().ai.draftTitle} (${shortcutHint('aiDraft')})`} onclick={() => openAiPrompt('draft')} />
+      <RibbonButton variant="small" icon="sparkle" cmd="aiDraft" label={t().ai.draftHeading} title={`${t().ai.draftTitle} (${shortcutHint('aiDraft')})`} onclick={() => openAiPrompt('draft')} />
       <RibbonButton variant="small" icon="sparkle" cmd="aiRewrite" label={t().ai.rewriteHeading} title={t().ai.rewriteHeading} disabled={!hasSelection} onclick={() => openAiPrompt('rewrite')} />
     </div>
   </RibbonGroup>

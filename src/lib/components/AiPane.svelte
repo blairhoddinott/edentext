@@ -181,8 +181,9 @@
     gap: 6px;
     padding: 8px 10px;
     border-bottom: 1px solid var(--color-border);
+    color: var(--w-accent);
   }
-  .title { flex: 1; font-weight: 600; }
+  .title { flex: 1; color: var(--color-text); font-weight: 600; }
 
   button {
     border: none;
@@ -208,19 +209,19 @@
   .intro { margin: 0; color: var(--color-text-muted); line-height: 1.4; }
   .chips { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
   .chip {
-    padding: 5px 10px;
+    padding: 6px 12px;
     border: 1px solid var(--color-border);
-    border-radius: 14px;
+    border-radius: 999px;
     text-align: left;
   }
-  .chip:hover:not(:disabled) { background: var(--color-btn-hover); }
+  .chip:hover:not(:disabled) { border-color: var(--w-accent); background: var(--w-accent-soft); }
 
   .msg { max-width: 100%; line-height: 1.4; overflow-wrap: anywhere; }
   .msg.user {
     align-self: flex-end;
     max-width: 85%;
-    padding: 6px 10px;
-    border-radius: 10px;
+    padding: 7px 11px;
+    border-radius: 14px 14px 4px 14px;
     background: var(--w-accent-soft, var(--color-btn-hover));
     white-space: pre-wrap;
   }
@@ -231,28 +232,41 @@
   .content :global(table) { border-collapse: collapse; margin-bottom: 0.5em; }
   .content :global(td), .content :global(th) { border: 1px solid var(--color-border); padding: 2px 4px; }
   .tool { color: var(--color-text-muted); font-size: 0.75rem; }
-  .error { color: #c0392b; }
+  .error { color: #e5534b; }
   .typing { color: var(--color-text-muted); }
-  .link { align-self: flex-start; padding: 2px 0; color: var(--w-accent, var(--color-accent)); font-size: 0.75rem; }
+  .link { align-self: flex-start; padding: 2px 0; color: var(--w-accent); font-size: 0.75rem; }
   .link:hover { text-decoration: underline; }
 
   footer { padding: 8px 10px; border-top: 1px solid var(--color-border); }
-  .ask { display: flex; gap: 6px; align-items: flex-end; }
-  textarea {
-    flex: 1;
-    resize: none;
-    padding: 6px 8px;
+  /* One composer box: the field and its button share the border and the focus ring. */
+  .ask {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius);
+    border-radius: 12px;
     background: var(--color-surface);
+  }
+  .ask:focus-within { border-color: var(--w-accent); box-shadow: 0 0 0 3px var(--w-accent-soft); }
+  textarea {
+    resize: none;
+    padding: 2px 4px;
+    border: none;
+    outline: none;
+    background: transparent;
     color: var(--color-text);
     font: inherit;
   }
   .send {
-    padding: 5px 10px;
-    border: 1px solid var(--color-border);
+    align-self: flex-end;
+    padding: 5px 12px;
+    border-radius: 8px;
+    background: var(--w-accent-fill);
+    color: #fff;
+    font-weight: 600;
   }
-  .send:hover:not(:disabled) { background: var(--color-btn-hover); }
+  .send:hover:not(:disabled) { background: var(--w-accent-fill-open); }
   .notice { margin: 0; color: var(--color-text-muted); }
   .note { margin: 6px 0 0; color: var(--color-text-muted); font-size: 0.7rem; }
 </style>
