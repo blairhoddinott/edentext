@@ -12,6 +12,8 @@ import { headingNumbers } from '../editor/extensions/outline';
 import { listNumberAt } from '../editor/extensions/listStyle';
 import { pageOfElement, readVerticalMargins, topInEditor } from '../editor/extensions/pageBreaks';
 import { styleSheet } from '../styles/sheet.svelte';
+import { styleLabel } from '../i18n/i18n.svelte';
+import { nameLookup, normalizeAiHtml } from './dialect';
 import { loadDifferentFirstPage, loadDifferentOddEven, loadHfDoc, type HfDoc, type HfZone, type HfVariant } from '../storage/headerFooter';
 import { headingStyleName, resolveStyle, type ResolvedStyle, type StyleSheet } from '../styles/styleSheet';
 
@@ -323,7 +325,7 @@ function markdownEmphasis(s: string): string {
  * document (no script runs, no image loads) and through the schema, which keeps only
  * what the editor knows; a reply without tags becomes one paragraph per line.
  */
-export function htmlToSlice(html: string, state: EditorState): Slice {
+export function htmlToSlice(html: string, state: EditorState, dropped: string[] = []): Slice {
   const clean = stripFences(html).trim();
   const markup = /<\/?[a-z][\s\S]*>/i.test(clean)
     ? markdownEmphasis(clean)
@@ -332,8 +334,17 @@ export function htmlToSlice(html: string, state: EditorState): Slice {
   // The line breaks between a reply's blocks are layout, not text: at the top they would
   // each become a paragraph holding a space.
   for (const n of [...body.childNodes]) if (n.nodeType === Node.TEXT_NODE && !n.textContent!.trim()) n.remove();
-  const slice = PMDOMParser.fromSchema(state.schema).parseSlice(body);
-  return fitPastedSlice(slice, state);
+  const sheet = styleSheet();
+  const dialect = normalizeAiHtml(body, {
+    style: nameLookup(Object.keys(sheet.paragraph), styleLabel),
+    tableStyle: nameLookup(Object.keys(sheet.table), styleLabel),
+  });
+  dropped.push(...dialect.dropped);
+  const parsed = PMDOMParser.fromSchema(state.schema).parseSlice(body, { preserveWhitespace: dialect.tabs });
+  // A table of contents written as <nav> has no entries yet: null builds them on mount.
+  const content: PMNode[] = [];
+  parsed.content.forEach((n) => content.push(n.type.name === 'tableOfContents' && !n.attrs.entries?.length ? n.type.create({ ...n.attrs, entries: null }) : n));
+  return fitPastedSlice(new Slice(Fragment.from(content), parsed.openStart, parsed.openEnd), state);
 }
 
 /** Editor content as DOM for a preview: only nodes the schema knows, so nothing runs. */

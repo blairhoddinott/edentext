@@ -12,18 +12,30 @@ import { applyFormat, FORMAT_MARKS, type FormatSpec } from '../editor/extensions
 import { comments } from '../editor/extensions/comment';
 import { styleSheet } from '../styles/sheet.svelte';
 import { visibleStyles } from '../styles/styleSheet';
-import { t } from '../i18n/i18n.svelte';
+import { styleLabel, t } from '../i18n/i18n.svelte';
+import { nameLookup } from './dialect';
 import type { AiConfig } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
 import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, inlineContent, pageLayout, serializeDoc, type Block } from './doc';
 
-const HTML_RULE = 'Write content as HTML using only p, h1, h2, h3, strong, em, u, s, ul, ol, li, table, tr, th, td, br and a — no markdown, no code fences, no wrapper element.';
+// What a model writes anyway (semantic tags, plain CSS); ai/dialect.ts maps it onto the
+// editor's nodes. Short enough for a small local model to keep in view.
+export const HTML_GUIDE = [
+  'Write content as HTML: no markdown, no code fences, no wrapper element. Use p, h1–h3, strong, em, u, s, sub, sup, mark, a, br, ul, ol, li, table, tr, th, td.',
+  'Paragraph style: <p class="Quotations"> with a style name listed below. Paragraph CSS: text-align, margin-top/margin-bottom (pt), margin-left, text-indent (cm), line-height, background, border, border-bottom, font-size, font-family, color.',
+  'Run CSS on <span>: font-size, font-family, color. <hr> starts a new page.',
+  'Tables: <td width="30%"> or <col width="30%"> sets column widths; <table border="0"> removes the lines; td takes background and vertical-align.',
+  'A text box: <aside style="width:5cm;height:6cm;float:right">…</aside>, anchored to the paragraph after it. A picture placeholder: <img alt="Photo" width="4cm" height="5cm"> without src (no other images).',
+  'A fill-in field: <input placeholder="Your name">. Today\'s date: <time></time>. Text columns: <section columns="2">…</section>. A table of contents: <nav></nav>. Tabs stay tabs.',
+  'Example: <h1>Ada Lovelace</h1><aside style="width:4cm;height:5cm;float:right"><p><img alt="Photo" width="3.5cm" height="4.5cm"></p></aside><p><input placeholder="Address"></p><h2>Experience</h2><table border="0"><tr><td width="25%">1843</td><td><strong>Notes on the Analytical Engine</strong></td></tr></table>',
+].join('\n');
 
 export function chatSystemPrompt(): string {
-  const styles = visibleStyles(styleSheet()).map((s) => s.name).join(', ');
+  const styles = visibleStyles(styleSheet()).map((s) => styleLabel(s.name)).join(', ');
   return [
     'You are the writing assistant in edentext, a word processor that runs in the browser and saves .odt and .docx. Each user message starts with the document, one numbered paragraph per line.',
-    'Answer in the language the user writes in, briefly. ' + HTML_RULE,
+    'Answer in the language the user writes in, briefly.',
+    HTML_GUIDE,
     'Formatting follows a paragraph in braces, as {bold: "word"; style "Quote"}; "all" means the whole paragraph. It is not part of the text and lists only what the paragraph style does not already give.',
     'In the text, {image "alt text"} is a picture (you see only its alt text), ‹Name› a placeholder to fill in and {date} a date field; replace_text can replace each as a whole.',
     'A number after li or a heading level, as [57 li VI], is the number the page shows. [12–28] (empty) stands for empty paragraphs 12 to 28. — page 2 — lines mark where a page starts.',
@@ -36,10 +48,11 @@ export function chatSystemPrompt(): string {
   ].join('\n');
 }
 
-export const REWRITE_PROMPT = `You rewrite a passage from a document. The passage comes as HTML. Reply with the rewritten passage only, keeping its formatting tags. ${HTML_RULE} Keep its language unless told to translate. No explanation.`;
+export const REWRITE_PROMPT = `You rewrite a passage from a document. The passage comes as HTML. Reply with the rewritten passage only, keeping its formatting tags. Write HTML, no markdown, no code fences, no wrapper element. Keep its language unless told to translate. No explanation.`;
 
 export function draftPrompt(): string {
-  return `You write new content for a document at the cursor; the document follows for context. Reply with the content only. ${HTML_RULE} Write in the document's language unless told otherwise. No preface, no explanation.`;
+  const styles = visibleStyles(styleSheet()).map((s) => styleLabel(s.name)).join(', ');
+  return `You write new content for a document at the cursor; the document follows for context. Reply with the content only. Write in the document's language unless told otherwise. No preface, no explanation.\n${HTML_GUIDE}\nParagraph styles: ${styles}.`;
 }
 
 export const REWRITE_PRESETS = {
@@ -262,8 +275,9 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
     case 'format': {
       const fromN = Number(a.from);
       const toN = Math.max(fromN, Number(a.to) || fromN);
-      const style = typeof a.style === 'string' ? a.style : undefined;
-      if (style && !styleSheet().paragraph[style]) throw new ToolError(`unknown paragraph style "${style}"`);
+      const sheet = styleSheet();
+      const style = typeof a.style === 'string' ? nameLookup(Object.keys(sheet.paragraph), styleLabel)(a.style) ?? undefined : undefined;
+      if (typeof a.style === 'string' && !style) throw new ToolError(`unknown paragraph style "${a.style}"; styles are: ${visibleStyles(sheet).map((x) => styleLabel(x.name)).join(', ')}`);
       const spec: FormatSpec = {
         bold: a.bold === true, italic: a.italic === true, underline: a.underline === true,
         font: typeof a.font === 'string' ? a.font : undefined,

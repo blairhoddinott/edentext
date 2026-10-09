@@ -52,7 +52,18 @@ the head and the paragraphs around the selection are kept, and `read_paragraphs`
 the rest. The selection goes along as quoted text; a chip above the chat field shows it
 and its × deselects.
 
-**Output.** The model is asked for a small HTML subset. `htmlToSlice` parses it in an
+**Output.** The model writes the HTML it knows anyway, described in one short guide
+(`HTML_GUIDE`, in the chat and draft prompts): semantic tags and plain CSS. `ai/dialect.ts`
+(`normalizeAiHtml`) rewrites that into the data-* form the schema parses: paragraph CSS to
+spacing, indent, line height, shading, borders and block font; a style class by internal or
+display name; `<hr>` to a page break; `width` on `<td>`/`<col>` to every cell's `colwidth`
+weight (the `<col>`s go, since TipTap reads them by cell index and skips the first);
+`<aside>` to a text box anchored in the next paragraph; `<img alt>` without `src` to a
+placeholder picture (a canvas PNG, which DOCX keeps; an SVG without a canvas); `<input
+placeholder>`, `<time>`/`{date}`, `<section columns>` and `<nav>` to a placeholder, a date
+field, text columns and a table of contents. A remote image is dropped and reported back. Text
+with a tab is parsed with whitespace preserved, after the dialect collapsed the rest itself.
+`htmlToSlice` parses the result in an
 inert `DOMParser` document, drops the whitespace between top-level blocks (each would become
 a paragraph holding a space), then goes through the schema, then `fitPastedSlice` (the paste
 path's fixes). That drops scripts, handlers, unknown tags and remote images. Previews
