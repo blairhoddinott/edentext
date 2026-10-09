@@ -121,6 +121,13 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/** Markdown emphasis that models mix into their HTML despite the prompt; `2 * 3 * 4` stays. */
+function markdownEmphasis(s: string): string {
+  return s
+    .replace(/\*\*(?=\S)([^*]+?)(?<=\S)\*\*/g, '<strong>$1</strong>')
+    .replace(/(?<![*\w])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![*\w])/g, '<em>$1</em>');
+}
+
 /**
  * The model's HTML as a slice fitted for `state`'s selection. Parsed in an inert
  * document (no script runs, no image loads) and through the schema, which keeps only
@@ -129,8 +136,8 @@ function escapeHtml(s: string): string {
 export function htmlToSlice(html: string, state: EditorState): Slice {
   const clean = stripFences(html).trim();
   const markup = /<\/?[a-z][\s\S]*>/i.test(clean)
-    ? clean
-    : clean.split(/\n+/).map((l) => `<p>${escapeHtml(l)}</p>`).join('');
+    ? markdownEmphasis(clean)
+    : clean.split(/\n+/).map((l) => `<p>${markdownEmphasis(escapeHtml(l))}</p>`).join('');
   const body = new DOMParser().parseFromString(markup, 'text/html').body;
   const slice = PMDOMParser.fromSchema(state.schema).parseSlice(body);
   return fitPastedSlice(slice, state);

@@ -131,6 +131,18 @@ describe('htmlToSlice', () => {
     expect(htmlToSlice('```html\n<p>x</p>\n```', editor.state).content.textBetween(0, 3)).toBe('x');
     editor.destroy();
   });
+
+  it('reads markdown emphasis as marks, but not a product', () => {
+    const editor = makeEditor('<p></p>');
+    const marks = (html: string) => {
+      const out: string[] = [];
+      htmlToSlice(html, editor.state).content.descendants((n) => { if (n.isText) out.push(`${n.marks.map((m) => m.type.name).join('+')}:${n.text}`); });
+      return out;
+    };
+    expect(marks('<p>**Summary:** a *b*</p>')).toEqual(['bold:Summary:', ': a ', 'italic:b']);
+    expect(marks('**x** and 2 * 3 * 4')).toEqual(['bold:x', ': and 2 * 3 * 4']);
+    editor.destroy();
+  });
 });
 
 describe('runTurn', () => {
