@@ -113,6 +113,7 @@ const pt: Messages = {
       resolve: (n: number) => `Comentário C${n} resolvido`,
       row: (t: number) => `Linha inserida na tabela ${t}`,
       column: (t: number) => `Coluna inserida na tabela ${t}`,
+      textColumns: (n: number) => (n > 1 ? `Texto em ${n} colunas` : 'Colunas removidas'),
       failed: (msg: string) => `Não efetuado: ${msg}`,
     },
   },

@@ -115,6 +115,7 @@ const zhHant: Messages = {
       resolve: (n: number) => `已解決註解 C${n}`,
       row: (t: number) => `已在表格 ${t} 中插入列`,
       column: (t: number) => `已在表格 ${t} 中插入欄`,
+      textColumns: (n: number) => (n > 1 ? `已將內文分為 ${n} 欄` : '已取消分欄'),
       failed: (msg: string) => `未執行：${msg}`,
     },
   },

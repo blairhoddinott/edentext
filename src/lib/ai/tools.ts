@@ -15,7 +15,7 @@ import { visibleStyles } from '../styles/styleSheet';
 import { t } from '../i18n/i18n.svelte';
 import type { AiConfig } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
-import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, inlineContent, serializeDoc, type Block } from './doc';
+import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, inlineContent, pageLayout, serializeDoc, type Block } from './doc';
 
 const HTML_RULE = 'Write content as HTML using only p, h1, h2, h3, strong, em, u, s, ul, ol, li, table, tr, th, td, br and a — no markdown, no code fences, no wrapper element.';
 
@@ -24,11 +24,13 @@ export function chatSystemPrompt(): string {
   return [
     'You are the writing assistant in edentext, a word processor that runs in the browser and saves .odt and .docx. Each user message starts with the document, one numbered paragraph per line.',
     'Answer in the language the user writes in, briefly. ' + HTML_RULE,
-    'Formatting follows a paragraph in braces, as {bold: "word"; style "Quote"; image "alt text"}; "all" means the whole paragraph. It is not part of the text; you cannot see images, only their alt text.',
+    'Formatting follows a paragraph in braces, as {bold: "word"; style "Quote"; image "alt text"}; "all" means the whole paragraph. It is not part of the text and lists only what the paragraph style does not already give; you cannot see images, only their alt text.',
+    'A number after li or a heading level, as [57 li VI], is the number the page shows. [12–28] (empty) stands for empty paragraphs 12 to 28. — page 2 — lines mark where a page starts.',
+    '— 2 columns — lines mark where text columns start or end; set_columns changes them. Page headers and footers are shown after the document; you cannot change them or the page setup (margins, size), so tell the user where to do it.',
     'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
     'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3. Add rows and columns with table_insert, never by rebuilding the table.',
     'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
-    'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did.',
+    'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
     `Paragraph styles: ${styles}.`,
   ].join('\n');
 }
@@ -129,6 +131,11 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'set_columns',
+    description: 'Sets the text of paragraphs from…to in 1 to 3 columns. Inside a section that already has columns it changes the whole section; 1 removes the columns.',
+    parameters: { type: 'object', properties: { from: num('First paragraph'), to: num('Last paragraph'), count: num('Number of columns, 1–3') }, required: ['from', 'count'] },
+  },
+  {
     name: 'add_comment',
     description: 'Adds a comment to a paragraph, or to the text find inside it.',
     parameters: { type: 'object', properties: { paragraph: num('Paragraph number'), find: str('Text to comment on'), text: str('The comment') }, required: ['paragraph', 'text'] },
@@ -155,13 +162,19 @@ function contentRange(p: { node: PMNode; pos: number }): [number, number] {
   return [p.pos + 1, p.pos + 1 + p.node.content.size];
 }
 
+// A form's blank (a run of dots, an ellipsis or underscores) matches any such run, since
+// a model cannot be relied on to copy 136 dots exactly.
+const BLANK = /[.…_]{3,}|…+/g;
+
 function findIn(p: { text: string; map: number[] }, find: string, occurrence = 1): [number, number] {
-  let at = -1;
+  const pattern = find.split(BLANK).map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(`(?:${BLANK.source})`);
+  const re = new RegExp(pattern, 'g');
+  let m: RegExpExecArray | null = null;
   for (let k = 0; k < Math.max(1, occurrence); k++) {
-    at = p.text.indexOf(find, at + 1);
-    if (at < 0) throw new ToolError(`text not found: "${find}"`);
+    m = re.exec(p.text);
+    if (!m || !m[0]) throw new ToolError(`text not found: "${find}"`);
   }
-  return [p.map[at], p.map[at + find.length - 1] + 1];
+  return [p.map[m!.index], p.map[m!.index + m![0].length - 1] + 1];
 }
 
 function findAll(p: { text: string; map: number[] }, find: string): [number, number][] {
@@ -300,6 +313,17 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       });
       return { result: 'ok', summary: row ? m.row(at.table) : m.column(at.table) };
     }
+    case 'set_columns': {
+      const count = Math.round(Number(a.count));
+      if (!(count >= 1 && count <= 3)) throw new ToolError('count must be 1, 2 or 3');
+      const p = current(ctx, a.from);
+      const q = current(ctx, a.to ?? a.from);
+      const [from, to] = [p.pos + 1, q.pos + 1 + q.node.content.size];
+      // A bare cursor would give the whole document columns.
+      if (from >= to) throw new ToolError('the paragraphs are empty; name a range that holds text');
+      if (!ctx.editor.chain().setTextSelection({ from, to }).setColumns(count).run()) throw new ToolError('columns cannot be set there (a table or frame in the range, or no columns to remove)');
+      return { result: 'ok', summary: m.textColumns(count) };
+    }
     case 'reply_comment':
     case 'resolve_comment': {
       const n = Number(a.comment);
@@ -373,7 +397,7 @@ export async function runTurn(opts: {
   const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id) };
   const track = ({ transaction }: { transaction: Transaction }) => ctx.mapping.appendMapping(transaction.mapping);
   editor.on('transaction', track);
-  const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks)}\n\n---\n\n${opts.question}` }];
+  const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, undefined, pageLayout(editor.view, blocks))}\n\n---\n\n${opts.question}` }];
   let answer = '';
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {

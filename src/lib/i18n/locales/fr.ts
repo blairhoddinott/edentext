@@ -113,6 +113,7 @@ const fr: Messages = {
       resolve: (n: number) => `Commentaire C${n} résolu`,
       row: (t: number) => `Ligne insérée dans le tableau ${t}`,
       column: (t: number) => `Colonne insérée dans le tableau ${t}`,
+      textColumns: (n: number) => (n > 1 ? `Texte mis sur ${n} colonnes` : 'Colonnes supprimées'),
       failed: (msg: string) => `Non effectué : ${msg}`,
     },
   },

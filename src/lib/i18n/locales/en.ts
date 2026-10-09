@@ -114,6 +114,7 @@ const en = {
       resolve: (n: number) => `Resolved comment C${n}`,
       row: (t: number) => `Inserted a row in table ${t}`,
       column: (t: number) => `Inserted a column in table ${t}`,
+      textColumns: (n: number) => (n > 1 ? `Set the text in ${n} columns` : 'Removed the columns'),
       failed: (msg: string) => `Not done: ${msg}`,
     },
   },

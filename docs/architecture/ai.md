@@ -35,9 +35,14 @@ Pages origin can read it, and the settings row says so.
 ## Document in, content out
 
 **Input.** Every textblock is one line, `[n kind] text`; a cell's kind names its table, row
-and column (`cell T1 r2 c3`, from `TableMap`, so merged cells count once). Style, alignment,
-images (by alt text; the model sees no pixels) and direct formatting follow in braces (`formatNote`), quoting the runs, so `find` still
-matches the bare text. Comment threads follow the document as `[C1 on paragraph 4 «quote», by Ada,
+and column (`cell T1 r2 c3`, from `TableMap`, so merged cells count once); a list item or
+numbered heading also carries the number the page shows (`li VI`, from `listNumberAt` and
+`headingNumbers`), since the text refers to it. Style, images (by alt text; the model sees
+no pixels), and the alignment and direct formatting the paragraph style does not already give
+follow in braces (`formatNote`), quoting the runs, so `find` still matches the bare text. A run
+of empty paragraphs folds to `[12–28] (empty)`. Lines mark where a page starts (`— page 2 —`,
+from the last layout pass, `pageLayout`), how full the last page is, and where text columns
+begin and end; the headers and footers follow as read-only text. Comment threads follow the document as `[C1 on paragraph 4 «quote», by Ada,
 open]` with their replies; their numbers come from the turn's snapshot. Text marked as a deletion is
 left out, so the model reads the text as it will look once accepted. Past 60k characters,
 the head and the paragraphs around the selection are kept, and `read_paragraphs` returns
@@ -62,6 +67,10 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   **`resolve_comment`** closes it, both directly and undoable.
 - **`table_insert`** adds a row or column with the table commands; the structure applies
   directly, the new cells' text is tracked. Removing rows or columns is left to the user.
+- **`set_columns`** runs `setColumns` over the paragraphs' range, which refuses a bare
+  cursor's whole-document case; columns apply directly.
+- **`replace_text`** lets a form blank (a run of dots or underscores, an ellipsis) in `find`
+  match any such run: a model miscounts long ones.
 - **Paragraph numbers** come from the turn's snapshot. Every transaction during the turn
   is appended to a `Mapping`, so a number still finds its paragraph after earlier edits.
   Inserted paragraphs only get a number in the next turn.

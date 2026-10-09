@@ -113,6 +113,7 @@ const de: Messages = {
       resolve: (n: number) => `Kommentar C${n} erledigt`,
       row: (t: number) => `Zeile in Tabelle ${t} eingefügt`,
       column: (t: number) => `Spalte in Tabelle ${t} eingefügt`,
+      textColumns: (n: number) => (n > 1 ? `Text auf ${n} Spalten gesetzt` : 'Spalten aufgehoben'),
       failed: (msg: string) => `Nicht ausgeführt: ${msg}`,
     },
   },

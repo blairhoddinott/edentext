@@ -52,6 +52,13 @@ describe('serializeDoc', () => {
     editor.destroy();
   });
 
+  it('shows list numbers, leaves out what the style gives, folds empty runs and marks columns', () => {
+    const editor = makeEditor('<ol><li><p>one</p></li><li><p>two</p></li></ol><p><span style="font-size:12pt">plain</span></p><p></p><p></p><p></p><p>end</p>');
+    editor.chain().setTextSelection({ from: editor.state.doc.content.size - 4, to: editor.state.doc.content.size - 1 }).setColumns(2).run();
+    expect(serializeDoc(editor.state)).toMatch(/^Document[^\n]*\n\[1 li 1\] one\n\[2 li 2\] two\n\[3\] plain\n\[4–6\] \(empty\)\n— 2 columns —\n\[7\] end\n/);
+    editor.destroy();
+  });
+
   it('keeps the head and the selection when over budget', () => {
     const editor = makeEditor(Array.from({ length: 200 }, (_, i) => `<p>paragraph number ${i + 1}</p>`).join(''));
     const last = blockTexts(editor.state.doc)[149];
@@ -142,6 +149,26 @@ describe('tools', () => {
       'cell T1 r3 c1=1', 'cell T1 r3 c2=2', 'cell T1 r3 c3=3',
     ]);
     expect(runTool(ctx, call('table_insert', { paragraph: 1, where: 'row_below' })).result).toMatch(/not in a table/);
+    editor.destroy();
+  });
+
+  it('gives a new row the formatting of the row it was inserted from', () => {
+    const editor = makeEditor('<table><tr><td style="background-color:#ffcc00"><p style="text-align:justify">a</p></td><td><p style="text-align:right">1</p></td></tr></table>');
+    expect(runTool(turn(editor), call('table_insert', { paragraph: 2, where: 'row_below', cells: ['b', '2'] })).result).toBe('ok');
+    const cells: string[] = [];
+    editor.state.doc.descendants((n) => { if (n.type.name === 'tableCell') cells.push(`${n.attrs.backgroundColor} ${n.firstChild!.attrs.textAlign} ${n.textContent}`); });
+    expect(cells.slice(2)).toEqual(['rgb(255, 204, 0) justify b', 'null right 2']);
+    editor.destroy();
+  });
+
+  it('fills a form blank however many dots the model copies, and sets columns', () => {
+    const editor = makeEditor(`<p>Name: ${'.'.repeat(40)} (employee)</p><p>Second</p><p></p>`);
+    const ctx = turn(editor);
+    expect(runTool(ctx, call('replace_text', { paragraph: 1, find: 'Name: ……', replace: 'Name: Ada Byron' })).result).toBe('ok');
+    expect(texts(editor)[0]).toBe('Name: Ada Byron (employee)');
+    expect(runTool(ctx, call('set_columns', { from: 3, count: 2 })).result).toMatch(/empty/);
+    expect(runTool(ctx, call('set_columns', { from: 1, to: 2, count: 2 })).result).toBe('ok');
+    expect(blockTexts(editor.state.doc).map((b) => b.columns)).toEqual([2, 2, 1]);
     editor.destroy();
   });
 

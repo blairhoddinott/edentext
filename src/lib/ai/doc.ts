@@ -4,9 +4,16 @@
 
 import { DOMParser as PMDOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode, type Schema } from '@tiptap/pm/model';
 import type { EditorState } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 import { TableMap } from '@tiptap/pm/tables';
 import { fitPastedSlice } from '../editor/paste';
 import { comments } from '../editor/extensions/comment';
+import { headingNumbers } from '../editor/extensions/outline';
+import { listNumberAt } from '../editor/extensions/listStyle';
+import { pageOfElement, readVerticalMargins, topInEditor } from '../editor/extensions/pageBreaks';
+import { styleSheet } from '../styles/sheet.svelte';
+import { loadDifferentFirstPage, loadDifferentOddEven, loadHfDoc, type HfDoc, type HfZone, type HfVariant } from '../storage/headerFooter';
+import { headingStyleName, resolveStyle, type ResolvedStyle, type StyleSheet } from '../styles/styleSheet';
 
 export type Block = {
   /** 1-based, as the model sees it. */
@@ -20,6 +27,8 @@ export type Block = {
   map: number[];
   /** Style and direct formatting, ` {bold: "x"; style "Quote"}`, or ''. */
   fmt: string;
+  /** Text columns of the section it is in, 1 outside one. */
+  columns: number;
 };
 
 export function blockText(node: PMNode, pos: number): { text: string; map: number[] } {
@@ -42,17 +51,23 @@ export function blockText(node: PMNode, pos: number): { text: string; map: numbe
 /** Where a cell sits: its table (numbered in document order), row and column, 1-based. */
 export type CellAt = { table: number; tablePos: number; row: number; col: number };
 
-export function blockTexts(doc: PMNode): Block[] {
+export function blockTexts(doc: PMNode, sheet: StyleSheet = styleSheet()): Block[] {
   const out: Block[] = [];
   const tables: number[] = [];
-  doc.descendants((node, pos, parent) => {
+  const headings = headingNumbers(doc, sheet.outline);
+  let section = { end: -1, count: 1 };
+  doc.descendants((node, pos, parent, index) => {
     if (node.type.spec.tableRole === 'table') tables.push(pos);
+    if (node.type.name === 'columns') section = { end: pos + node.nodeSize, count: node.attrs.count };
     if (!node.isTextblock) return true;
     const p = parent?.type.name ?? '';
     const at = p === 'tableCell' || p === 'tableHeader' ? cellAt(doc, pos, tables) : null;
-    const kind = node.type.name === 'heading' ? `h${node.attrs.level}`
-      : p === 'listItem' ? 'li' : at ? `cell T${at.table} r${at.row} c${at.col}` : '';
-    out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos), fmt: formatNote(node) });
+    // The number the page shows ("VI", "2.1"), which the text refers to and the model can't count.
+    const label = node.type.name === 'heading' ? headings.get(pos)?.label.trim()
+      : p === 'listItem' && index === 0 ? listNumberAt(doc, pos, sheet)?.parts.join('.') : undefined;
+    const kind = (node.type.name === 'heading' ? `h${node.attrs.level}`
+      : p === 'listItem' ? 'li' : at ? `cell T${at.table} r${at.row} c${at.col}` : '') + (label ? ` ${label}` : '');
+    out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos), fmt: formatNote(node, sheet), columns: pos < section.end ? section.count : 1 });
     return false;
   });
   return out;
@@ -62,25 +77,31 @@ const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n) + '…' : s
 
 const MARK_LABELS = ['bold', 'italic', 'underline', 'strike', 'superscript', 'subscript', 'highlight'];
 
-// The formatting a run carries, as the labels the model reads.
-function runLabels(child: PMNode): string[] {
+// The formatting a run carries beyond its paragraph style, as the labels the model reads.
+function runLabels(child: PMNode, base: ResolvedStyle): string[] {
   const out: string[] = [];
   for (const m of child.marks) {
     if (MARK_LABELS.includes(m.type.name)) out.push(m.type.name);
     else if (m.type.name === 'textStyle') {
-      if (m.attrs.fontFamily) out.push(`font "${m.attrs.fontFamily}"`);
-      if (m.attrs.fontSize) out.push(`size ${m.attrs.fontSize}`);
+      if (m.attrs.fontFamily && m.attrs.fontFamily.toLowerCase() !== base.text.fontFamily?.toLowerCase()) out.push(`font "${m.attrs.fontFamily}"`);
+      if (m.attrs.fontSize && parseFloat(m.attrs.fontSize) !== base.text.fontSizePt) out.push(`size ${m.attrs.fontSize}`);
       if (m.attrs.color) out.push(`color ${m.attrs.color}`);
     }
   }
   return out;
 }
 
-/** A textblock's style, alignment, images and direct formatting, quoting the runs that carry it. */
-export function formatNote(node: PMNode): string {
+/**
+ * A textblock's style, images and the direct formatting its style does not already give,
+ * quoting the runs that carry it.
+ */
+export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): string {
   const parts: string[] = [];
-  if (node.attrs.styleName && node.type.name !== 'heading') parts.push(`style "${node.attrs.styleName}"`);
-  if (node.attrs.textAlign && !['left', 'start'].includes(node.attrs.textAlign)) parts.push(`align ${node.attrs.textAlign}`);
+  const heading = node.type.name === 'heading';
+  const base = resolveStyle(sheet, node.attrs.styleName ?? (heading ? headingStyleName(node.attrs.level) : null));
+  if (node.attrs.styleName && !heading) parts.push(`style "${node.attrs.styleName}"`);
+  const align = node.attrs.textAlign;
+  if (align && !['left', 'start'].includes(align) && align !== base.para.textAlign) parts.push(`align ${align}`);
   const runs = new Map<string, string[]>();
   let whole = '';
   let prev: string[] = [];
@@ -89,7 +110,7 @@ export function formatNote(node: PMNode): string {
     if (!child.isText || child.marks.some((m) => m.type.name === 'deletion')) return;
     const text = child.text ?? '';
     whole += text;
-    const labels = runLabels(child);
+    const labels = runLabels(child, base);
     for (const l of labels) {
       const list = runs.get(l) ?? [];
       if (prev.includes(l) && list.length) list[list.length - 1] += text;
@@ -133,6 +154,58 @@ export function blockLine(b: Block): string {
   return `[${b.n}${b.kind ? ' ' + b.kind : ''}] ${b.text.replace(/\n/g, ' ⏎ ')}${b.fmt}`;
 }
 
+/** The page each block starts on, and how full the last page is, from the last layout pass. */
+export type PageLayout = { pages: number[]; lastFill: number };
+
+export function pageLayout(view: EditorView, blocks: Block[]): PageLayout | null {
+  const { grid } = readVerticalMargins(view.dom as HTMLElement);
+  const els = blocks.map((b) => view.nodeDOM(b.from - 1) as HTMLElement | null);
+  // No layout (a headless test, a view not yet painted): say nothing rather than "page 1".
+  if (!(grid.heightOf(1) > 0) || !els.some((el) => el?.offsetHeight)) return null;
+  const pages = els.map((el, i) => (el ? pageOfElement(view, el, grid) : i ? 0 : 1));
+  for (let i = 1; i < pages.length; i++) pages[i] ||= pages[i - 1];
+  // Trailing empty paragraphs fill nothing a reader sees.
+  let k = blocks.length - 1;
+  while (k > 0 && !(els[k] && (blocks[k].text.trim() || blocks[k].fmt))) k--;
+  const last = els[k];
+  let lastFill = 0;
+  if (last) {
+    const bottom = topInEditor(view, last) + last.offsetHeight;
+    const page = grid.pageAt(bottom);
+    lastFill = Math.round((100 * (bottom - grid.contentTopOf(page))) / (grid.contentBottomOf(page) - grid.contentTopOf(page)));
+  }
+  return { pages, lastFill: Math.max(0, Math.min(100, lastFill)) };
+}
+
+type ZoneNode = { type?: string; text?: string; content?: ZoneNode[] };
+const ZONE_FIELDS: Record<string, string> = { pageNumber: '{page}', pageCount: '{pages}', chapterField: '{chapter}' };
+
+function zoneText(doc: HfDoc): string {
+  const lines: string[] = [];
+  const inline = (n: ZoneNode) => (n.type === 'text' ? n.text ?? '' : n.type === 'hardBreak' ? ' ⏎ ' : ZONE_FIELDS[n.type ?? ''] ?? '');
+  const walk = (n: ZoneNode) => {
+    if (n.type === 'paragraph' || n.type === 'heading') lines.push((n.content ?? []).map(inline).join('').trim());
+    else n.content?.forEach(walk);
+  };
+  if (doc) walk(doc as ZoneNode);
+  return lines.filter(Boolean).join(' ⏎ ');
+}
+
+/** The page headers and footers as text, `{page}` standing for the page-number field. */
+export function zoneLines(): string[] {
+  const variants: [HfVariant, string][] = [['default', '']];
+  if (loadDifferentFirstPage()) variants.push(['first', 'First-page ']);
+  if (loadDifferentOddEven()) variants.push(['even', 'Even-page ']);
+  const out: string[] = [];
+  for (const [variant, prefix] of variants) {
+    for (const zone of ['header', 'footer'] as HfZone[]) {
+      const text = zoneText(loadHfDoc(zone, variant));
+      if (text) out.push(`${prefix ? prefix + zone : zone === 'header' ? 'Header' : 'Footer'}: ${text}`);
+    }
+  }
+  return out;
+}
+
 // A fixed character budget (~15k tokens); small local models may want less.
 const BUDGET = 60_000;
 
@@ -140,13 +213,15 @@ const BUDGET = 60_000;
  * The numbered document plus where the selection is. Over budget, the head and the
  * paragraphs around the selection stay; the gaps say how to fetch them.
  */
-export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc), budget = BUDGET): string {
+export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc), budget = BUDGET, layout: PageLayout | null = null): string {
   const { from, to, empty } = state.selection;
   const first = blockAt(blocks, from);
   const last = blockAt(blocks, to);
-  const lines = blocks.map(blockLine);
+  const pages = layout?.pages;
+  const lines = blocks.map((b, i) => (pages && i && pages[i] > pages[i - 1] ? `— page ${pages[i]} —\n` : '')
+    + (b.columns !== (blocks[i - 1]?.columns ?? 1) ? `— ${b.columns > 1 ? `${b.columns} columns` : 'end of columns'} —\n` : '') + blockLine(b));
   let body: string;
-  if (lines.reduce((s, l) => s + l.length + 1, 0) <= budget) body = lines.join('\n');
+  if (lines.reduce((s, l) => s + l.length + 1, 0) <= budget) body = collapseEmpty(lines).join('\n');
   else {
     const keep = new Set<number>();
     let used = 0;
@@ -167,14 +242,29 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
       out.push(`[… paragraphs ${i + 1}–${j + 1} omitted; read_blocks returns them]`);
       i = j;
     }
-    body = out.join('\n');
+    body = collapseEmpty(out).join('\n');
   }
+  if (layout) body += `\n— end of page ${pages![pages!.length - 1]}, about ${layout.lastFill}% full —`;
+  const zones = zoneLines();
+  if (zones.length) body += `\n\nPage headers and footers (read-only):\n${zones.join('\n')}`;
   const notes = commentLines(state.doc, blocks);
   if (notes.length) body += `\n\nComments, numbered:\n${notes.join('\n')}`;
   const where = empty
     ? `The cursor is in paragraph ${first?.n ?? 1}.`
     : `Selected: paragraphs ${first?.n ?? 1}–${last?.n ?? 1}: «${state.doc.textBetween(from, to, '\n', '')}»`;
   return `Document, one paragraph per line, numbered:\n${body}\n\n${where}`;
+}
+
+/** A run of plain empty paragraphs as one line, `[12–28] (empty)`; their numbers stay. */
+function collapseEmpty(lines: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    let j = i;
+    while (j + 1 < lines.length && /^\[\d+\] $/.test(lines[i]) && /^\[\d+\] $/.test(lines[j + 1])) j++;
+    out.push(j > i ? `[${lines[i].slice(1, -2)}–${lines[j].slice(1, -2)}] (empty)` : lines[i]);
+    i = j;
+  }
+  return out;
 }
 
 /** Every comment thread as `[C1 on paragraph 4 «quote», by Ada, open] text`, replies indented. */

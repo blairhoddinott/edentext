@@ -115,6 +115,7 @@ const ja: Messages = {
       resolve: (n: number) => `コメント C${n} を解決しました`,
       row: (t: number) => `表 ${t} に行を挿入しました`,
       column: (t: number) => `表 ${t} に列を挿入しました`,
+      textColumns: (n: number) => (n > 1 ? `本文を ${n} 段組みにしました` : '段組みを解除しました'),
       failed: (msg: string) => `実行できませんでした: ${msg}`,
     },
   },

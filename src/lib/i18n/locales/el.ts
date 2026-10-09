@@ -115,6 +115,7 @@ const el: Messages = {
       resolve: (n: number) => `Το σχόλιο C${n} επιλύθηκε`,
       row: (t: number) => `Προστέθηκε γραμμή στον πίνακα ${t}`,
       column: (t: number) => `Προστέθηκε στήλη στον πίνακα ${t}`,
+      textColumns: (n: number) => (n > 1 ? `Το κείμενο σε ${n} στήλες` : 'Καταργήθηκαν οι στήλες'),
       failed: (msg: string) => `Δεν έγινε: ${msg}`,
     },
   },

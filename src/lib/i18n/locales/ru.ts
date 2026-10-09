@@ -117,6 +117,7 @@ const ru: Messages = {
       resolve: (n: number) => `Комментарий C${n} решён`,
       row: (t: number) => `Строка вставлена в таблицу ${t}`,
       column: (t: number) => `Столбец вставлен в таблицу ${t}`,
+      textColumns: (n: number) => (n > 1 ? `Текст разбит на ${n} колонки` : 'Колонки убраны'),
       failed: (msg: string) => `Не выполнено: ${msg}`,
     },
   },
