@@ -19,8 +19,10 @@ Measured on six such pictures: 3–7mm high before, all within tolerance.
 
 A table Word takes out of the flow (`w:tblpPr` — every cover-page layout has one) is a **frame
 holding nothing but that table**, as LibreOffice keeps one: the blocks after it start where the
-table does, and text wraps beside it — a *table* never does (`.tableWrapper` clears floats;
-LibreOffice starts one below a 5cm or a column-wide frame, probed). The box's content is an
+table does, and text wraps beside it. A table beside a float narrows to the space left
+(`.tableWrapper` is a scroll container), as LibreOffice lays out an ODT table, and starts below the
+frame where its words don't fit (`min-width: min-content`); LibreOffice starts a DOCX table below
+any frame, but the editor keeps one rule for both formats. The box's content is an
 alternation for that reason: a table in a box is all of it or nothing, since neither writer has a
 place for one beside text in a frame. Both exporters write the file's own floating table back
 (`w:tblpPr` via the package's `float`, ODF's `draw:frame`/`draw:text-box`), not a shape.
