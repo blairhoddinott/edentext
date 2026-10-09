@@ -2,18 +2,23 @@
 // textblock is one numbered line, so a tool can name a paragraph by its number; text
 // struck through as a deletion is left out — the model sees the text as it would read.
 
+import { getSchema } from '@tiptap/core';
 import { DOMParser as PMDOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode, type Schema } from '@tiptap/pm/model';
 import type { EditorState } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { TableMap } from '@tiptap/pm/tables';
 import { fitPastedSlice } from '../editor/paste';
+import { zoneExtensions } from '../editor/extensions';
 import { comments } from '../editor/extensions/comment';
 import { headingNumbers } from '../editor/extensions/outline';
 import { listNumberAt } from '../editor/extensions/listStyle';
 import { pageOfElement, readVerticalMargins, topInEditor } from '../editor/extensions/pageBreaks';
 import { styleSheet } from '../styles/sheet.svelte';
 import { styleLabel } from '../i18n/i18n.svelte';
-import { nameLookup, normalizeAiHtml } from './dialect';
+import { nameLookup, normalizeAiHtml, pageFields } from './dialect';
+import { loadPageFormat } from '../storage/pageFormat';
+import { loadOrientation } from '../storage/pageOrientation';
+import { loadPageMargins } from '../storage/pageMargins';
 import { loadDifferentFirstPage, loadDifferentOddEven, loadHfDoc, type HfDoc, type HfZone, type HfVariant } from '../storage/headerFooter';
 import { headingStyleName, resolveStyle, type ResolvedStyle, type StyleSheet } from '../styles/styleSheet';
 
@@ -266,8 +271,11 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
     body = collapseEmpty(out).join('\n');
   }
   if (layout) body += `\n— end of page ${pages![pages!.length - 1]}, about ${layout.lastFill}% full —`;
+  const m = loadPageMargins();
+  body += `\n\nPage: ${loadPageFormat()} ${loadOrientation()}, margins ${[m.top, m.right, m.bottom, m.left].join('/')} cm (top/right/bottom/left)`
+    + (pages ? `, ${pages[pages.length - 1]} page${pages[pages.length - 1] > 1 ? 's' : ''}` : '');
   const zones = zoneLines();
-  if (zones.length) body += `\n\nPage headers and footers (read-only):\n${zones.join('\n')}`;
+  if (zones.length) body += `\nPage headers and footers:\n${zones.join('\n')}`;
   const notes = commentLines(state.doc, blocks);
   if (notes.length) body += `\n\nComments, numbered:\n${notes.join('\n')}`;
   const where = empty
@@ -325,7 +333,7 @@ function markdownEmphasis(s: string): string {
  * document (no script runs, no image loads) and through the schema, which keeps only
  * what the editor knows; a reply without tags becomes one paragraph per line.
  */
-export function htmlToSlice(html: string, state: EditorState, dropped: string[] = []): Slice {
+function dialectBody(html: string, dropped: string[]): { body: HTMLElement; tabs: boolean } {
   const clean = stripFences(html).trim();
   const markup = /<\/?[a-z][\s\S]*>/i.test(clean)
     ? markdownEmphasis(clean)
@@ -340,7 +348,23 @@ export function htmlToSlice(html: string, state: EditorState, dropped: string[] 
     tableStyle: nameLookup(Object.keys(sheet.table), styleLabel),
   });
   dropped.push(...dialect.dropped);
-  const parsed = PMDOMParser.fromSchema(state.schema).parseSlice(body, { preserveWhitespace: dialect.tabs });
+  return { body, tabs: dialect.tabs };
+}
+
+let zoneSchema: Schema | null = null;
+
+/** A header's or footer's HTML as its stored document ({page} a field); empty HTML removes the zone. */
+export function zoneDocFromHtml(html: string, dropped: string[] = []): HfDoc {
+  if (!html.trim()) return null;
+  zoneSchema ??= getSchema(zoneExtensions());
+  const { body, tabs } = dialectBody(html, dropped);
+  pageFields(body);
+  return PMDOMParser.fromSchema(zoneSchema).parse(body, { preserveWhitespace: tabs }).toJSON() as HfDoc;
+}
+
+export function htmlToSlice(html: string, state: EditorState, dropped: string[] = []): Slice {
+  const { body, tabs } = dialectBody(html, dropped);
+  const parsed = PMDOMParser.fromSchema(state.schema).parseSlice(body, { preserveWhitespace: tabs });
   // A table of contents written as <nav> has no entries yet: null builds them on mount.
   const content: PMNode[] = [];
   parsed.content.forEach((n) => content.push(n.type.name === 'tableOfContents' && !n.attrs.entries?.length ? n.type.create({ ...n.attrs, entries: null }) : n));

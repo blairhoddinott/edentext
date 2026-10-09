@@ -116,6 +116,8 @@ const en = {
       row: (t: number) => `Inserted a row in table ${t}`,
       column: (t: number) => `Inserted a column in table ${t}`,
       textColumns: (n: number) => (n > 1 ? `Set the text in ${n} columns` : 'Removed the columns'),
+      zone: (footer: boolean, removed: boolean): string => (footer ? (removed ? 'Removed the footer' : 'Set the footer') : removed ? 'Removed the header' : 'Set the header'),
+      page: 'Changed the page setup',
       failed: (msg: string) => `Not done: ${msg}`,
     },
   },

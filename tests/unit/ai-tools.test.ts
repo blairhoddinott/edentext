@@ -7,7 +7,7 @@ import { Mapping } from '@tiptap/pm/transform';
 import { extensions } from '../../src/lib/editor/extensions';
 import { revisions, trackedReplace } from '../../src/lib/editor/extensions/trackChanges';
 import { blockLine, blockTexts, htmlToSlice, serializeDoc } from '../../src/lib/ai/doc';
-import { runTool, runTurn, type TurnContext } from '../../src/lib/ai/tools';
+import { runTool, runTurn, type AiHost, type PageSetup, type TurnContext } from '../../src/lib/ai/tools';
 import type { ToolCall } from '../../src/lib/ai/client';
 
 const AI = 'AI';
@@ -35,7 +35,7 @@ describe('serializeDoc', () => {
     const { view, state } = editor;
     view.dispatch(trackedReplace(state.tr, 12, 18, null, 'Ada'));
     editor.commands.setTextSelection(3);
-    expect(serializeDoc(editor.state)).toBe('Document, one paragraph per line, numbered:\n[1 h1] Title\n[2] The fox\n[3 li] item\n\nThe cursor is in paragraph 1.');
+    expect(serializeDoc(editor.state)).toBe('Document, one paragraph per line, numbered:\n[1 h1] Title\n[2] The fox\n[3 li] item\n\nPage: A4 portrait, margins 2/2/2/2 cm (top/right/bottom/left)\n\nThe cursor is in paragraph 1.');
     editor.destroy();
   });
 
@@ -277,6 +277,31 @@ describe('runTurn', () => {
     expect(blocks.map((b) => [b.kind, b.text])).toEqual([['', 'Dear ‹Name›, {date}'], ['box 1', '']]);
     expect(runTool(turn(editor), call('replace_text', { paragraph: 1, find: '‹Name›', replace: 'Ada' })).result).toBe('ok');
     expect(editor.state.doc.firstChild!.textContent).toContain('Ada');
+    editor.destroy();
+  });
+
+  it('sets headers, footers and the page through the host, also from inserted HTML', () => {
+    const editor = makeEditor('<p>Body</p>');
+    const zones: [string, string, unknown][] = [];
+    const pages: PageSetup[] = [];
+    const host: AiHost = { setZone: (z, v, d) => zones.push([z, v, d]), setPage: (p) => pages.push(p) };
+    const ctx = { ...turn(editor), host };
+    expect(runTool(ctx, call('set_header_footer', { zone: 'footer', html: '<p style="text-align:center">Page {page} of {pages}</p>' })).result).toBe('ok');
+    const footer = JSON.stringify(zones[0][2]);
+    expect(zones[0].slice(0, 2)).toEqual(['footer', 'default']);
+    expect(footer).toContain('"pageNumber"');
+    expect(footer).toContain('"pageCount"');
+    expect(footer).toContain('"textAlign":"center"');
+    expect(runTool(ctx, call('set_header_footer', { zone: 'header', pages: 'first', html: '' })).result).toBe('ok');
+    expect(zones[1]).toEqual(['header', 'first', null]);
+    expect(runTool(ctx, call('set_page', { size: 'a5', orientation: 'landscape', margins_cm: '2 2 2 2.5', page_numbers_start: '3' })).result).toBe('ok');
+    expect(pages[0]).toEqual({ format: 'A5', orientation: 'landscape', margins: { top: 2, right: 2, bottom: 2, left: 2.5 }, start: 3 });
+    expect(runTool(ctx, call('set_page', { size: 'B12' })).result).toMatch(/unknown page size "B12"; sizes are: A3/);
+    expect(runTool(ctx, call('insert_paragraphs', { after: 1, html: '<page size="letter"/><header><p>Letterhead</p></header><p>New</p>' })).result).toBe('ok');
+    expect(pages[1]).toEqual({ format: 'letter' });
+    expect(JSON.stringify(zones[2][2])).toContain('Letterhead');
+    expect(texts(editor)).toEqual(['Body', 'New']);
+    expect(runTool(turn(editor), call('set_page', { size: 'A4' })).result).toMatch(/cannot be changed here/);
     editor.destroy();
   });
 });

@@ -45,7 +45,8 @@ does not already give follow in braces (`formatNote`), quoting the runs, so `fin
 matches the bare text. A run
 of empty paragraphs folds to `[12–28] (empty)`. Lines mark where a page starts (`— page 2 —`,
 from the last layout pass, `pageLayout`), how full the last page is, and where text columns
-begin and end; the headers and footers follow as read-only text. Comment threads follow the document as `[C1 on paragraph 4 «quote», by Ada,
+begin and end; the page setup (`Page: A4 portrait, margins …`) and the headers and footers
+(`{page}` for the field) follow. Comment threads follow the document as `[C1 on paragraph 4 «quote», by Ada,
 open]` with their replies; their numbers come from the turn's snapshot. Text marked as a deletion is
 left out, so the model reads the text as it will look once accepted. Past 60k characters,
 the head and the paragraphs around the selection are kept, and `read_paragraphs` returns
@@ -84,6 +85,13 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   directly, the new cells' text is tracked. Removing rows or columns is left to the user.
 - **`set_columns`** runs `setColumns` over the paragraphs' range, which refuses a bare
   cursor's whole-document case; columns apply directly.
+- **`set_header_footer`** and **`set_page`** go through the `AiHost` that `App.svelte` hands
+  the pane, since zones and page setup are its `$state` (storage would be overwritten by the
+  next effect). Setting a zone closes an open zone editor first; a first-page or even-page
+  zone switches that variant on. A reply's `<header>`, `<footer>` (`data-page`) and `<page>`
+  (`splitDocumentHtml`) take the same way from `insert_paragraphs` and from a draft's
+  Insert at cursor; the draft preview shows them as a line above and below. Only a draft into
+  an empty document is asked for them.
 - **`replace_text`** lets a form blank (a run of dots or underscores, an ellipsis) in `find`
   match any such run: a model miscounts long ones.
 - **Paragraph numbers** come from the turn's snapshot. Every transaction during the turn

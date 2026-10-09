@@ -115,6 +115,8 @@ const pt: Messages = {
       row: (t: number) => `Linha inserida na tabela ${t}`,
       column: (t: number) => `Coluna inserida na tabela ${t}`,
       textColumns: (n: number) => (n > 1 ? `Texto em ${n} colunas` : 'Colunas removidas'),
+      zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Rodapé removido' : 'Rodapé definido') : removed ? 'Cabeçalho removido' : 'Cabeçalho definido'),
+      page: 'Configuração da página alterada',
       failed: (msg: string) => `Não efetuado: ${msg}`,
     },
   },

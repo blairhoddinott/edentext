@@ -223,6 +223,20 @@ function image(img: HTMLImageElement, dropped: string[]): void {
 }
 
 const FIELD_TOKEN = /\{(date|time)\}/g;
+const PAGE_TOKEN = /\{(page|pages|chapter)\}/g;
+const PAGE_FIELD: Record<string, string> = { page: 'number', pages: 'count', chapter: 'chapter' };
+
+/** Every `re` match in the text under `root` replaced by the element `make` builds. */
+function replaceTokens(root: HTMLElement, re: RegExp, make: (token: string) => Node): void {
+  const walker = root.ownerDocument.createTreeWalker(root, 4);
+  const texts: Text[] = [];
+  while (walker.nextNode()) texts.push(walker.currentNode as Text);
+  for (const t of texts) {
+    if (!t.data.match(re)) continue;
+    const parts = t.data.split(re);
+    t.replaceWith(...parts.map((p, i) => (i % 2 ? make(p) : root.ownerDocument.createTextNode(p))));
+  }
+}
 
 function field(doc: Document, kind: string): HTMLElement {
   const span = doc.createElement('span');
@@ -269,17 +283,8 @@ export function normalizeAiHtml(body: HTMLElement, o: DialectOptions = {}): { dr
   }
   // After the tables, so a paragraph inside a box keeps what it was given.
   for (const el of [...body.querySelectorAll('aside')] as HTMLElement[]) textBox(el);
-  let tabs = false;
-  const walker = doc.createTreeWalker(body, 4);
-  const texts: Text[] = [];
-  while (walker.nextNode()) texts.push(walker.currentNode as Text);
-  for (const t of texts) {
-    tabs ||= t.data.includes('\t');
-    if (!FIELD_TOKEN.test(t.data)) continue;
-    FIELD_TOKEN.lastIndex = 0;
-    const parts = t.data.split(FIELD_TOKEN);
-    t.replaceWith(...parts.map((p, i) => (i % 2 ? field(doc, p) : doc.createTextNode(p))));
-  }
+  replaceTokens(body, FIELD_TOKEN, (kind) => field(doc, kind));
+  const tabs = (body.textContent ?? '').includes('\t');
   if (tabs) collapseSpaces(body);
   return { dropped, tabs };
 }
@@ -309,4 +314,56 @@ export function nameLookup(names: string[], label: (name: string) => string): (n
     by.set(label(n).toLowerCase(), n);
   }
   return (name) => by.get(name.trim().toLowerCase()) ?? null;
+}
+
+/** `{page}`, `{pages}` and `{chapter}` in a header or footer as their fields. */
+export function pageFields(root: HTMLElement): void {
+  replaceTokens(root, PAGE_TOKEN, (name) => {
+    const span = root.ownerDocument.createElement('span');
+    span.setAttribute('data-page-field', PAGE_FIELD[name]);
+    return span;
+  });
+}
+
+export type ZonePart = { zone: 'header' | 'footer'; variant: 'default' | 'first' | 'even'; html: string };
+export type PageSpec = { size?: string; orientation?: string; margins?: { top: number; right: number; bottom: number; left: number }; start?: number };
+
+/** CSS shorthand margins (`2cm`, `2cm 2.5cm`, … four values), bare numbers in cm. */
+export function parseMargins(v: string): PageSpec['margins'] | undefined {
+  const cm = v.trim().split(/[\s,/]+/).map((x) => toCm(x, 'cm'));
+  if (!cm.length || cm.length > 4 || cm.some((x) => x == null || x < 0)) return undefined;
+  const [top, right = top, bottom = top, left = right] = cm as number[];
+  return { top, right, bottom, left };
+}
+
+/**
+ * A reply as the document's parts: the body, any `<header>`/`<footer>` (`data-page` first
+ * or even) and a `<page>` with its setup.
+ */
+export function splitDocumentHtml(html: string): { body: string; zones: ZonePart[]; page: PageSpec | null } {
+  if (!/<(header|footer|page)\b/i.test(html)) return { body: html, zones: [], page: null };
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const body = doc.body;
+  let page: PageSpec | null = null;
+  for (const el of [...body.querySelectorAll('page')]) {
+    const spec: PageSpec = {};
+    const size = el.getAttribute('size') ?? el.getAttribute('format');
+    if (size) spec.size = size;
+    const o = el.getAttribute('orientation');
+    if (o) spec.orientation = o;
+    const m = el.getAttribute('margin') ?? el.getAttribute('margins');
+    if (m) spec.margins = parseMargins(m);
+    const start = parseInt(el.getAttribute('start') ?? '', 10);
+    if (start >= 0) spec.start = start;
+    page = { ...(page ?? {}), ...spec };
+    // `<page …/>` is no void element: what follows it parsed as its children.
+    el.replaceWith(...el.childNodes);
+  }
+  const zones: ZonePart[] = [];
+  for (const el of [...body.querySelectorAll('header, footer')] as HTMLElement[]) {
+    const v = el.getAttribute('data-page') ?? el.getAttribute('page');
+    zones.push({ zone: el.tagName === 'HEADER' ? 'header' : 'footer', variant: v === 'first' || v === 'even' ? v : 'default', html: el.innerHTML.trim() });
+    el.remove();
+  }
+  return { body: body.innerHTML.trim(), zones, page };
 }

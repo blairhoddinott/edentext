@@ -116,6 +116,8 @@ const zhHans: Messages = {
       row: (t: number) => `已在表格 ${t} 中插入行`,
       column: (t: number) => `已在表格 ${t} 中插入列`,
       textColumns: (n: number) => (n > 1 ? `已将正文分为 ${n} 栏` : '已取消分栏'),
+      zone: (footer: boolean, removed: boolean) => (footer ? (removed ? '已删除页脚' : '已设置页脚') : removed ? '已删除页眉' : '已设置页眉'),
+      page: '已更改页面设置',
       failed: (msg: string) => `未执行：${msg}`,
     },
   },

@@ -115,6 +115,8 @@ const de: Messages = {
       row: (t: number) => `Zeile in Tabelle ${t} eingefügt`,
       column: (t: number) => `Spalte in Tabelle ${t} eingefügt`,
       textColumns: (n: number) => (n > 1 ? `Text auf ${n} Spalten gesetzt` : 'Spalten aufgehoben'),
+      zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Fußzeile entfernt' : 'Fußzeile gesetzt') : removed ? 'Kopfzeile entfernt' : 'Kopfzeile gesetzt'),
+      page: 'Seite eingerichtet',
       failed: (msg: string) => `Nicht ausgeführt: ${msg}`,
     },
   },

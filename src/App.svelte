@@ -30,12 +30,12 @@
   import type { Node as PmNode } from 'prosemirror-model';
   import { clampZoom, wheelZoomFactor, MIN_ZOOM, MAX_ZOOM } from './lib/utils/zoom';
   import { loadTheme, saveTheme, applyTheme, loadToolbarExpanded, saveToolbarExpanded, loadChromeMode, saveChromeMode, loadFormattingMarks, saveFormattingMarks, loadFieldShading, saveFieldShading, loadRuler, saveRuler, loadSplitView, saveSplitView, loadPageColumns, savePageColumns, type ThemeMode, type ChromeMode } from './lib/storage/theme';
-  import { loadPageMargins, savePageMargins, DEFAULT_MARGINS, type PageMargins } from './lib/storage/pageMargins';
+  import { loadPageMargins, savePageMargins, fitMargins, DEFAULT_MARGINS, type PageMargins } from './lib/storage/pageMargins';
   import { loadOrientation, saveOrientation, type Orientation } from './lib/storage/pageOrientation';
   import { loadTabInterval, saveTabInterval, applyTabIntervalVar, DEFAULT_TAB_INTERVAL_CM } from './lib/storage/tabInterval';
   import { loadSpacingModel, saveSpacingModel, loadSpacingAtPageStart, saveSpacingAtPageStart, type SpacingModel } from './lib/storage/spacingModel';
   import { loadPageRtl, savePageRtl } from './lib/storage/writingMode';
-  import { loadPageFormat, savePageFormat, type PageFormat } from './lib/storage/pageFormat';
+  import { loadPageFormat, savePageFormat, pageDimsCm, type PageFormat } from './lib/storage/pageFormat';
   import { setStyleSheet, styleSheet } from './lib/styles/sheet.svelte';
   import { noteSettings, setNoteSettings } from './lib/storage/notes.svelte';
   import { recordChanges, setRecordChanges } from './lib/storage/trackChanges.svelte';
@@ -77,7 +77,7 @@
   import AiPane, { askAi, resetAiChat } from './lib/components/AiPane.svelte';
   import AiPrompt from './lib/components/AiPrompt.svelte';
   import { aiEnabled, OPEN_AI_CHAT_EVENT } from './lib/storage/ai.svelte';
-  import { abortAll as abortAiRequests } from './lib/ai/tools';
+  import { abortAll as abortAiRequests, type AiHost } from './lib/ai/tools';
   import { OPEN_COMMENT_EVENT } from './lib/editor/extensions/comment';
   import AutoCorrectDialog from './lib/components/AutoCorrectDialog.svelte';
   import AutoTextDialog from './lib/components/AutoTextDialog.svelte';
@@ -332,6 +332,27 @@
     documentLanguageOther = to.other as string | null;
   });
   for (const w of [layoutWatch, styleWatch, noteWatch, languageWatch]) $effect(() => noteState(w));
+
+  // What the assistant may set beside the text. An open zone editor keeps its own copy,
+  // so it closes first; a first-page or even-page zone switches its variant on.
+  const aiHost: AiHost = {
+    setZone(zone, variant, doc) {
+      hfActive = null;
+      if (variant === 'first') { differentFirstPage = true; if (zone === 'header') headerFirstDoc = doc; else footerFirstDoc = doc; }
+      else if (variant === 'even') { differentOddEven = true; if (zone === 'header') headerEvenDoc = doc; else footerEvenDoc = doc; }
+      else if (zone === 'header') headerDoc = doc;
+      else footerDoc = doc;
+    },
+    setPage({ format, orientation, margins, start }) {
+      if (format) pageFormat = format;
+      if (orientation) pageOrientation = orientation;
+      if (margins) {
+        const dims = pageDimsCm(pageFormat, pageOrientation);
+        pageMargins = fitMargins({ ...pageMargins, ...margins }, dims.w, dims.h);
+      }
+      if (start != null) pageNumbering = { ...pageNumbering, start };
+    },
+  };
 
   let templateGalleryOpen = $state(false);
   let autoCorrectOpen = $state(false);
@@ -1898,7 +1919,7 @@
     <NavigatorPane {editor} {tick} onClose={() => (navigatorOpen = false)} />
   {/if}
   {#if aiEnabled() && aiOpen}
-    <AiPane {editor} onClose={() => (aiOpen = false)} />
+    <AiPane {editor} host={aiHost} onClose={() => (aiOpen = false)} />
   {/if}
   {#if commentsInPane()}
     <CommentsPane {editor} {tick} author={docProps.author} onClose={() => setShowComments(false)} />

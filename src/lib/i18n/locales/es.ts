@@ -115,6 +115,8 @@ const es: Messages = {
       row: (t: number) => `Fila insertada en la tabla ${t}`,
       column: (t: number) => `Columna insertada en la tabla ${t}`,
       textColumns: (n: number) => (n > 1 ? `Texto en ${n} columnas` : 'Columnas quitadas'),
+      zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Pie de página eliminado' : 'Pie de página definido') : removed ? 'Encabezado eliminado' : 'Encabezado definido'),
+      page: 'Configuración de página cambiada',
       failed: (msg: string) => `No realizado: ${msg}`,
     },
   },

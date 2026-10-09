@@ -117,6 +117,8 @@ const ja: Messages = {
       row: (t: number) => `表 ${t} に行を挿入しました`,
       column: (t: number) => `表 ${t} に列を挿入しました`,
       textColumns: (n: number) => (n > 1 ? `本文を ${n} 段組みにしました` : '段組みを解除しました'),
+      zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'フッターを削除しました' : 'フッターを設定しました') : removed ? 'ヘッダーを削除しました' : 'ヘッダーを設定しました'),
+      page: 'ページ設定を変更しました',
       failed: (msg: string) => `実行できませんでした: ${msg}`,
     },
   },

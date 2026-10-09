@@ -115,6 +115,8 @@ const fr: Messages = {
       row: (t: number) => `Ligne insérée dans le tableau ${t}`,
       column: (t: number) => `Colonne insérée dans le tableau ${t}`,
       textColumns: (n: number) => (n > 1 ? `Texte mis sur ${n} colonnes` : 'Colonnes supprimées'),
+      zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Pied de page supprimé' : 'Pied de page défini') : removed ? 'En-tête supprimé' : 'En-tête défini'),
+      page: 'Mise en page modifiée',
       failed: (msg: string) => `Non effectué : ${msg}`,
     },
   },

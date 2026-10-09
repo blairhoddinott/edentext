@@ -13,10 +13,14 @@ import { comments } from '../editor/extensions/comment';
 import { styleSheet } from '../styles/sheet.svelte';
 import { visibleStyles } from '../styles/styleSheet';
 import { styleLabel, t } from '../i18n/i18n.svelte';
-import { nameLookup } from './dialect';
 import type { AiConfig } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
-import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, inlineContent, pageLayout, serializeDoc, type Block } from './doc';
+import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, type Block } from './doc';
+import { nameLookup, parseMargins, splitDocumentHtml, type PageSpec } from './dialect';
+import { PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
+import type { Orientation } from '../storage/pageOrientation';
+import type { PageMargins } from '../storage/pageMargins';
+import type { HfDoc, HfVariant, HfZone } from '../storage/headerFooter';
 
 // What a model writes anyway (semantic tags, plain CSS); ai/dialect.ts maps it onto the
 // editor's nodes. Short enough for a small local model to keep in view.
@@ -27,6 +31,7 @@ export const HTML_GUIDE = [
   'Tables: <td width="30%"> or <col width="30%"> sets column widths; <table border="0"> removes the lines; td takes background and vertical-align.',
   'A text box: <aside style="width:5cm;height:6cm;float:right">…</aside>, anchored to the paragraph after it. A picture placeholder: <img alt="Photo" width="4cm" height="5cm"> without src (no other images).',
   'A fill-in field: <input placeholder="Your name">. Today\'s date: <time></time>. Text columns: <section columns="2">…</section>. A table of contents: <nav></nav>. Tabs stay tabs.',
+  'Page header and footer: <header>…</header>, <footer>…</footer>, with {page} and {pages} as page fields; data-page="first" or "even" for those pages only. Page setup: <page size="A4" orientation="portrait" margin="2cm 2cm 2cm 2.5cm">.',
   'Example: <h1>Ada Lovelace</h1><aside style="width:4cm;height:5cm;float:right"><p><img alt="Photo" width="3.5cm" height="4.5cm"></p></aside><p><input placeholder="Address"></p><h2>Experience</h2><table border="0"><tr><td width="25%">1843</td><td><strong>Notes on the Analytical Engine</strong></td></tr></table>',
 ].join('\n');
 
@@ -39,7 +44,7 @@ export function chatSystemPrompt(): string {
     'Formatting follows a paragraph in braces, as {bold: "word"; style "Quote"}; "all" means the whole paragraph. It is not part of the text and lists only what the paragraph style does not already give.',
     'In the text, {image "alt text"} is a picture (you see only its alt text), ‹Name› a placeholder to fill in and {date} a date field; replace_text can replace each as a whole.',
     'A number after li or a heading level, as [57 li VI], is the number the page shows. [12–28] (empty) stands for empty paragraphs 12 to 28. — page 2 — lines mark where a page starts.',
-    '— 2 columns — lines mark where text columns start or end; set_columns changes them. Page headers and footers are shown after the document; you cannot change them or the page setup (margins, size), so tell the user where to do it.',
+    '— 2 columns — lines mark where text columns start or end; set_columns changes them. The page setup and the page headers and footers are shown after the document; set_page and set_header_footer change them.',
     'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
     'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1]. Add rows and columns with table_insert, never by rebuilding the table.',
     'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
@@ -50,9 +55,11 @@ export function chatSystemPrompt(): string {
 
 export const REWRITE_PROMPT = `You rewrite a passage from a document. The passage comes as HTML. Reply with the rewritten passage only, keeping its formatting tags. Write HTML, no markdown, no code fences, no wrapper element. Keep its language unless told to translate. No explanation.`;
 
-export function draftPrompt(): string {
+/** The draft prompt; only a draft into an empty document sets its header, footer and page. */
+export function draftPrompt(emptyDocument = false): string {
   const styles = visibleStyles(styleSheet()).map((s) => styleLabel(s.name)).join(', ');
-  return `You write new content for a document at the cursor; the document follows for context. Reply with the content only. Write in the document's language unless told otherwise. No preface, no explanation.\n${HTML_GUIDE}\nParagraph styles: ${styles}.`;
+  const parts = emptyDocument ? 'The document is empty: write the whole document, with its page setup, header and footer where it needs them.' : 'Do not write <header>, <footer> or <page>: the document has its own.';
+  return `You write new content for a document at the cursor; the document follows for context. Reply with the content only. Write in the document's language unless told otherwise. No preface, no explanation.\n${HTML_GUIDE}\n${parts}\nParagraph styles: ${styles}.`;
 }
 
 export const REWRITE_PRESETS = {
@@ -145,6 +152,32 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'set_header_footer',
+    description: 'Sets or removes (empty html) the page header or footer.',
+    parameters: {
+      type: 'object',
+      properties: {
+        zone: { type: 'string', enum: ['header', 'footer'] },
+        pages: { type: 'string', enum: ['all', 'first', 'even'], description: 'Which pages, all by default' },
+        html: str('Content as HTML; {page} and {pages} are page fields'),
+      },
+      required: ['zone', 'html'],
+    },
+  },
+  {
+    name: 'set_page',
+    description: 'Changes the page size, orientation, margins or first page number.',
+    parameters: {
+      type: 'object',
+      properties: {
+        size: { type: 'string', enum: Object.keys(PAGE_FORMAT_CM) },
+        orientation: { type: 'string', enum: ['portrait', 'landscape'] },
+        margins_cm: str('One number for all sides, or four: top right bottom left'),
+        page_numbers_start: num('The first page\'s number'),
+      },
+    },
+  },
+  {
     name: 'set_columns',
     description: 'Sets the text of paragraphs from…to in 1 to 3 columns. Inside a section that already has columns it changes the whole section; 1 removes the columns.',
     parameters: { type: 'object', properties: { from: num('First paragraph'), to: num('Last paragraph'), count: num('Number of columns, 1–3') }, required: ['from', 'count'] },
@@ -156,8 +189,55 @@ export const TOOLS: ToolDef[] = [
   },
 ];
 
+/** What the app holds beside the text and lets the assistant set (App.svelte). */
+export type PageSetup = { format?: PageFormat; orientation?: Orientation; margins?: Partial<PageMargins>; start?: number };
+export type AiHost = {
+  setZone: (zone: HfZone, variant: HfVariant, doc: HfDoc) => void;
+  setPage: (page: PageSetup) => void;
+};
+
 /** One turn's view of the document: numbers from its snapshot, positions mapped since. */
-export type TurnContext = { editor: Editor; blocks: Block[]; mapping: Mapping; author: string; commentIds?: string[] };
+export type TurnContext = { editor: Editor; blocks: Block[]; mapping: Mapping; author: string; commentIds?: string[]; host?: AiHost };
+
+const pageFormat = (name: unknown) => (Object.keys(PAGE_FORMAT_CM) as PageFormat[]).find((f) => f.toLowerCase() === String(name).trim().toLowerCase().replace(/^iso\s*/, 'iso'));
+
+/** A `<page>` spec as the setup to apply; an unknown size or orientation is an error. */
+function pageSetup(spec: PageSpec): PageSetup {
+  const out: PageSetup = {};
+  if (spec.size) {
+    out.format = pageFormat(spec.size);
+    if (!out.format) throw new ToolError(`unknown page size "${spec.size}"; sizes are: ${Object.keys(PAGE_FORMAT_CM).join(', ')}`);
+  }
+  if (spec.orientation) {
+    if (spec.orientation !== 'portrait' && spec.orientation !== 'landscape') throw new ToolError('orientation is portrait or landscape');
+    out.orientation = spec.orientation;
+  }
+  if (spec.margins) out.margins = spec.margins;
+  if (spec.start != null) out.start = spec.start;
+  return out;
+}
+
+/**
+ * Puts a reply's header, footer and page setup in place through the host; returns their
+ * summaries and leaves the body HTML. Without a host they are refused.
+ */
+export function applyDocumentParts(html: string, host: AiHost | undefined, dropped: string[] = []): { body: string; summaries: string[] } {
+  const { body, zones, page } = splitDocumentHtml(stripFences(html));
+  const summaries: string[] = [];
+  if ((zones.length || page) && !host) throw new ToolError('headers, footers and the page setup cannot be changed here');
+  for (const z of zones) {
+    const doc = zoneDocFromHtml(z.html, dropped);
+    host!.setZone(z.zone, z.variant, doc);
+    summaries.push(t().ai.tools.zone(z.zone === 'footer', !doc));
+  }
+  if (page) {
+    host!.setPage(pageSetup(page));
+    summaries.push(t().ai.tools.page);
+  }
+  return { body, summaries };
+}
+
+const withDropped = (dropped: string[]) => (dropped.length ? `ok; left out: ${dropped.join('; ')}` : 'ok');
 export type ToolResult = { result: string; summary: string | null };
 
 class ToolError extends Error {}
@@ -247,6 +327,12 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       return { result: 'ok', summary: m.rewrite(Number(a.paragraph)) };
     }
     case 'insert_paragraphs': {
+      const dropped: string[] = [];
+      const parts = applyDocumentParts(String(a.html ?? ''), ctx.host, dropped);
+      if (!parts.body.trim()) {
+        if (!parts.summaries.length) throw new ToolError('nothing to insert');
+        return { result: withDropped(dropped), summary: parts.summaries.join('; ') };
+      }
       const after = Number(a.after) || 0;
       let at: number;
       if (after <= 0) at = current(ctx, 1).pos;
@@ -257,10 +343,10 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
         const top = $p.depth ? $p.node(1).type.name : '';
         at = $p.depth && top !== 'noteSection' && top !== 'textBox' ? $p.after(1) : p.pos + p.node.nodeSize;
       }
-      const slice = htmlToSlice(String(a.html ?? ''), ctx.editor.state);
-      if (!slice.size) throw new ToolError('nothing to insert');
+      const slice = htmlToSlice(parts.body, ctx.editor.state, dropped);
+      if (!slice.size) throw new ToolError(dropped.length ? `nothing to insert: ${dropped.join('; ')}` : 'nothing to insert');
       dispatch(ctx, (tr) => trackedReplace(tr, at, at, new Slice(slice.content, 0, 0), ctx.author));
-      return { result: 'ok', summary: m.insert(after) };
+      return { result: withDropped(dropped), summary: [m.insert(after), ...parts.summaries].join('; ') };
     }
     case 'delete_paragraphs': {
       const fromN = Number(a.from);
@@ -339,6 +425,28 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       if (!ctx.editor.chain().setTextSelection({ from, to }).setColumns(count).run()) throw new ToolError('columns cannot be set there (a table or frame in the range, or no columns to remove)');
       return { result: 'ok', summary: m.textColumns(count) };
     }
+    case 'set_header_footer': {
+      if (!ctx.host) throw new ToolError('headers and footers cannot be changed here');
+      const zone = String(a.zone).toLowerCase().startsWith('f') ? 'footer' : 'header';
+      const pages = String(a.pages ?? 'all').toLowerCase();
+      const variant: HfVariant = pages === 'first' ? 'first' : pages === 'even' ? 'even' : 'default';
+      const dropped: string[] = [];
+      const doc = zoneDocFromHtml(String(a.html ?? ''), dropped);
+      ctx.host.setZone(zone, variant, doc);
+      return { result: withDropped(dropped), summary: m.zone(zone === 'footer', !doc) };
+    }
+    case 'set_page': {
+      if (!ctx.host) throw new ToolError('the page setup cannot be changed here');
+      const margins = a.margins_cm == null || a.margins_cm === '' ? undefined
+        : parseMargins(Array.isArray(a.margins_cm) ? a.margins_cm.join(' ') : String(a.margins_cm));
+      if (a.margins_cm != null && a.margins_cm !== '' && !margins) throw new ToolError('margins_cm is one number, or four: top right bottom left');
+      const start = a.page_numbers_start == null || a.page_numbers_start === '' ? undefined : Math.round(Number(a.page_numbers_start));
+      if (start != null && !(start >= 0)) throw new ToolError('page_numbers_start is a whole number');
+      const setup = pageSetup({ size: a.size ? String(a.size) : undefined, orientation: a.orientation ? String(a.orientation).toLowerCase() : undefined, margins, start });
+      if (!Object.keys(setup).length) throw new ToolError('give size, orientation, margins_cm or page_numbers_start');
+      ctx.host.setPage(setup);
+      return { result: 'ok', summary: m.page };
+    }
     case 'reply_comment':
     case 'resolve_comment': {
       const n = Number(a.comment);
@@ -403,13 +511,14 @@ export async function runTurn(opts: {
   history: ChatMessage[];
   question: string;
   author: string;
+  host?: AiHost;
   onText: (delta: string) => void;
   onTool: (summary: string) => void;
   signal: AbortSignal;
 }): Promise<string> {
   const { editor } = opts;
   const blocks = blockTexts(editor.state.doc);
-  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id) };
+  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host: opts.host };
   const track = ({ transaction }: { transaction: Transaction }) => ctx.mapping.appendMapping(transaction.mapping);
   editor.on('transaction', track);
   const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, undefined, pageLayout(editor.view, blocks))}\n\n---\n\n${opts.question}` }];

@@ -9,8 +9,9 @@ import type { Messages } from '../i18n/locales/en';
 import { locale } from '../i18n/i18n.svelte';
 import { LANGUAGES } from '../storage/documentLanguage';
 import type { ChatRequest } from './client';
-import { htmlToSlice, selectionHtml, serializeDoc } from './doc';
-import { REWRITE_PROMPT, REWRITE_PRESETS, draftPrompt } from './tools';
+import { htmlToSlice, selectionHtml, serializeDoc, stripFences } from './doc';
+import { splitDocumentHtml } from './dialect';
+import { REWRITE_PROMPT, REWRITE_PRESETS, applyDocumentParts, draftPrompt, type AiHost } from './tools';
 
 type Preset = keyof typeof REWRITE_PRESETS;
 export type Command = { name: string; kind: 'draft' | 'rewrite'; preset?: Preset };
@@ -54,7 +55,7 @@ export function commandRequest(command: Command, arg: string, state: EditorState
   if (command.kind === 'draft') {
     if (!arg) return null;
     const asked = `Write this at the cursor: ${arg}`;
-    return { request: { system: draftPrompt(), messages: [{ role: 'user', content: `${serializeDoc(state)}\n\n---\n\n${asked}` }] }, asked };
+    return { request: { system: draftPrompt(state.doc.childCount <= 1 && !state.doc.textContent.trim()), messages: [{ role: 'user', content: `${serializeDoc(state)}\n\n---\n\n${asked}` }] }, asked };
   }
   const p = command.preset;
   const ask = p === 'translate' ? REWRITE_PRESETS.translate(arg || language) : p ? `${REWRITE_PRESETS[p]} ${arg}`.trim() : arg;
@@ -89,7 +90,9 @@ export function insertBelowTarget(editor: Editor, target: Target, html: string):
   return true;
 }
 
-export function insertAtCursor(editor: Editor, html: string): void {
+/** Inserts a draft at the cursor; its header, footer and page setup go to `host`. */
+export function insertAtCursor(editor: Editor, html: string, host?: AiHost): void {
+  const body = host ? applyDocumentParts(html, host).body : splitDocumentHtml(stripFences(html)).body;
   editor.commands.focus();
-  editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(html, editor.state)).scrollIntoView());
+  if (body.trim()) editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(body, editor.state)).scrollIntoView());
 }

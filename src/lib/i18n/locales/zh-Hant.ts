@@ -117,6 +117,8 @@ const zhHant: Messages = {
       row: (t: number) => `已在表格 ${t} 中插入列`,
       column: (t: number) => `已在表格 ${t} 中插入欄`,
       textColumns: (n: number) => (n > 1 ? `已將內文分為 ${n} 欄` : '已取消分欄'),
+      zone: (footer: boolean, removed: boolean) => (footer ? (removed ? '已刪除頁尾' : '已設定頁尾') : removed ? '已刪除頁首' : '已設定頁首'),
+      page: '已變更版面設定',
       failed: (msg: string) => `未執行：${msg}`,
     },
   },

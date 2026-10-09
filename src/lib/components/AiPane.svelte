@@ -30,15 +30,16 @@
   import { showChanges, setShowChanges } from '../storage/markup.svelte';
   import { revisions } from '../editor/extensions/trackChanges';
   import { aiErrorText, isAbort, streamChat } from '../ai/client';
-  import { contentToDom, htmlToSlice } from '../ai/doc';
+  import { contentToDom, htmlToSlice, stripFences } from '../ai/doc';
+  import { splitDocumentHtml } from '../ai/dialect';
   import { COMMANDS, captureTarget, commandLabel, commandRequest, insertAtCursor, insertBelowTarget, parseCommand, replaceTarget, uiLanguage } from '../ai/commands';
-  import { runTurn, startRequest, endRequest } from '../ai/tools';
+  import { runTurn, startRequest, endRequest, type AiHost } from '../ai/tools';
   import Icon from './ribbon/Icon.svelte';
 
   // Copilot's chat pane: questions about the document with the document as context, and
   // changes the assistant makes through its tools — text edits as tracked changes under
   // its own author, which the Review pane accepts or rejects like anyone else's.
-  let { editor, onClose }: { editor: Editor | null; onClose: () => void } = $props();
+  let { editor, host, onClose }: { editor: Editor | null; host?: AiHost; onClose: () => void } = $props();
 
   let question = $state('');
   let busy = $state(false);
@@ -142,7 +143,7 @@
     const mine = (request = startRequest());
     try {
       await runTurn({
-        cfg, editor, history, question: q, author,
+        cfg, editor, history, question: q, author, host,
         onText: (d) => (reply.text += d),
         onTool: (s) => reply.tools.push(s),
         signal: mine.signal,
@@ -208,7 +209,15 @@
     const paint = (h: string) => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (editor) node.replaceChildren(h ? contentToDom(htmlToSlice(h, editor.state).content, editor.schema) : '');
+        if (!editor) return;
+        // A draft's header and footer show as a small line above and below its body.
+        const { body, zones } = splitDocumentHtml(stripFences(h));
+        const line = (z: (typeof zones)[number]) => Object.assign(document.createElement('div'), { className: 'zone-line', textContent: new DOMParser().parseFromString(z.html, 'text/html').body.textContent ?? '' });
+        node.replaceChildren(
+          ...zones.filter((z) => z.zone === 'header').map(line),
+          ...(body ? [contentToDom(htmlToSlice(body, editor.state).content, editor.schema)] : []),
+          ...zones.filter((z) => z.zone === 'footer').map(line),
+        );
       });
     };
     paint(html);
@@ -292,7 +301,7 @@
                 <button class="act" onclick={() => apply(e, insertBelowTarget)}>{t().ai.insertBelow}</button>
               </div>
             {:else}
-              <button class="link" onclick={() => { if (editor) { insertAtCursor(editor, e.text); if (e.proposal) e.proposal.applied = true; } }}>{t().ai.insertAtCursor}</button>
+              <button class="link" onclick={() => { if (editor) { insertAtCursor(editor, e.text, host); if (e.proposal) e.proposal.applied = true; } }}>{t().ai.insertAtCursor}</button>
             {/if}
           {/if}
         </div>
@@ -414,6 +423,7 @@
   }
   .msg.assistant { display: flex; flex-direction: column; gap: 4px; }
   .content :global(p) { margin: 0 0 0.5em; }
+  .content :global(.zone-line) { margin: 0.3em 0; padding: 0.2em 0; border-block: 1px dashed var(--w-border); font-size: 0.85em; opacity: 0.75; }
   .content :global(h1), .content :global(h2), .content :global(h3) { margin: 0.4em 0; font-size: 1em; }
   .content :global(ul), .content :global(ol) { margin: 0 0 0.5em; padding-left: 1.4em; }
   .content :global(table) { border-collapse: collapse; margin-bottom: 0.5em; }
