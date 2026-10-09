@@ -22,7 +22,9 @@ import ListItem from '@tiptap/extension-list-item';
 import { ListMarker } from './extensions/listMarker';
 import { ListStyle } from './extensions/listStyle';
 import { Table, TableHeader, TableCell } from '@tiptap/extension-table';
+import { addColumnAfter, addColumnBefore, addRowAfter, addRowBefore } from '@tiptap/pm/tables';
 import { ResizableTableRow } from './extensions/tableRow';
+import { inheritingInsert } from './extensions/tableInsert';
 import History from '@tiptap/extension-history';
 import { inNote } from './extensions/notes';
 import { Placeholder } from './extensions/placeholder';
@@ -221,7 +223,11 @@ export const extensions = [
         if (inNote(props.state)) return false;
         for (let d = props.state.selection.$from.depth; d > 0; d--) if (['table', 'listItem'].includes(props.state.selection.$from.node(d).type.name)) return false;
         return parent.insertTable?.(options)(props) ?? false;
-      } };
+      },
+      addRowBefore: () => ({ state, dispatch }) => inheritingInsert(addRowBefore, 'row', 'before')(state, dispatch),
+      addRowAfter: () => ({ state, dispatch }) => inheritingInsert(addRowAfter, 'row', 'after')(state, dispatch),
+      addColumnBefore: () => ({ state, dispatch }) => inheritingInsert(addColumnBefore, 'column', 'before')(state, dispatch),
+      addColumnAfter: () => ({ state, dispatch }) => inheritingInsert(addColumnAfter, 'column', 'after')(state, dispatch) };
     },
   }).configure({ resizable: false, View: TableView }),
   ResizableTableRow,
