@@ -217,7 +217,7 @@ function materializeListMarkers(root: HTMLElement): void {
   const labels = Array.from(root.querySelectorAll<HTMLLIElement>('li')).flatMap((li) => {
     const glyph = listMarkerGlyph(li, root);
     if (!glyph) return [];
-    const target = li.querySelector<HTMLElement>(':scope > p, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5') ?? li;
+    const target = li.querySelector<HTMLElement>(':scope > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)') ?? li;
     const before = getComputedStyle(target, '::before');
     return [{ target, glyph, css: MARKER_BOX.map((p) => `${p}:${before.getPropertyValue(p)}`).join(';') }];
   });
