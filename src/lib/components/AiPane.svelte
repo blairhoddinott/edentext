@@ -22,6 +22,7 @@
   import { revisions } from '../editor/extensions/trackChanges';
   import { aiErrorText, isAbort } from '../ai/client';
   import { contentToDom, htmlToSlice } from '../ai/doc';
+  import { insertAtCursor } from '../ai/commands';
   import { runTurn, startRequest, endRequest } from '../ai/tools';
   import Icon from './ribbon/Icon.svelte';
 
@@ -103,12 +104,6 @@
     if (!showChanges() && revisions(editor.state.doc).filter((r) => r.author === author).length > before) setShowChanges(true);
   }
 
-  function insertAtCursor(html: string) {
-    if (!editor) return;
-    editor.commands.focus();
-    editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(html, editor.state)).scrollIntoView());
-  }
-
   // A reply as document content: parsed through the schema, re-rendered once a frame.
   function render(node: HTMLElement, html: string) {
     let frame = 0;
@@ -180,7 +175,7 @@
           {#if e.error}<div class="error" role="alert">{e.error}</div>{/if}
           {#if busy && i === entries.length - 1}<div class="working" role="status"><span class="spinner" aria-hidden="true"></span>{t().ai.working}</div>{/if}
           {#if e.text && !(busy && i === entries.length - 1)}
-            <button class="link" onclick={() => insertAtCursor(e.text)}>{t().ai.insertAtCursor}</button>
+            <button class="link" onclick={() => editor && insertAtCursor(editor, e.text)}>{t().ai.insertAtCursor}</button>
           {/if}
         </div>
       {/if}

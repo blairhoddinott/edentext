@@ -1,14 +1,13 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
-  import { Slice } from '@tiptap/pm/model';
-  import { TextSelection } from '@tiptap/pm/state';
   import { t, locale } from '../i18n/i18n.svelte';
   import { dragWindow } from '../utils/dragWindow';
   import { aiConfig, OPEN_AI_PROMPT_EVENT, type AiPromptMode } from '../storage/ai.svelte';
   import { LANGUAGES } from '../storage/documentLanguage';
   import { streamChat, aiErrorText, isAbort } from '../ai/client';
-  import { contentToDom, htmlToSlice, selectionHtml, serializeDoc } from '../ai/doc';
-  import { REWRITE_PROMPT, REWRITE_PRESETS, draftPrompt, startRequest, endRequest } from '../ai/tools';
+  import { contentToDom, htmlToSlice } from '../ai/doc';
+  import { REWRITE_PRESETS, startRequest, endRequest } from '../ai/tools';
+  import { COMMANDS, captureTarget, commandRequest, insertBelowTarget, replaceTarget, type Target } from '../ai/commands';
   import Icon from './ribbon/Icon.svelte';
 
   // Copilot's two inline flows in one window: rewrite the selection, or draft new content
@@ -32,22 +31,21 @@
   let preview = $state<HTMLElement | null>(null);
   let pos = $state<{ left: number; top: number } | null>(null);
   // What the window works on, fixed when it opens.
-  let target = { from: 0, to: 0, original: '', html: '' };
+  let target: Target = { from: 0, to: 0, original: '', html: '' };
   let request: AbortController | null = null;
 
   function show(m: AiPromptMode) {
     if (!editor) return;
     const { state, view } = editor;
-    const { from, to } = state.selection;
-    if (m === 'rewrite' && from === to) return;
+    if (m === 'rewrite' && state.selection.empty) return;
     stop();
     mode = m;
-    target = { from, to, original: state.doc.textBetween(from, to, '\n', ''), html: m === 'rewrite' ? selectionHtml(state) : '' };
+    target = captureTarget(state);
     instruction = '';
     reply = '';
     error = '';
     language ||= LANGUAGES.find((l) => l.code === locale() || l.code.startsWith(locale().split('-')[0]))?.label ?? 'English (US)';
-    const at = view.coordsAtPos(to);
+    const at = view.coordsAtPos(target.to);
     pos = { left: Math.max(8, Math.min(window.innerWidth - 440, at.left)), top: Math.max(8, Math.min(window.innerHeight - 380, at.bottom + 8)) };
     open = true;
     queueMicrotask(() => input?.focus());
@@ -93,17 +91,15 @@
     if (!editor || busy) return;
     const cfg = aiConfig();
     if (!cfg) { error = t().ai.notConfigured; return; }
-    const ask = preset === 'translate' ? REWRITE_PRESETS.translate(language) : preset ? REWRITE_PRESETS[preset] : instruction.trim();
-    if (!ask) return;
-    const req = mode === 'rewrite'
-      ? { system: REWRITE_PROMPT, messages: [{ role: 'user' as const, content: `${ask}\n\nPassage:\n${target.html}` }] }
-      : { system: draftPrompt(), messages: [{ role: 'user' as const, content: `${serializeDoc(editor.state)}\n\n---\n\nWrite this at the cursor: ${ask}` }] };
+    const command = COMMANDS.find((c) => (preset ? c.preset === preset : c.name === mode))!;
+    const made = commandRequest(command, preset ? '' : instruction.trim(), editor.state, target, language);
+    if (!made) return;
     reply = '';
     error = '';
     busy = true;
     const mine = (request = startRequest());
     try {
-      await streamChat(cfg, req, (d) => (reply += d), mine.signal);
+      await streamChat(cfg, made.request, (d) => (reply += d), mine.signal);
     } catch (e) {
       if (!isAbort(e)) error = aiErrorText(e, t().ai.errors, cfg.endpoint);
     } finally {
@@ -112,31 +108,10 @@
     }
   }
 
-  // The range must still hold the text the reply was written for.
-  function stillThere(): boolean {
-    if (!editor) return false;
-    const { from, to, original } = target;
-    const ok = to <= editor.state.doc.content.size && editor.state.doc.textBetween(from, to, '\n', '') === original;
-    if (!ok) error = t().ai.selectionChanged;
-    return ok;
-  }
-
-  function replaceTarget() {
-    if (!editor || !reply || !stillThere()) return;
-    const { from, to } = target;
-    editor.chain().focus().setTextSelection({ from, to }).run();
-    editor.view.dispatch(editor.state.tr.replaceSelection(htmlToSlice(reply, editor.state)).scrollIntoView());
-    close();
-  }
-
-  function insertBelow() {
-    if (!editor || !reply || !stillThere()) return;
-    const end = editor.state.doc.resolve(target.to);
-    const at = end.after(end.depth);
-    const slice = htmlToSlice(reply, editor.state);
-    const tr = editor.state.tr.replace(at, at, new Slice(slice.content, 0, 0));
-    editor.view.dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(at, 1)))).scrollIntoView());
-    close();
+  function take(apply: typeof replaceTarget) {
+    if (!editor || !reply) return;
+    if (apply(editor, target, reply)) close();
+    else error = t().ai.selectionChanged;
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -198,10 +173,10 @@
       <span class="aip-note">{t().ai.disclaimer}</span>
     {/if}
     {#if mode === 'rewrite'}
-      <button class="aip-go" disabled={!reply || busy} onclick={replaceTarget}>{t().ai.replace}</button>
-      <button disabled={!reply || busy} onclick={insertBelow}>{t().ai.insertBelow}</button>
+      <button class="aip-go" disabled={!reply || busy} onclick={() => take(replaceTarget)}>{t().ai.replace}</button>
+      <button disabled={!reply || busy} onclick={() => take(insertBelowTarget)}>{t().ai.insertBelow}</button>
     {:else}
-      <button class="aip-go" disabled={!reply || busy} onclick={replaceTarget}>{t().ai.insert}</button>
+      <button class="aip-go" disabled={!reply || busy} onclick={() => take(replaceTarget)}>{t().ai.insert}</button>
     {/if}
     <button onclick={close}>{t().ai.discard}</button>
   </div>
