@@ -801,6 +801,18 @@ dialog, [popover][role='dialog'] {
   --radius: 6px;
 }
 
+/* Docked side panes and the ruler too, on the chrome colour the ribbon and status bar share. */
+.ai-pane, .navigator-pane, .comments-pane, .revisions-pane, .ruler {
+  --color-surface: var(--w-chrome);
+  --color-toolbar-bg: var(--w-chrome);
+  --color-border: var(--w-border);
+  --color-text: var(--w-text);
+  --color-text-muted: var(--w-text-dim);
+  --color-primary: var(--w-accent-fill);
+  --color-btn-hover: var(--w-hover);
+  --font-sans: var(--w-font);
+}
+
 /* One frame for every modal window; components set only size and layout. */
 dialog {
   /* The global reset zeroes every margin, which also takes the auto centring. */
