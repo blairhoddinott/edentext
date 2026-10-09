@@ -169,6 +169,19 @@ try {
   const afterMargins = await dot(true);
   check(afterMargins, `a margin preset marks the document unsaved (${afterMargins})`);
 
+  // The page setup is on the one undo stack too: the preset is taken back and redone.
+  const margins = () => page.evaluate(() => localStorage.getItem('edentext-page-margins') ?? '');
+  const narrow = await margins();
+  await page.waitForTimeout(600);
+  await caretTo('end');
+  await page.keyboard.press(`${MOD}+z`);
+  const wideAgain = await page.waitForFunction((n) => (localStorage.getItem('edentext-page-margins') ?? '') !== n, narrow, { timeout: 5000 })
+    .then(() => true, () => false);
+  await page.keyboard.press(`${MOD}+Shift+z`);
+  const narrowAgain = await page.waitForFunction((n) => (localStorage.getItem('edentext-page-margins') ?? '') === n, narrow, { timeout: 5000 })
+    .then(() => true, () => false);
+  check(wideAgain && narrowAgain, `undo and redo reach a margin preset (undone: ${wideAgain}, redone: ${narrowAgain}, now ${await margins()})`);
+
   // And so does the name the file is saved under. The file comes back in first, so the
   // rename is the only thing standing between the document and its clean state.
   await page.setInputFiles('input.file-input[accept*=".odt"]', join(ROOT, 'tests/corpus/04-table.odt'));
@@ -253,6 +266,56 @@ try {
   }));
   check(hf.first === 'true' && !hf.running && hf.firstPage.includes('Titelseite') && /"header":1.8/.test(hf.dist),
     `the ribbon's header/footer switches reach the document (first page: ${hf.first}, running zone: ${hf.running}, distances: ${hf.dist})`);
+
+  // One history for body and zones: undo takes back the body's typing, then the header's.
+  const firstHead = () => page.evaluate(() => localStorage.getItem('edentext-header-first') ?? '');
+  const headDone = await firstHead();
+  await caretTo('end');
+  await page.keyboard.type('Rumpf');
+  await page.waitForTimeout(600);
+  await page.keyboard.press(`${MOD}+z`);
+  const bodyBack = await page.evaluate(() => !document.querySelector('.tiptap').textContent.includes('Rumpf'));
+  await page.keyboard.press(`${MOD}+z`);
+  const headUndone = await page.waitForFunction((h) => (localStorage.getItem('edentext-header-first') ?? '') !== h, headDone, { timeout: 5000 })
+    .then(() => true, () => false);
+  await page.keyboard.press(`${MOD}+Shift+z`);
+  const headRedone = await page.waitForFunction((h) => (localStorage.getItem('edentext-header-first') ?? '') === h, headDone, { timeout: 5000 })
+    .then(() => true, () => false);
+  check(bodyBack && headUndone && headRedone,
+    `undo reaches the header after the body's typing (body undone: ${bodyBack}, header undone: ${headUndone}, redone: ${headRedone}, now ${(await firstHead()).slice(0, 60)})`);
+
+  // A style rename retags its paragraphs in the same step, so one undo takes back both.
+  const styled = () => page.evaluate(() => {
+    const names = new Set();
+    document.querySelector('.tiptap').editor.state.doc.descendants((n) => { if (n.attrs.styleName) names.add(n.attrs.styleName); });
+    const sheet = localStorage.getItem('edentext-styles') ?? '';
+    return { doc: [...names], sheet: sheet.includes('"Umbenannt"') };
+  });
+  await caretTo('end');
+  await page.locator('.ribbon-tab', { hasText: 'Home' }).first().click();
+  await page.locator('.gallery-more').first().click();
+  await page.locator('.rb-menu-foot', { hasText: 'Manage styles' }).click();
+  await page.locator('dialog.styles button', { hasText: 'New from selection' }).click();
+  const created = await page.evaluate(() => document.querySelector('.tiptap').editor.state.selection.$from.parent.attrs.styleName);
+  await page.locator('dialog.styles .entry.active').dblclick();
+  await page.locator('dialog.styles input.rename').fill('Umbenannt');
+  await page.keyboard.press('Enter');
+  const renamed = await styled();
+  await page.keyboard.press('Escape');
+  await caretTo('end');
+  await page.waitForTimeout(600);
+  await page.keyboard.press(`${MOD}+z`);
+  await page.waitForTimeout(300);
+  const unrenamed = await styled();
+  await page.keyboard.press(`${MOD}+Shift+z`);
+  await page.waitForTimeout(300);
+  const rerenamed = await styled();
+  check(renamed.doc.includes('Umbenannt') && renamed.sheet
+    && unrenamed.doc.includes(created) && !unrenamed.doc.includes('Umbenannt') && !unrenamed.sheet
+    && rerenamed.doc.includes('Umbenannt') && rerenamed.sheet,
+    `one undo takes back a style rename with its paragraphs (created ${created}, renamed ${JSON.stringify(renamed)}, undone ${JSON.stringify(unrenamed)}, redone ${JSON.stringify(rerenamed)})`);
+  // Past the autosave's debounce: a save still pending is flushed on the reload below.
+  await page.waitForTimeout(1200);
 
   // Typing latency in a long document. A keystroke at the top moves every page break
   // below it, so this is where a whole-document pass costs the most: blocked main-thread

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { autoCorrectFix, quoteLang } from '../../src/lib/editor/extensions/autoCorrect';
+import { Editor } from '@tiptap/core';
+import Document from '@tiptap/extension-document';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
+import { UndoRedo } from '@tiptap/extensions';
+import { AutoCorrect, autoCorrectFix, quoteLang } from '../../src/lib/editor/extensions/autoCorrect';
 import { DEFAULT_AUTOCORRECT, type AutoCorrectOptions } from '../../src/lib/storage/autoCorrect';
 
 // `before` is the block text up to and including the character just typed; the fix is
@@ -117,5 +122,18 @@ describe('quote language', () => {
     expect(quoteLang('"', '', undefined, undefined, de)).toBe('de-DE');
     expect(quoteLang('中"', '', { langAsian: 'ja-JP' }, block, de)).toBe('ja-JP');
     expect(quoteLang('中"', '', undefined, undefined, de)).toBe('en');
+  });
+});
+
+describe('AutoCorrect', () => {
+  it('takes back only the correction on the first undo', () => {
+    const ed = new Editor({ extensions: [Document, Paragraph, Text, UndoRedo, AutoCorrect], content: '<p>a --</p>' });
+    const at = ed.state.doc.content.size - 1;
+    ed.view.someProp('handleTextInput', (f) => f(ed.view, at, at, '>', () => ed.state.tr));
+    expect(ed.getText()).toBe('a →');
+    ed.commands.undo();
+    expect(ed.getText()).toBe('a -->');
+    ed.commands.undo();
+    expect(ed.getText()).toBe('a --');
   });
 });

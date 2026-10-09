@@ -100,6 +100,17 @@ clone. Their typography inherits the document default paragraph style, not the e
 fallback. While one is open, the floating table/image/text-box toolbars and the context menu
 serve its editor (`uiEditor`), and only the body dims.
 
+The zones, page setup, style sheet, note settings and document language share the body's undo
+stack, as in both word processors. Each change lands there as a `StateStep` (`stateHistory.ts`:
+the value before and after, the body untouched). The live zone's own history only groups its
+edits, and its undo/redo run on the body's stack. `App.svelte` registers each store with
+`watchState`, whichever control writes it, and a change lands after a 500 ms pause. Typing or an
+undo lands pending changes first (`flushPending`). A store set in the same task as a text change
+(a renamed style and its retagged paragraphs) joins that change's step through the extension's
+`appendTransaction`. An undo writes the value back; a table style's repaint follows the sheet
+outside the history. Document properties, the recording switch and embedded fonts stay out,
+as in both.
+
 A frame in a zone flows there when it wraps (side or band) and stays out of the zone's height
 when it runs through. One placed against the page is placed by CSS from the zone box:
 `--page-x`/`--page-y` from the node view against the zone's `--hf-page-y`, so the zone's editor

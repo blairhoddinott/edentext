@@ -460,7 +460,8 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     styleRecalcRaf = requestAnimationFrame(() => {
       // A table style's fill/borders live in cell attrs, so an edited registry has to be
       // painted into the document — this effect is the choke point every change passes.
-      ed.commands.refreshTableStyles();
+      // The paint follows the sheet, so it is no step: undoing the sheet repaints.
+      ed.chain().setMeta('addToHistory', false).refreshTableStyles().run();
       ed.view.dispatch(ed.state.tr.setMeta('addToHistory', false).setMeta(FORCE_PAGE_RECALC, true).setMeta(SHEET_CHANGED, true));
     });
   });
@@ -1860,6 +1861,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
         bind:hfEditor
         bind:hfActive
         bind:hfTick
+        bodyEditor={editor}
         {numPages}
         {pageBoxes}
         {currentPage}

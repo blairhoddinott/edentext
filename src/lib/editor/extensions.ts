@@ -26,6 +26,7 @@ import { addColumnAfter, addColumnBefore, addRowAfter, addRowBefore } from '@tip
 import { ResizableTableRow } from './extensions/tableRow';
 import { inheritingInsert } from './extensions/tableInsert';
 import History from '@tiptap/extension-history';
+import { StateHistory } from './extensions/stateHistory';
 import { inNote } from './extensions/notes';
 import { Placeholder } from './extensions/placeholder';
 import { t } from '../i18n/i18n.svelte';
@@ -258,6 +259,7 @@ export const extensions = [
   // and the user can keep writing below a table at the document's end.
   TrailingNode,
   History,
+  StateHistory,
   Placeholder.configure({ placeholder: () => t().app.startTyping }),
   // No defaultAlignment: it would put textAlign:'left' on every block, and that inline
   // style beats the paragraph style's alignment. Unset = follow the style; an explicit
@@ -296,6 +298,8 @@ const BODY_ONLY = new Set([
   'doc', 'placeholder', 'noteRef', 'note', 'noteSection', 'notes', 'pageBreak', 'pageBreaks',
   'columns', 'columnsFlow', 'tableOfContents', 'outline', 'comment', 'insertion', 'deletion',
   'trackChanges', 'searchReplace', 'autoText', 'wordCompletion', 'autoCorrect', 'spellCheck', 'grammarCheck',
+  // A zone's live editor undoes on the body's stack (stateHistory.ts).
+  'undoRedo', 'stateHistory',
 ]);
 
 // A header or footer is a text area like the body, with the page fields on top.

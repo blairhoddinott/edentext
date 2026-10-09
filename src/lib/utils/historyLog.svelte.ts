@@ -5,6 +5,7 @@ import type { Editor } from '@tiptap/core';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import { undoDepth, redoDepth, isHistoryTransaction } from '@tiptap/pm/history';
 import { ReplaceStep, ReplaceAroundStep, AddMarkStep, RemoveMarkStep, AttrStep } from '@tiptap/pm/transform';
+import { StateStep, resetStateHistory, flushPending } from '../editor/extensions/stateHistory';
 
 export interface HistoryEntry {
   label: string;
@@ -24,6 +25,7 @@ export function resetHistoryLog(): void {
   historyLog.redo = [];
   prevUndo = 0;
   prevRedo = 0;
+  resetStateHistory();
 }
 
 // Called once per transaction with the POST-transaction state (onTransaction runs after
@@ -69,11 +71,13 @@ export function recordTransaction(state: EditorState, tr: Transaction): void {
 // Jump multiple steps by looping the single-step commands — each dispatch fires
 // onTransaction, so the log moves one entry per step and stays in sync.
 export function undoSteps(editor: Editor, n: number): void {
+  flushPending();
   for (let i = 0; i < n; i++) editor.commands.undo();
   editor.commands.focus();
 }
 
 export function redoSteps(editor: Editor, n: number): void {
+  flushPending();
   for (let i = 0; i < n; i++) editor.commands.redo();
   editor.commands.focus();
 }
@@ -119,6 +123,13 @@ const NODE_LABELS: Record<string, string> = {
   columns: 'Columns',
 };
 
+const STATE_LABELS: Record<string, string> = {
+  layout: 'Page setup',
+  styles: 'Styles',
+  notes: 'Footnote settings',
+  language: 'Language',
+};
+
 function describeMark(name: string, attrs: Record<string, unknown> | undefined): string {
   if (name === 'textStyle') {
     // TextStyle carries several attrs; label by whichever this step actually set.
@@ -140,6 +151,7 @@ function describeTransaction(tr: Transaction): string {
   let sawAttr = false;
 
   for (const step of tr.steps) {
+    if (step instanceof StateStep) return STATE_LABELS[step.id] ?? (step.id.split(':')[2].startsWith('header') ? 'Header' : 'Footer');
     if (step instanceof ReplaceStep || step instanceof ReplaceAroundStep) {
       const { content, size } = step.slice;
       if (size === 0) {

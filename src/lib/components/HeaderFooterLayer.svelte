@@ -4,6 +4,9 @@
   import { layOutZoneTabs, zoneDefaultStops } from '../editor/extensions/tabStops';
   import { FORCE_PAGE_RECALC } from '../editor/extensions/pageBreaks';
   import { zoneExtensions } from '../editor/extensions';
+  import { StateStep, ZoneHistory } from '../editor/extensions/stateHistory';
+  import { isHistoryTransaction } from '@tiptap/pm/history';
+  import { TextSelection, type Transaction } from '@tiptap/pm/state';
   import { plainPastedSpaces, unwrapPastedBoxes } from '../editor/paste';
   import { hfIsEmpty, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, type HfDoc, type HfZone, type HfVariant, type HfDistances, type HfSet, type HfZoneKey } from '../storage/headerFooter';
   import { cmToPx, PX_PER_CM, type PageMargins } from '../storage/pageMargins';
@@ -42,6 +45,7 @@
     zoneIntrusions = $bindable([]),
     interactive = true,
     onlyPage = 0,
+    bodyEditor = null,
   }: {
     headerDoc: HfDoc;
     footerDoc: HfDoc;
@@ -77,6 +81,8 @@
     interactive?: boolean;
     /** A page-grid cell's page: the cell clips every other, so only its zones are drawn. */
     onlyPage?: number;
+    /** The body editor, whose undo stack the zones' edits join. */
+    bodyEditor?: Editor | null;
   } = $props();
 
   const PAGE_GAP = 20;
@@ -390,6 +396,7 @@
   let pendingPage: number | null = null;
   let liveZone: HfZone | null = null;
   let liveKey = ''; // section:variant the live editor writes to
+  let liveId = ''; // hf:section:zoneKey, as the body's history names it
 
   // Which HfSet field a zone + variant is.
   const zoneKey = (zone: HfZone, variant: HfVariant): HfZoneKey =>
@@ -400,8 +407,7 @@
   }
   // Section 1's zones are separate bindable props; a later section's live in the array,
   // replaced whole so the reassignment reaches App (which persists it).
-  function writeZone(index: number, zone: HfZone, variant: HfVariant, doc: HfDoc): void {
-    const key = zoneKey(zone, variant);
+  function writeZone(index: number, key: HfZoneKey, doc: HfDoc): void {
     if (index > 0) {
       extraHfSections = extraHfSections.map((s, i) => (i === index - 1 ? { ...s, [key]: doc } : s));
     } else if (key === 'header') headerDoc = doc;
@@ -467,9 +473,13 @@
     const editingIndex = sectionOf(editingPage);
     const editingVariant = variantFor(editingPage, editingIndex);
     liveKey = `${editingIndex}:${editingVariant}`;
+    liveId = `hf:${editingIndex}:${zoneKey(zone, editingVariant)}`;
     const ed = new Editor({
       element: mount,
-      extensions: zoneExtensions(zone === 'header' ? t().hf.headerPlaceholder : t().hf.footerPlaceholder),
+      extensions: [
+        ...zoneExtensions(zone === 'header' ? t().hf.headerPlaceholder : t().hf.footerPlaceholder),
+        ZoneHistory.configure({ body: () => bodyEditor, id: liveId }),
+      ],
       content: startingDoc(editingIndex, zone, editingVariant, editingPage) as Content,
       // No autofocus: its scrollIntoView nudges the page so the just-clicked zone
       // appears to jump. Focus the zone explicitly without scrolling instead.
@@ -479,7 +489,7 @@
         queueMicrotask(() => hfTick++);
       },
       onUpdate: ({ editor }) => {
-        writeZone(editingIndex, zone, editingVariant, editor.getJSON() as HfDoc);
+        writeZone(editingIndex, zoneKey(zone, editingVariant), editor.getJSON() as HfDoc);
       },
       editorProps: {
         // As in the body: a size-less box a foreign paste wraps blocks in is spilled back.
@@ -495,6 +505,30 @@
     });
     ed.commands.focus('end', { scrollIntoView: false });
     hfEditor = ed;
+  });
+
+  // An undo or redo on the body's stack that reaches a zone puts that zone's content back,
+  // in the open zone's editor too (off its own history, which only groups new edits).
+  $effect(() => {
+    const body = bodyEditor;
+    if (!interactive || !body) return;
+    const restore = ({ transaction }: { transaction: Transaction }) => {
+      if (!isHistoryTransaction(transaction)) return;
+      for (const step of transaction.steps) {
+        if (!(step instanceof StateStep)) continue;
+        const [kind, index, key] = step.id.split(':');
+        if (kind !== 'hf' || Number(index) >= sets.length) continue;
+        writeZone(Number(index), key as HfZoneKey, step.to as HfDoc);
+        const ed = hfEditor;
+        if (!ed || step.id !== liveId) continue;
+        const at = ed.state.selection.from;
+        ed.chain().setMeta('addToHistory', false).setContent((step.to ?? emptyDoc()) as Content, { emitUpdate: false })
+          .command(({ tr }) => { tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(at, tr.doc.content.size)))); return true; })
+          .run();
+      }
+    };
+    body.on('transaction', restore);
+    return () => body.off('transaction', restore);
   });
 
   // The field texts the live zone last showed; a change in them is not a document change,

@@ -3,6 +3,7 @@
   import { cubicOut } from 'svelte/easing';
   import type { Content, Editor } from '@tiptap/core';
   import { EditorState, Selection } from '@tiptap/pm/state';
+  import { watchState, noteState, rebaseStates } from './lib/editor/extensions/stateHistory';
   import EditorComponent from './lib/components/Editor.svelte';
   import Toolbar from './lib/components/Toolbar.svelte';
   import ToolbarExpanded from './lib/components/ToolbarExpanded.svelte';
@@ -38,9 +39,9 @@
   import { setStyleSheet, styleSheet } from './lib/styles/sheet.svelte';
   import { noteSettings, setNoteSettings } from './lib/storage/notes.svelte';
   import { recordChanges, setRecordChanges } from './lib/storage/trackChanges.svelte';
-  import { DEFAULT_NOTE_SETTINGS } from './lib/storage/noteSettings';
-  import { builtinStyleSheet, type StyleFamily } from './lib/styles/styleSheet';
-  import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, DEFAULT_HF_DISTANCES, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
+  import { DEFAULT_NOTE_SETTINGS, type NoteSettings } from './lib/storage/noteSettings';
+  import { builtinStyleSheet, type StyleFamily, type StyleSheet } from './lib/styles/styleSheet';
+  import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, EMPTY_HF_SET, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
   import { loadDocName, saveDocName, loadDocFormat, saveDocFormat, stripOdtExtension, sanitizeNameForFile, deriveFilename, filenameFor, loadDocProtected, saveDocProtected, loadDocFile, saveDocFile, type DocumentFormat } from './lib/storage/documentName';
   import { loadDocProperties, saveDocProperties, EMPTY_DOC_PROPERTIES, type DocProperties } from './lib/storage/docProperties';
   import { loadHyphenation, saveHyphenation } from './lib/storage/hyphenation';
@@ -211,6 +212,8 @@
   }
 
   function markSaved(): void {
+    // A document just put in front of the reader brings its page setup; that is no edit.
+    rebaseStates();
     cleanDoc = editor?.state.doc ?? null;
     cleanRest = restSum();
     dirty = false;
@@ -300,6 +303,36 @@
   // actually draws and exports the marks. Import and templates set the flag too, so
   // the check sits here, behind all three.
   const foldMarksOn = $derived(foldMarks && pageFormat === 'A4' && pageOrientation === 'portrait');
+
+  // The page setup, styles, note settings and language ride the body's undo stack, as in
+  // both word processors (stateHistory.ts): every change, from whichever control, lands.
+  const isZoneKey = (k: string) => (HF_ZONE_KEYS as readonly string[]).includes(k);
+  const layoutFields = () => ({
+    pageMargins, pageOrientation, pageFormat, hfDistances, differentFirstPage, differentOddEven,
+    pageNumbering, pageDecor, lineNumbering, lineGrid, tabIntervalCm, spacingModel,
+    spacingAtPageStart, pageRtl, hyphenate, balanceSpaces, foldMarks, sections: extraHfSections,
+  });
+  // A section's zones are steps of their own (HeaderFooterLayer.svelte), so a step drops them.
+  const layoutWatch = watchState('layout', () => editor, layoutFields, (to) => {
+    ({
+      pageMargins, pageOrientation, pageFormat, hfDistances, differentFirstPage, differentOddEven,
+      pageNumbering, pageDecor, lineNumbering, lineGrid, tabIntervalCm, spacingModel,
+      spacingAtPageStart, pageRtl, hyphenate, balanceSpaces, foldMarks,
+    } = to as ReturnType<typeof layoutFields>);
+    // The section count is the snapshot's; each keeps the zones it has now.
+    extraHfSections = (to.sections as HfSet[]).map((set, i) => {
+      const zones = extraHfSections[i] ?? EMPTY_HF_SET;
+      return { ...set, ...Object.fromEntries(HF_ZONE_KEYS.map((k) => [k, zones[k]])) } as HfSet;
+    });
+  }, (v) => ({ ...v, sections: (v.sections as HfSet[]).map((set) => Object.fromEntries(Object.entries(set).filter(([k]) => !isZoneKey(k)))) }));
+  const styleWatch = watchState('styles', () => editor, () => ({ sheet: styleSheet() }), (to) => setStyleSheet(to.sheet as StyleSheet));
+  const noteWatch = watchState('notes', () => editor, () => ({ notes: noteSettings() }), (to) => setNoteSettings(to.notes as NoteSettings));
+  const languageWatch = watchState('language', () => editor, () => ({ main: documentLanguage, other: documentLanguageOther }), (to) => {
+    documentLanguage = to.main as DocumentLanguage;
+    documentLanguageOther = to.other as string | null;
+  });
+  for (const w of [layoutWatch, styleWatch, noteWatch, languageWatch]) $effect(() => noteState(w));
+
   let templateGalleryOpen = $state(false);
   let autoCorrectOpen = $state(false);
   let autoTextOpen = $state(false);

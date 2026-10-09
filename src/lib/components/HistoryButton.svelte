@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { historyLog, undoSteps, redoSteps } from '../utils/historyLog.svelte';
+  import { flushPending } from '../editor/extensions/stateHistory';
   import { t } from '../i18n/i18n.svelte';
   import { withShortcut } from '../i18n/shortcut';
 
@@ -30,6 +31,7 @@
 
   function runSingle() {
     if (!editor) return;
+    flushPending();
     if (direction === 'undo') editor.chain().focus().undo().run();
     else editor.chain().focus().redo().run();
   }
