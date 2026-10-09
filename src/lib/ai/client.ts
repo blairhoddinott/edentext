@@ -6,7 +6,8 @@
 import type { AiConfig } from '../storage/ai.svelte';
 import type { Messages } from '../i18n/locales/en';
 
-export type ToolCall = { id: string; name: string; args: string };
+/** `extra`: a provider's opaque per-call data (Gemini's thought signature), sent back as it came. */
+export type ToolCall = { id: string; name: string; args: string; extra?: unknown };
 export type ChatMessage =
   | { role: 'user'; content: string }
   | { role: 'assistant'; content: string; toolCalls?: ToolCall[] }
@@ -64,7 +65,7 @@ function openaiRequest(cfg: AiConfig, req: ChatRequest): RequestInit & { url: st
       messages.push({
         role: 'assistant',
         content: m.content || null,
-        tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' } })),
+        tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' }, ...(c.extra ? { extra_content: c.extra } : {}) })),
       });
     } else messages.push({ role: m.role, content: m.content });
   }
@@ -148,6 +149,7 @@ async function readOpenai(body: ReadableStream<Uint8Array>, onText: (t: string) 
       const i = typeof tc.index === 'number' ? tc.index : calls.length;
       const slot = (calls[i] ??= { id: '', name: '', args: '' });
       if (tc.id) slot.id = tc.id;
+      if (tc.extra_content) slot.extra = tc.extra_content;
       if (tc.function?.name) slot.name ||= tc.function.name;
       const a = tc.function?.arguments;
       if (a) slot.args += typeof a === 'string' ? a : JSON.stringify(a);
@@ -180,8 +182,9 @@ async function httpError(res: Response): Promise<AiError> {
   try {
     const body = await res.text();
     try {
-      const json = JSON.parse(body);
-      detail = json.error?.message ?? (typeof json.error === 'string' ? json.error : '') ?? '';
+      // Gemini wraps its error in an array.
+      const json = [JSON.parse(body)].flat()[0];
+      detail = json?.error?.message ?? (typeof json?.error === 'string' ? json.error : '');
     } catch { detail = body.slice(0, 300); }
   } catch { /* the body is only a detail */ }
   const kind = res.status === 401 || res.status === 403 ? 'auth' : res.status === 404 ? 'notFound' : res.status === 429 ? 'rate' : 'http';
@@ -204,8 +207,9 @@ export async function streamChat(cfg: AiConfig, req: ChatRequest, onText: (t: st
   }
   if (!res.ok) {
     const err = await httpError(res);
-    // Some local models take no tools at all; ask again without them.
-    if (res.status === 400 && req.tools?.length && /tool|function/i.test(err.message)) {
+    // Some local models take no tools at all; ask again without them. A turn that already
+    // ran tools proves they are supported, so its 400 is a real error.
+    if (res.status === 400 && req.tools?.length && !req.messages.some((m) => m.role === 'tool') && /tool|function/i.test(err.message)) {
       return streamChat(cfg, { ...req, tools: undefined }, onText, signal);
     }
     throw err;

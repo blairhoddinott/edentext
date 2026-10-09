@@ -86,6 +86,24 @@ describe('OpenAI-compatible', () => {
     expect(res.text).toBe('ok');
     expect(calls).toBe(2);
   });
+
+  it('sends a tool call’s thought signature back, and reads an error wrapped in an array', async () => {
+    const extra = { google: { thought_signature: 'sig' } };
+    mockFetch(sse([{ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'format', arguments: '{}' }, extra_content: extra }] } }] }, '[DONE]']));
+    const res = await streamChat(openai, { system: '', messages: [] }, () => {});
+    expect(res.toolCalls[0].extra).toEqual(extra);
+
+    const fetch = mockFetch(() => new Response('[{"error":{"code":400,"message":"Function call is missing a thought_signature"}}]', { status: 400 }));
+    const err = await streamChat(openai, {
+      system: '',
+      messages: [{ role: 'assistant', content: '', toolCalls: res.toolCalls }, { role: 'tool', id: 'c1', content: 'ok' }],
+      tools: [{ name: 'format', description: '', parameters: {} }],
+    }, () => {}).catch((e) => e);
+    expect(JSON.parse(fetch.mock.calls[0][1].body as string).messages[1].tool_calls[0].extra_content).toEqual(extra);
+    // A turn that already ran tools is not asked again without them.
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(err.message).toBe('Function call is missing a thought_signature');
+  });
 });
 
 describe('Anthropic', () => {
