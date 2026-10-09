@@ -1,13 +1,13 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
-  import { t, locale } from '../i18n/i18n.svelte';
+  import { t } from '../i18n/i18n.svelte';
   import { dragWindow } from '../utils/dragWindow';
   import { aiConfig, OPEN_AI_PROMPT_EVENT, type AiPromptMode } from '../storage/ai.svelte';
   import { LANGUAGES } from '../storage/documentLanguage';
   import { streamChat, aiErrorText, isAbort } from '../ai/client';
   import { contentToDom, htmlToSlice } from '../ai/doc';
   import { REWRITE_PRESETS, startRequest, endRequest } from '../ai/tools';
-  import { COMMANDS, captureTarget, commandRequest, insertBelowTarget, replaceTarget, type Target } from '../ai/commands';
+  import { COMMANDS, captureTarget, commandRequest, insertBelowTarget, replaceTarget, uiLanguage, type Target } from '../ai/commands';
   import Icon from './ribbon/Icon.svelte';
 
   // Copilot's two inline flows in one window: rewrite the selection, or draft new content
@@ -44,7 +44,7 @@
     instruction = '';
     reply = '';
     error = '';
-    language ||= LANGUAGES.find((l) => l.code === locale() || l.code.startsWith(locale().split('-')[0]))?.label ?? 'English (US)';
+    language ||= uiLanguage();
     const at = view.coordsAtPos(target.to);
     pos = { left: Math.max(8, Math.min(window.innerWidth - 440, at.left)), top: Math.max(8, Math.min(window.innerHeight - 380, at.bottom + 8)) };
     open = true;

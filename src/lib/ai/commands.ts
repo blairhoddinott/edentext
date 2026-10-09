@@ -6,6 +6,8 @@ import type { Editor } from '@tiptap/core';
 import { Slice } from '@tiptap/pm/model';
 import { TextSelection, type EditorState } from '@tiptap/pm/state';
 import type { Messages } from '../i18n/locales/en';
+import { locale } from '../i18n/i18n.svelte';
+import { LANGUAGES } from '../storage/documentLanguage';
 import type { ChatRequest } from './client';
 import { htmlToSlice, selectionHtml, serializeDoc } from './doc';
 import { REWRITE_PROMPT, REWRITE_PRESETS, draftPrompt } from './tools';
@@ -21,6 +23,11 @@ export const COMMANDS: Command[] = [
 
 export function commandLabel(c: Command, m: Messages['ai']): string {
   return c.preset ? m.presets[c.preset] : c.kind === 'draft' ? m.draftHeading : m.rewriteHeading;
+}
+
+/** The UI's language, which translate falls back to. */
+export function uiLanguage(): string {
+  return LANGUAGES.find((l) => l.code === locale() || l.code.startsWith(locale().split('-')[0]))?.label ?? 'English (US)';
 }
 
 /** `/name arg` as a known command, `{ unknown }` for any other `/word`, null for plain text. */

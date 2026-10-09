@@ -1,11 +1,20 @@
 <script module lang="ts">
   import type { ChatMessage } from '../ai/client';
+  import type { Command, Target } from '../ai/commands';
 
-  type Entry = { role: 'user' | 'assistant'; text: string; tools: string[]; error: string };
+  // A command's reply is a proposal: it reaches the document by its buttons only.
+  type Proposal = { kind: Command['kind']; target: Target; applied: boolean };
+  type Entry = { role: 'user' | 'assistant'; text: string; tools: string[]; error: string; proposal?: Proposal };
 
   // The conversation outlives the pane being closed, not a reload: nothing is stored.
   let entries = $state<Entry[]>([]);
   let history: ChatMessage[] = [];
+  let prefill = $state<string | null>(null);
+
+  /** Fills the chat field, as the pane opens or while it is open. */
+  export function askAi(text: string): void {
+    prefill = text;
+  }
 
   /** A new document starts a new chat — the old one talks about other paragraphs. */
   export function resetAiChat(): void {
@@ -20,9 +29,9 @@
   import { aiConfig } from '../storage/ai.svelte';
   import { showChanges, setShowChanges } from '../storage/markup.svelte';
   import { revisions } from '../editor/extensions/trackChanges';
-  import { aiErrorText, isAbort } from '../ai/client';
+  import { aiErrorText, isAbort, streamChat } from '../ai/client';
   import { contentToDom, htmlToSlice } from '../ai/doc';
-  import { insertAtCursor } from '../ai/commands';
+  import { COMMANDS, captureTarget, commandLabel, commandRequest, insertAtCursor, insertBelowTarget, parseCommand, replaceTarget, uiLanguage } from '../ai/commands';
   import { runTurn, startRequest, endRequest } from '../ai/tools';
   import Icon from './ribbon/Icon.svelte';
 
@@ -34,6 +43,7 @@
   let question = $state('');
   let busy = $state(false);
   let list = $state<HTMLElement | null>(null);
+  let field = $state<HTMLTextAreaElement | null>(null);
   let request: AbortController | null = null;
   let configured = $derived(!!aiConfig());
   // The selection goes with every question (serializeDoc); the chip shows that it does.
@@ -68,6 +78,15 @@
 
   $effect(() => () => stop());
 
+  $effect(() => {
+    if (prefill === null || !field) return;
+    const el = field;
+    question = prefill;
+    prefill = null;
+    menuIndex = 0;
+    queueMicrotask(() => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+  });
+
   function stop() {
     request?.abort();
     if (request) endRequest(request);
@@ -81,6 +100,8 @@
     if (!q || !cfg || !editor || busy) return;
     question = '';
     recall = -1;
+    const parsed = parseCommand(q);
+    if (parsed) return command(q, parsed);
     entries.push({ role: 'user', text: q, tools: [], error: '' }, { role: 'assistant', text: '', tools: [], error: '' });
     const reply = entries[entries.length - 1];
     const author = t().ai.author;
@@ -102,6 +123,51 @@
     }
     // Tracked edits nobody can see would look like nothing happened.
     if (!showChanges() && revisions(editor.state.doc).filter((r) => r.author === author).length > before) setShowChanges(true);
+  }
+
+  async function command(q: string, parsed: NonNullable<ReturnType<typeof parseCommand>>) {
+    const cfg = aiConfig();
+    if (!cfg || !editor) return;
+    entries.push({ role: 'user', text: q, tools: [], error: '' }, { role: 'assistant', text: '', tools: [], error: '' });
+    const reply = entries[entries.length - 1];
+    if ('unknown' in parsed) return void (reply.error = t().ai.unknownCommand(parsed.unknown));
+    const target = captureTarget(editor.state);
+    if (parsed.command.kind === 'rewrite' && !target.html) return void (reply.error = t().ai.needSelection);
+    const made = commandRequest(parsed.command, parsed.arg, editor.state, target, uiLanguage());
+    if (!made) return void (reply.error = t().ai.needInstruction);
+    reply.proposal = { kind: parsed.command.kind, target, applied: false };
+    busy = true;
+    const mine = (request = startRequest());
+    try {
+      await streamChat(cfg, made.request, (d) => (reply.text += d), mine.signal);
+      // A follow-up such as "more formal still" reads as a chat turn about this one.
+      history.push({ role: 'user', content: made.asked }, { role: 'assistant', content: reply.text });
+    } catch (e) {
+      if (!isAbort(e)) reply.error = aiErrorText(e, t().ai.errors, cfg.endpoint);
+    } finally {
+      endRequest(mine);
+      if (request === mine) { request = null; busy = false; }
+    }
+  }
+
+  function apply(e: Entry, place: typeof replaceTarget) {
+    if (!editor || !e.proposal) return;
+    if (place(editor, e.proposal.target, e.text)) e.proposal.applied = true;
+    else e.error = t().ai.selectionChanged;
+  }
+
+  // Typing `/` lists the commands, filtered by name or label; Esc hides the list.
+  let menuIndex = $state(0);
+  let menuHidden = $state(false);
+  let matches = $derived.by(() => {
+    if (menuHidden || !/^\/\S*$/.test(question)) return [];
+    const q = question.slice(1).toLowerCase();
+    return COMMANDS.filter((c) => c.name.startsWith(q) || commandLabel(c, t().ai).toLowerCase().includes(q));
+  });
+
+  function pick(i: number) {
+    question = `/${matches[i].name} `;
+    field?.focus();
   }
 
   // A reply as document content: parsed through the schema, re-rendered once a frame.
@@ -138,6 +204,12 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
+    if (matches.length) {
+      const by = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+      if (by) { e.preventDefault(); menuIndex = (menuIndex + by + matches.length) % matches.length; return; }
+      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') { e.preventDefault(); pick(Math.min(menuIndex, matches.length - 1)); return; }
+      if (e.key === 'Escape') { e.preventDefault(); menuHidden = true; return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); }
     else if (e.key === 'ArrowUp') step(e, -1);
     else if (e.key === 'ArrowDown') step(e, 1);
@@ -175,7 +247,16 @@
           {#if e.error}<div class="error" role="alert">{e.error}</div>{/if}
           {#if busy && i === entries.length - 1}<div class="working" role="status"><span class="spinner" aria-hidden="true"></span>{t().ai.working}</div>{/if}
           {#if e.text && !(busy && i === entries.length - 1)}
-            <button class="link" onclick={() => editor && insertAtCursor(editor, e.text)}>{t().ai.insertAtCursor}</button>
+            {#if e.proposal?.applied}
+              <div class="tool">✓ {t().ai.applied}</div>
+            {:else if e.proposal?.kind === 'rewrite'}
+              <div class="acts">
+                <button class="act primary" onclick={() => apply(e, replaceTarget)}>{t().ai.replace}</button>
+                <button class="act" onclick={() => apply(e, insertBelowTarget)}>{t().ai.insertBelow}</button>
+              </div>
+            {:else}
+              <button class="link" onclick={() => { if (editor) { insertAtCursor(editor, e.text); if (e.proposal) e.proposal.applied = true; } }}>{t().ai.insertAtCursor}</button>
+            {/if}
           {/if}
         </div>
       {/if}
@@ -186,6 +267,15 @@
     {#if !configured}
       <p class="notice">{t().ai.notConfigured}</p>
     {:else}
+      {#if matches.length}
+        <div class="menu" role="listbox" aria-label={t().ai.commandsTitle}>
+          {#each matches as c, k (c.name)}
+            <button role="option" aria-selected={k === menuIndex} class:on={k === menuIndex} onmousedown={(ev) => ev.preventDefault()} onclick={() => pick(k)}>
+              <span class="cmd">/{c.name}</span><span class="label">{commandLabel(c, t().ai)}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
       <div class="ask">
         {#if selected}
           <div class="sel">
@@ -195,7 +285,7 @@
             </button>
           </div>
         {/if}
-        <textarea bind:value={question} rows="3" placeholder={t().ai.placeholder} onkeydown={onKeydown}></textarea>
+        <textarea bind:this={field} bind:value={question} rows="3" placeholder={t().ai.placeholder} onkeydown={onKeydown} oninput={() => { menuIndex = 0; menuHidden = false; }}></textarea>
         {#if busy}
           <button class="send" onclick={stop}>{t().ai.stop}</button>
         {:else}
@@ -283,7 +373,33 @@
   .link { align-self: flex-start; padding: 2px 0; color: var(--w-accent); font-size: 0.75rem; }
   .link:hover { text-decoration: underline; }
 
-  footer { padding: 8px 10px; border-top: 1px solid var(--color-border); }
+  .acts { display: flex; gap: 6px; }
+  .act {
+    padding: 3px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font-size: 0.75rem;
+  }
+  .act:hover { background: var(--color-btn-hover); }
+  .act.primary { border-color: var(--w-accent-fill); background: var(--w-accent-fill); color: #fff; font-weight: 600; }
+  .act.primary:hover { background: var(--w-accent-fill-open); }
+
+  footer { position: relative; padding: 8px 10px; border-top: 1px solid var(--color-border); }
+  .menu {
+    position: absolute;
+    inset: auto 10px calc(100% - 4px) 10px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-surface);
+    box-shadow: var(--w-menu-shadow, 0 8px 28px rgba(0, 0, 0, 0.22));
+  }
+  .menu button { display: flex; gap: 8px; align-items: baseline; padding: 5px 8px; text-align: left; }
+  .menu button.on { background: var(--w-accent-soft); }
+  .menu .cmd { font-weight: 600; color: var(--w-accent); }
+  .menu .label { color: var(--color-text-muted); }
   /* One composer box: the field and its button share the border and the focus ring. */
   .ask {
     display: flex;
