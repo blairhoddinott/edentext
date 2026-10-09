@@ -192,7 +192,11 @@
   {#if error}<div class="aip-error" role="alert">{error}</div>{/if}
 
   <div class="aip-actions">
-    <span class="aip-note">{t().ai.disclaimer}</span>
+    {#if busy}
+      <span class="aip-note aip-working" role="status"><span class="spinner" aria-hidden="true"></span>{t().ai.working}</span>
+    {:else}
+      <span class="aip-note">{t().ai.disclaimer}</span>
+    {/if}
     {#if mode === 'rewrite'}
       <button class="aip-go" disabled={!reply || busy} onclick={replaceTarget}>{t().ai.replace}</button>
       <button disabled={!reply || busy} onclick={insertBelow}>{t().ai.insertBelow}</button>
@@ -283,6 +287,7 @@
 
   .aip-actions { display: flex; align-items: center; gap: 0.4rem; padding: 0.6rem 0.8rem 0.8rem; }
   .aip-note { flex: 1; color: var(--color-text-muted); font-size: 0.72rem; }
+  .aip-working { display: flex; align-items: center; gap: 6px; }
 
   button, select {
     height: 1.9rem;

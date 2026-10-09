@@ -36,7 +36,8 @@ Pages origin can read it, and the settings row says so.
 **Input.** Every textblock is one line, `[n kind] text`. Text marked as a deletion is
 left out, so the model reads the text as it will look once accepted. Past 60k characters,
 the head and the paragraphs around the selection are kept, and `read_paragraphs` returns
-the rest.
+the rest. The selection goes along as quoted text; a chip above the chat field shows it
+and its × deselects.
 
 **Output.** The model is asked for a small HTML subset. `htmlToSlice` parses it in an
 inert `DOMParser` document, then through the schema, then `fitPastedSlice` (the paste
@@ -64,6 +65,9 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
 - **Anthropic** needs `anthropic-dangerous-direct-browser-access: true` to answer a browser.
 - **Ollama** accepts `app://` (the desktop shell) by default. A web origin has to be
   listed in `OLLAMA_ORIGINS`; the network error says so for a localhost endpoint.
-- **Models without tool support**: a 400 that mentions tools is retried once without tools.
+- **Models without tool support**: a 400 that mentions tools is retried once without tools,
+  unless the turn already ran tools.
+- **Gemini 3** attaches a thought signature to each tool call (`extra_content`); it goes back
+  unchanged with the call, or the next round answers 400.
 
 Signing in with a ChatGPT subscription (Codex OAuth, desktop only) is not built.

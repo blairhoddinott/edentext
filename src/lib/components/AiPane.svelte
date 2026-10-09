@@ -35,6 +35,26 @@
   let list = $state<HTMLElement | null>(null);
   let request: AbortController | null = null;
   let configured = $derived(!!aiConfig());
+  // The selection goes with every question (serializeDoc); the chip shows that it does.
+  let selected = $state('');
+
+  $effect(() => {
+    const ed = editor;
+    if (!ed) return;
+    const read = () => {
+      const { from, to } = ed.state.selection;
+      const text = ed.state.doc.textBetween(from, to, ' ', ' ').replace(/\s+/g, ' ').trim();
+      selected = text.length > 40 ? text.slice(0, 40) + '…' : text;
+    };
+    read();
+    ed.on('selectionUpdate', read);
+    ed.on('update', read);
+    return () => { ed.off('selectionUpdate', read); ed.off('update', read); };
+  });
+
+  function clearSelection() {
+    if (editor) editor.commands.setTextSelection(editor.state.selection.to);
+  }
 
   const SUGGESTIONS = ['summarize', 'keyPoints', 'proofread'] as const;
 
@@ -59,6 +79,7 @@
     const cfg = aiConfig();
     if (!q || !cfg || !editor || busy) return;
     question = '';
+    recall = -1;
     entries.push({ role: 'user', text: q, tools: [], error: '' }, { role: 'assistant', text: '', tools: [], error: '' });
     const reply = entries[entries.length - 1];
     const author = t().ai.author;
@@ -101,8 +122,30 @@
     return { update: paint, destroy: () => cancelAnimationFrame(frame) };
   }
 
+  // Up and Down on the field's first or last line step through the questions sent, as a
+  // shell does; stepping past the newest brings back the draft.
+  let recall = -1;
+  let draft = '';
+
+  function step(e: KeyboardEvent, by: number) {
+    const sent = entries.filter((x) => x.role === 'user').map((x) => x.text);
+    const field = e.currentTarget as HTMLTextAreaElement;
+    const caret = field.selectionStart;
+    if (caret !== field.selectionEnd) return;
+    if (by < 0 ? question.slice(0, caret).includes('\n') : question.slice(caret).includes('\n')) return;
+    const at = recall < 0 ? sent.length : recall;
+    const next = Math.min(sent.length, Math.max(0, at + by));
+    if (next === at) return;
+    e.preventDefault();
+    if (recall < 0) draft = question;
+    recall = next === sent.length ? -1 : next;
+    question = recall < 0 ? draft : sent[next];
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); }
+    else if (e.key === 'ArrowUp') step(e, -1);
+    else if (e.key === 'ArrowDown') step(e, 1);
   }
 </script>
 
@@ -135,7 +178,7 @@
           {#if e.text}<div class="content" use:render={e.text}></div>{/if}
           {#each e.tools as line, k (k)}<div class="tool">✓ {line}</div>{/each}
           {#if e.error}<div class="error" role="alert">{e.error}</div>{/if}
-          {#if busy && i === entries.length - 1 && !e.text && !e.tools.length}<div class="typing" aria-hidden="true">…</div>{/if}
+          {#if busy && i === entries.length - 1}<div class="working" role="status"><span class="spinner" aria-hidden="true"></span>{t().ai.working}</div>{/if}
           {#if e.text && !(busy && i === entries.length - 1)}
             <button class="link" onclick={() => insertAtCursor(e.text)}>{t().ai.insertAtCursor}</button>
           {/if}
@@ -149,6 +192,14 @@
       <p class="notice">{t().ai.notConfigured}</p>
     {:else}
       <div class="ask">
+        {#if selected}
+          <div class="sel">
+            <span class="sel-text"><b>{t().ai.selection}:</b> «{selected}»</span>
+            <button class="icon" onclick={clearSelection} title={t().ai.clearSelection} aria-label={t().ai.clearSelection}>
+              <Icon name="close" size={12} />
+            </button>
+          </div>
+        {/if}
         <textarea bind:value={question} rows="3" placeholder={t().ai.placeholder} onkeydown={onKeydown}></textarea>
         {#if busy}
           <button class="send" onclick={stop}>{t().ai.stop}</button>
@@ -233,7 +284,7 @@
   .content :global(td), .content :global(th) { border: 1px solid var(--color-border); padding: 2px 4px; }
   .tool { color: var(--color-text-muted); font-size: 0.75rem; }
   .error { color: #e5534b; }
-  .typing { color: var(--color-text-muted); }
+  .working { display: flex; align-items: center; gap: 6px; color: var(--color-text-muted); }
   .link { align-self: flex-start; padding: 2px 0; color: var(--w-accent); font-size: 0.75rem; }
   .link:hover { text-decoration: underline; }
 
@@ -248,6 +299,19 @@
     border-radius: 12px;
     background: var(--color-surface);
   }
+  .sel {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 2px 4px 2px 8px;
+    border-radius: 999px;
+    background: var(--w-accent-soft);
+    font-size: 0.72rem;
+  }
+  .sel-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sel b { color: var(--w-accent); font-weight: 600; }
   .ask:focus-within { border-color: var(--w-accent); box-shadow: 0 0 0 3px var(--w-accent-soft); }
   textarea {
     resize: none;
