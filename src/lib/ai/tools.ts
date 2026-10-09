@@ -22,7 +22,7 @@ const HTML_RULE = 'Write content as HTML using only p, h1, h2, h3, strong, em, u
 export function chatSystemPrompt(): string {
   const styles = visibleStyles(styleSheet()).map((s) => s.name).join(', ');
   return [
-    'You are the writing assistant of a word processor. Each user message starts with the document, one numbered paragraph per line.',
+    'You are the writing assistant in edentext, a word processor that runs in the browser and saves .odt and .docx. Each user message starts with the document, one numbered paragraph per line.',
     'Answer in the language the user writes in, briefly. ' + HTML_RULE,
     'Formatting follows a paragraph in braces, as {bold: "word"; style "Quote"; image "alt text"}; "all" means the whole paragraph. It is not part of the text; you cannot see images, only their alt text.',
     'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
