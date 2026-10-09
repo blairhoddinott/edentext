@@ -179,30 +179,12 @@
 </dialog>
 
 <style>
-  .formula-dialog {
-    margin: auto;
-    padding: 0;
-    border: none;
-    background: transparent;
-    max-width: none;
-  }
-  .formula-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
-  }
-
   .card {
     width: min(40rem, 94vw);
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     padding: 0 1rem 1rem;
-    background: var(--color-surface);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-    border-radius: var(--island-radius);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-    font-family: var(--font-sans);
   }
 
   header {

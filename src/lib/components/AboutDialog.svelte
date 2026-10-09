@@ -66,21 +66,6 @@
 </dialog>
 
 <style>
-  .about {
-    margin: auto;
-    padding: 0;
-    border: none;
-    background: transparent;
-    max-width: none;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .about::backdrop {
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(2px);
-  }
-
   .about[open] {
     animation: card-in 0.15s cubic-bezier(0.215, 0.61, 0.355, 1);
   }
@@ -107,12 +92,6 @@
     align-items: center;
     text-align: center;
     gap: 12px;
-    background: var(--color-surface);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
-    font-family: var(--font-sans);
   }
 
   .close {

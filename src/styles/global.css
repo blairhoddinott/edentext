@@ -763,6 +763,34 @@ optgroup, option {
   background: var(--color-surface);
 }
 
+/* Every window takes the ribbon's palette wherever it is mounted: tokens inherit,
+   so one under .ribbon and one under the app shell would otherwise differ. */
+dialog, [popover][role='dialog'] {
+  --color-surface: var(--w-surface);
+  --color-toolbar-bg: var(--w-surface);
+  --color-border: var(--w-border);
+  --color-text: var(--w-text);
+  --color-text-muted: var(--w-text-dim);
+  --color-primary: var(--w-accent-fill);
+  --color-btn-hover: var(--w-hover);
+  --font-sans: var(--w-font);
+  --radius: 6px;
+}
+
+/* One frame for every modal window; components set only size and layout. */
+dialog {
+  /* The global reset zeroes every margin, which also takes the auto centring. */
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--w-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+  font-family: var(--font-sans);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+
 /* A modal dialog moves by its title (utils/dragWindow.ts). */
 dialog h2 { cursor: move; user-select: none; touch-action: none; }
 

@@ -21,6 +21,7 @@ Read `docs/architecture/components.md` before changing component data flow, pagi
 settling, split/grid views, zoom, headers/footers, review UI, templates, or debug tooling.
 Read the focused architecture document for ribbon, pagination, frames, tables, formatting,
 formulas, or notes before changing those areas.
+- Every `<dialog>` and popover window gets its frame and the ribbon's `--w-*` palette from `styles/global.css`, wherever it is mounted; a component sets only size and layout.
 - Modal `<dialog>`s move by their `<h2>` title via `dragDialogs()` (`utils/dragWindow.ts`), modeless windows via `use:dragWindow`.
 - `SettingsDialog.svelte` (the ribbon's gear) gathers app-wide settings in side-bar sections, each control writing through the store that owns it; on/off rows use `Toggle.svelte`, a checkbox with `role="switch"`.
 - `BusyIndicator.svelte` (status bar) names a running task (opening a file, PDF export) at once, a layout pass after 300 ms (`isLayingOut`, not while typing); the first layout after start-up or an import still reads as loading.

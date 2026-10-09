@@ -149,20 +149,6 @@
 </dialog>
 
 <style>
-  dialog {
-    /* The global reset zeroes every margin, which also takes the auto centring a
-       modal <dialog> gets by default. */
-    margin: auto;
-    border: 1px solid var(--w-border-strong);
-    border-radius: 8px;
-    padding: 0;
-    background: var(--color-surface);
-    color: var(--color-text);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  }
-
-  dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
-
   .body {
     display: flex;
     flex-direction: column;

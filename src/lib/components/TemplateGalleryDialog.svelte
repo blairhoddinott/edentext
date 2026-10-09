@@ -97,20 +97,6 @@
 </dialog>
 
 <style>
-  .gallery {
-    margin: auto;
-    padding: 0;
-    border: none;
-    background: transparent;
-    max-width: none;
-    max-height: none;
-    overflow: visible;
-  }
-  .gallery::backdrop {
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(2px);
-  }
-
   .card {
     position: relative;
     width: 440px;
@@ -119,12 +105,6 @@
     overflow-y: auto;
     box-sizing: border-box;
     padding: 20px 22px 22px;
-    background: var(--color-surface);
-    color: var(--color-text);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
-    font-family: var(--font-sans);
   }
 
   h2 {

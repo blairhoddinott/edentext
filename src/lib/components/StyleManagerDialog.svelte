@@ -1013,28 +1013,8 @@
   .border-row { display: flex; align-items: center; gap: 0.3rem; }
   .border-row select { flex: 1; min-width: 0; }
 
-  .styles {
-    margin: auto;
-    padding: 0;
-    border: none;
-    background: transparent;
-    max-width: none;
-  }
-  .styles::backdrop {
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
-  }
-
   .card {
     width: min(46rem, 92vw);
-    background: var(--color-surface);
-    color: var(--color-text);
-    border-radius: var(--island-radius);
-    /* The card's own outline: in dark mode a shadow can't separate it from the
-       backdrop, so the edge has to be a real line. */
-    border: 1px solid var(--color-border);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-    font-family: var(--font-sans);
     overflow: hidden;
   }
 
