@@ -1,0 +1,234 @@
+// Streaming chat against the provider the user configured: the OpenAI-compatible
+// /chat/completions (OpenAI, Mistral, OpenRouter, Gemini, Ollama, LM Studio, …) or
+// Anthropic's /messages. Plain fetch and server-sent events; the one place AI talks to
+// the network, and only with a config, which storage/ai hands out while the switch is on.
+
+import type { AiConfig } from '../storage/ai.svelte';
+import type { Messages } from '../i18n/locales/en';
+
+/** `extra`: a provider's opaque per-call data (Gemini's thought signature), sent back as it came. */
+export type ToolCall = { id: string; name: string; args: string; extra?: unknown };
+export type ChatMessage =
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string; toolCalls?: ToolCall[] }
+  | { role: 'tool'; id: string; content: string };
+export type ToolDef = { name: string; description: string; parameters: Record<string, unknown> };
+export type ChatRequest = { system: string; messages: ChatMessage[]; tools?: ToolDef[] };
+export type ChatResult = { text: string; toolCalls: ToolCall[] };
+
+export class AiError extends Error {
+  constructor(readonly kind: 'network' | 'auth' | 'notFound' | 'rate' | 'http', readonly status = 0, detail = '') {
+    super(detail || kind);
+  }
+}
+
+type SseEvent = { event: string; data: string };
+
+/** Server-sent events from a response body, one per blank-line-separated block. */
+export async function* sseEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<SseEvent> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  const parse = (block: string): SseEvent | null => {
+    let event = 'message';
+    const data: string[] = [];
+    for (const line of block.split(/\r?\n/)) {
+      if (line.startsWith('event:')) event = line.slice(6).trim();
+      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+    }
+    return data.length ? { event, data: data.join('\n') } : null;
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    buf += decoder.decode(value, { stream: !done });
+    let m: RegExpExecArray | null;
+    while ((m = /\r?\n\r?\n/.exec(buf))) {
+      const ev = parse(buf.slice(0, m.index));
+      buf = buf.slice(m.index + m[0].length);
+      if (ev) yield ev;
+    }
+    if (done) break;
+  }
+  const last = parse(buf);
+  if (last) yield last;
+}
+
+function url(cfg: AiConfig, path: string): string {
+  return cfg.endpoint.trim().replace(/\/+$/, '') + path;
+}
+
+function openaiRequest(cfg: AiConfig, req: ChatRequest): RequestInit & { url: string } {
+  const messages: unknown[] = [{ role: 'system', content: req.system }];
+  for (const m of req.messages) {
+    if (m.role === 'tool') messages.push({ role: 'tool', tool_call_id: m.id, content: m.content });
+    else if (m.role === 'assistant' && m.toolCalls?.length) {
+      messages.push({
+        role: 'assistant',
+        content: m.content || null,
+        tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' }, ...(c.extra ? { extra_content: c.extra } : {}) })),
+      });
+    } else messages.push({ role: m.role, content: m.content });
+  }
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (cfg.apiKey.trim()) headers.authorization = `Bearer ${cfg.apiKey.trim()}`;
+  return {
+    url: url(cfg, '/chat/completions'),
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: cfg.model.trim(),
+      stream: true,
+      messages,
+      ...(req.tools?.length ? { tools: req.tools.map((t) => ({ type: 'function', function: t })) } : {}),
+    }),
+  };
+}
+
+type AnthropicBlock = Record<string, unknown>;
+
+function anthropicRequest(cfg: AiConfig, req: ChatRequest): RequestInit & { url: string } {
+  const messages: { role: 'user' | 'assistant'; content: AnthropicBlock[] }[] = [];
+  // Consecutive turns of one role are merged: tool results are user turns, and the API
+  // wants the roles to alternate.
+  const push = (role: 'user' | 'assistant', blocks: AnthropicBlock[]) => {
+    if (!blocks.length) return;
+    const last = messages[messages.length - 1];
+    if (last?.role === role) last.content.push(...blocks);
+    else messages.push({ role, content: blocks });
+  };
+  for (const m of req.messages) {
+    if (m.role === 'tool') push('user', [{ type: 'tool_result', tool_use_id: m.id, content: m.content }]);
+    else if (m.role === 'user') push('user', [{ type: 'text', text: m.content }]);
+    else {
+      push('assistant', [
+        ...(m.content ? [{ type: 'text', text: m.content }] : []),
+        ...(m.toolCalls ?? []).map((c) => ({ type: 'tool_use', id: c.id, name: c.name, input: parseArgs(c.args) })),
+      ]);
+    }
+  }
+  return {
+    url: url(cfg, '/messages'),
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': cfg.apiKey.trim(),
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: cfg.model.trim(),
+      max_tokens: 8192,
+      stream: true,
+      system: req.system,
+      messages,
+      ...(req.tools?.length ? { tools: req.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) } : {}),
+    }),
+  };
+}
+
+export function parseArgs(args: string): Record<string, unknown> {
+  try {
+    const v = JSON.parse(args || '{}');
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+async function readOpenai(body: ReadableStream<Uint8Array>, onText: (t: string) => void): Promise<ChatResult> {
+  let text = '';
+  const calls: ToolCall[] = [];
+  for await (const ev of sseEvents(body)) {
+    if (ev.data === '[DONE]') break;
+    const json = JSON.parse(ev.data);
+    if (json.error) throw new AiError('http', 0, json.error.message ?? String(json.error));
+    const delta = json.choices?.[0]?.delta;
+    if (typeof delta?.content === 'string' && delta.content) { text += delta.content; onText(delta.content); }
+    for (const tc of delta?.tool_calls ?? []) {
+      // Fragments of one call share an index; a server that sends no index sends whole calls.
+      const i = typeof tc.index === 'number' ? tc.index : calls.length;
+      const slot = (calls[i] ??= { id: '', name: '', args: '' });
+      if (tc.id) slot.id = tc.id;
+      if (tc.extra_content) slot.extra = tc.extra_content;
+      if (tc.function?.name) slot.name ||= tc.function.name;
+      const a = tc.function?.arguments;
+      if (a) slot.args += typeof a === 'string' ? a : JSON.stringify(a);
+    }
+  }
+  return { text, toolCalls: calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || `call_${i}` })) };
+}
+
+async function readAnthropic(body: ReadableStream<Uint8Array>, onText: (t: string) => void): Promise<ChatResult> {
+  let text = '';
+  const calls = new Map<number, ToolCall>();
+  for await (const ev of sseEvents(body)) {
+    const json = JSON.parse(ev.data);
+    if (json.type === 'error') throw new AiError('http', 0, json.error?.message ?? 'error');
+    if (json.type === 'content_block_start' && json.content_block?.type === 'tool_use') {
+      calls.set(json.index, { id: json.content_block.id, name: json.content_block.name, args: '' });
+    } else if (json.type === 'content_block_delta') {
+      if (json.delta?.type === 'text_delta') { text += json.delta.text; onText(json.delta.text); }
+      else if (json.delta?.type === 'input_json_delta') {
+        const call = calls.get(json.index);
+        if (call) call.args += json.delta.partial_json;
+      }
+    } else if (json.type === 'message_stop') break;
+  }
+  return { text, toolCalls: [...calls.values()] };
+}
+
+async function httpError(res: Response): Promise<AiError> {
+  let detail = '';
+  try {
+    const body = await res.text();
+    try {
+      // Gemini wraps its error in an array.
+      const json = [JSON.parse(body)].flat()[0];
+      detail = json?.error?.message ?? (typeof json?.error === 'string' ? json.error : '');
+    } catch { detail = body.slice(0, 300); }
+  } catch { /* the body is only a detail */ }
+  const kind = res.status === 401 || res.status === 403 ? 'auth' : res.status === 404 ? 'notFound' : res.status === 429 ? 'rate' : 'http';
+  return new AiError(kind, res.status, detail);
+}
+
+/**
+ * One model reply, its text streamed to `onText` as it arrives. Throws AiError, or the
+ * fetch's AbortError when `signal` fires.
+ */
+export async function streamChat(cfg: AiConfig, req: ChatRequest, onText: (t: string) => void, signal?: AbortSignal): Promise<ChatResult> {
+  const build = cfg.provider === 'anthropic' ? anthropicRequest : openaiRequest;
+  const { url: target, ...init } = build(cfg, req);
+  let res: Response;
+  try {
+    res = await fetch(target, { ...init, signal });
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    throw new AiError('network', 0, String(e));
+  }
+  if (!res.ok) {
+    const err = await httpError(res);
+    // Some local models take no tools at all; ask again without them. A turn that already
+    // ran tools proves they are supported, so its 400 is a real error.
+    if (res.status === 400 && req.tools?.length && !req.messages.some((m) => m.role === 'tool') && /tool|function/i.test(err.message)) {
+      return streamChat(cfg, { ...req, tools: undefined }, onText, signal);
+    }
+    throw err;
+  }
+  if (!res.body) throw new AiError('http', res.status, 'empty response');
+  return cfg.provider === 'anthropic' ? readAnthropic(res.body, onText) : readOpenai(res.body, onText);
+}
+
+export function isAbort(e: unknown): boolean {
+  return e instanceof DOMException && e.name === 'AbortError';
+}
+
+/** A failed request as the user reads it. */
+export function aiErrorText(e: unknown, m: Messages['ai']['errors'], endpoint: string): string {
+  if (!(e instanceof AiError)) return String(e instanceof Error ? e.message : e);
+  if (e.kind === 'network') {
+    const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(endpoint.trim());
+    return local ? m.networkLocal(typeof location === 'undefined' ? '*' : location.origin) : m.network;
+  }
+  if (e.kind === 'http') return m.http(e.status, e.message);
+  return m[e.kind];
+}

@@ -64,6 +64,8 @@ export const DEFAULT_SHORTCUTS = {
   zoomReset: 'Mod-0',
   // Word's key for its command search.
   commandSearch: 'Alt-q',
+  // Copilot's key for drafting at the cursor.
+  aiDraft: 'Alt-i',
 } as const;
 
 export type ShortcutId = keyof typeof DEFAULT_SHORTCUTS;

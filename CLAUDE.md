@@ -69,6 +69,7 @@ src/
   lib/editor/               - registry and extensions/
   lib/{utils,math}/         - framework-free helpers and formula AST
   lib/{export,import,i18n,spell,storage,styles,crypto}/ - I/O, localization, persistence, styles, protection
+  lib/ai/                   - AI assistant client, document serialization and tools
   lib/templates/            - built-in localized templates
   styles/                   - global and editor CSS
 desktop/                    - Electron shell around dist/ with its own npm commands; see desktop/CLAUDE.md
@@ -88,6 +89,7 @@ Read directory-level `CLAUDE.md` files when touching that directory; read archit
 | localStorage, margins, themes | `src/lib/storage/CLAUDE.md` |
 | UI languages and catalogs | `src/lib/i18n/CLAUDE.md` |
 | Ribbon | `docs/architecture/ribbon.md` |
+| AI assistant, kill switch, tracked tool edits | `docs/architecture/ai.md` |
 | Pagination, columns | `docs/architecture/pagination.md` |
 | Images, text boxes, wrap | `docs/architecture/frames.md` |
 | Tables and table styles | `docs/architecture/tables.md` |

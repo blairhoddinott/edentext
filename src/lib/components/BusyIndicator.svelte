@@ -80,18 +80,6 @@
     white-space: nowrap;
   }
 
-  /* A transform animation: Chromium runs it off the main thread, so it keeps turning
-     while a long synchronous step blocks everything else. */
-  .spinner {
-    width: 10px;
-    height: 10px;
-    border: 2px solid currentColor;
-    border-right-color: transparent;
-    border-radius: 50%;
-    opacity: 0.7;
-    animation: busy-spin 0.8s linear infinite;
-  }
-
   .bar {
     width: 60px;
     height: 4px;
@@ -105,17 +93,5 @@
     height: 100%;
     background: currentColor;
     opacity: 0.7;
-  }
-
-  @keyframes busy-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation-duration: 2.4s;
-    }
   }
 </style>

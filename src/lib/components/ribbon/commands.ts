@@ -68,6 +68,9 @@ export const RIBBON_COMMANDS: RibbonCommand[] = [
   c('home', 'paragraphBorders', (m) => m.toolbarExpanded.paragraphBorders),
   c('home', 'find', (m) => m.ribbon.find),
   c('home', 'replace', (m) => m.ribbon.replace),
+  c('home', 'aiPane', (m) => m.ai.name),
+  c('home', 'aiDraft', (m) => m.ai.draftHeading),
+  c('home', 'aiRewrite', (m) => m.ai.rewriteHeading),
 
   c('insert', 'pageBreak', (m) => m.ribbon.pageBreak),
   c('insert', 'table', (m) => m.ribbon.table),
