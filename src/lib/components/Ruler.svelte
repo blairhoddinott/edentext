@@ -313,11 +313,11 @@
 
   .indent.top {
     top: 0;
-    border-top: 6px solid var(--color-primary);
+    border-top: 6px solid var(--w-accent);
   }
 
   .indent.bottom {
     bottom: 0;
-    border-bottom: 6px solid var(--color-primary);
+    border-bottom: 6px solid var(--w-accent);
   }
 </style>
