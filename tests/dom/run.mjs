@@ -886,8 +886,8 @@ try {
   check(contrastFaults.size === 0, `the dark theme draws no menu glyph or label in a colour of its own${contrastFaults.size ? `: ${[...contrastFaults].slice(0, 8).join('; ')}` : ''}`);
 
   // The AI assistant against a mocked provider. Switched off, none of it shows and nothing
-  // goes out; switched on, a chat turn's tool call lands as the assistant's tracked change
-  // and a rewrite replaces the selection.
+  // goes out; switched on, a chat turn's tool call lands as the assistant's tracked change,
+  // a rewrite replaces the selection, and drafting opens the chat with /draft.
   let aiRequests = 0;
   await page.route('http://mock.test/**', async (route) => {
     const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST' };
@@ -940,6 +940,11 @@ try {
   await page.locator('.aip button', { hasText: 'Replace' }).click();
   const rewritten = await page.evaluate(() => document.querySelector('.tiptap')?.textContent);
   check(rewritten === 'A slow fox.', `a rewrite replaces the selection (${rewritten})`);
+
+  await page.click('.tiptap');
+  await page.keyboard.press('Alt+i');
+  const prefill = await page.locator('.ai-pane textarea').inputValue().catch(() => null);
+  check(prefill === '/draft ', `Alt+I opens the chat with /draft (${JSON.stringify(prefill)})`);
 
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);

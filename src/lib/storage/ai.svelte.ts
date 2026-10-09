@@ -8,9 +8,10 @@ export type AiConfig = Omit<AiSettings, 'enabled'>;
 
 const KEY = 'edentext-ai';
 
-/** Opens the rewrite/draft popover; detail `{ mode: 'rewrite' | 'draft' }`. */
+/** Opens the popover that rewrites the selection. */
 export const OPEN_AI_PROMPT_EVENT = 'edentext-ai-prompt';
-export type AiPromptMode = 'rewrite' | 'draft';
+/** Opens the chat pane; detail `{ prefill }` fills its field, e.g. `/draft `. */
+export const OPEN_AI_CHAT_EVENT = 'edentext-ai-chat';
 
 const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '' };
 

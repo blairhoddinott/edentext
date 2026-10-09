@@ -73,9 +73,9 @@
   import RevisionsPane from './lib/components/RevisionsPane.svelte';
   import ConnectorLayer from './lib/components/ConnectorLayer.svelte';
   import NavigatorPane from './lib/components/NavigatorPane.svelte';
-  import AiPane, { resetAiChat } from './lib/components/AiPane.svelte';
+  import AiPane, { askAi, resetAiChat } from './lib/components/AiPane.svelte';
   import AiPrompt from './lib/components/AiPrompt.svelte';
-  import { aiEnabled, OPEN_AI_PROMPT_EVENT } from './lib/storage/ai.svelte';
+  import { aiEnabled, OPEN_AI_CHAT_EVENT } from './lib/storage/ai.svelte';
   import { abortAll as abortAiRequests } from './lib/ai/tools';
   import { OPEN_COMMENT_EVENT } from './lib/editor/extensions/comment';
   import AutoCorrectDialog from './lib/components/AutoCorrectDialog.svelte';
@@ -306,6 +306,15 @@
   // The kill switch stops whatever is in flight; a new document starts a new chat.
   $effect(() => { if (!aiEnabled()) abortAiRequests(); });
   $effect(() => { void documentEpoch; abortAiRequests(); resetAiChat(); });
+  function openAiChat(prefill: string) {
+    aiOpen = true;
+    askAi(prefill);
+  }
+  $effect(() => {
+    const onChat = (e: Event) => openAiChat((e as CustomEvent<{ prefill: string }>).detail.prefill);
+    window.addEventListener(OPEN_AI_CHAT_EVENT, onChat);
+    return () => window.removeEventListener(OPEN_AI_CHAT_EVENT, onChat);
+  });
 
   // Width of the hidden mirror span (below), so the title input grows/shrinks
   // with its text instead of sitting in a fixed-width box.
@@ -1329,7 +1338,7 @@
       // Drafting needs the body editor; without the assistant the key is the browser's.
       if (aiEnabled() && !hfActive && matchesEvent(e, DEFAULT_SHORTCUTS.aiDraft)) {
         e.preventDefault();
-        window.dispatchEvent(new CustomEvent(OPEN_AI_PROMPT_EVENT, { detail: { mode: 'draft' } }));
+        openAiChat('/draft ');
         return;
       }
 

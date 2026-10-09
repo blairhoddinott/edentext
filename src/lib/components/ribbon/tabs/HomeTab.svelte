@@ -26,7 +26,7 @@
   import { styleLabel, t } from '../../../i18n/i18n.svelte';
   import { withShortcut } from '../../../i18n/shortcut';
   import { shortcutHint, type ShortcutId } from '../../../editor/shortcuts';
-  import { aiEnabled, OPEN_AI_PROMPT_EVENT, type AiPromptMode } from '../../../storage/ai.svelte';
+  import { aiEnabled, OPEN_AI_CHAT_EVENT, OPEN_AI_PROMPT_EVENT } from '../../../storage/ai.svelte';
 
   let { editor, tick, showFormattingMarks = $bindable(false), onManageStyles, onFind, onParagraphDialog, asianDocument = false, scripts = { cjk: false, cyrillic: false }, aiOpen = false, onToggleAi }: {
     editor: Editor | null;
@@ -43,9 +43,6 @@
 
   let sheet = $derived(styleSheet());
 
-  function openAiPrompt(mode: AiPromptMode) {
-    window.dispatchEvent(new CustomEvent(OPEN_AI_PROMPT_EVENT, { detail: { mode } }));
-  }
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
 
   // A heading or a header-row cell renders bold by default (CSS), so there the
@@ -456,8 +453,8 @@
   <RibbonGroup label={t().ai.group}>
     <RibbonButton variant="big" icon="sparkle" cmd="aiPane" label={t().ai.chat} title={t().ai.chatTitle} active={aiOpen} onclick={() => onToggleAi?.()} />
     <div class="rb-col">
-      <RibbonButton variant="small" icon="sparkle" cmd="aiDraft" label={t().ai.draftHeading} title={`${t().ai.draftTitle} (${shortcutHint('aiDraft')})`} onclick={() => openAiPrompt('draft')} />
-      <RibbonButton variant="small" icon="sparkle" cmd="aiRewrite" label={t().ai.rewriteHeading} title={t().ai.rewriteHeading} disabled={!hasSelection} onclick={() => openAiPrompt('rewrite')} />
+      <RibbonButton variant="small" icon="sparkle" cmd="aiDraft" label={t().ai.draftHeading} title={`${t().ai.draftTitle} (${shortcutHint('aiDraft')})`} onclick={() => window.dispatchEvent(new CustomEvent(OPEN_AI_CHAT_EVENT, { detail: { prefill: '/draft ' } }))} />
+      <RibbonButton variant="small" icon="sparkle" cmd="aiRewrite" label={t().ai.rewriteHeading} title={t().ai.rewriteHeading} disabled={!hasSelection} onclick={() => window.dispatchEvent(new Event(OPEN_AI_PROMPT_EVENT))} />
     </div>
   </RibbonGroup>
 {/if}

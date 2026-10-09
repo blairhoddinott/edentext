@@ -28,8 +28,9 @@ Pages origin can read it, and the settings row says so.
 | `ai/client.ts` | `streamChat`: request builders, SSE parsing and stream reducers for both providers; `AiError` and its user text |
 | `ai/doc.ts` | The document as numbered lines (`blockTexts`, `serializeDoc`); the model's HTML as a slice (`htmlToSlice`) |
 | `ai/tools.ts` | Tool schemas, `runTool`, the chat turn `runTurn`, prompts, and the abort registry |
+| `ai/commands.ts` | Slash commands (`parseCommand`, `commandRequest`) and the helpers that place a reply |
 | `components/AiPane.svelte` | Docked chat. The history lives in module state: it survives closing the pane, but not a reload or a new document |
-| `components/AiPrompt.svelte` | Popover for rewriting the selection or drafting at the caret, with a preview first |
+| `components/AiPrompt.svelte` | Popover for a quick rewrite of the selection, with a preview first |
 
 ## Document in, content out
 
@@ -64,8 +65,21 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
 - **Paragraph numbers** come from the turn's snapshot. Every transaction during the turn
   is appended to a `Mapping`, so a number still finds its paragraph after earlier edits.
   Inserted paragraphs only get a number in the next turn.
-- **Rewrite and draft** insert like a paste. While recording is on, the change is tracked
-  under the user's own name.
+- **Commands and the popover** insert like a paste. While recording is on, the change is
+  tracked under the user's own name.
+
+## Slash commands
+
+A chat message starting with `/` is a command: `/draft <what>`, `/rewrite <how>`, and the
+presets `/rephrase`, `/shorten`, `/formal`, `/fix`, `/translate [language]` (a preset takes
+extra words as an addition; translate falls back to the UI language). Typing `/` lists them,
+filtered by name or localized label. A command sends its fixed prompt without tools, so
+small local models manage it; the rewrite commands need a selection, captured when sent. The
+reply is a proposal: Replace or Insert below for a rewrite, Insert at cursor for a draft,
+refused once the selected text changed. It enters the chat history, so a follow-up refines it.
+
+Drafting has no window of its own: the ribbon, the context menu and `Alt+I` open the chat
+with `/draft ` filled in (`OPEN_AI_CHAT_EVENT`, `askAi`). The popover only rewrites.
 
 ## Providers
 

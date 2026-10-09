@@ -2,7 +2,7 @@
   import type { Editor } from '@tiptap/core';
   import { t } from '../i18n/i18n.svelte';
   import { dragWindow } from '../utils/dragWindow';
-  import { aiConfig, OPEN_AI_PROMPT_EVENT, type AiPromptMode } from '../storage/ai.svelte';
+  import { aiConfig, OPEN_AI_PROMPT_EVENT } from '../storage/ai.svelte';
   import { LANGUAGES } from '../storage/documentLanguage';
   import { streamChat, aiErrorText, isAbort } from '../ai/client';
   import { contentToDom, htmlToSlice } from '../ai/doc';
@@ -10,9 +10,9 @@
   import { COMMANDS, captureTarget, commandRequest, insertBelowTarget, replaceTarget, uiLanguage, type Target } from '../ai/commands';
   import Icon from './ribbon/Icon.svelte';
 
-  // Copilot's two inline flows in one window: rewrite the selection, or draft new content
-  // at the caret. The reply streams into a preview and touches the document only when
-  // the user takes it, so a half-written answer never lands in the text or the history.
+  // Quick inline rewrite of the selection; drafting and longer work happen in the chat.
+  // The reply streams into a preview and touches the document only when the user takes
+  // it, so a half-written answer never lands in the text or the history.
   let { editor }: { editor: Editor | null } = $props();
 
   type Preset = keyof typeof REWRITE_PRESETS;
@@ -20,7 +20,6 @@
   const TARGETS = [...new Set(LANGUAGES.map((l) => l.label))];
 
   let open = $state(false);
-  let mode = $state<AiPromptMode>('draft');
   let instruction = $state('');
   let language = $state('');
   let reply = $state('');
@@ -34,12 +33,11 @@
   let target: Target = { from: 0, to: 0, original: '', html: '' };
   let request: AbortController | null = null;
 
-  function show(m: AiPromptMode) {
+  function show() {
     if (!editor) return;
     const { state, view } = editor;
-    if (m === 'rewrite' && state.selection.empty) return;
+    if (state.selection.empty) return;
     stop();
-    mode = m;
     target = captureTarget(state);
     instruction = '';
     reply = '';
@@ -52,7 +50,7 @@
   }
 
   $effect(() => {
-    const onOpen = (e: Event) => show((e as CustomEvent<{ mode: AiPromptMode }>).detail?.mode ?? 'draft');
+    const onOpen = () => show();
     window.addEventListener(OPEN_AI_PROMPT_EVENT, onOpen);
     return () => { window.removeEventListener(OPEN_AI_PROMPT_EVENT, onOpen); stop(); };
   });
@@ -91,7 +89,7 @@
     if (!editor || busy) return;
     const cfg = aiConfig();
     if (!cfg) { error = t().ai.notConfigured; return; }
-    const command = COMMANDS.find((c) => (preset ? c.preset === preset : c.name === mode))!;
+    const command = COMMANDS.find((c) => (preset ? c.preset === preset : c.name === 'rewrite'))!;
     const made = commandRequest(command, preset ? '' : instruction.trim(), editor.state, target, language);
     if (!made) return;
     reply = '';
@@ -125,36 +123,34 @@
   class="aip"
   popover="manual"
   role="dialog"
-  aria-label={mode === 'rewrite' ? t().ai.rewriteHeading : t().ai.draftHeading}
+  aria-label={t().ai.rewriteHeading}
   tabindex="-1"
   onkeydown={onKeydown}
   style={pos ? `left:${pos.left}px; top:${pos.top}px;` : undefined}
 >
   <div class="aip-bar" use:dragWindow={(p) => (pos = p)}>
     <Icon name="sparkle" size={16} />
-    <span>{mode === 'rewrite' ? t().ai.rewriteHeading : t().ai.draftHeading}</span>
+    <span>{t().ai.rewriteHeading}</span>
     <button class="aip-x" onclick={close} aria-label={t().common.close}>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
     </button>
   </div>
 
-  {#if mode === 'rewrite'}
-    <div class="aip-presets">
-      {#each PRESETS as p (p)}
-        <button class="aip-chip" disabled={busy} onclick={() => generate(p)}>{t().ai.presets[p]}</button>
-      {/each}
-      <select bind:value={language} disabled={busy} aria-label={t().ai.presets.translate}>
-        {#each TARGETS as l (l)}<option value={l}>{l}</option>{/each}
-      </select>
-    </div>
-  {/if}
+  <div class="aip-presets">
+    {#each PRESETS as p (p)}
+      <button class="aip-chip" disabled={busy} onclick={() => generate(p)}>{t().ai.presets[p]}</button>
+    {/each}
+    <select bind:value={language} disabled={busy} aria-label={t().ai.presets.translate}>
+      {#each TARGETS as l (l)}<option value={l}>{l}</option>{/each}
+    </select>
+  </div>
 
   <div class="aip-ask">
     <textarea
       bind:this={input}
       bind:value={instruction}
       rows="2"
-      placeholder={mode === 'rewrite' ? t().ai.rewritePlaceholder : t().ai.draftPlaceholder}
+      placeholder={t().ai.rewritePlaceholder}
     ></textarea>
     {#if busy}
       <button onclick={stop}>{t().ai.stop}</button>
@@ -172,12 +168,8 @@
     {:else}
       <span class="aip-note">{t().ai.disclaimer}</span>
     {/if}
-    {#if mode === 'rewrite'}
-      <button class="aip-go" disabled={!reply || busy} onclick={() => take(replaceTarget)}>{t().ai.replace}</button>
-      <button disabled={!reply || busy} onclick={() => take(insertBelowTarget)}>{t().ai.insertBelow}</button>
-    {:else}
-      <button class="aip-go" disabled={!reply || busy} onclick={() => take(replaceTarget)}>{t().ai.insert}</button>
-    {/if}
+    <button class="aip-go" disabled={!reply || busy} onclick={() => take(replaceTarget)}>{t().ai.replace}</button>
+    <button disabled={!reply || busy} onclick={() => take(insertBelowTarget)}>{t().ai.insertBelow}</button>
     <button onclick={close}>{t().ai.discard}</button>
   </div>
 </div>
