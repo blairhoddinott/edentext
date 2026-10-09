@@ -58,6 +58,8 @@ export function blockTexts(doc: PMNode): Block[] {
   return out;
 }
 
+const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n) + '…' : s);
+
 const MARK_LABELS = ['bold', 'italic', 'underline', 'strike', 'superscript', 'subscript', 'highlight'];
 
 // The formatting a run carries, as the labels the model reads.
@@ -74,7 +76,7 @@ function runLabels(child: PMNode): string[] {
   return out;
 }
 
-/** A textblock's style, alignment and direct formatting, quoting the runs that carry it. */
+/** A textblock's style, alignment, images and direct formatting, quoting the runs that carry it. */
 export function formatNote(node: PMNode): string {
   const parts: string[] = [];
   if (node.attrs.styleName && node.type.name !== 'heading') parts.push(`style "${node.attrs.styleName}"`);
@@ -83,6 +85,7 @@ export function formatNote(node: PMNode): string {
   let whole = '';
   let prev: string[] = [];
   node.forEach((child) => {
+    if (child.type.name === 'image') parts.push(child.attrs.alt ? `image ${JSON.stringify(clip(child.attrs.alt, 60))}` : 'image');
     if (!child.isText || child.marks.some((m) => m.type.name === 'deletion')) return;
     const text = child.text ?? '';
     whole += text;
@@ -173,8 +176,6 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
     : `Selected: paragraphs ${first?.n ?? 1}–${last?.n ?? 1}: «${state.doc.textBetween(from, to, '\n', '')}»`;
   return `Document, one paragraph per line, numbered:\n${body}\n\n${where}`;
 }
-
-const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n) + '…' : s);
 
 /** Every comment thread as `[C1 on paragraph 4 «quote», by Ada, open] text`, replies indented. */
 export function commentLines(doc: PMNode, blocks = blockTexts(doc)): string[] {

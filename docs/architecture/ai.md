@@ -34,8 +34,8 @@ Pages origin can read it, and the settings row says so.
 ## Document in, content out
 
 **Input.** Every textblock is one line, `[n kind] text`; a cell's kind names its table, row
-and column (`cell T1 r2 c3`, from `TableMap`, so merged cells count once). Style, alignment
-and direct formatting follow in braces (`formatNote`), quoting the runs, so `find` still
+and column (`cell T1 r2 c3`, from `TableMap`, so merged cells count once). Style, alignment,
+images (by alt text; the model sees no pixels) and direct formatting follow in braces (`formatNote`), quoting the runs, so `find` still
 matches the bare text. Comment threads follow the document as `[C1 on paragraph 4 «quote», by Ada,
 open]` with their replies; their numbers come from the turn's snapshot. Text marked as a deletion is
 left out, so the model reads the text as it will look once accepted. Past 60k characters,

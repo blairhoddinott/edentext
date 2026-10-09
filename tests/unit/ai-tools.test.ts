@@ -46,6 +46,9 @@ describe('serializeDoc', () => {
       '[2] a b c de {italic: "b", "de"; bold: "e"}',
       '[3] big x {size 14pt: "big"}',
     ]);
+    const pic = makeEditor('<p>see <img src="data:image/png;base64,AA==" alt="A red logo"> and <img src="data:image/png;base64,AA=="></p>');
+    expect(blockTexts(pic.state.doc).map(blockLine)).toEqual(['[1] see  and  {image "A red logo"; image}']);
+    pic.destroy();
     editor.destroy();
   });
 
