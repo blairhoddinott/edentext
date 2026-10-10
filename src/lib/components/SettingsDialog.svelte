@@ -341,18 +341,23 @@
     flex: 1;
     min-width: 0;
     overflow-y: auto;
-    padding: 18px 28px 24px;
+    padding: 0 28px 24px;
   }
+  /* A title bar the content scrolls under, so the close button never sits on it. */
   h3 {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     font-size: 1.15rem;
-    padding: 0 40px 10px 0;
+    padding: 18px 40px 10px 0;
     border-bottom: 1px solid var(--w-border);
+    background: var(--color-surface);
   }
   .close {
     position: absolute;
     top: 14px;
     right: 14px;
-    z-index: 1;
+    z-index: 2;
     display: grid;
     place-items: center;
     width: 28px;
@@ -465,7 +470,8 @@
     nav { width: auto; flex-direction: row; overflow-x: auto; padding: 10px; margin-right: 48px; border-right: 0; border-bottom: 1px solid var(--w-border); }
     h2 { display: none; }
     .nav-item { flex: none; }
-    .pane { padding: 14px 16px 20px; }
+    .pane { padding: 0 16px 20px; }
+    h3 { padding-top: 14px; }
     .segmented { grid-template-columns: repeat(2, 1fr); }
   }
 </style>

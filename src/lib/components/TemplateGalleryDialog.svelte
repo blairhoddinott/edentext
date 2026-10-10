@@ -105,19 +105,25 @@
     max-height: 90vh;
     overflow-y: auto;
     box-sizing: border-box;
-    padding: 20px 22px 22px;
+    padding: 0 22px 22px;
   }
 
+  /* A title bar the content scrolls under, so the close button never sits on it. */
   h2 {
-    margin: 0 0 14px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 0 4px;
+    padding: 20px 0 10px;
     font-size: 1rem;
+    background: var(--color-surface);
   }
 
   .close {
     position: absolute;
     top: 8px;
     right: 8px;
-    z-index: 1;
+    z-index: 2;
     display: inline-flex;
     align-items: center;
     justify-content: center;
