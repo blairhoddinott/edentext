@@ -56,6 +56,8 @@ const ja: Messages = {
     draftTitle: 'AI アシスタントでカーソル位置に新しい内容を書く',
     rewriteMenu: 'AI で書き直す…',
     draftMenu: 'AI で下書き…',
+    openChat: 'チャットを開く',
+    offHint: '[設定] ▸ [AI] で AI アシスタントをオンにしてください。',
     rewriteHeading: 'AI で書き直す',
     draftHeading: 'AI で下書き',
     enable: 'AI アシスタント',

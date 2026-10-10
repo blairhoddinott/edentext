@@ -55,6 +55,8 @@ const zhHans: Messages = {
     draftTitle: '用 AI 助手在光标处撰写新内容',
     rewriteMenu: '用 AI 改写…',
     draftMenu: '用 AI 起草…',
+    openChat: '打开聊天',
+    offHint: '在“设置 ▸ AI”中开启 AI 助手',
     rewriteHeading: '用 AI 改写',
     draftHeading: '用 AI 起草',
     enable: 'AI 助手',

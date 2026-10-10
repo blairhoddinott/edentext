@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { extensions } from '../../src/lib/editor/extensions';
 import { buildContextMenu, type MenuEntry } from '../../src/lib/editor/contextMenuItems';
+import { setAi } from '../../src/lib/storage/ai.svelte';
 
 type N = any;
 
@@ -71,6 +72,23 @@ describe('context menu items', () => {
     editor.commands.setFontSize('20pt');
     item(buildContextMenu(editor), 'Clear Formatting')!.run();
     expect(JSON.stringify(editor.getJSON())).not.toContain('20pt');
+    editor.destroy();
+  });
+
+  it('groups the AI actions in a submenu, greyed with a hint while the assistant is off', () => {
+    const editor = makeEditor(para('Hello world'));
+    const aiSub = () => buildContextMenu(editor).find((e): e is Extract<MenuEntry, { kind: 'sub' }> => e.kind === 'sub');
+    expect(aiSub()!.disabled).toBe(true);
+    expect(aiSub()!.title).toMatch(/Settings/);
+
+    setAi({ enabled: true });
+    expect(aiSub()!.disabled).toBe(false);
+    editor.commands.setTextSelection(3);
+    expect(item(aiSub()!.items, 'Shorten')!.disabled).toBe(true);
+    expect(item(aiSub()!.items, 'Open chat')!.disabled).toBeFalsy();
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    expect(item(aiSub()!.items, 'Shorten')!.disabled).toBe(false);
+    setAi({ enabled: false });
     editor.destroy();
   });
 });

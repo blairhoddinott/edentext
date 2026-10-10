@@ -58,6 +58,8 @@ const ru: Messages = {
     draftTitle: 'Написать новый текст в позиции курсора с ИИ-помощником',
     rewriteMenu: 'Переписать с ИИ…',
     draftMenu: 'Написать с ИИ…',
+    openChat: 'Открыть чат',
+    offHint: 'Включите ИИ-помощника в разделе Параметры ▸ ИИ',
     rewriteHeading: 'Переписать с ИИ',
     draftHeading: 'Написать с ИИ',
     enable: 'ИИ-помощник',

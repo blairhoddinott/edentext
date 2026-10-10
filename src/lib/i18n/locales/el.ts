@@ -56,6 +56,8 @@ const el: Messages = {
     draftTitle: 'Γράψτε νέο περιεχόμενο στον δρομέα με τον βοηθό ΤΝ',
     rewriteMenu: 'Αναδιατύπωση με ΤΝ…',
     draftMenu: 'Σύνταξη με ΤΝ…',
+    openChat: 'Άνοιγμα συνομιλίας',
+    offHint: 'Ενεργοποιήστε τον βοηθό ΤΝ στις Ρυθμίσεις ▸ ΤΝ',
     rewriteHeading: 'Αναδιατύπωση με ΤΝ',
     draftHeading: 'Σύνταξη με ΤΝ',
     enable: 'Βοηθός ΤΝ',

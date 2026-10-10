@@ -55,6 +55,8 @@ const en = {
     draftTitle: 'Write new content at the cursor with the AI assistant',
     rewriteMenu: 'Rewrite with AI…',
     draftMenu: 'Draft with AI…',
+    openChat: 'Open chat',
+    offHint: 'Turn on the AI assistant under Settings ▸ AI',
     rewriteHeading: 'Rewrite with AI',
     draftHeading: 'Draft with AI',
     enable: 'AI assistant',

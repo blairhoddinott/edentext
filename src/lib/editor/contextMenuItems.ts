@@ -8,12 +8,14 @@ import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames } from './extensions/bookmark
 import { OPEN_CROSS_REF_DIALOG_EVENT, hasRefTargets } from './extensions/crossReference';
 import { OPEN_THESAURUS_EVENT } from '../spell/thesaurus';
 import { aiEnabled, OPEN_AI_CHAT_EVENT, OPEN_AI_PROMPT_EVENT } from '../storage/ai.svelte';
+import { COMMANDS } from '../ai/commands';
 
 // The right-click menu's contents, the usual text menu mapped onto this editor. Pure
 // data + closures — ContextMenu.svelte only renders it.
 export type MenuEntry =
   | { kind: 'sep' }
-  | { kind: 'item'; label: string; hint?: string; disabled?: boolean; strong?: boolean; run: () => void };
+  | { kind: 'item'; label: string; hint?: string; disabled?: boolean; strong?: boolean; run: () => void }
+  | { kind: 'sub'; label: string; items: MenuEntry[]; disabled?: boolean; title?: string };
 
 export interface SpellSection {
   suggestions: string[];
@@ -104,10 +106,19 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
   );
 
   // The body only: a header or footer has no tracked changes for the assistant's edits.
-  if (aiEnabled() && editor.schema.marks.insertion) {
+  // Shown while the assistant is off too, greyed, so the way to turn it on is findable.
+  if (editor.schema.marks.insertion) {
+    const ai = t().ai;
+    const rewrite = (preset?: string) => () => window.dispatchEvent(new CustomEvent(OPEN_AI_PROMPT_EVENT, { detail: { preset } }));
+    const chat = (prefill: string) => () => window.dispatchEvent(new CustomEvent(OPEN_AI_CHAT_EVENT, { detail: { prefill } }));
     entries.push(
-      { kind: 'item', label: t().ai.rewriteMenu, disabled: !hasSelection, run: () => window.dispatchEvent(new Event(OPEN_AI_PROMPT_EVENT)) },
-      { kind: 'item', label: t().ai.draftMenu, hint: shortcutHint('aiDraft'), run: () => window.dispatchEvent(new CustomEvent(OPEN_AI_CHAT_EVENT, { detail: { prefill: '/draft ' } })) },
+      { kind: 'sub', label: ai.group, disabled: !aiEnabled(), title: aiEnabled() ? undefined : ai.offHint, items: [
+        ...COMMANDS.filter((c) => c.preset).map((c): MenuEntry => ({ kind: 'item', label: ai.presets[c.preset!], disabled: !hasSelection, run: rewrite(c.preset) })),
+        { kind: 'sep' },
+        { kind: 'item', label: ai.rewriteMenu, disabled: !hasSelection, run: rewrite() },
+        { kind: 'item', label: ai.draftMenu, hint: shortcutHint('aiDraft'), run: chat('/draft ') },
+        { kind: 'item', label: ai.openChat, run: chat('') },
+      ] },
       { kind: 'sep' },
     );
   }

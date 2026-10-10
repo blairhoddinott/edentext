@@ -56,6 +56,8 @@ const zhHant: Messages = {
     draftTitle: '用 AI 助理在游標處撰寫新內容',
     rewriteMenu: '用 AI 改寫…',
     draftMenu: '用 AI 起草…',
+    openChat: '開啟聊天',
+    offHint: '在「設定 ▸ AI」中開啟 AI 助理',
     rewriteHeading: '用 AI 改寫',
     draftHeading: '用 AI 起草',
     enable: 'AI 助理',

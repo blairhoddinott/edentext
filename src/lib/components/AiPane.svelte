@@ -143,7 +143,8 @@
   $effect(() => {
     if (prefill === null || !field) return;
     const el = field;
-    question = prefill;
+    // An empty prefill only focuses the field, keeping a half-typed question.
+    if (prefill) question = prefill;
     prefill = null;
     menuIndex = 0;
     queueMicrotask(() => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });

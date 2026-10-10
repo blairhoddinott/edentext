@@ -54,6 +54,8 @@ const de: Messages = {
     draftTitle: 'Mit dem KI-Assistenten neuen Inhalt an der Cursorposition schreiben',
     rewriteMenu: 'Mit KI umschreiben…',
     draftMenu: 'Mit KI entwerfen…',
+    openChat: 'Chat öffnen',
+    offHint: 'Den KI-Assistenten unter Einstellungen ▸ KI einschalten',
     rewriteHeading: 'Mit KI umschreiben',
     draftHeading: 'Mit KI entwerfen',
     enable: 'KI-Assistent',

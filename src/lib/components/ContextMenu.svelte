@@ -17,6 +17,11 @@
   // Flips set after measuring: the menu opens up/left when it would leave the viewport.
   let flipX = $state(false);
   let flipY = $state(false);
+  // The one open submenu, by index in items; it opens left or up when it would leave the window.
+  let openSub = $state<number | null>(null);
+  let subEl: HTMLDivElement | undefined = $state();
+  let subLeft = $state(false);
+  let subUp = $state(false);
 
   function activate(entry: Extract<MenuEntry, { kind: 'item' }>) {
     if (entry.disabled) return;
@@ -55,12 +60,40 @@
     menuEl.focus({ preventScroll: true });
   });
 
-  // Roving focus with the arrow keys, as in a native menu.
+  // Measured against the trigger, which the flip classes do not move.
+  $effect(() => {
+    if (!subEl) return;
+    const trigger = subEl.parentElement!.getBoundingClientRect();
+    subLeft = trigger.right + subEl.offsetWidth > window.innerWidth - 4;
+    subUp = trigger.top + subEl.offsetHeight > window.innerHeight - 4;
+  });
+
+  function showSub(i: number, focus: boolean) {
+    const entry = items[i];
+    openSub = entry.kind === 'sub' && !entry.disabled ? i : null;
+    if (focus) queueMicrotask(() => subEl?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus());
+  }
+
+  // Roving focus with the arrow keys within the focused panel, as in a native menu;
+  // right opens a submenu, left goes back to its trigger.
   function onKeydown(e: KeyboardEvent) {
+    const focused = document.activeElement as HTMLElement | null;
+    const panel = focused?.closest<HTMLElement>('[role=menu]') ?? menuEl;
+    if (e.key === 'ArrowRight' && focused?.dataset.sub) {
+      e.preventDefault();
+      showSub(Number(focused.dataset.sub), true);
+      return;
+    }
+    if (e.key === 'ArrowLeft' && panel && panel === subEl) {
+      e.preventDefault();
+      (panel.previousElementSibling as HTMLElement | null)?.focus();
+      openSub = null;
+      return;
+    }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
-    const buttons = Array.from(menuEl?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? []);
-    const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const buttons = Array.from(panel?.querySelectorAll<HTMLButtonElement>(':scope > button:not([disabled]), :scope > .cm-subwrap > button:not([disabled])') ?? []);
+    const i = buttons.indexOf(focused as HTMLButtonElement);
     const next = e.key === 'ArrowDown' ? i + 1 : i - 1;
     buttons[(next + buttons.length) % buttons.length]?.focus();
   }
@@ -76,23 +109,53 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  {#each items as entry}
+  {#each items as entry, i}
     {#if entry.kind === 'sep'}
       <span class="cm-sep"></span>
+    {:else if entry.kind === 'sub'}
+      <div class="cm-subwrap">
+        <button
+          class="cm-item"
+          class:open={openSub === i}
+          role="menuitem"
+          aria-haspopup="menu"
+          aria-expanded={openSub === i}
+          aria-disabled={entry.disabled}
+          title={entry.title}
+          data-sub={i}
+          onpointerenter={() => showSub(i, false)}
+          onclick={() => showSub(i, true)}
+        >
+          <span class="cm-label">{entry.label}</span>
+          <svg class="cm-hint" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M2.5 1l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+        </button>
+        {#if openSub === i}
+          <div bind:this={subEl} class="cm-menu cm-sub" class:left={subLeft} class:up={subUp} role="menu" tabindex="-1">
+            {#each entry.items as sub}
+              {#if sub.kind === 'item'}{@render item(sub)}{:else if sub.kind === 'sep'}<span class="cm-sep"></span>{/if}
+            {/each}
+          </div>
+        {/if}
+      </div>
     {:else}
-      <button
-        class="cm-item"
-        class:strong={entry.strong}
-        role="menuitem"
-        disabled={entry.disabled}
-        onclick={() => activate(entry)}
-      >
-        <span class="cm-label">{entry.label}</span>
-        {#if entry.hint}<span class="cm-hint">{entry.hint}</span>{/if}
-      </button>
+      {@render item(entry, () => (openSub = null))}
     {/if}
   {/each}
 </div>
+
+{#snippet item(entry: Extract<MenuEntry, { kind: 'item' }>, onenter?: () => void)}
+  <button
+    class="cm-item"
+    class:strong={entry.strong}
+    role="menuitem"
+    disabled={entry.disabled}
+    onpointerenter={onenter}
+    onclick={() => activate(entry)}
+  >
+    <span class="cm-label">{entry.label}</span>
+    {#if entry.hint}<span class="cm-hint">{entry.hint}</span>{/if}
+  </button>
+{/snippet}
 
 <style>
   /* Sibling of the zoomed .paper, so the menu renders constant-size regardless of zoom. */
@@ -128,7 +191,13 @@
     white-space: nowrap;
   }
 
-  .cm-item:hover:not(:disabled),
+  .cm-subwrap { position: relative; }
+  .cm-sub { top: -5px; left: 100%; }
+  .cm-sub.left { left: auto; right: 100%; }
+  .cm-sub.up { top: auto; bottom: -5px; }
+
+  .cm-item:hover:not(:disabled, [aria-disabled='true']),
+  .cm-item.open,
   .cm-item:focus-visible {
     background: var(--color-btn-hover);
     outline: none;
@@ -137,7 +206,8 @@
   /* Spelling suggestions, as in the old spell menu. */
   .cm-item.strong { font-weight: 600; }
 
-  .cm-item:disabled {
+  .cm-item:disabled,
+  .cm-item[aria-disabled='true'] {
     color: var(--color-text-muted, #888);
     cursor: default;
   }

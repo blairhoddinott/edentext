@@ -54,6 +54,8 @@ const fr: Messages = {
     draftTitle: 'Écrire du nouveau contenu au curseur avec l’assistant IA',
     rewriteMenu: 'Réécrire avec l’IA…',
     draftMenu: 'Rédiger avec l’IA…',
+    openChat: 'Ouvrir le chat',
+    offHint: 'Activez l’assistant IA dans Paramètres ▸ IA',
     rewriteHeading: 'Réécrire avec l’IA',
     draftHeading: 'Rédiger avec l’IA',
     enable: 'Assistant IA',

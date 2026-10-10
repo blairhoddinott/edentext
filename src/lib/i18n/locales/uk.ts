@@ -58,6 +58,8 @@ const uk: Messages = {
     draftTitle: 'Написати новий текст у позиції курсора з помічником ШІ',
     rewriteMenu: 'Переписати з ШІ…',
     draftMenu: 'Написати з ШІ…',
+    openChat: 'Відкрити чат',
+    offHint: 'Увімкніть помічника ШІ в розділі Параметри ▸ ШІ',
     rewriteHeading: 'Переписати з ШІ',
     draftHeading: 'Написати з ШІ',
     enable: 'Помічник ШІ',

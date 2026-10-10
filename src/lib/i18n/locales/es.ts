@@ -54,6 +54,8 @@ const es: Messages = {
     draftTitle: 'Escribir contenido nuevo en el cursor con el asistente de IA',
     rewriteMenu: 'Reescribir con IA…',
     draftMenu: 'Redactar con IA…',
+    openChat: 'Abrir chat',
+    offHint: 'Active el asistente de IA en Configuración ▸ IA',
     rewriteHeading: 'Reescribir con IA',
     draftHeading: 'Redactar con IA',
     enable: 'Asistente de IA',

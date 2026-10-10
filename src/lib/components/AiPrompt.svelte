@@ -33,7 +33,7 @@
   let target: Target = { from: 0, to: 0, original: '', html: '' };
   let request: AbortController | null = null;
 
-  function show() {
+  function show(preset?: Preset) {
     if (!editor) return;
     const { state, view } = editor;
     if (state.selection.empty) return;
@@ -47,10 +47,11 @@
     pos = { left: Math.max(8, Math.min(window.innerWidth - 440, at.left)), top: Math.max(8, Math.min(window.innerHeight - 380, at.bottom + 8)) };
     open = true;
     queueMicrotask(() => input?.focus());
+    if (preset) void generate(preset);
   }
 
   $effect(() => {
-    const onOpen = () => show();
+    const onOpen = (e: Event) => show((e as CustomEvent<{ preset?: Preset } | null>).detail?.preset);
     window.addEventListener(OPEN_AI_PROMPT_EVENT, onOpen);
     return () => { window.removeEventListener(OPEN_AI_PROMPT_EVENT, onOpen); stop(); };
   });

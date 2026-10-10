@@ -56,7 +56,8 @@ export async function openApp(port, opts = {}) {
   const args = name === 'chromium' ? ['--no-sandbox'] : [];
   const browser = await engine.launch({ executablePath: engine.executablePath(), args });
   console.log(`engine: ${name} ${browser.version()}`);
-  const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, locale: 'en-US', ...opts });
+  // No service worker: under one, WebKit's page.route misses the page's cross-origin fetches.
+  const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, locale: 'en-US', serviceWorkers: 'block', ...opts });
   const pageErrors = [];
   // The text box's ResizeObserver refits the wrapper it observes, so the browser defers
   // the rest of the round to the next frame and reports it — a converging loop, not an error.
