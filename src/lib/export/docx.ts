@@ -19,7 +19,7 @@ import type {
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
 import { isSvgDataUrl, svgToPngDataUrl } from '../import/imageFormats';
 import { TEXTBOX_PADDING_CM, type TextVAlign } from '../editor/extensions/textBox';
-import { cropOf, type Crop } from '../editor/extensions/image';
+import { cropOf, wrapGap, wrapGapAttr, type Crop, type WrapGap } from '../editor/extensions/image';
 import { SHAPES, boxHeads, isShapeKind, isLineKind, drawingMlPath, asShapePreset, asTextArea, type PathHeads, type ShapeKind, type DrawingMlPreset, type TextArea } from '../utils/shapes';
 import { cellFormatCode, isCellFormat } from '../utils/cellFormat';
 import { cjkDocFont, isAsianTag, type ExportLanguage } from '../storage/documentLanguage';
@@ -989,10 +989,13 @@ const RELATIVE_HEIGHT_BASE = 251658240;
 let frameSeq = 0;
 const relativeHeight = (rank: number) => RELATIVE_HEIGHT_BASE + rank * 65536 + frameSeq++;
 
-function floatingFor(wrap: string, offsetCm: number | null, offsetYCm: number | null, alignH?: string | null, distCm?: number | null, inFront?: boolean, fromPage?: boolean, fromBody?: boolean): IFloating | undefined {
+const emuOf = (cm: number) => Math.round(cm * 360000);
+
+function floatingFor(wrap: string, offsetCm: number | null, offsetYCm: number | null, alignH?: string | null, dist?: unknown, inFront?: boolean, fromPage?: boolean, fromBody?: boolean): IFloating | undefined {
   if (wrap === 'inline') return undefined;
-  // The gap beside the frame, on both sides as Word writes it; none above or below.
-  const margins = distCm ? { left: Math.round(distCm * 360000), right: Math.round(distCm * 360000) } : undefined;
+  // The gap on every side the frame keeps one (a plain number is both sides).
+  const g = wrapGapAttr(wrapGap(dist));
+  const margins = g ? { top: emuOf(g.top), bottom: emuOf(g.bottom), left: emuOf(g.left), right: emuOf(g.right) } : undefined;
   // A page-relative offset counts from the top of the page the anchor lands on and may
   // start above it, so it is written as it stands rather than floored at one twip.
   // Against the body text, Word's margin is the same edge.
@@ -1078,12 +1081,11 @@ function imageRun(node: TiptapNode): ImageRun | null {
   const wrap = String(node.attrs?.wrap ?? 'inline');
   const offsetCm = typeof node.attrs?.wrapOffset === 'number' ? node.attrs.wrapOffset : null;
   const offsetYCm = typeof node.attrs?.wrapOffsetY === 'number' ? node.attrs.wrapOffsetY : null;
-  const distCm = typeof node.attrs?.wrapDist === 'number' ? node.attrs.wrapDist : null;
   const alt = typeof node.attrs?.alt === 'string' ? node.attrs.alt : '';
   const crop = cropOf(node.attrs?.crop);
   docCrops ||= !!crop;
   const mark = crop ? `${CROP}${[crop.l, crop.t, crop.r, crop.b].join(',')}${CROP}` : '';
-  const floating = floatingFor(wrap, offsetCm, offsetYCm, node.attrs?.wrapAlign as string | null, distCm, node.attrs?.inFront === true, node.attrs?.wrapFromPage === true, node.attrs?.wrapFromBody === true);
+  const floating = floatingFor(wrap, offsetCm, offsetYCm, node.attrs?.wrapAlign as string | null, node.attrs?.wrapDist, node.attrs?.inFront === true, node.attrs?.wrapFromPage === true, node.attrs?.wrapFromBody === true);
   return new ImageRun({
     type: decoded.type,
     data: decoded.bytes,
@@ -1103,7 +1105,7 @@ type TextBoxDocx = {
   wrap: 'inline' | 'left' | 'right' | 'topBottom' | 'through';
   offsetCm: number | null;
   offsetYCm: number | null;
-  distCm: number | null;
+  dist: WrapGap | null;
   alignH: string | null;
   fromPage: boolean;
   fromBody: boolean;
@@ -1140,7 +1142,7 @@ function textBoxDocxDescriptor(node: TiptapNode): TextBoxDocx {
     wrap: wrapAttr === 'left' || wrapAttr === 'right' || wrapAttr === 'topBottom' || wrapAttr === 'through' ? wrapAttr : 'inline',
     offsetCm: typeof a.wrapOffset === 'number' ? a.wrapOffset : null,
     offsetYCm: typeof a.wrapOffsetY === 'number' ? a.wrapOffsetY : null,
-    distCm: typeof a.wrapDist === 'number' ? a.wrapDist : null,
+    dist: wrapGapAttr(wrapGap(a.wrapDist)),
     alignH: a.wrapAlign === 'center' || a.wrapAlign === 'right' || a.wrapAlign === 'left' ? a.wrapAlign : null,
     fromPage: a.wrapFromPage === true,
     fromBody: a.wrapFromBody === true,
@@ -1586,7 +1588,7 @@ function textBoxDrawingXml(box: TextBoxDocx, index: number, parts: TxbxParts): s
     ? `<wp:posOffset>${emu(box.offsetCm)}</wp:posOffset>`
     : `<wp:align>${align}</wp:align>`;
   return (
-    `<w:drawing><wp:anchor ${WP_NS} distT="0" distB="0" distL="${emu(box.distCm ?? 0)}" distR="${emu(box.distCm ?? 0)}"` +
+    `<w:drawing><wp:anchor ${WP_NS} distT="${emu(box.dist?.top ?? 0)}" distB="${emu(box.dist?.bottom ?? 0)}" distL="${emu(box.dist?.left ?? 0)}" distR="${emu(box.dist?.right ?? 0)}"` +
     ` simplePos="0" relativeHeight="${box.zIndex}" behindDoc="${box.wrap === 'through' && !box.inFront ? 1 : 0}" locked="0" layoutInCell="1" allowOverlap="${box.wrap === 'through' ? 1 : 0}">` +
     `<wp:simplePos x="0" y="0"/>` +
     `<wp:positionH relativeFrom="margin">${posH}</wp:positionH>` +
@@ -2892,7 +2894,7 @@ function emitFloatingTables(
 // counted from the page or from the text it rides, and the wrap gap on both sides.
 function tableFloatOptions(box: TiptapNode): ITableFloatOptions {
   const a = box.attrs ?? {};
-  const dist = typeof a.wrapDist === 'number' ? cmToTwip(a.wrapDist) : 0;
+  const g = wrapGap(a.wrapDist);
   const x = typeof a.wrapOffset === 'number' ? a.wrapOffset : null;
   return {
     horizontalAnchor: TableAnchorType.MARGIN,
@@ -2901,8 +2903,10 @@ function tableFloatOptions(box: TiptapNode): ITableFloatOptions {
       : { relativeHorizontalPosition: a.wrap === 'right' ? RelativeHorizontalPosition.RIGHT : RelativeHorizontalPosition.LEFT }),
     verticalAnchor: a.wrapFromPage === true ? TableAnchorType.PAGE : TableAnchorType.TEXT,
     absoluteVerticalPosition: cmToTwip(typeof a.wrapOffsetY === 'number' ? a.wrapOffsetY : 0),
-    leftFromText: dist,
-    rightFromText: dist,
+    leftFromText: cmToTwip(g.left),
+    rightFromText: cmToTwip(g.right),
+    topFromText: cmToTwip(g.top),
+    bottomFromText: cmToTwip(g.bottom),
   };
 }
 

@@ -14,6 +14,7 @@ import { putStyle, setOutline, styleSheet } from '../styles/sheet.svelte';
 import { decimalOutline, romanOutline } from '../styles/outlineNumbering';
 import { DEFAULT_BORDER_COLOR, DEFAULT_BORDER_WIDTH_PT } from '../editor/extensions/tableCellBorders';
 import { normalizeColor } from '../utils/color';
+import { BOX_WRAP_GAP, PICTURE_WRAP_GAP, droppedFrameAttrs, wrapGap, wrapGapAttr, type WrapMode } from '../editor/extensions/image';
 import { DEFAULT_STYLE, visibleStyles, type Style } from '../styles/styleSheet';
 import { styleLabel, t } from '../i18n/i18n.svelte';
 import { docBudget, type AiConfig } from '../storage/ai.svelte';
@@ -32,7 +33,7 @@ export const HTML_GUIDE = [
   'Paragraph style: <p class="Quotations"> with a style name listed below. Paragraph CSS: text-align, margin-top/margin-bottom (pt), margin-left, text-indent (cm), line-height, background, border, border-bottom, font-size, font-family, color.',
   'Run CSS on <span>: font-size, font-family, color. <hr> starts a new page.',
   'Tables: <td width="30%"> or <col width="30%"> sets column widths; <table border="0"> removes the lines; td takes background and vertical-align.',
-  'A text box: <aside style="width:5cm;height:6cm;float:right">…</aside>, anchored to the paragraph after it. A picture placeholder: <img alt="Photo" width="4cm" height="5cm"> without src (no other images).',
+  'A text box: <aside style="width:5cm;height:6cm;float:right">…</aside>, anchored to the paragraph after it; margin sets a frame\'s space to the text. A picture placeholder: <img alt="Photo" width="4cm" height="5cm"> without src (no other images).',
   'A footnote: <sup class="footnote">its text</sup> where the anchor goes (class="endnote" for an endnote). A fill-in field: <input placeholder="Your name">. Today\'s date: <time></time>. Text columns: <section columns="2">…</section>. A table of contents: <nav></nav>. Tabs stay tabs.',
   'Page header and footer: <header>…</header>, <footer>…</footer>, with {page} and {pages} as page fields; data-page="first" or "even" for those pages only. Page setup: <page size="A4" orientation="portrait" margin="2cm">, with the size (A5, letter, …), orientation (landscape) and margins the request asks for.',
   'Shape of a CV (fill in the real content, never these dots): <h1>…</h1><aside style="width:4cm;height:5cm;float:right"><p><img alt="Photo" width="3.5cm" height="4.5cm"></p></aside><p><input placeholder="…"></p><h2>…</h2><table border="0"><tr><td width="25%">…</td><td><strong>…</strong> …</td></tr></table>',
@@ -50,7 +51,7 @@ export function chatSystemPrompt(): string {
     '— 2 columns — lines mark where text columns start or end; set_columns changes them. The page setup and the page headers and footers are shown after the document; set_page and set_header_footer change them.',
     'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
     'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1]. Change a table (rows, columns, widths, merging, shading, borders) with the table tool, never by rebuilding it.',
-    'Paragraph styles change with set_style; frames (a text box, a picture placeholder) go in with insert_frame or in the HTML.',
+    'Paragraph styles change with set_style; frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes one listed as frame 1 in its paragraph\'s formatting.',
     'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
     'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
     `Style names for <p class="…"> (never text of their own): ${styles}.`,
@@ -175,9 +176,26 @@ export const TOOLS: ToolDef[] = [
         width_cm: { type: 'number' },
         height_cm: { type: 'number' },
         wrap: { type: 'string', enum: ['left', 'right', 'inline'], description: 'Which side the frame floats to' },
+        gap_cm: str('Space between the frame and the text: one number, or four: top right bottom left'),
         html: str('Text box content as HTML, or the picture\'s label'),
       },
       required: ['paragraph', 'kind'],
+    },
+  },
+  {
+    name: 'frame',
+    description: 'Changes a frame (picture or text box) in a paragraph: its wrap, size or space to the text.',
+    parameters: {
+      type: 'object',
+      properties: {
+        paragraph: num('Paragraph number'),
+        frame: num('The frame\'s number in the paragraph, as frame 1; 1 by default'),
+        wrap: { type: 'string', enum: ['left', 'right', 'top_bottom', 'inline'] },
+        width_cm: { type: 'number' },
+        height_cm: { type: 'number' },
+        gap_cm: str('Space between the frame and the text: one number, or four: top right bottom left'),
+      },
+      required: ['paragraph'],
     },
   },
   {
@@ -295,6 +313,7 @@ export function applyDocumentParts(html: string, host: AiHost | undefined, dropp
 
 // Small models send numbers and booleans as strings too.
 const numArg = (v: unknown): number | undefined => (v === '' || v == null || !Number.isFinite(Number(v)) ? undefined : Number(v));
+const gapArg = (v: unknown) => (v == null || v === '' ? undefined : parseMargins(Array.isArray(v) ? v.join(' ') : String(v)));
 const boolArg = (v: unknown): boolean | undefined => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : undefined);
 const colorArg = (v: unknown, what: string): string | null | undefined => {
   if (v == null || v === '') return undefined;
@@ -629,7 +648,9 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       const w = numArg(a.width_cm) ?? (kind === 'picture' ? 4 : 6);
       const h = numArg(a.height_cm) ?? (kind === 'picture' ? 5 : 3);
       const wrap = String(a.wrap ?? '').toLowerCase();
-      const float = wrap === 'left' || wrap === 'right' ? `float:${wrap}` : '';
+      const gap = gapArg(a.gap_cm);
+      const float = wrap === 'left' || wrap === 'right'
+        ? `float:${wrap}${gap ? `;margin:${gap.top}cm ${gap.right}cm ${gap.bottom}cm ${gap.left}cm` : ''}` : '';
       const label = String(a.html ?? '').trim();
       const frameHtml = kind === 'picture'
         ? `<img alt="${escapeAttr(label.replace(/<[^>]*>/g, '') || 'Picture')}" width="${w}cm" height="${h}cm" style="${float}">`
@@ -642,6 +663,37 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       if (!frame) throw new ToolError('the frame could not be built');
       dispatch(ctx, (tr) => tr.insert(p.pos + 1, frame!));
       return { result: 'ok', summary: m.frame(Number(a.paragraph)) };
+    }
+    case 'frame': {
+      const p = current(ctx, a.paragraph);
+      const want = Math.max(1, Math.round(numArg(a.frame) ?? 1));
+      let found: { pos: number; node: PMNode } | null = null;
+      let count = 0;
+      p.node.forEach((child, offset) => {
+        if (child.type.name !== 'image' && child.type.name !== 'textBox') return;
+        if (++count === want) found = { pos: p.pos + 1 + offset, node: child };
+      });
+      if (!found) throw new ToolError(count ? `paragraph ${a.paragraph} has ${count} frame(s)` : `paragraph ${a.paragraph} has no frame`);
+      const { pos, node } = found as { pos: number; node: PMNode };
+      const attrs: Record<string, unknown> = { ...node.attrs };
+      if (a.wrap != null && a.wrap !== '') {
+        const w = String(a.wrap).toLowerCase().replace(/[^a-z]/g, '');
+        const mode: WrapMode = w === 'left' || w === 'right' || w === 'inline' ? w : w.startsWith('top') ? 'topBottom' : (() => { throw new ToolError('wrap is left, right, top_bottom or inline'); })();
+        Object.assign(attrs, { wrap: mode }, droppedFrameAttrs(mode, false, node.attrs.wrap));
+        // A frame that starts to wrap without a gap of its own takes a new frame's.
+        if (mode !== 'inline' && attrs.wrapDist == null) attrs.wrapDist = node.type.name === 'image' ? PICTURE_WRAP_GAP : BOX_WRAP_GAP;
+      }
+      const px = (cm?: number) => (cm != null && cm > 0 ? Math.round(cm * (96 / 2.54)) : null);
+      const w = px(numArg(a.width_cm)), h = px(numArg(a.height_cm));
+      if (w) attrs.width = w;
+      if (h) attrs.height = h;
+      if (a.gap_cm != null && a.gap_cm !== '') {
+        const gap = gapArg(a.gap_cm);
+        if (!gap) throw new ToolError('gap_cm is one number, or four: top right bottom left');
+        attrs.wrapDist = wrapGapAttr(wrapGap(gap));
+      }
+      dispatch(ctx, (tr) => tr.setNodeMarkup(pos, undefined, attrs));
+      return { result: 'ok', summary: m.frameSet(Number(a.paragraph)) };
     }
     case 'set_header_footer': {
       if (!ctx.host) throw new ToolError('headers and footers cannot be changed here');

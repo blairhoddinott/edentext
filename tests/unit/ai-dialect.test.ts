@@ -61,6 +61,15 @@ describe('AI HTML dialect', () => {
     expect(nodes[0].textContent).toContain('Anchor');
   });
 
+  it('takes a floating frame\'s margin as its gap to the text, else a new frame\'s', () => {
+    const img = find(parse('<p><img alt="P" width="4cm" height="5cm" style="float:left;margin:0.1cm 0.5cm"></p>').nodes, 'image')!;
+    expect(img.attrs.wrapDist).toEqual({ top: 0.1, right: 0.5, bottom: 0.1, left: 0.5 });
+    const plain = find(parse('<p><img alt="P" style="float:left"></p>').nodes, 'image')!;
+    expect(plain.attrs.wrapDist).toEqual({ top: 0, right: 0.32, bottom: 0, left: 0.32 });
+    const box = find(parse('<aside style="float:right"><p>x</p></aside><p>a</p>').nodes, 'textBox')!;
+    expect(box.attrs.wrapDist).toEqual({ top: 0.2, right: 0.2, bottom: 0.2, left: 0.2 });
+  });
+
   it('draws a picture placeholder for an <img> without src and drops a remote one', () => {
     const { nodes, dropped } = parse('<p><img alt="Photo" width="4cm" height="5cm"><img src="https://example.com/x.png"></p>');
     const img = find(nodes, 'image')!;

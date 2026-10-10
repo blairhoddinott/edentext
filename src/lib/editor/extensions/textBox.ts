@@ -10,7 +10,7 @@ import type { EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { placeFrameSoon, placeInColumn, placeTogether, freeDragX } from './pageBreaks';
-import { HANDLES, MIN_SIZE_PX, clamp, parsePx, frameMargins, unstackFloat, pageContentHeightPx, sinkToOffset, applyRunThrough, clearPagePlace, startFreeMove, droppedFrameAttrs, type WrapMode } from './image';
+import { HANDLES, MIN_SIZE_PX, clamp, parsePx, frameMargins, wrapGap, parseWrapGap, BOX_WRAP_GAP, type WrapGap, unstackFloat, pageContentHeightPx, sinkToOffset, applyRunThrough, clearPagePlace, startFreeMove, droppedFrameAttrs, type WrapMode } from './image';
 import { SHAPES, shapePath, linePaths, pathHeadPaths, arrowHeadPx, isShapeKind, isLineKind, outlineLayers, shadeColor, asShapePreset, asTextArea, type PathHeads, type ShapeKind, type DrawingMlPreset, type TextArea } from '../../utils/shapes';
 import type { ResolvedGeometry } from '../../utils/enhancedGeometry';
 import { cmToPx } from '../../storage/pageMargins';
@@ -58,7 +58,7 @@ export interface TextBoxAttrs {
   wrapFromBody: boolean;      // …or below the top of that page's body text
   inFront: boolean;           // over the text rather than behind it (run-through only)
   zIndex: number;             // place among the free frames (restackFrame in image.ts)
-  wrapDist: number | null;    // cm of gap to the text beside it
+  wrapDist: number | WrapGap | null; // cm of gap to the text (see wrapGap)
   wrapAlign: string | null;   // 'center'/'right' = set against the middle/far end
   paddingCm: number;          // inset ring around the text (ODF fo:padding)
   paddingTopCm: number | null;  // its top and bottom where they differ from the sides
@@ -249,7 +249,7 @@ export const TextBox = Node.create({
       // The gap to the text beside it, in cm — as on an image.
       wrapDist: {
         default: null,
-        parseHTML: el => parseCmAttr((el as HTMLElement).getAttribute('data-wrap-dist')),
+        parseHTML: el => parseWrapGap((el as HTMLElement).getAttribute('data-wrap-dist')),
         renderHTML: () => ({}),
       },
       // 'center' = set against the middle of the column (ODF style:horizontal-pos): a
@@ -482,7 +482,10 @@ export const TextBox = Node.create({
             const freed = attrs.shapeKind && isLineKind(attrs.shapeKind) && !isLineKind(was.shapeKind)
               && was.wrap === 'inline' && !attrs.wrap
               ? { wrap: 'through' as const, ...droppedFrameAttrs('through', true, was.wrap) } : {};
-            const tr = state.tr.setNodeMarkup(found.pos, undefined, { ...was, ...freed, ...attrs });
+            // A box that starts to wrap without a gap of its own takes a new frame's.
+            const gap = attrs.wrap && attrs.wrap !== 'inline' && attrs.wrap !== 'through' && was.wrapDist == null && attrs.wrapDist === undefined
+              ? { wrapDist: BOX_WRAP_GAP } : {};
+            const tr = state.tr.setNodeMarkup(found.pos, undefined, { ...was, ...freed, ...gap, ...attrs });
             // As in commit(): a selected frame stays selected, its toolbar with it. A line
             // holds no text, so the caret it had moves out onto the frame.
             if (state.selection instanceof NodeSelection || isLineKind(attrs.shapeKind ?? was.shapeKind)) tr.setSelection(NodeSelection.create(tr.doc, found.pos));
@@ -1005,8 +1008,8 @@ class TextBoxView {
       d.style.float = 'left';
       d.style.clear = 'both';
       d.style.width = '100%';
-      d.style.margin = frameMargins('topBottom', null, 0, a.wrapOffsetY);
-      sinkToOffset(d, a.wrapOffsetY);
+      d.style.margin = frameMargins('topBottom', null, 0, a.wrapOffsetY, a.wrapDist);
+      sinkToOffset(d, a.wrapOffsetY, Math.round(cmToPx(wrapGap(a.wrapDist).top)));
       this.placeInBand(a);
     } else {
       // In the line: a box is a character. inline-block keeps ProseMirror's inline view

@@ -87,7 +87,10 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
 - **`set_style`** creates or changes a paragraph style (`putStyle`), by internal or display
   name; `heading_numbers` sets the chapter numbering (`setOutline`).
 - **`insert_frame`** builds the dialect's `<aside>` or `<img alt>` and inserts the frame at the
-  start of the paragraph, directly.
+  start of the paragraph, directly; **`frame`** changes one's wrap, size and gap to the text.
+  A paragraph's formatting lists its floating frames (`frame 1: picture 4×5cm right gap
+  0.32cm`), numbered as the tool takes them; a frame's CSS `margin` is its gap, else a new
+  frame's.
 - Numbers and booleans may come as strings, and every error names what is accepted ("unknown
   style …; styles are: …"), for small models.
 - After a round that changed the text, `runTurn` waits two frames for the layout pass and

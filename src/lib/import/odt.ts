@@ -11,7 +11,7 @@ import { builtinStyleSheet, DEFAULT_STYLE, type ParaProps, type Style, type Styl
 import { DEFAULT_OUTLINE_LEVEL, MAX_OUTLINE_LEVELS, type OutlineLevel, type OutlineNumbering } from '../styles/outlineNumbering';
 import { LIST_LEVEL_STEP_CM, MAX_LIST_LEVELS, type ListLevelStyle, type ListStyle } from '../styles/listStyles';
 import { HEADER_SHADE } from '../editor/extensions/tableHeaderRow';
-import { cropOf, fitInlineImage, framePx, stackRank, type Crop } from '../editor/extensions/image';
+import { cropOf, fitInlineImage, framePx, stackRank, wrapGap, wrapGapAttr, type Crop } from '../editor/extensions/image';
 import { odfChartDataUrl } from './chart';
 import { formatTabStops, normalizeLeader } from '../editor/extensions/tabStops';
 import { isEmphasis, type CapsMode, type LineStyle } from '../editor/extensions/textEffects';
@@ -313,11 +313,14 @@ function applyFrameRotationAndWrap(el: Element, attrs: Record<string, unknown>, 
   if (attrs.wrap === 'through' && gp['style:run-through'] === 'foreground') attrs.inFront = true;
   const rank = stackRank(el, NS.draw, 'z-index');
   if (rank) attrs.zIndex = rank;
-  // Only the text side of the gap is drawn — the other one is the frame's own offset.
-  if (attrs.wrap === 'left' || attrs.wrap === 'right') {
-    const side = attrs.wrap === 'right' ? 'fo:margin-left' : 'fo:margin-right';
-    const dist = lengthToCm(gp[side] ?? gp['fo:margin']);
-    if (dist != null && dist > 0) attrs.wrapDist = Math.round(dist * 1000) / 1000;
+  // Beside a side float only the text's side of the gap is drawn — the other one is the
+  // frame's own offset; above and below count for every mode that wraps.
+  if (attrs.wrap === 'left' || attrs.wrap === 'right' || attrs.wrap === 'topBottom') {
+    const at = (side: string) => lengthToCm(gp[`fo:margin-${side}`] ?? gp['fo:margin']) ?? 0;
+    const text = attrs.wrap === 'right' ? 'left' : attrs.wrap === 'left' ? 'right' : null;
+    const gap = wrapGapAttr(wrapGap({ top: at('top'), bottom: at('bottom'), left: text === 'left' ? at('left') : 0, right: text === 'right' ? at('right') : 0 }));
+    // Only a side gap stays the plain number it always was.
+    if (gap) attrs.wrapDist = gap.top || gap.bottom ? gap : gap.left || gap.right;
   }
   // A frame placed by coordinate (style:horizontal-pos="from-left") keeps its x in the
   // column; the wrap mode alone would snap it to a side. An x the file measures from the

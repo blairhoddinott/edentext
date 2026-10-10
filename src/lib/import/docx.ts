@@ -13,7 +13,7 @@ import { DEFAULT_OUTLINE_LEVEL, MAX_OUTLINE_LEVELS, type OutlineNumbering } from
 import { markerFormatFromText, pruneImportedMarkers } from '../editor/extensions/listMarker';
 import { MAX_LIST_LEVELS, type ListLevelStyle, type ListStyle } from '../styles/listStyles';
 import { HEADER_SHADE } from '../editor/extensions/tableHeaderRow';
-import { cropOf, fitInlineImage, framePx, stackRank } from '../editor/extensions/image';
+import { cropOf, fitInlineImage, framePx, stackRank, wrapGap, wrapGapAttr, type WrapGap } from '../editor/extensions/image';
 import { TEXTBOX_PADDING_CM } from '../editor/extensions/textBox';
 import { formatTabStops } from '../editor/extensions/tabStops';
 import type { CapsMode, LineStyle } from '../editor/extensions/textEffects';
@@ -2762,7 +2762,14 @@ function centreOffsetCm(anchor: Element, cx: number, ctx: Ctx): number | null {
 // Wrap mode and place are independent: the mode is what the file's wrap element says,
 // the place its position offsets. Only where neither names a side does the frame's own
 // x decide which half of the column it fills (text flows on one side of a CSS float).
-function anchorWrap(anchor: Element, ctx: Ctx): { wrap: 'left' | 'right' | 'topBottom' | 'through'; offsetCm: number | null; offsetYCm: number | null; fromPage: boolean; fromBody: boolean; alignH: 'left' | 'right' | null; distCm: number | null; alignXCm: number | null } {
+// A frame's gap as the attr stores it: the plain number it always was where only the
+// sides have one, all four where the file keeps one above or below.
+function gapOf(top: number, bottom: number, left: number, right: number): number | WrapGap | null {
+  const g = wrapGapAttr(wrapGap({ top, bottom, left, right }));
+  return !g ? null : g.top || g.bottom ? g : g.left || g.right;
+}
+
+function anchorWrap(anchor: Element, ctx: Ctx): { wrap: 'left' | 'right' | 'topBottom' | 'through'; offsetCm: number | null; offsetYCm: number | null; fromPage: boolean; fromBody: boolean; alignH: 'left' | 'right' | null; distCm: number | WrapGap | null; alignXCm: number | null } {
   const { cm: offsetYCm, fromPage, fromBody } = anchorOffsetY(anchor);
   const offsetCm = anchorOffsetX(anchor, ctx);
   const align = anchor.getElementsByTagNameNS(WP, 'positionH')[0]
@@ -2772,10 +2779,12 @@ function anchorWrap(anchor: Element, ctx: Ctx): { wrap: 'left' | 'right' | 'topB
   const bandLeft = (align === 'left' || align === 'inside') && anchor.getAttribute('allowOverlap') === '0';
   const alignH: 'left' | 'right' | null = align === 'right' || align === 'outside' ? 'right'
     : (align === 'left' || align === 'inside') && !bandLeft ? 'left' : null;
-  // Only the side the text flows on: the gap on the other one is the frame's offset.
+  // Beside a side float only the text's side: the gap on the other one is the frame's
+  // offset. Above and below count for every mode that wraps.
   const distOf = (wrap: string) => {
-    const emu = parseInt(anchor.getAttribute(wrap === 'right' ? 'distL' : 'distR') ?? '', 10);
-    return Number.isFinite(emu) && emu > 0 ? round2(emu / 360000) : null;
+    if (wrap === 'through') return null;
+    const cm = (name: string) => { const emu = parseInt(anchor.getAttribute(name) ?? '', 10); return Number.isFinite(emu) && emu > 0 ? round2(emu / 360000) : 0; };
+    return gapOf(cm('distT'), cm('distB'), wrap === 'right' ? cm('distL') : 0, wrap === 'left' ? cm('distR') : 0);
   };
   // A wrapped frame can't start above its paragraph; a run-through one simply overlaps.
   const y = (wrap: string) => (offsetYCm != null && offsetYCm < 0 && wrap !== 'through' && !fromPage && !fromBody ? null : offsetYCm);
@@ -3273,8 +3282,10 @@ function floatingTableBox(tbl: Element, ctx: Ctx): Node | null {
     attrs.wrapFromPage = true;
     attrs.wrapOffsetY = round2(yCm);
   } else if (Math.abs(yCm) > 0.01) attrs.wrapOffsetY = round2(yCm);
-  const dist = intAttr(pos, W, 'leftFromText') ?? intAttr(pos, W, 'rightFromText');
-  if (dist) attrs.wrapDist = round2(twipToCm(dist));
+  const from = (name: string) => round2(twipToCm(intAttr(pos, W, name) ?? 0));
+  const side = from('leftFromText') || from('rightFromText');
+  const dist = gapOf(from('topFromText'), from('bottomFromText'), side, side);
+  if (dist != null) attrs.wrapDist = dist;
   return { type: 'textBox', attrs, content: [table] };
 }
 

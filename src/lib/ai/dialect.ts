@@ -4,6 +4,7 @@
 // document; what it does not know it leaves to the schema, which drops it as before.
 
 import { normalizeColor } from '../utils/color';
+import { BOX_WRAP_GAP, PICTURE_WRAP_GAP, wrapGap, wrapGapText, type WrapGap } from '../editor/extensions/image';
 
 export type DialectOptions = {
   /** A paragraph style by internal or display name, case-insensitive. */
@@ -155,6 +156,15 @@ function table(t: HTMLTableElement, o: DialectOptions, dropped: string[]): void 
 
 const WRAPS: Record<string, string> = { left: 'left', right: 'right' };
 
+/** A floating frame's CSS margin as its gap to the text, else a new frame's. */
+function setGap(el: HTMLElement, frame: HTMLElement, fallback: WrapGap): void {
+  const s = frame.style;
+  const cm = (v: string) => toCm(v, 'cm') ?? 0;
+  const sides = [s.marginTop, s.marginRight, s.marginBottom, s.marginLeft];
+  const gap = sides.some(Boolean) ? wrapGap({ top: cm(sides[0]), right: cm(sides[1]), bottom: cm(sides[2]), left: cm(sides[3]) }) : fallback;
+  el.setAttribute('data-wrap-dist', wrapGapText(gap)!);
+}
+
 /** `<aside>` as a text box, anchored at the start of the paragraph after it. */
 function textBox(el: HTMLElement): void {
   const doc = el.ownerDocument;
@@ -165,7 +175,7 @@ function textBox(el: HTMLElement): void {
   box.style.width = `${width ?? 280}px`;
   box.style.height = `${toPx(s.height || el.getAttribute('height')) ?? 96}px`;
   const wrap = WRAPS[s.cssFloat || s.getPropertyValue('float')];
-  if (wrap) box.setAttribute('data-wrap', wrap);
+  if (wrap) { box.setAttribute('data-wrap', wrap); setGap(box, el, BOX_WRAP_GAP); }
   const fill = normalizeColor(s.backgroundColor || s.background);
   box.setAttribute('data-fill', fill ?? '#FFFFFF');
   const border = s.getPropertyValue('border');
@@ -231,7 +241,7 @@ function image(img: HTMLImageElement, dropped: string[]): void {
   img.setAttribute('width', String(w));
   img.setAttribute('height', String(h));
   const wrap = WRAPS[s.cssFloat || s.getPropertyValue('float')];
-  if (wrap) img.setAttribute('data-wrap', wrap);
+  if (wrap) { img.setAttribute('data-wrap', wrap); setGap(img, img, PICTURE_WRAP_GAP); }
 }
 
 const FIELD_TOKEN = /\{(date|time)\}/g;

@@ -14,6 +14,7 @@ import { headingNumbers } from '../editor/extensions/outline';
 import { listNumberAt } from '../editor/extensions/listStyle';
 import { pageOfElement, readVerticalMargins, topInEditor } from '../editor/extensions/pageBreaks';
 import { styleSheet } from '../styles/sheet.svelte';
+import { wrapGap } from '../editor/extensions/image';
 import { styleLabel } from '../i18n/i18n.svelte';
 import { nameLookup, normalizeAiHtml, pageFields, type NoteText } from './dialect';
 import { newNoteId } from '../editor/extensions/notes';
@@ -145,7 +146,26 @@ export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): stri
       : list.slice(0, 4).map((x) => JSON.stringify(x.length > 30 ? x.slice(0, 30) + '…' : x)).join(', ') + (list.length > 4 ? ', …' : '');
     parts.push(`${label}: ${quoted}`);
   }
+  // Its floating frames, numbered as the frame tool takes them; one in the line is a character.
+  let k = 0;
+  node.forEach((child) => {
+    if (child.type.name !== 'image' && child.type.name !== 'textBox') return;
+    k++;
+    if ((child.attrs.wrap ?? 'inline') !== 'inline') parts.push(`frame ${k}: ${frameNote(child)}`);
+  });
   return parts.length ? ` {${parts.join('; ')}}` : '';
+}
+
+const cmOf = (px: unknown) => (typeof px === 'number' ? Math.round((px / (96 / 2.54)) * 100) / 100 : 0);
+
+/** A frame's kind, size, wrap and gap to the text, as the frame tool sets them. */
+function frameNote(frame: PMNode): string {
+  const a = frame.attrs;
+  const wrap = a.wrap === 'topBottom' ? 'top_bottom' : a.wrap === 'through' ? (a.inFront ? 'in front of text' : 'behind text') : a.wrap ?? 'inline';
+  const g = wrapGap(a.wrapDist);
+  const sides = [g.top, g.right, g.bottom, g.left];
+  const gap = wrap === 'inline' || a.wrap === 'through' ? '' : sides.every((x) => x === g.top) ? ` gap ${g.top}cm` : ` gap ${sides.join(' ')}cm`;
+  return `${frame.type.name === 'image' ? 'picture' : 'text box'} ${cmOf(a.width)}×${cmOf(a.height)}cm ${wrap}${gap}`;
 }
 
 /** The cell around the textblock at `pos`; `tables` holds the table positions seen so far. */

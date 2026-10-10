@@ -469,7 +469,8 @@ export function sinkSideFloat(view: EditorView, el: HTMLElement): void {
   const floats = Array.from((view.dom as HTMLElement).querySelectorAll<HTMLElement>(`[data-wrap="${el.dataset.wrap}"]`));
   const next = floats[floats.indexOf(el) + 1];
   const gap = next ? Math.min(want, Math.max(0, Math.floor(top(next) - top(el) - el.offsetHeight))) : want;
-  el.style.marginTop = `${gap}px`;
+  // The frame's own gap above it excludes text, the offset above that does not.
+  el.style.marginTop = `${gap + (Number(el.dataset.gapTop) || 0)}px`;
   el.style.shapeOutside = `inset(${gap}px 0 0 0) margin-box`;
 }
 

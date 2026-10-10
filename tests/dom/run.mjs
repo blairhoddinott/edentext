@@ -619,6 +619,31 @@ try {
   check(dragged.length === 1 && dragged[0] > 0 && floatUndone.join() === '0',
     `undo takes a side float's drag back as one step (dragged to ${dragged}, undone to ${floatUndone})`);
 
+  // Space to text: a picture set to wrap by hand takes a new frame's gap, the Picture
+  // Format tab's field widens it on the drawn side, and one undo takes that back.
+  await page.evaluate((d) => document.querySelector('.tiptap').editor.commands.setContent(d), { type: 'doc', content: [
+    block(frame({}), words('word '.repeat(80))),
+  ] });
+  await page.evaluate(() => {
+    const ed = document.querySelector('.tiptap').editor;
+    ed.chain().setNodeSelection(1).setImageWrap('right').run();
+  });
+  await settle(page, true);
+  const gapState = () => page.evaluate(() => {
+    const ed = document.querySelector('.tiptap').editor;
+    return { gap: JSON.stringify(ed.state.doc.firstChild.firstChild.attrs.wrapDist), left: getComputedStyle(document.querySelector('.image-node')).marginLeft };
+  });
+  const wrapped = await gapState();
+  await page.locator('.ribbon-tab', { hasText: 'Picture Format' }).click();
+  await page.fill('[data-cmd="wrapGap-left"] input', '1');
+  await page.press('[data-cmd="wrapGap-left"] input', 'Enter');
+  await settle(page, true);
+  const widened = await gapState();
+  await page.evaluate(() => document.querySelector('.tiptap').editor.commands.undo());
+  const gapUndone = await gapState();
+  check(wrapped.left === '12px' && widened.left === '38px' && gapUndone.gap === wrapped.gap,
+    `a picture wraps with a gap the ribbon widens and undo restores (${wrapped.left} → ${widened.left}, undone ${gapUndone.gap})`);
+
   // A text box in that mode moves the same way, but by its frame ring — its own drag
   // is ProseMirror's node move, which would re-anchor it instead. Past the autosave's
   // debounce, or its write puts the dragged picture back in the text box's place.

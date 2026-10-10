@@ -538,6 +538,7 @@
         {tick}
         which={tab === 'pictureFormat' ? 'picture' : 'shape'}
         wrap={(frameAttrs?.wrap ?? 'inline') as never}
+        wrapDist={frameAttrs?.wrapDist}
         inFront={frameAttrs?.inFront === true}
         alt={(frameAttrs?.alt ?? '') as string}
         shapeKind={frameAttrs?.shapeKind as never}

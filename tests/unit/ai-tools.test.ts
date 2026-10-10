@@ -371,6 +371,20 @@ describe('runTurn', () => {
     editor.destroy();
   });
 
+  it('changes a frame\'s wrap, size and gap, and lists it in the paragraph\'s formatting', () => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+    const editor = makeEditor('<p>Name</p>');
+    const ctx = turn(editor);
+    expect(runTool(ctx, call('insert_frame', { paragraph: 1, kind: 'picture', wrap: 'right', gap_cm: '0.1 0.4 0.1 0.4' })).result).toBe('ok');
+    expect(editor.state.doc.firstChild!.firstChild!.attrs.wrapDist).toEqual({ top: 0.1, right: 0.4, bottom: 0.1, left: 0.4 });
+    expect(runTool(ctx, call('frame', { paragraph: 1, gap_cm: 0.6, width_cm: 3 })).result).toBe('ok');
+    const img = editor.state.doc.firstChild!.firstChild!;
+    expect(img.attrs).toMatchObject({ width: 113, wrapDist: { top: 0.6, right: 0.6, bottom: 0.6, left: 0.6 } });
+    expect(runTool(ctx, call('frame', { paragraph: 1, frame: 2 })).result).toMatch(/has 1 frame/);
+    expect(serializeDoc(editor.state)).toContain('frame 1: picture 2.99×5cm right gap 0.6cm');
+    editor.destroy();
+  });
+
   it('writes a footnote\'s text into the note its anchor gets', () => {
     const editor = makeEditor('<p>Intro</p>');
     expect(runTool(turn(editor), call('insert_paragraphs', { after: 1, html: '<p>Claim<sup class="footnote">Source, <em>2024</em>.</sup> here.</p>' })).result).toBe('ok');

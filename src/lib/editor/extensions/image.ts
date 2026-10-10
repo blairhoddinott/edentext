@@ -24,6 +24,7 @@ declare module '@tiptap/core' {
     image: {
       setImage: (attrs: { src: string; alt?: string; width?: number | null; height?: number | null; rotation?: number; wrap?: WrapMode }) => ReturnType;
       setImageWrap: (wrap: WrapMode, inFront?: boolean) => ReturnType;
+      setImageAttrs: (attrs: Record<string, unknown>) => ReturnType;
       restackFrame: (to: 'forward' | 'backward' | 'front' | 'back') => ReturnType;
     };
   }
@@ -93,22 +94,53 @@ export function framePx(px: number): number {
   return Math.abs(px - whole) < 0.05 ? whole : Math.round(px * 100) / 100;
 }
 
+// The gap a floating frame keeps to the text, in cm per side (Word's distT/B/L/R, ODF's
+// fo:margin-*). A bare number, as older documents store it, is the gap beside the frame.
+export type WrapGap = { top: number; right: number; bottom: number; left: number };
+export function wrapGap(v: unknown): WrapGap {
+  if (typeof v === 'number') return { top: 0, right: Math.max(0, v), bottom: 0, left: Math.max(0, v) };
+  const g = (v && typeof v === 'object' ? v : {}) as Partial<WrapGap>;
+  const n = (x: unknown) => (typeof x === 'number' && x > 0 ? Math.round(x * 1000) / 1000 : 0);
+  return { top: n(g.top), right: n(g.right), bottom: n(g.bottom), left: n(g.left) };
+}
+/** The attr value for a gap: null where no side has one. */
+export function wrapGapAttr(g: WrapGap): WrapGap | null {
+  return g.top || g.right || g.bottom || g.left ? g : null;
+}
+// A new frame's gap once it wraps: Word's 0.32cm beside a picture (LibreOffice's Graphics
+// style has none, so the text touches it), and LibreOffice's Frame style 0.2cm all round.
+export const PICTURE_WRAP_GAP: WrapGap = { top: 0, right: 0.32, bottom: 0, left: 0.32 };
+export const BOX_WRAP_GAP: WrapGap = { top: 0.2, right: 0.2, bottom: 0.2, left: 0.2 };
+export const parseWrapGap = (v: string | null): number | WrapGap | null => {
+  const n = (v ?? '').trim().split(/\s+/).map(Number);
+  if (n.length === 1) return Number.isFinite(n[0]) && n[0] > 0 ? n[0] : null;
+  return n.length === 4 && n.every(Number.isFinite) ? wrapGapAttr(wrapGap({ top: n[0], right: n[1], bottom: n[2], left: n[3] })) : null;
+};
+export const wrapGapText = (v: unknown): string | null => {
+  if (v == null) return null;
+  if (typeof v === 'number') return String(v);
+  const g = wrapGap(v);
+  return `${g.top} ${g.right} ${g.bottom} ${g.left}`;
+};
+const gapPx = (cm: number) => Math.round(cmToPx(cm));
+
 // A floating frame's margins from its wrapOffset: its left edge in the text column,
 // measured against the live column vars an indented anchor cannot skew (a right float
 // is placed from the far side). wrapOffsetY becomes a top margin — see the attr's note.
 export function frameMargins(wrap: WrapMode, offsetCm: unknown, boxWidthPx: number, offsetYCm?: unknown, distCm?: unknown): string {
   const near = typeof offsetCm === 'number' ? `${Math.round(cmToPx(offsetCm))}px` : null;
-  // The gap beside the frame is the file's own (fo:margin-*, distL/distR) and nothing
-  // where it declares none — probed: LibreOffice wraps flush against a frame whose
-  // graphic style leaves the margin out. Above and below likewise.
-  const gap = typeof distCm === 'number' && distCm > 0 ? `${Math.round(cmToPx(distCm))}px` : '0';
+  // The gap is the file's own (fo:margin-*, distT/B/L/R) and nothing where it declares
+  // none — probed: LibreOffice wraps flush against a frame whose graphic style leaves the
+  // margin out. Beside a side float only the text's side counts; the other is its offset.
+  const g = wrapGap(distCm);
+  const top = `${gapPx(g.top)}px`, bottom = `${gapPx(g.bottom)}px`;
   if (wrap === 'topBottom') {
-    const top = typeof offsetYCm === 'number' && offsetYCm > 0 ? `${Math.round(cmToPx(offsetYCm))}px` : '0';
-    return `${top} 0 0 ${near ?? '0'}`;
+    const y = typeof offsetYCm === 'number' && offsetYCm > 0 ? gapPx(offsetYCm) : 0;
+    return `${y + gapPx(g.top)}px 0 ${bottom} ${near ?? '0'}`;
   }
-  if (wrap === 'left') return `0 ${gap} 0 ${near ?? '0'}`;
+  if (wrap === 'left') return `${top} ${gapPx(g.right)}px ${bottom} ${near ?? '0'}`;
   const far = near == null ? '0' : `calc(${COLUMN_WIDTH_CSS} - ${near} - ${boxWidthPx}px)`;
-  return `0 ${far} 0 ${gap}`;
+  return `${top} ${far} ${bottom} ${gapPx(g.left)}px`;
 }
 
 // CSS queues floats of one side behind each other, so a later frame would sit beside an
@@ -338,7 +370,7 @@ export function inlineVerticalAlign(vAlign: unknown, boxHeightPx: number, offset
 // The offset counts from the anchor paragraph's top. Where text or an earlier frame
 // precedes this one (the importers sink frames behind the text: a full-width float pushes
 // every following line under itself) that part is already covered, so the rest is measured.
-export function sinkToOffset(d: HTMLElement, y: unknown): number | null {
+export function sinkToOffset(d: HTMLElement, y: unknown, gapTopPx = 0): number | null {
   const p = d.parentElement;
   if (typeof y !== 'number' || y <= 0 || !p) return null;
   let gap = Math.round(cmToPx(y));
@@ -348,7 +380,8 @@ export function sinkToOffset(d: HTMLElement, y: unknown): number | null {
     const scale = box.width / p.offsetWidth || 1;
     gap = clamp(Math.round(cmToPx(y) - (d.getBoundingClientRect().top - box.top) / scale), 6, pageContentHeightPx());
   }
-  d.style.marginTop = `${gap}px`;
+  // The frame's own gap above it comes on top of the offset; the caller keeps the two apart.
+  d.style.marginTop = `${gap + gapTopPx}px`;
   return gap;
 }
 
@@ -423,12 +456,12 @@ export const Image = Node.create({
         parseHTML: el => parseCm((el as HTMLElement).getAttribute('data-wrap-offset-y')),
         renderHTML: () => ({}),
       },
-      // The gap the file keeps between a floating frame and the text beside it, in cm
-      // (Word's distL/distR, ODF's fo:margin-left/-right). null = none, which is what
-      // both render for a frame that declares none.
+      // The gap the file keeps between a floating frame and the text, in cm: a WrapGap,
+      // or a number for the sides as older documents store it (see wrapGap). null =
+      // none, which is what both render for a frame that declares none.
       wrapDist: {
         default: null,
-        parseHTML: el => parseCm((el as HTMLElement).getAttribute('data-wrap-dist')),
+        parseHTML: el => parseWrapGap((el as HTMLElement).getAttribute('data-wrap-dist')),
         renderHTML: () => ({}),
       },
       // The page a page-anchored frame is placed on (ODF text:anchor-page-number): a
@@ -522,7 +555,7 @@ export const Image = Node.create({
       ...(wrap !== 'inline' ? { 'data-wrap': wrap } : {}),
       ...(offset != null ? { 'data-wrap-offset': String(offset) } : {}),
       ...(offsetY != null ? { 'data-wrap-offset-y': String(offsetY) } : {}),
-      ...(node.attrs.wrapDist != null ? { 'data-wrap-dist': String(node.attrs.wrapDist) } : {}),
+      ...(node.attrs.wrapDist != null ? { 'data-wrap-dist': wrapGapText(node.attrs.wrapDist) } : {}),
       ...(node.attrs.wrapAlign ? { 'data-wrap-align': String(node.attrs.wrapAlign) } : {}),
       ...(node.attrs.vAlign ? { 'data-v-align': String(node.attrs.vAlign) } : {}),
       ...(node.attrs.anchorPage ? { 'data-anchor-page': String(node.attrs.anchorPage) } : {}),
@@ -540,6 +573,16 @@ export const Image = Node.create({
         ({ commands }) =>
           commands.insertContent({ type: this.name, attrs }),
 
+      // Set attributes on the selected image, keeping it selected.
+      setImageAttrs:
+        (attrs) =>
+        ({ state, dispatch }) => {
+          const sel = state.selection;
+          if (!(sel instanceof NodeSelection) || sel.node.type.name !== this.name) return false;
+          if (dispatch) dispatch(atomAttrTr(state, sel.from, { ...sel.node.attrs, ...attrs }));
+          return true;
+        },
+
       // Set the wrap mode on the selected image.
       setImageWrap:
         (wrap: WrapMode, inFront = false) =>
@@ -547,9 +590,8 @@ export const Image = Node.create({
           const sel = state.selection;
           if (!(sel instanceof NodeSelection) || sel.node.type.name !== this.name) return false;
           // Picking a side means "put it there", so the imported offset goes with it.
-          // A frame the file never floated has no distance either; give it the one a
-          // word processor's own wrap command writes (0.32cm).
-          const wrapDist = wrap === 'inline' ? sel.node.attrs.wrapDist : sel.node.attrs.wrapDist ?? 0.32;
+          // A frame the file never floated has no distance either; give it a new one's.
+          const wrapDist = wrap === 'inline' ? sel.node.attrs.wrapDist : sel.node.attrs.wrapDist ?? PICTURE_WRAP_GAP;
           if (dispatch) {
             dispatch(atomAttrTr(state, sel.from,
               { ...sel.node.attrs, wrap, wrapDist, ...droppedFrameAttrs(wrap, inFront, sel.node.attrs.wrap) }));
@@ -821,6 +863,7 @@ class ImageView {
     d.style.margin = '';
     d.style.shapeOutside = '';
     delete d.dataset.sinkGap;
+    delete d.dataset.gapTop;
     d.style.position = '';
     d.style.zIndex = '';
     d.style.top = '';
@@ -856,7 +899,7 @@ class ImageView {
       // keep wrapAlign for such a pair): each floats to its own side, so both fit.
       d.style.float = a.wrapAlign;
       d.style.clear = a.wrapAlign;
-      d.style.margin = frameMargins(wrap, null, 0, a.wrapOffsetY);
+      d.style.margin = frameMargins(wrap, null, 0, a.wrapOffsetY, a.wrapDist);
       this.sinkToOffset();
     } else if (wrap === 'topBottom') {
       // A full-width float (not display:block — which on an inline atom node view
@@ -865,7 +908,7 @@ class ImageView {
       d.style.float = 'left';
       d.style.clear = 'both';
       d.style.width = '100%';
-      d.style.margin = frameMargins(wrap, null, 0, a.wrapOffsetY);
+      d.style.margin = frameMargins(wrap, null, 0, a.wrapOffsetY, a.wrapDist);
       this.sinkToOffset();
     }
     // The wrapper spans the column, so the picture's own x is the rotor's place in it
@@ -893,10 +936,12 @@ class ImageView {
 
   // A side float's lines run beside the offset as Word keeps them (sinkSideFloat).
   private sinkToOffset(): void {
-    const gap = sinkToOffset(this.dom, this.node.attrs.wrapOffsetY);
+    const top = gapPx(wrapGap(this.node.attrs.wrapDist).top);
+    const gap = sinkToOffset(this.dom, this.node.attrs.wrapOffsetY, top);
     const wrap = this.attrWrap();
     if (gap === null || (wrap !== 'left' && wrap !== 'right')) return;
     this.dom.dataset.sinkGap = String(gap);
+    this.dom.dataset.gapTop = String(top);
     sinkSideFloat(this.view, this.dom);
   }
 

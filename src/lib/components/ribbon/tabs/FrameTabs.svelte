@@ -6,17 +6,18 @@
   import ColorPicker from '../../ColorPicker.svelte';
   import ShapePicker from '../../ShapePicker.svelte';
   import CaptionDialog from '../../CaptionDialog.svelte';
-  import { droppedFrameAttrs, type WrapMode } from '../../../editor/extensions/image';
+  import { droppedFrameAttrs, wrapGap, wrapGapAttr, type WrapGap, type WrapMode } from '../../../editor/extensions/image';
   import type { ShapeKind, TextVAlign } from '../../../editor/extensions/textBox';
   import { t } from '../../../i18n/i18n.svelte';
 
   // Word's Picture Format and Shape Format: the same wrap modes, plus a shape's
   // own fill, outline and kind.
-  let { editor, tick, which, wrap, inFront = false, alt = '', shapeKind, fillColor, strokeColor, strokeWidthPt, textVertical = false, textVAlign = 'top' }: {
+  let { editor, tick, which, wrap, wrapDist = null, inFront = false, alt = '', shapeKind, fillColor, strokeColor, strokeWidthPt, textVertical = false, textVAlign = 'top' }: {
     editor: Editor | null;
     tick: number;
     which: 'picture' | 'shape';
     wrap: WrapMode;
+    wrapDist?: unknown;
     inFront?: boolean;
     alt?: string;
     shapeKind?: ShapeKind;
@@ -55,6 +56,22 @@
   ] as const;
   const canOrder = $derived(tick >= 0 && !!editor ? Object.fromEntries(ORDERS.map((o) => [o.key, editor.can().restackFrame(o.key)])) : {});
 
+  // The space the frame keeps to the text, per side: only a frame the text wraps has one.
+  const gap = $derived(wrapGap(wrapDist));
+  const GAP_SIDES: { key: keyof WrapGap; label: () => string }[] = [
+    { key: 'top', label: () => t().image.gapTop },
+    { key: 'bottom', label: () => t().image.gapBottom },
+    { key: 'left', label: () => t().image.gapLeft },
+    { key: 'right', label: () => t().image.gapRight },
+  ];
+  function setGap(side: keyof WrapGap, raw: string) {
+    const v = parseFloat(raw.replace(',', '.'));
+    if (isNaN(v)) return;
+    const wrapDist = wrapGapAttr({ ...gap, [side]: Math.max(0, Math.min(10, v)) });
+    if (which === 'picture') editor?.chain().focus().setImageAttrs({ wrapDist }).run();
+    else editor?.chain().focus().setTextBoxAttrs({ wrapDist }).run();
+  }
+
   let captionOpen = $state(false);
 
   function setWrap(w: WrapChoice) {
@@ -75,6 +92,28 @@
       {/each}
     </div>
   {/each}
+</RibbonGroup>
+
+<div class="ribbon-sep"></div>
+
+<RibbonGroup label={t().image.wrapGap}>
+  <div class="gap-grid">
+    {#each [0, 2, 1, 3] as i}
+      {@const side = GAP_SIDES[i]}
+      <label class="field" data-cmd={`wrapGap-${side.key}`}>
+        <span>{t().toolbarExpanded.hfField(side.label())}</span>
+        <input
+          type="number"
+          min="0"
+          max="10"
+          step="0.1"
+          value={gap[side.key]}
+          disabled={wrap === 'inline' || wrap === 'through'}
+          onchange={(e) => setGap(side.key, (e.currentTarget as HTMLInputElement).value)}
+        />
+      </label>
+    {/each}
+  </div>
 </RibbonGroup>
 
 <div class="ribbon-sep"></div>
@@ -232,4 +271,10 @@
   .field input:focus { outline: none; border-color: var(--w-accent); }
 
   .alt input { width: 200px; text-align: left; }
+  /* One grid, so both columns' boxes share their rows and line up on each column's right edge. */
+  .gap-grid { display: grid; grid-template-columns: auto auto; align-content: center; gap: 3px 12px; }
+  .gap-grid .field > span { flex: 1; }
+  .gap-grid .field input { width: 54px; height: 22px; padding: 0 1px 0 4px; }
+  .gap-grid .field input::-webkit-inner-spin-button { opacity: 1; margin-left: 4px; height: 18px; }
+  .field input:disabled { opacity: 0.5; }
 </style>

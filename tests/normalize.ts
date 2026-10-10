@@ -1,6 +1,7 @@
 // Shared round-trip comparison: reduce editor JSON to a canonical shape (defaults
 // dropped, marks sorted, adjacent identical runs merged) and report the first diff.
 import { MAX_HEADING_LEVEL } from '../src/lib/styles/headings';
+import { wrapGap } from '../src/lib/editor/extensions/image';
 
 type N = any;
 
@@ -119,8 +120,14 @@ export function normalize(node: N): N {
     if (volatileKey(k)) continue;
     if (k === 'zIndex') continue;
     if (k === 'colwidth') { attrs.colwidth = 'CW'; continue; } // ratios compared separately
-    // The gap beside a frame is drawn on a side wrap only, and zero is no gap at all.
-    if (k === 'wrapDist' && !(Number(v) > 0 && (node.attrs?.wrap === 'left' || node.attrs?.wrap === 'right'))) continue;
+    // A frame's gap as drawn: the text's side beside a side wrap, above and below for
+    // every mode that wraps; zero is no gap at all.
+    if (k === 'wrapDist') {
+      const g = wrapGap(v), w = node.attrs?.wrap;
+      const sides = w === 'left' ? [g.top, g.bottom, g.right] : w === 'right' ? [g.top, g.bottom, g.left] : w === 'topBottom' ? [g.top, g.bottom] : [];
+      if (sides.some((x) => x > 0)) attrs.wrapDist = sides.join('/');
+      continue;
+    }
     // The DOCX importer keeps the OMML serializer's trailing space on purpose
     // (re-serialize-to-itself); the ODT annotation is the authored string. Same formula.
     if (k === 'latex') { attrs.latex = String(v).trim(); continue; }

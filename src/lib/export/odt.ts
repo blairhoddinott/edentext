@@ -31,7 +31,7 @@ import { isEmphasis } from '../editor/extensions/textEffects';
 import { BORDER_SIDES, parseBorderAttr } from '../editor/extensions/tableCellBorders';
 import { parseCellPadding, DEFAULT_CELL_PADDING, type CellPadding } from '../editor/extensions/tableCellPadding';
 import { TEXTBOX_PADDING_CM, type TextVAlign } from '../editor/extensions/textBox';
-import { cropOf, type Crop } from '../editor/extensions/image';
+import { cropOf, wrapGap, wrapGapAttr, type Crop, type WrapGap } from '../editor/extensions/image';
 import { imageSizeCm } from '../import/imageFormats';
 import { numberLocale, parseCellNumber, toWriterFormula, type CellRef, type NumberLocale } from '../utils/tableFormula';
 import { presetOdfGeometry } from '../utils/shapePresets';
@@ -472,7 +472,7 @@ function replaceSectionBreaks(doc: TiptapNode): TiptapNode {
 // bytes is ArrayBuffer-backed to match fflate's zip entry map. rotationDeg is CW;
 // wrap floats the frame at its anchor paragraph (left/right/top-bottom/run-through).
 type WrapMode = 'inline' | 'left' | 'right' | 'topBottom' | 'through';
-type ImageExport = { path: string; bytes: Uint8Array<ArrayBuffer>; mimeType: string; widthCm: number; heightCm: number; alt: string; rotationDeg: number; wrap: WrapMode; wrapOffsetCm: number | null; wrapOffsetYCm: number | null; wrapDistCm: number | null; wrapAlign: string | null; anchorPage: number | null; vAlign: string | null; inFront: boolean; zIndex: number; wrapFromPage: boolean; wrapFromBody: boolean; clip: string | null };
+type ImageExport = { path: string; bytes: Uint8Array<ArrayBuffer>; mimeType: string; widthCm: number; heightCm: number; alt: string; rotationDeg: number; wrap: WrapMode; wrapOffsetCm: number | null; wrapOffsetYCm: number | null; wrapDist: WrapGap | null; wrapAlign: string | null; anchorPage: number | null; vAlign: string | null; inFront: boolean; zIndex: number; wrapFromPage: boolean; wrapFromBody: boolean; clip: string | null };
 
 function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
   const bin = atob(b64);
@@ -518,7 +518,7 @@ function imageDescriptor(node: TiptapNode, index: number, namePrefix = 'image'):
     wrap,
     wrapOffsetCm: typeof node.attrs?.wrapOffset === 'number' ? round3(node.attrs.wrapOffset) : null,
     wrapOffsetYCm: typeof node.attrs?.wrapOffsetY === 'number' ? round3(node.attrs.wrapOffsetY) : null,
-    wrapDistCm: typeof node.attrs?.wrapDist === 'number' ? round3(node.attrs.wrapDist) : null,
+    wrapDist: wrapGapAttr(wrapGap(node.attrs?.wrapDist)),
     wrapAlign: node.attrs?.wrapAlign === 'left' || node.attrs?.wrapAlign === 'right' ? node.attrs.wrapAlign : null,
     anchorPage: typeof node.attrs?.anchorPage === 'number' && node.attrs.anchorPage > 0 ? node.attrs.anchorPage : null,
     wrapFromPage: node.attrs?.wrapFromPage === true,
@@ -1039,7 +1039,7 @@ type TextBoxExport = {
   wrap: WrapMode;
   wrapOffsetCm: number | null;
   wrapOffsetYCm: number | null;
-  wrapDistCm: number | null;
+  wrapDist: WrapGap | null;
   wrapAlign: string | null;
   wrapFromPage: boolean;
   wrapFromBody: boolean;
@@ -1078,7 +1078,7 @@ function textBoxDescriptor(node: TiptapNode): TextBoxExport {
     wrap: wrapAttr === 'left' || wrapAttr === 'right' || wrapAttr === 'topBottom' || wrapAttr === 'through' ? wrapAttr : 'inline',
     wrapOffsetCm: typeof a.wrapOffset === 'number' ? round3(a.wrapOffset) : null,
     wrapOffsetYCm: typeof a.wrapOffsetY === 'number' ? round3(a.wrapOffsetY) : null,
-    wrapDistCm: typeof a.wrapDist === 'number' ? round3(a.wrapDist) : null,
+    wrapDist: wrapGapAttr(wrapGap(a.wrapDist)),
     wrapAlign: a.wrapAlign === 'center' || a.wrapAlign === 'right' ? a.wrapAlign : null,
     wrapFromPage: a.wrapFromPage === true,
     wrapFromBody: a.wrapFromBody === true,
@@ -4391,16 +4391,20 @@ function frameTransform(rotationDeg: number, widthCm: number, heightCm: number, 
 // places the frame on that side. topBottom ⇒ no wrap, placed at noneAlign — centred
 // for an image, but a box with no align of its own sits at the left, as the editor
 // draws it. An offset frame is placed by coordinate instead (svg:x on the frame).
-function imageWrapProps(wrap: WrapMode, offset: number | null, align?: string | null, distCm?: number | null, noneAlign = 'center'): string {
+function imageWrapProps(wrap: WrapMode, offset: number | null, align?: string | null, dist?: WrapGap | null, noneAlign = 'center'): string {
   const pos = offset != null ? 'from-left' : null;
-  // Only the text side is written; the frame's own offset covers the other one.
-  const gap = distCm ? ` fo:margin-${wrap === 'right' ? 'left' : 'right'}="${distCm}cm"` : '';
+  // Beside a side float only the text side is written; the frame's own offset covers
+  // the other one. Above and below go with every mode that wraps.
+  const g = wrapGap(dist);
+  const side = wrap === 'right' ? 'left' : wrap === 'left' ? 'right' : null;
+  const gap = ([['top', g.top], ['bottom', g.bottom], ...(side ? [[side, g[side]]] : [])] as [string, number][])
+    .filter(([, v]) => v > 0).map(([k, v]) => ` fo:margin-${k}="${v}cm"`).join('');
   // run-through reserves nothing; without style:run-through it sits behind the text,
   // which is LibreOffice's own default for a frame in that mode.
   if (wrap === 'through') return `style:wrap="run-through" style:horizontal-pos="${pos ?? 'left'}"`;
   if (wrap === 'left') return `style:wrap="right" style:horizontal-pos="${pos ?? 'left'}"${gap}`;
   if (wrap === 'right') return `style:wrap="left" style:horizontal-pos="${pos ?? 'right'}"${gap}`;
-  return `style:wrap="none" style:horizontal-pos="${align ?? pos ?? noneAlign}"`;
+  return `style:wrap="none" style:horizontal-pos="${align ?? pos ?? noneAlign}"${wrap === 'topBottom' ? gap : ''}`;
 }
 
 // The inverse of the importer's as-char alignment map (import/odt.ts): a frame with no
@@ -4460,7 +4464,7 @@ function frameGraphicStyle(img: ImageExport, index: number): string {
   }
   return (
     `<style:style style:name="ImgFr${index + 1}" style:family="graphic">` +
-    `<style:graphic-properties ${imageWrapProps(img.wrap, img.wrapOffsetCm, img.wrapAlign, img.wrapDistCm)}` +
+    `<style:graphic-properties ${imageWrapProps(img.wrap, img.wrapOffsetCm, img.wrapAlign, img.wrapDist)}` +
     ` style:number-wrapped-paragraphs="no-limit"` +
     ` style:horizontal-rel="paragraph-content"` +
     ` style:vertical-pos="${img.wrapOffsetYCm != null ? 'from-top' : 'top'}" style:vertical-rel="${verticalRel(img)}"/>` +
@@ -4794,7 +4798,7 @@ function textBoxGraphicStyle(box: TextBoxExport, index: number): string {
   // where a style-less as-char frame (an image) stands on it (probed).
   const wrap = box.wrap === 'inline'
     ? ' style:vertical-pos="top" style:vertical-rel="baseline"'
-    : ` ${imageWrapProps(box.wrap, box.wrapOffsetCm, box.wrapAlign, box.wrapDistCm, 'left')} style:number-wrapped-paragraphs="no-limit"`
+    : ` ${imageWrapProps(box.wrap, box.wrapOffsetCm, box.wrapAlign, box.wrapDist, 'left')} style:number-wrapped-paragraphs="no-limit"`
       + (box.wrap === 'through' && box.inFront ? ' style:run-through="foreground"' : '') +
       // A run-through x counts from the column, as on an image.
       ` style:horizontal-rel="${box.wrap === 'through' && box.wrapOffsetCm != null ? 'paragraph' : 'paragraph-content'}"` +

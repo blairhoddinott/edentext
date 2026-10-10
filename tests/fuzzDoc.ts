@@ -19,6 +19,7 @@ export function mulberry32(seed: number): Rng {
 export const pick = <T,>(r: Rng, arr: readonly T[]): T => arr[Math.floor(r() * arr.length)];
 export const int = (r: Rng, min: number, max: number) => min + Math.floor(r() * (max - min + 1));
 export const maybe = (r: Rng, p: number) => r() < p;
+const GAP4 = { top: 0.25, right: 0.5, bottom: 0.4, left: 0.5 };
 
 // XML-hostile characters, umlauts, an astral-plane glyph and a tab on purpose.
 const WORDS = ['Lorem', 'ipsum', 'Größe', 'fünf', 'a&b', '<tag>', '"quote"', "it's",
@@ -223,9 +224,9 @@ function paragraph(r: Rng, indents = true, top = false): N {
     if (top && maybe(r, 0.25)) {
       img.wrap = pick(r, ['left', 'right', 'topBottom']);
       if (maybe(r, 0.5)) img.wrapOffset = pick(r, [1.5, 2.25]);
-      // dist only beside a side wrap: with text only above/below there is no side
-      // gap to keep, and the ODT graphic style carries none
-      if (img.wrap !== 'topBottom' && maybe(r, 0.3)) img.wrapDist = 0.5;
+      // a gap beside a side wrap: the plain number older documents store, or all four
+      // sides (picked without a draw, so the seeds stay the documents they were)
+      if (img.wrap !== 'topBottom' && maybe(r, 0.3)) img.wrapDist = img.wrapOffset ? 0.5 : GAP4;
       if (img.wrap === 'topBottom' && maybe(r, 0.3)) img.wrapOffsetY = 1.5;
     }
     body.push({ type: 'image', attrs: img });
@@ -259,7 +260,7 @@ function textBox(r: Rng): N {
   if (maybe(r, 0.3)) {
     attrs.wrap = pick(r, ['left', 'right', 'topBottom']);
     if (maybe(r, 0.5)) attrs.wrapOffset = pick(r, [1.5, 2.25]);
-    if (attrs.wrap !== 'topBottom' && maybe(r, 0.3)) attrs.wrapDist = 0.5;
+    if (attrs.wrap !== 'topBottom' && maybe(r, 0.3)) attrs.wrapDist = attrs.wrapOffset ? 0.5 : GAP4;
     if (attrs.wrap === 'topBottom' && maybe(r, 0.3)) attrs.wrapOffsetY = 1.5;
   }
   const kids = Array.from({ length: int(r, 1, 2) }, () => paragraph(r));
