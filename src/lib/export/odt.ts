@@ -4784,7 +4784,9 @@ function textBoxGraphicStyle(box: TextBoxExport, index: number): string {
   const fill = (box.fill
     ? `draw:fill="solid" draw:fill-color="${normalizeColor(box.fill) ?? '#FFFFFF'}"`
     : 'draw:fill="none"')
-    + (isFrame ? ` fo:background-color="${box.fill ? normalizeColor(box.fill) ?? '#FFFFFF' : 'transparent'}"` : '');
+    + (isFrame ? ` fo:background-color="${box.fill ? normalizeColor(box.fill) ?? '#FFFFFF' : 'transparent'}"` : '')
+    // Without it LibreOffice paints the frame's surroundings into a frame without a fill.
+    + (isFrame && !box.fill ? ' draw:opacity="0%"' : '');
   const stroke = isFrame
     ? (box.stroke
       ? `fo:border="${r3(box.strokeWidthPt)}pt solid ${normalizeColor(box.stroke) ?? '#000000'}"`

@@ -205,13 +205,15 @@ export function bandAt(vm: VMargins, y: number): { start: number; end: number; h
 
 // Rows a cell spans move as one: that cell is a single box, so a break between them
 // would stretch it across the gap instead of splitting it. Returns each row's group
-// leader; a group too tall for a page cannot be kept whole and leads itself.
+// leader; a group too tall for a page cannot be kept whole and leads itself. The
+// `headerRows` a table repeats go with the row after them, as LibreOffice never leaves
+// them alone at a page foot — their copy would open the next page above the same row.
 export function rowSpanGroups(
-  rows: { spans: number[]; top: number; height: number }[], contentHeight: number,
+  rows: { spans: number[]; top: number; height: number }[], contentHeight: number, headerRows = 0,
 ): number[] {
   const leader = rows.map((_, i) => i);
   for (let i = 0; i < rows.length; ) {
-    let end = i;
+    let end = i === 0 ? Math.min(rows.length - 1, headerRows) : i;
     for (let j = i; j <= end; j++) {
       for (const span of rows[j].spans) {
         if (span > 1) end = Math.min(rows.length - 1, Math.max(end, j + span - 1));
@@ -1300,7 +1302,7 @@ export const PageBreaks = Extension.create({
                 .map((c) => (c as HTMLTableCellElement).rowSpan || 1),
               top: naturalTopOf(r),
               height: r.offsetHeight,
-            })), contentHeight);
+            })), contentHeight, tableEl?.dataset.repeatHeader === 'true' ? 1 : 0);
             const groupLeader = new Map<HTMLElement, HTMLElement>();
             leaderIdx.forEach((li, i) => {
               if (li === i) return;

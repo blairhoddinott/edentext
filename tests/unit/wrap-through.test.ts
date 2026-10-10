@@ -89,6 +89,26 @@ describe('a run-through text box that names no side of the text', () => {
     expect(back.attrs.wrap).toBe('through');
     expect(back.attrs.inFront).not.toBe(true);
   });
+
+  // LibreOffice paints its surroundings' background into a text frame without a fill, so
+  // the text it runs over is hidden; only draw:opacity lets it show (probed).
+  const fill = (props: string) => {
+    const content = `<?xml version="1.0"?><office:document-content ${NS} xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"><office:automatic-styles>
+      <style:style style:name="fr1" style:family="graphic"><style:graphic-properties style:wrap="run-through" ${props}/></style:style>
+    </office:automatic-styles><office:body><office:text><text:p><draw:frame draw:style-name="fr1" text:anchor-type="paragraph"
+      svg:width="3cm" svg:height="2cm"><draw:text-box><text:p>box</text:p></draw:text-box></draw:frame>text</text:p></office:text></office:body></office:document-content>`;
+    const doc = importOdt(zipSync({ 'content.xml': strToU8(content) })).content;
+    return (doc.content[0].content as N[]).find((n: N) => n.type === 'textBox').attrs.fillColor;
+  };
+
+  it('covers the text without a fill of its own, and shows it through draw:opacity', async () => {
+    expect(fill('draw:fill="none" fo:background-color="transparent"')).toBeUndefined();
+    expect(fill('draw:fill="none" fo:background-color="transparent" draw:opacity="0%"')).toBeNull();
+    const box: N = { type: 'textBox', attrs: { width: 120, height: 80, wrap: 'through', inFront: true, fillColor: null }, content: [{ type: 'paragraph' }] };
+    const doc: N = { type: 'doc', content: [{ type: 'paragraph', content: [box, { type: 'text', text: 'anchor' }] }] };
+    const back = (importOdt(await buildOdt(doc, margins, 'portrait')).content.content[0].content as N[]).find((n: N) => n.type === 'textBox');
+    expect(back.attrs.fillColor).toBeNull();
+  });
 });
 
 describe('picking a wrap mode by hand', () => {

@@ -604,6 +604,27 @@ try {
       `mirrored margins put ${what} at their own page's side (${s.pages} pages, spread ${s.spread}px)`);
   }
   await page.evaluate(() => localStorage.removeItem('edentext-page-margins'));
+
+  // A repeated header row never stays alone at a page foot: it goes down with the row
+  // after it, or its copy would open the next page above that same row a second time.
+  await page.evaluate((d) => localStorage.setItem('edentext-doc', JSON.stringify(d)), { type: 'doc', content: [
+    ...Array.from({ length: 45 }, (_, i) => block(words(`line ${i}`))),
+    { type: 'table', attrs: { repeatHeader: true }, content: [
+      { type: 'tableRow', content: [{ type: 'tableHeader', content: [block(words('head'))] }] },
+      { type: 'tableRow', content: [{ type: 'tableCell', content: Array.from({ length: 15 }, (_, i) => block(words(`body ${i}`))) }] },
+    ] },
+  ] });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.tiptap table', { timeout: 15_000 });
+  await settle(page, true);
+  const headRow = await page.evaluate(() => {
+    const top = document.querySelector('.tiptap-host .tiptap').getBoundingClientRect().top;
+    const pageOf = (el) => Math.floor((el.getBoundingClientRect().top - top) / (1123 + 20));
+    const rows = Array.from(document.querySelectorAll('.tiptap table tr:not([data-page-break-spacer])'));
+    return { header: pageOf(rows[0]), body: pageOf(rows[1]), copies: document.querySelectorAll('.tiptap [data-page-break-spacer] table').length };
+  });
+  check(headRow.header === 1 && headRow.body === 1 && headRow.copies === 0,
+    `a repeated header row goes down with the row after it (pages ${headRow.header + 1}/${headRow.body + 1}, ${headRow.copies} copies)`);
   // Behind the text: the frame leaves the flow (so the paragraph loses its height again)
   // and is then moved by its own offsets, since there is no text position to re-anchor to.
   await page.evaluate((d) => localStorage.setItem('edentext-doc', JSON.stringify(d)), { type: 'doc', content: [

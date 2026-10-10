@@ -38,4 +38,11 @@ describe('rowSpanGroups', () => {
     ];
     expect(rowSpanGroups(r, 50)).toEqual([0, 1, 2, 2]);
   });
+
+  it('keeps a repeated header row with the row after it', () => {
+    expect(rowSpanGroups(rows([[1], [1], [1]]), 1000, 1)).toEqual([0, 0, 2]);
+    expect(rowSpanGroups(rows([[1]]), 1000, 1)).toEqual([0]);
+    // Header and first row together taller than a page: each breaks on its own.
+    expect(rowSpanGroups(rows([[1], [1]], 40), 60, 1)).toEqual([0, 1]);
+  });
 });
