@@ -169,3 +169,30 @@ describe('a table style’s w:pPr ranks under the paragraph style', () => {
     expect(attrs.lineHeight).toBeUndefined();
   });
 });
+
+// A table draws only what something declares: its own w:tblBorders, else its table
+// style's chain. Nothing anywhere (Normal Table) is no border; on-screen gridlines are
+// not printed.
+describe('table borders', () => {
+  const ALL = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((s) => `<w:${s} w:val="single" w:sz="4" w:color="auto"/>`).join('');
+  const sides = (styleId: string | null, ownBorders = '') => {
+    const [table] = tables(docxOf(`<w:tbl><w:tblPr>${styleId ? `<w:tblStyle w:val="${styleId}"/>` : ''}${ownBorders}</w:tblPr><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr>${tc('x')}</w:tr></w:tbl>`, {
+      styles: `<w:style w:type="table" w:default="1" w:styleId="NormalTable"><w:name w:val="Normal Table"/></w:style>
+        <w:style w:type="table" w:styleId="Formula"><w:name w:val="Formel-tab"/><w:basedOn w:val="NormalTable"/><w:tblPr/></w:style>
+        <w:style w:type="table" w:styleId="Grid"><w:name w:val="Table Grid"/><w:basedOn w:val="NormalTable"/><w:tblPr><w:tblBorders>${ALL}</w:tblBorders></w:tblPr></w:style>
+        <w:style w:type="table" w:styleId="Thick"><w:name w:val="Thick"/><w:basedOn w:val="Grid"/><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="24" w:color="FF0000"/></w:tblBorders></w:tblPr></w:style>`,
+    }));
+    const attrs = table.content[0].content[0].attrs;
+    return ['borderTop', 'borderRight', 'borderBottom', 'borderLeft'].map((s) => attrs[s] ?? null);
+  };
+  const NONE = ['none', 'none', 'none', 'none'];
+  it.each([
+    ['draws nothing when no style in the chain declares one', 'Formula', '', NONE],
+    ['draws nothing without a table style', null, '', NONE],
+    ["takes the table style's borders, the editor default left off the attrs", 'Grid', '', [null, null, null, null]],
+    ['lets a leaf style override one side and inherit the rest', 'Thick', '', ['3pt solid #FF0000', null, null, null]],
+    ['lets the table’s own w:tblBorders win over its style', 'Grid', '<w:tblBorders><w:top w:val="nil"/></w:tblBorders>', ['none', null, null, null]],
+  ])('%s', (_name, style, own, want) => {
+    expect(sides(style, own)).toEqual(want);
+  });
+});
