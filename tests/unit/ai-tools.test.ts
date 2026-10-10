@@ -37,7 +37,7 @@ describe('serializeDoc', () => {
     const { view, state } = editor;
     view.dispatch(trackedReplace(state.tr, 12, 18, null, 'Ada'));
     editor.commands.setTextSelection(3);
-    expect(serializeDoc(editor.state)).toBe('Document, one paragraph per line, numbered:\n[1 h1] Title\n[2] The fox\n[3 li] item\n\nPage: A4 portrait, margins 2/2/2/2 cm (top/right/bottom/left)\n\nThe cursor is in paragraph 1.');
+    expect(serializeDoc(editor.state)).toBe('Document, one paragraph per line, numbered:\n[1 h1] Title\n[2] The fox\n[3 li] item\n\nPage: A4 portrait, margins 2/2/2/2 cm (top/right/bottom/left)\nLanguage: English (US) (en-US)\n\nThe cursor is in paragraph 1.');
     editor.destroy();
   });
 
@@ -51,6 +51,15 @@ describe('serializeDoc', () => {
     const pic = makeEditor('<p>see <img src="data:image/png;base64,AA==" alt="A red logo"> and <img src="data:image/png;base64,AA=="></p>');
     expect(blockTexts(pic.state.doc).map(blockLine)).toEqual(['[1] see {image "A red logo"} and {image}']);
     pic.destroy();
+    editor.destroy();
+  });
+
+  it('notes a page break, spacing, rules, background, language and a style by its shown name', () => {
+    const editor = makeEditor('<p data-style="Quotations" data-page-break-before="page" data-space-before="18" data-pborder-bottom="1pt solid #4B5563" lang="en-GB">q</p><p data-bg="rgb(238, 238, 238)"><span style="color: rgb(192, 0, 0)">red</span></p>');
+    expect(blockTexts(editor.state.doc).map(blockLine)).toEqual([
+      '[1] q {style "Quote"; page break before; space before 18pt; border bottom 1pt solid #4B5563; lang en-GB}',
+      '[2] red {background #EEEEEE; color #C00000: all}',
+    ]);
     editor.destroy();
   });
 
@@ -330,6 +339,10 @@ describe('runTurn', () => {
     expect(styleSheet().paragraph['Ad Copy'].text).toMatchObject({ fontSizePt: 14, color: '#C00000' });
     expect(runTool(ctx, call('set_style', { name: 'Heading 1', heading_numbers: '1.1' })).result).toBe('ok');
     expect(styleSheet().outline).toBeTruthy();
+    expect(runTool(ctx, call('set_style', { name: 'Heading 2', border_bottom: '1px solid #4b5563' })).result).toBe('ok');
+    expect(styleSheet().paragraph['Heading 2'].para.borderBottom).toBe('0.75pt solid #4B5563');
+    expect(runTool(ctx, call('set_style', { name: 'Heading 2', border: 'none' })).result).toBe('ok');
+    expect(styleSheet().paragraph['Heading 2'].para.borderBottom).toBeUndefined();
     expect(runTool(ctx, call('set_style', { name: 'X', based_on: 'Nope' })).result).toMatch(/unknown style "Nope"; styles are:/);
     deleteStyle('Ad Copy');
     setOutline(null);

@@ -20,7 +20,7 @@ import { styleLabel, t } from '../i18n/i18n.svelte';
 import { docBudget, type AiConfig } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
 import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, type CellAt, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, fillNotes, type Block } from './doc';
-import { nameLookup, parseMargins, splitDocumentHtml, type NoteText, type PageSpec } from './dialect';
+import { borderAttr, nameLookup, parseMargins, splitDocumentHtml, type NoteText, type PageSpec } from './dialect';
 import { PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
 import type { Orientation } from '../storage/pageOrientation';
 import type { PageMargins } from '../storage/pageMargins';
@@ -30,7 +30,7 @@ import type { HfDoc, HfVariant, HfZone } from '../storage/headerFooter';
 // editor's nodes. Short enough for a small local model to keep in view.
 export const HTML_GUIDE = [
   'Write content as HTML: no markdown, no code fences, no wrapper element. Use p, h1–h3, strong, em, u, s, sub, sup, mark, a, br, ul, ol, li, table, tr, th, td.',
-  'Paragraph style: <p class="Quotations"> with a style name listed below. Paragraph CSS: text-align, margin-top/margin-bottom (pt), margin-left, text-indent (cm), line-height, background, border, border-bottom, font-size, font-family, color.',
+  'Paragraph style: <p class="…"> with a style name listed below. Paragraph CSS: text-align, margin-top/margin-bottom (pt), margin-left, text-indent (cm), line-height, background, border, border-bottom, font-size, font-family, color.',
   'Run CSS on <span>: font-size, font-family, color. <hr> starts a new page.',
   'Tables: <td width="30%"> or <col width="30%"> sets column widths; <table border="0"> removes the lines; td takes background and vertical-align.',
   'A text box: <aside style="width:5cm;height:6cm;float:right">…</aside>, anchored to the paragraph after it; margin sets a frame\'s space to the text. A picture placeholder: <img alt="Photo" width="4cm" height="5cm"> without src (no other images).',
@@ -51,7 +51,7 @@ export function chatSystemPrompt(): string {
     '— 2 columns — lines mark where text columns start or end; set_columns changes them. The page setup and the page headers and footers are shown after the document; set_page and set_header_footer change them.',
     'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
     'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1]. Change a table (rows, columns, widths, merging, shading, borders) with the table tool, never by rebuilding it.',
-    'Paragraph styles change with set_style; frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes one listed as frame 1 in its paragraph\'s formatting.',
+    'Formatting meant for every paragraph of a kind (a rule under each heading, a colour, spacing) goes into its style with set_style, not onto each paragraph. Frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes one listed as frame 1 in its paragraph\'s formatting.',
     'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
     'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
     `Style names for <p class="…"> (never text of their own): ${styles}.`,
@@ -160,6 +160,9 @@ export const TOOLS: ToolDef[] = [
         align: { type: 'string', enum: ['left', 'center', 'right', 'justify'] },
         space_before_pt: { type: 'number' },
         space_after_pt: { type: 'number' },
+        border: str('A rule on all four sides as CSS, 1pt solid #4b5563; none removes it'),
+        border_top: str('The rule above, as border'),
+        border_bottom: str('The rule below, as border'),
         heading_numbers: { type: 'string', enum: ['none', '1.1', 'I.'], description: 'Numbering of all heading levels' },
       },
       required: ['name'],
@@ -637,6 +640,13 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       if (align) para.textAlign = align;
       if (numArg(a.space_before_pt) != null) para.spaceBefore = numArg(a.space_before_pt);
       if (numArg(a.space_after_pt) != null) para.spaceAfter = numArg(a.space_after_pt);
+      for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) {
+        const css = a[`border_${side.toLowerCase()}`] ?? a.border;
+        if (typeof css !== 'string' || !css.trim()) continue;
+        const v = borderAttr(css);
+        if (v === 'none' || !v) delete para[`border${side}`];
+        else para[`border${side}`] = v;
+      }
       putStyle({ ...base, ...(known || !parent ? {} : { parent }), para, text });
       const numbers = a.heading_numbers == null || a.heading_numbers === '' ? null : String(a.heading_numbers);
       if (numbers) setOutline(numbers === 'none' ? null : /^i/i.test(numbers) ? romanOutline() : decimalOutline());

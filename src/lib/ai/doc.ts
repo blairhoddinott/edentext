@@ -16,6 +16,8 @@ import { pageOfElement, readVerticalMargins, topInEditor } from '../editor/exten
 import { styleSheet } from '../styles/sheet.svelte';
 import { wrapGap } from '../editor/extensions/image';
 import { styleLabel } from '../i18n/i18n.svelte';
+import { normalizeColor } from '../utils/color';
+import { findLanguage, loadDocumentLanguage, tagForLanguage } from '../storage/documentLanguage';
 import { nameLookup, normalizeAiHtml, pageFields, type NoteText } from './dialect';
 import { newNoteId } from '../editor/extensions/notes';
 import { trackedReplace } from '../editor/extensions/trackChanges';
@@ -108,7 +110,8 @@ function runLabels(child: PMNode, base: ResolvedStyle): string[] {
     else if (m.type.name === 'textStyle') {
       if (m.attrs.fontFamily && m.attrs.fontFamily.toLowerCase() !== base.text.fontFamily?.toLowerCase()) out.push(`font "${m.attrs.fontFamily}"`);
       if (m.attrs.fontSize && parseFloat(m.attrs.fontSize) !== base.text.fontSizePt) out.push(`size ${m.attrs.fontSize}`);
-      if (m.attrs.color) out.push(`color ${m.attrs.color}`);
+      const color = normalizeColor(m.attrs.color);
+      if (color) out.push(`color ${color}`);
     }
   }
   return out;
@@ -122,9 +125,21 @@ export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): stri
   const parts: string[] = [];
   const heading = node.type.name === 'heading';
   const base = resolveStyle(sheet, node.attrs.styleName ?? (heading ? headingStyleName(node.attrs.level) : null));
-  if (node.attrs.styleName && !heading) parts.push(`style "${node.attrs.styleName}"`);
-  const align = node.attrs.textAlign;
+  const a = node.attrs;
+  if (a.styleName && !heading) parts.push(`style "${styleLabel(a.styleName)}"`);
+  const align = a.textAlign;
   if (align && !['left', 'start'].includes(align) && align !== base.para.textAlign) parts.push(`align ${align}`);
+  // Paragraph formatting that moves text: a page break or extra space explains a page the model can't see.
+  if (a.breakBefore === 'page') parts.push('page break before');
+  if (a.spaceBefore != null && a.spaceBefore !== (base.para.spaceBefore ?? 0)) parts.push(`space before ${a.spaceBefore}pt`);
+  if (a.spaceAfter != null && a.spaceAfter !== (base.para.spaceAfter ?? 0)) parts.push(`space after ${a.spaceAfter}pt`);
+  for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) {
+    const v = a[`border${side}`];
+    if (v && v !== base.para[`border${side}`]) parts.push(`border ${side.toLowerCase()} ${v}`);
+  }
+  const bg = normalizeColor(a.backgroundColor);
+  if (bg && bg !== normalizeColor(base.para.backgroundColor)) parts.push(`background ${bg}`);
+  if (a.lang) parts.push(`lang ${a.lang}`);
   const runs = new Map<string, string[]>();
   let whole = '';
   let prev: string[] = [];
@@ -296,6 +311,8 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
   const m = loadPageMargins();
   body += `\n\nPage: ${loadPageFormat()} ${loadOrientation()}, margins ${[m.top, m.right, m.bottom, m.left].join('/')} cm (top/right/bottom/left)`
     + (pages ? `, ${pages[pages.length - 1]} page${pages[pages.length - 1] > 1 ? 's' : ''}` : '');
+  const lang = loadDocumentLanguage();
+  body += `\nLanguage: ${findLanguage(lang) ? `${findLanguage(lang)!.label} (${tagForLanguage(lang)})` : 'none'}`;
   const zones = zoneLines();
   if (zones.length) body += `\nPage headers and footers:\n${zones.join('\n')}`;
   const notes = commentLines(state.doc, blocks);

@@ -40,12 +40,13 @@ numbered heading also carries the number the page shows (`li VI`, from `listNumb
 `headingNumbers`), since the text refers to it; a text box's paragraphs follow their anchor
 as `box 1`, and a list item in a cell carries both (`cell T1 r1 c2 li`). Inline atoms read as
 tokens that cover them whole (`{image "alt"}`, `‹Name›` for a placeholder, `{date}`), so
-`replace_text` can replace one. Style, alignment and the direct formatting the paragraph style
-does not already give follow in braces (`formatNote`), quoting the runs, so `find` still
-matches the bare text. A run
+`replace_text` can replace one. Style (by its shown name), alignment, page break, spacing, rules,
+background, language and the direct formatting the paragraph style does not already give
+follow in braces (`formatNote`), quoting the runs, colours as hex, so `find` still matches the
+bare text; a page break or extra space explains a page the model cannot see. A run
 of empty paragraphs folds to `[12–28] (empty)`. Lines mark where a page starts (`— page 2 —`,
 from the last layout pass, `pageLayout`), how full the last page is, and where text columns
-begin and end; the page setup (`Page: A4 portrait, margins …`) and the headers and footers
+begin and end; the page setup (`Page: A4 portrait, margins …`), the document language and the headers and footers
 (`{page}` for the field) follow. Comment threads follow the document as `[C1 on paragraph 4 «quote», by Ada,
 open]` with their replies; their numbers come from the turn's snapshot. Text marked as a deletion is
 left out, so the model reads the text as it will look once accepted. Past the budget
@@ -85,7 +86,8 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   paragraph attributes set on the whole paragraphs, and `list` runs the list commands. Track
   changes cannot record formatting, so it applies directly and is undoable.
 - **`set_style`** creates or changes a paragraph style (`putStyle`), by internal or display
-  name; `heading_numbers` sets the chapter numbering (`setOutline`).
+  name; `border`/`border_top`/`border_bottom` take CSS (`borderAttr`), so a rule under every
+  heading goes into its style, and `heading_numbers` sets the chapter numbering (`setOutline`).
 - **`insert_frame`** builds the dialect's `<aside>` or `<img alt>` and inserts the frame at the
   start of the paragraph, directly; **`frame`** changes one's wrap, size and gap to the text.
   A paragraph's formatting lists its floating frames (`frame 1: picture 4×5cm right gap

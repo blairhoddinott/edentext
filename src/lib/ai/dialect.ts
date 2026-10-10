@@ -37,7 +37,7 @@ const toCm = (v: string | null | undefined, bare = 'px') => { const pt = toPt(v,
 const toPx = (v: string | null | undefined, bare = 'px') => { const pt = toPt(v, bare); return pt == null ? null : Math.round(pt / PT_PER.px); };
 
 /** `1px solid red` as the border attr (`0.75pt solid #FF0000`), or 'none'. */
-function borderAttr(css: string): string | null {
+export function borderAttr(css: string): string | null {
   const parts = css.trim().split(/\s+(?![^(]*\))/);
   if (!parts[0] || parts.some((p) => /^(none|hidden)$/i.test(p)) || parts.some((p) => toPt(p) === 0)) return 'none';
   let pt = 0.5;
