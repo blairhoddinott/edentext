@@ -5,6 +5,7 @@ import { importDocx } from '../src/lib/import/docx';
 import { importOdt } from '../src/lib/import/odt';
 import { buildDocx } from '../src/lib/export/docx';
 import { buildOdt } from '../src/lib/export/odt';
+import type { StyleSheet } from '../src/lib/styles/styleSheet';
 
 type N = any;
 
@@ -47,6 +48,7 @@ export const blocksOf = (body: string, parts?: DocxParts): N[] => (importDocx(do
 export const firstBlock = (body: string, parts?: DocxParts): N => blocksOf(body, parts)[0];
 
 /** The document read back from its own DOCX and ODT export, in that order. */
-export async function roundTrips(doc: N): Promise<[N, N]> {
-  return [importDocx(await buildDocx(doc)).content, importOdt(await buildOdt(doc)).content];
+export async function roundTrips(doc: N, styles?: StyleSheet): Promise<[N, N]> {
+  const args = [undefined, 'portrait', undefined, null, 'A4', styles] as const;
+  return [importDocx(await buildDocx(doc, ...args)).content, importOdt(await buildOdt(doc, ...args)).content];
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
-import { getSchema } from '@tiptap/core';
+import { Editor, getSchema } from '@tiptap/core';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
@@ -9,7 +9,8 @@ import Bold from '@tiptap/extension-bold';
 import Italic from '@tiptap/extension-italic';
 import ListItem from '@tiptap/extension-list-item';
 import { OrderedList } from '../../src/lib/editor/extensions/orderedList';
-import { charStyleProps, listMarkerDecos, listMarkerFormat } from '../../src/lib/editor/extensions/listMarker';
+import { ListMarker, charStyleProps, listMarkerDecos, listMarkerFormat, touchesList } from '../../src/lib/editor/extensions/listMarker';
+import { extensions } from '../../src/lib/editor/extensions';
 import { builtinStyleSheet, styleCss } from '../../src/lib/styles/styleSheet';
 import { buildOdt } from '../../src/lib/export/odt';
 import { buildDocx } from '../../src/lib/export/docx';
@@ -147,5 +148,53 @@ describe('list marker formatting', () => {
         + ' fo:font-style="italic" fo:font-size="18pt" fo:color="#FF0000"/>');
       expect(content).not.toContain('style:name="MK1"');
     });
+  });
+});
+
+// A level's own label size raises the item's first line (the marker joins the line), so
+// only such an item is marked for it; a coloured one keeps the floated label.
+describe('a list level sized apart from its text', () => {
+  const sized = getSchema([Document, Paragraph, Text, ListItem, OrderedList, ListMarker]);
+  const classOf = (markerFormat: unknown): string => {
+    const d = sized.nodes.doc.create(null, sized.nodes.orderedList.create({ markerFormat },
+      sized.nodes.listItem.create(null, sized.nodes.paragraph.create(null, sized.text('one')))));
+    const deco = listMarkerDecos(d).find(1, 2)[0] as unknown as { type: { attrs: Record<string, string> } };
+    return deco?.type?.attrs?.class ?? '';
+  };
+  it('puts its label in the line', () => expect(classOf({ fontSize: '12pt' })).toBe('marker-sized'));
+  it('leaves a merely coloured one floated', () => expect(classOf({ color: '#006465' })).toBe(''));
+});
+
+// The decorations are rebuilt for an edit inside an item, since a marker takes its format
+// from the item's first text portion; a mark step counts by its own range.
+describe('touchesList', () => {
+  const p = (t: string) => ({ type: 'paragraph', content: [text(t)] });
+  const li = (t: string) => ({ type: 'listItem', content: [p(t)] });
+  // "outside" fills 1..8; the list starts at 9, its first item's text at 12.
+  const makeEditor = () => new Editor({ element: document.body.appendChild(document.createElement('div')), extensions,
+    content: { type: 'doc', content: [p('outside'), { type: 'bulletList', content: [li('alpha'), li('beta')] }, p('tail')] } });
+  const LIST = 9;
+  const IN_ITEM = LIST + 3;
+
+  it('sees an edit in a list item and ignores one outside every list', () => {
+    const editor = makeEditor();
+    expect(touchesList(editor.state.tr.insertText('x', IN_ITEM))).toBe(true);
+    expect(touchesList(editor.state.tr.insertText('x', 2))).toBe(false);
+    editor.destroy();
+  });
+  it('sees a mark applied inside an item, whose position map is empty', () => {
+    const editor = makeEditor();
+    const bold = editor.state.schema.marks.bold;
+    const marked = editor.state.tr.addMark(IN_ITEM, IN_ITEM + 4, bold.create());
+    expect(marked.steps[0].getMap().ranges.length).toBe(0);
+    expect(touchesList(marked)).toBe(true);
+    expect(touchesList(editor.state.tr.addMark(2, 6, bold.create()))).toBe(false);
+    editor.destroy();
+  });
+  it('sees the list node itself change, and a list inserted where there was none', () => {
+    const editor = makeEditor();
+    expect(touchesList(editor.state.tr.setNodeAttribute(LIST, 'markerAlign', 'right'))).toBe(true);
+    expect(touchesList(editor.state.tr.insert(1, editor.state.schema.nodeFromJSON({ type: 'bulletList', content: [li('new')] })))).toBe(true);
+    editor.destroy();
   });
 });

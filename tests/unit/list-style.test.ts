@@ -1,4 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { Editor } from '@tiptap/core';
+import Document from '@tiptap/extension-document';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
+import ListItem from '@tiptap/extension-list-item';
+import type { Node as PmNode } from '@tiptap/pm/model';
+import { OrderedList } from '../../src/lib/editor/extensions/orderedList';
+import { BulletList } from '../../src/lib/editor/extensions/bulletList';
+import { Indent } from '../../src/lib/editor/extensions/indent';
 import {
   builtinListStyles, effectiveListLevel, listStyleMarginCm, listStyleOverridden,
   MAX_LIST_LEVELS, type ListStyle,
@@ -113,5 +122,41 @@ describe('the built-ins (the preset gallery)', () => {
     expect(builtins['Numbering with Bullets'].levels[0]).toMatchObject({ kind: 'number', numType: 'decimal' });
     expect(builtins['Numbering with Bullets'].levels[1]).toMatchObject({ kind: 'bullet', bulletChar: '–' });
     expect(builtins['Checklist'].levels[0]).toMatchObject({ kind: 'bullet', bulletChar: '✓' });
+  });
+});
+
+// Tab into a new level reuses the style a sibling list on that level already carries.
+describe('list-style memory', () => {
+  let editor: Editor;
+  afterEach(() => editor?.destroy());
+  const li = (...blocks: unknown[]) => ({ type: 'listItem', content: blocks });
+  const p = (t: string) => ({ type: 'paragraph', content: [{ type: 'text', text: t }] });
+  const posOf = (doc: PmNode, text: string) => {
+    let pos = 0;
+    doc.descendants((node, at) => { if (node.isText && node.text === text) pos = at + 1; });
+    return pos;
+  };
+  // The listStyleType of the nearest ordered-list ancestor of the given text.
+  const styleAround = (doc: PmNode, text: string): string | null => {
+    const $p = doc.resolve(posOf(doc, text));
+    for (let d = $p.depth; d > 0; d--) if ($p.node(d).type.name === 'orderedList') return ($p.node(d).attrs.listStyleType as string | null) ?? null;
+    return null;
+  };
+  // A 3-item level-1 list whose first item holds a sublist, then 'c' indented a level.
+  const indentC = (style: string | null) => {
+    const sub = { type: 'orderedList', ...(style ? { attrs: { listStyleType: style } } : {}), content: [li(p('sub'))] };
+    editor = new Editor({ extensions: [Document, Paragraph, Text, ListItem, OrderedList, BulletList, Indent],
+      content: { type: 'doc', content: [{ type: 'orderedList', content: [li(p('a'), sub), li(p('b')), li(p('c'))] }] } });
+    editor.commands.setTextSelection(posOf(editor.state.doc, 'c'));
+    editor.commands.indentListForward();
+    return editor.state.doc;
+  };
+  it('stamps a newly nested list with a sibling level-2 explicit style', () => {
+    const doc = indentC('lower-alpha-paren');
+    expect(styleAround(doc, 'c')).toBe('lower-alpha-paren');
+    expect(styleAround(doc, 'sub')).toBe('lower-alpha-paren');
+  });
+  it('leaves the new list attr-less when no sibling level carries an explicit style', () => {
+    expect(styleAround(indentC(null), 'c')).toBeNull();
   });
 });
