@@ -193,7 +193,8 @@ function textBox(el: HTMLElement): void {
 
 /** A grey picture labelled with `label`: a PNG where a canvas draws, else an SVG. */
 export function placeholderImage(label: string, w: number, h: number, doc: Document): string {
-  const canvas = doc.createElement('canvas');
+  // The page's own document: a canvas of the inert one draws shapes but no text.
+  const canvas = (globalThis.document ?? doc).createElement('canvas');
   let g: CanvasRenderingContext2D | null = null;
   try { g = canvas.getContext('2d'); } catch { /* jsdom has no canvas */ }
   if (g) {
