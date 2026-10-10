@@ -64,10 +64,12 @@ describe('MathML', () => {
     // A sum's limits sit under/over the sign, an integral's beside it.
     expect(astToMathml(parseLatex('\\sum_{i}^{n} x'))).toContain('<munderover>');
     expect(astToMathml(parseLatex('\\int_{0}^{1} x'))).toContain('<msubsup>');
-    // Brackets must be stretchy or they stay glyph-height next to a fraction.
-    expect(astToMathml(parseLatex('\\left(x\\right)'))).toContain('<mo stretchy="true">(</mo>');
-    // A plain bracket must not: the dictionary would stretch it to the row's tallest.
-    expect(astToMathml(parseLatex('C(b) = \\frac{1}{2}'))).toContain('<mo stretchy="false">(</mo>');
+    // Brackets must be stretchy or they stay glyph-height next to a fraction; a plain one
+    // must not, or the dictionary would stretch it to the row's tallest.
+    const paren = (src: string) => Array.from(parseXml(`<math>${astToMathml(parseLatex(src))}</math>`).getElementsByTagName('mo'))
+      .find((mo) => mo.textContent === '(')?.getAttribute('stretchy');
+    expect(paren('\\left(x\\right)')).toBe('true');
+    expect(paren('C(b) = \\frac{1}{2}')).toBe('false');
   });
 
   it('round-trips through the document element', () => {
