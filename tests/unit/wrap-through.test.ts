@@ -90,20 +90,25 @@ describe('a run-through text box that names no side of the text', () => {
     expect(back.attrs.inFront).not.toBe(true);
   });
 
-  // LibreOffice paints its surroundings' background into a text frame without a fill, so
-  // the text it runs over is hidden; only draw:opacity lets it show (probed).
-  const fill = (props: string) => {
+  // LibreOffice paints its surroundings' background into a text frame without a fill under
+  // a common style, hiding the text it runs over; draw:opacity or a lone automatic style
+  // lets it show (probed).
+  const fill = (props: string, parent = ' style:parent-style-name="Frame"') => {
+    const styles = `<?xml version="1.0"?><office:document-styles ${NS}><office:styles>
+      <style:style style:name="Frame" style:family="graphic"><style:graphic-properties style:wrap="none"/></style:style>
+    </office:styles></office:document-styles>`;
     const content = `<?xml version="1.0"?><office:document-content ${NS} xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"><office:automatic-styles>
-      <style:style style:name="fr1" style:family="graphic"><style:graphic-properties style:wrap="run-through" ${props}/></style:style>
+      <style:style style:name="fr1" style:family="graphic"${parent}><style:graphic-properties style:wrap="run-through" ${props}/></style:style>
     </office:automatic-styles><office:body><office:text><text:p><draw:frame draw:style-name="fr1" text:anchor-type="paragraph"
       svg:width="3cm" svg:height="2cm"><draw:text-box><text:p>box</text:p></draw:text-box></draw:frame>text</text:p></office:text></office:body></office:document-content>`;
-    const doc = importOdt(zipSync({ 'content.xml': strToU8(content) })).content;
+    const doc = importOdt(zipSync({ 'content.xml': strToU8(content), 'styles.xml': strToU8(styles) })).content;
     return (doc.content[0].content as N[]).find((n: N) => n.type === 'textBox').attrs.fillColor;
   };
 
-  it('covers the text without a fill of its own, and shows it through draw:opacity', async () => {
+  it('covers the text without a fill under a common style, and shows it otherwise', async () => {
     expect(fill('draw:fill="none" fo:background-color="transparent"')).toBeUndefined();
     expect(fill('draw:fill="none" fo:background-color="transparent" draw:opacity="0%"')).toBeNull();
+    expect(fill('draw:fill="none" fo:background-color="transparent"', '')).toBeNull();
     const box: N = { type: 'textBox', attrs: { width: 120, height: 80, wrap: 'through', inFront: true, fillColor: null }, content: [{ type: 'paragraph' }] };
     const doc: N = { type: 'doc', content: [{ type: 'paragraph', content: [box, { type: 'text', text: 'anchor' }] }] };
     const back = (importOdt(await buildOdt(doc, margins, 'portrait')).content.content[0].content as N[]).find((n: N) => n.type === 'textBox');

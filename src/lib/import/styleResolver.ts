@@ -403,13 +403,19 @@ export class StyleResolver {
   // automatic style or none (probed).
   frameGraphicProps(styleName: string | null): PropMap {
     const gp = this.graphicProps(styleName);
-    if (gp['style:run-through']) return gp;
+    if (gp['style:run-through'] || !this.hasCommonGraphicStyle(styleName)) return gp;
+    return { ...gp, 'style:run-through': 'foreground' };
+  }
+
+  // Whether a common style is in a frame's style chain — which also makes a frame without
+  // a fill cover what lies behind it, where a lone automatic style shows it (probed).
+  hasCommonGraphicStyle(styleName: string | null): boolean {
     const seen = new Set<string>();
     for (let cur = styleName; cur && !seen.has(cur); cur = this.styles.get(`graphic\0${cur}`)?.parent ?? null) {
-      if (this.namedGraphicNames.has(cur)) return { ...gp, 'style:run-through': 'foreground' };
+      if (this.namedGraphicNames.has(cur)) return true;
       seen.add(cur);
     }
-    return gp;
+    return false;
   }
   private namedGraphicNames = new Set<string>();
 

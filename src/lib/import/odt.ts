@@ -599,9 +599,10 @@ function convertTextBoxFrame(frame: Element, textBoxEl: Element, ctx: Ctx): Node
     if (cm != null && Math.abs(cm - (padCm ?? TEXTBOX_PADDING_CM)) > 0.01) attrs[key] = Math.round(cm * 1000) / 1000;
   }
   shapeStyleAttrs(gp, attrs, false);
-  // A text frame without a fill still covers what lies behind it — LibreOffice paints its
-  // surroundings' background there — unless draw:opacity makes it see-through (probed).
-  if (attrs.fillColor === null && !(parseFloat(gp['draw:opacity'] ?? '100') < 100)) delete attrs.fillColor;
+  // A text frame without a fill under a common style still covers what lies behind it —
+  // LibreOffice paints its surroundings' background there — unless draw:opacity lets it show.
+  if (attrs.fillColor === null && !(parseFloat(gp['draw:opacity'] ?? '100') < 100)
+    && ctx.resolver.hasCommonGraphicStyle(frame.getAttributeNS(NS.draw, 'style-name'))) delete attrs.fillColor;
   boxTextFlow(frame, ctx, attrs);
   return { type: 'textBox', attrs, content: textBoxContent(Array.from(textBoxEl.children), ctx, wCm) };
 }
