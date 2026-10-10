@@ -658,6 +658,9 @@ type Leaf = {
   // The block's space above (px), always the declared one: the leaf is measured as if
   // the page-top drop below had not been applied, so a pass can't read its own answer.
   spaceAbove?: number;
+  // The extra leading a spacing above single puts below the block's last line (px): it
+  // may hang past the text area's bottom, which LibreOffice lets it (probed at 300%).
+  hang?: number;
   // Manual page break before this block (ODF fo:break-before; pageBreak.ts): force the
   // leaf to the next page's top even when it would otherwise fit on the current page.
   forceBreakBefore?: boolean;
@@ -1512,6 +1515,11 @@ export const PageBreaks = Extension.create({
                 const dropped = spaceAbove > 0.5 && !inTableCell
                   && parseFloat(cs.paddingTop) < 0.5 && parseFloat(cs.marginTop) < 0.5
                   ? spaceAbove : 0;
+                // editor.css draws the block up by half its extra leading (`top`); a bottom
+                // padding or border holds the last line's leading inside the block.
+                const lift = cs.position === 'relative' ? -parseFloat(cs.top) || 0 : 0;
+                const hang = lift > 0 && !isAtomic && !inTableCell && floatBottom <= child.offsetHeight
+                  && parseFloat(cs.paddingBottom) < 0.5 && parseFloat(cs.borderBottomWidth) < 0.5 ? 2 * lift : 0;
                 leaves.push({
                   el: child,
                   kind: isAtomic ? 'atomic' : 'splittable',
@@ -1519,6 +1527,7 @@ export const PageBreaks = Extension.create({
                   naturalHeight: Math.max(child.offsetHeight, floatBottom) - intraSpacerHeight + dropped,
                   spaceAfter: inTableCell ? 0 : parseFloat(cs.marginBottom) || 0,
                   spaceAbove,
+                  hang,
                   inTableCell,
                   // A manual page break is honored for top-level blocks only (not in
                   // a table cell, where the table breaks atomically between rows).
@@ -1915,7 +1924,7 @@ export const PageBreaks = Extension.create({
                 // Space below is not part of what has to fit: a block whose last line ends
                 // on the page keeps it and the gap is dropped at the page bottom, the way
                 // space above is at a page top (probed: 2cm below a line 8mm short of it).
-              } else if (effectiveBottom > contentEnd) {
+              } else if (effectiveBottom - (leaf.hang ?? 0) > contentEnd) {
                 if (leaf.kind === 'atomic') {
                   const cf = leaf.columnsFragment;
                   if (cf && cf.blockCount > 1 && cf.firstBlockNeededPx + COLUMNS_FIT_MARGIN_PX <= contentEnd - effectiveTop) {
@@ -1955,8 +1964,9 @@ export const PageBreaks = Extension.create({
                   // Taller than a page slot: the widow-orphan rule is unsatisfiable there,
                   // and splitting beats overflowing.
                   const minLines = guarded ? MIN_KEPT_LINES : 1;
-                  while (boundaryNatural < leaf.naturalHeight) {
-                    const split = findLineSplit(leaf.el, boundaryNatural, scale, minLines);
+                  const hang = leaf.hang ?? 0;
+                  while (boundaryNatural + hang < leaf.naturalHeight) {
+                    const split = findLineSplit(leaf.el, boundaryNatural + hang, scale, minLines);
                     if (split === null) break;
                     const target = pageContentStart(targetPage, topRest, grid);
                     const h = target - (effectiveTop + extraShift + split.naturalLineTop);
