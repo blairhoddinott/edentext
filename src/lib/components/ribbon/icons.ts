@@ -31,9 +31,11 @@ export const STROKED = {
   redo: ['M13.5 6.5H6.75a3.75 3.75 0 0 0 0 7.5H10.5', 'M10.75 3.5 13.5 6.5l-2.75 3'],
   info: ['M8 14.5A6.5 6.5 0 1 0 8 1.5a6.5 6.5 0 0 0 0 13z', 'M8 7.25v4'],
   lock: ['M3.75 7.25h8.5v6.25h-8.5z', 'M5.75 7.25V5a2.25 2.25 0 0 1 4.5 0v2.25'],
+  // The assistant: a round speech bubble, open where a star sits in its corner — round,
+  // so it never reads as the comment's square one.
   sparkle: [
-    'M7 1.75c.45 3.1 1.65 4.3 4.75 4.75C8.65 6.95 7.45 8.15 7 11.25 6.55 8.15 5.35 6.95 2.25 6.5 5.35 6.05 6.55 4.85 7 1.75z',
-    'M12.25 9.75c.2 1.3.7 1.8 2 2-1.3.2-1.8.7-2 2-.2-1.3-.7-1.8-2-2 1.3-.2 1.8-.7 2-2z',
+    'M13.98 9.02A6 6 0 0 1 5 13.7L2 14.25 2.8 11.5A6 6 0 0 1 5.95 2.86',
+    'M10.5 2.25C10.92 4.49 11.76 5.33 14 5.75C11.76 6.17 10.92 7.01 10.5 9.25C10.08 7.01 9.24 6.17 7 5.75C9.24 5.33 10.08 4.49 10.5 2.25z',
   ],
   // The four themes, as the appearance button shows the current one. Auto is a disc split
   // on the diagonal like its swatch in Settings, its dark half in FILLED.
