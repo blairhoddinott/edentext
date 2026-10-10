@@ -40,59 +40,61 @@
   </button>
   <div class="card">
     <h2>{t().templates.title}</h2>
-    <div class="grid">
-      {#each TEMPLATES as entry (entry.id)}
-        <button class="tpl" onclick={() => pick(entry)}>
-          <!-- A stylized page per template: letters get an address block, the CV and
-               minutes a heading, the invoice and minutes a small table sketch. -->
-          <span class="thumb" aria-hidden="true">
-            {#if entry.id === 'cv'}
-              <span class="h1"></span>
-              <span class="sect s1"></span>
-              <span class="pair pa r1"></span><span class="pair pb r1"></span>
-              <span class="pair pa r2"></span><span class="pair pb r2"></span>
-              <span class="sect s2"></span>
-              <span class="pair pa r3"></span><span class="pair pb r3"></span>
-            {:else if entry.id === 'minutes'}
-              <span class="h1"></span>
-              <span class="tbl"></span>
-              <span class="line l2"></span>
-              <span class="line l3"></span>
-            {:else if entry.id === 'invoice'}
-              <span class="addr"></span>
-              <span class="info"></span>
-              <span class="tbl low"></span>
-              <span class="fold f1"></span>
-              <span class="fold f2"></span>
-            {:else if entry.id === 'usLetter'}
-              <!-- Block format: a flush-left date above the address, and no fold marks. -->
-              <span class="date flush"></span>
-              <span class="addr low"></span>
-              <span class="line l2"></span>
-              <span class="line l3"></span>
-            {:else}
-              <!-- Form A opens its address field 18mm higher, which is the only thing
-                   telling the two DIN cards apart. -->
-              <span class="addr" class:high={entry.id === 'din5008a'}></span>
-              {#if entry.id.startsWith('din5008')}
-                <span class="info" class:high={entry.id === 'din5008a'}></span>
+    <div class="scroll">
+      <div class="grid">
+        {#each TEMPLATES as entry (entry.id)}
+          <button class="tpl" onclick={() => pick(entry)}>
+            <!-- A stylized page per template: letters get an address block, the CV and
+                 minutes a heading, the invoice and minutes a small table sketch. -->
+            <span class="thumb" aria-hidden="true">
+              {#if entry.id === 'cv'}
+                <span class="h1"></span>
+                <span class="sect s1"></span>
+                <span class="pair pa r1"></span><span class="pair pb r1"></span>
+                <span class="pair pa r2"></span><span class="pair pb r2"></span>
+                <span class="sect s2"></span>
+                <span class="pair pa r3"></span><span class="pair pb r3"></span>
+              {:else if entry.id === 'minutes'}
+                <span class="h1"></span>
+                <span class="tbl"></span>
+                <span class="line l2"></span>
+                <span class="line l3"></span>
+              {:else if entry.id === 'invoice'}
+                <span class="addr"></span>
+                <span class="info"></span>
+                <span class="tbl low"></span>
+                <span class="fold f1"></span>
+                <span class="fold f2"></span>
+              {:else if entry.id === 'usLetter'}
+                <!-- Block format: a flush-left date above the address, and no fold marks. -->
+                <span class="date flush"></span>
+                <span class="addr low"></span>
+                <span class="line l2"></span>
+                <span class="line l3"></span>
               {:else}
-                <span class="date"></span>
+                <!-- Form A opens its address field 18mm higher, which is the only thing
+                     telling the two DIN cards apart. -->
+                <span class="addr" class:high={entry.id === 'din5008a'}></span>
+                {#if entry.id.startsWith('din5008')}
+                  <span class="info" class:high={entry.id === 'din5008a'}></span>
+                {:else}
+                  <span class="date"></span>
+                {/if}
+                <span class="line l1"></span>
+                <span class="line l2"></span>
+                <span class="line l3"></span>
+                {#if entry.id === 'coverLetter'}
+                  <span class="line l4"></span>
+                {/if}
+                <span class="fold f1"></span>
+                <span class="fold f2"></span>
               {/if}
-              <span class="line l1"></span>
-              <span class="line l2"></span>
-              <span class="line l3"></span>
-              {#if entry.id === 'coverLetter'}
-                <span class="line l4"></span>
-              {/if}
-              <span class="fold f1"></span>
-              <span class="fold f2"></span>
-            {/if}
-          </span>
-          <span class="name">{entry.name()}</span>
-          <span class="desc">{entry.description()}</span>
-        </button>
-      {/each}
+            </span>
+            <span class="name">{entry.name()}</span>
+            <span class="desc">{entry.description()}</span>
+          </button>
+        {/each}
+      </div>
     </div>
   </div>
 </dialog>
@@ -103,27 +105,27 @@
     width: 440px;
     max-width: 90vw;
     max-height: 90vh;
-    overflow-y: auto;
     box-sizing: border-box;
-    padding: 0 22px 22px;
+    display: flex;
+    flex-direction: column;
   }
 
-  /* A title bar the content scrolls under, so the close button never sits on it. */
+  /* Only the templates scroll; the title stays put with the close button, overscroll too. */
   h2 {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    margin: 0 0 4px;
-    padding: 20px 0 10px;
+    margin: 0;
+    padding: 20px 22px 14px;
     font-size: 1rem;
-    background: var(--color-surface);
+  }
+  .scroll {
+    overflow-y: auto;
+    padding: 0 22px 22px;
   }
 
   .close {
     position: absolute;
     top: 8px;
     right: 8px;
-    z-index: 2;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
