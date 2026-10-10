@@ -209,6 +209,13 @@
           <Toggle label={t().ai.enable} checked={ai.enabled} onchange={(on) => setAi({ enabled: on })} />
         </div>
         <div class="row sub" class:dim={!ai.enabled}>
+          <div class="info"><div class="name">{t().ai.side}</div><div class="desc">{t().ai.sideHint}</div></div>
+          <select value={ai.side} disabled={!ai.enabled} onchange={(e) => setAi({ side: e.currentTarget.value === 'left' ? 'left' : 'right' })}>
+            <option value="right">{t().ai.sideRight}</option>
+            <option value="left">{t().ai.sideLeft}</option>
+          </select>
+        </div>
+        <div class="row sub" class:dim={!ai.enabled}>
           <div class="info"><div class="name">{t().ai.provider}</div><div class="desc">{t().ai.providerHint}</div></div>
           <select value={presetOf(ai)} disabled={!ai.enabled} onchange={(e) => pickPreset(e.currentTarget.value)}>
             {#each AI_PRESETS as p (p.id)}<option value={p.id}>{p.label}</option>{/each}

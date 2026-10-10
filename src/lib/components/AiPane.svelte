@@ -58,6 +58,8 @@
     return entries[replying];
   }
   let configured = $derived(!!aiConfig());
+  // Settings ▸ AI can dock the pane left of the pages; the editor row orders it first.
+  let left = $derived(aiSettings().side === 'left');
   // The selection goes with every question (serializeDoc); the chip shows that it does.
   let selected = $state('');
 
@@ -107,7 +109,7 @@
     const x0 = e.clientX;
     const w0 = width;
     handle.setPointerCapture(e.pointerId);
-    const move = (ev: PointerEvent) => setWidth(w0 + x0 - ev.clientX);
+    const move = (ev: PointerEvent) => setWidth(w0 + (left ? ev.clientX - x0 : x0 - ev.clientX));
     const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); };
     handle.addEventListener('pointermove', move);
     handle.addEventListener('pointerup', up);
@@ -116,8 +118,9 @@
 
   function resizeKey(e: KeyboardEvent) {
     const step = e.shiftKey ? 64 : 16;
-    if (e.key === 'ArrowLeft') setWidth(width + step);
-    else if (e.key === 'ArrowRight') setWidth(width - step);
+    const grow = left ? 'ArrowRight' : 'ArrowLeft';
+    if (e.key === grow) setWidth(width + step);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') setWidth(width - step);
     else return;
     e.preventDefault();
   }
@@ -279,7 +282,7 @@
   }
 </script>
 
-<aside class="ai-pane" aria-label={t().ai.name} style:flex-basis="{width}px">
+<aside class="ai-pane" class:left aria-label={t().ai.name} style:flex-basis="{width}px">
   <!-- A focusable separator is a widget (ARIA), which Svelte does not know. -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div class="resize" role="separator" aria-orientation="vertical" aria-label={t().ai.paneWidth}
@@ -401,6 +404,8 @@
     z-index: 1;
     touch-action: none;
   }
+  .ai-pane.left { order: -1; border-left: none; border-right: 1px solid var(--color-border); }
+  .left .resize { left: auto; right: -3px; }
   .resize:hover, .resize:focus-visible { background: var(--color-primary); opacity: 0.6; outline: none; }
 
   header {
