@@ -64,7 +64,8 @@ The assistant as a whole: `docs/architecture/ai.md`.
   marks, page border, background and watermark and the title, subject and keywords, which
   the document message lists as `Settings:` once they differ from a new document's; its
   `footnote_numbers` go straight to `setNoteSettings`. Setting a zone closes an open zone editor first; a first-page or even-page
-  zone switches that variant on. A reply's `<header>`, `<footer>` (`data-page`) and `<page>`
+  zone switches that variant on; `section` n > 1 writes that section's set (a gap filled
+  with a copy of section 1's, which it showed), listed back as `Section 2 header:`. A reply's `<header>`, `<footer>` (`data-page`) and `<page>`
   (`splitDocumentHtml`) take the same way from `insert_paragraphs` and from a draft's
   Insert at cursor; the draft preview shows them as a line above and below. Only a draft into
   an empty document is asked for them.
@@ -95,7 +96,9 @@ fails the suite. An entry is
 
 **Vocabulary, not parameters.** A feature is reached through what a model already writes:
 CSS in `format.css` (paragraph CSS — margins, indents, line height, background, borders,
-`break-*`, `widows`, `hyphens`, `direction` — sets the paragraphs, the rest the runs, both
+`break-*`, `widows`, `hyphens`, `direction`, `page: <name>` for a new section,
+`tab-stops: 8cm center, 16cm right dotted` — sets the paragraphs; a property the browser
+drops from `el.style` is read from the attribute, the rest the runs, both
 through `htmlToSlice`, so the paste path's CSS parsing is the format vocabulary),
 `frame.css` for a text box (background, border, padding, `writing-mode`,
 `vertical-align`, `border-radius`), `table` action `css` for a cell and its row, and the
@@ -110,5 +113,4 @@ standard form exists.
 characters (about 3,900 tokens), so the request stays small enough for a local model. A
 new parameter has to fit it or free room elsewhere.
 
-**Open (todo):** a section with its own header and footer (`sectionBreak`), tab stops,
-named list styles (the built-in sheet has none to test against).
+**Open (todo):** none.

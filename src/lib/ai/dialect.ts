@@ -7,6 +7,7 @@ import { normalizeColor } from '../utils/color';
 import { BOX_WRAP_GAP, PICTURE_WRAP_GAP, wrapGap, wrapGapText, type WrapGap } from '../editor/extensions/image';
 import { isShapeKind } from '../utils/shapes';
 import { CELL_PAD_VARS } from '../editor/extensions/tableCellPadding';
+import { formatTabStops, type TabAlign } from '../editor/extensions/tabStops';
 
 export type DialectOptions = {
   /** A paragraph style by internal or display name, case-insensitive. */
@@ -64,6 +65,19 @@ function borders(el: HTMLElement, prefix: string): void {
   }
 }
 
+/** A tab stop's fill as CSS names it, both ways. */
+export const TAB_LEADERS: Record<string, string> = { dotted: '.', dashed: '-', solid: '_', '.': 'dotted', '·': 'dotted', '-': 'dashed', '_': 'solid' };
+
+/** `tab-stops: 8cm center, 16cm right dotted` as the tabStops attr. */
+function tabStopsAttr(v: string): string | null {
+  return formatTabStops(v.split(',').flatMap((part) => {
+    const words = part.trim().toLowerCase().split(/\s+/);
+    const pos = toCm(words[0], 'cm');
+    const align = words.find((w) => /^(left|center|right|decimal)$/.test(w)) as TabAlign | undefined;
+    return pos == null ? [] : [{ pos, align: align ?? 'left', leader: words.map((w) => TAB_LEADERS[w]).find((l) => l?.length === 1) ?? null }];
+  }));
+}
+
 const BLOCKS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
 
 function paragraph(el: HTMLElement, o: DialectOptions, dropped: string[]): void {
@@ -100,12 +114,19 @@ function paragraph(el: HTMLElement, o: DialectOptions, dropped: string[]): void 
     el.append(span);
   }
   if (/always|page/.test(s.pageBreakBefore + s.breakBefore)) el.setAttribute('data-page-break-before', 'page');
-  const css = (p: string) => s.getPropertyValue(p).trim();
+  // A property the browser does not know (tab-stops; widows in Firefox) is not in
+  // el.style, so it is read from the attribute as written.
+  const css = (p: string) => s.getPropertyValue(p).trim()
+    || new RegExp(`(?:^|;)\\s*${p}\\s*:([^;]*)`, 'i').exec(el.getAttribute('style') ?? '')?.[1].trim() || '';
   if (/avoid/.test(css('break-after') + css('page-break-after'))) el.setAttribute('data-keep-next', 'true');
   if (/avoid/.test(css('break-inside') + css('page-break-inside'))) el.setAttribute('data-keep-lines', 'true');
   if (/^[01]$/.test(css('widows') || css('orphans'))) el.setAttribute('data-widow-control', 'false');
   if (/none|manual/.test(css('hyphens'))) el.setAttribute('data-no-hyphenation', 'true');
   if (/^(rtl|ltr)$/.test(s.direction)) el.setAttribute('dir', s.direction);
+  // A named page (CSS Paged Media) opens a section, with its own header and footer.
+  if (!/^(auto)?$/.test(css('page'))) el.setAttribute('data-section-break', 'true');
+  const stops = tabStopsAttr(css('tab-stops'));
+  if (stops) el.setAttribute('data-tab-stops', stops);
 }
 
 /** A run's background as a highlight, the only run shading the editor has. */

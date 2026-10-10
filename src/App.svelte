@@ -338,8 +338,18 @@
   // What the assistant may set beside the text. An open zone editor keeps its own copy,
   // so it closes first; a first-page or even-page zone switches its variant on.
   const aiHost: AiHost = {
-    setZone(zone, variant, doc) {
+    setZone(zone, variant, doc, section = 1) {
       hfActive = null;
+      if (section > 1) {
+        // A section without its own set shows section 1's, so a gap is filled with a copy.
+        const out = extraHfSections.slice();
+        while (out.length < section - 1) out.push({ ...EMPTY_HF_SET, ...hfSetOfState() });
+        const key = `${zone}${variant === 'first' ? 'First' : variant === 'even' ? 'Even' : ''}` as const;
+        out[section - 2] = { ...out[section - 2], [key]: doc,
+          ...(variant === 'first' ? { differentFirstPage: true } : variant === 'even' ? { differentOddEven: true } : {}) };
+        extraHfSections = out;
+        return;
+      }
       if (variant === 'first') { differentFirstPage = true; if (zone === 'header') headerFirstDoc = doc; else footerFirstDoc = doc; }
       else if (variant === 'even') { differentOddEven = true; if (zone === 'header') headerEvenDoc = doc; else footerEvenDoc = doc; }
       else if (zone === 'header') headerDoc = doc;

@@ -76,7 +76,7 @@ const CHAT_LINES = [
 ];
 
 const EDIT_LINES = [
-  'Change a table (rows, columns, widths, merging, shading, borders) with the table tool, never by rebuilding it.',
+  'Change a table with the table tool, never by rebuilding it.',
   'Formatting meant for every paragraph of a kind (a rule under each heading, a colour, spacing) goes into its style with set_style, not onto each paragraph. Frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes, moves, stacks, captions or deletes one listed as frame 1 in its paragraph\'s formatting.',
   'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
   'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
@@ -162,7 +162,7 @@ export const TOOLS: ToolDef[] = [
         link: str('URL, or none'),
         bookmark: str('Names the text as a bookmark, for <a href="#name">'),
         list: { type: 'string', enum: ['bullet', 'number', 'none', 'deeper', 'shallower'] },
-        css: str('Any other formatting as CSS: margin-top, text-indent, line-height, background, border, break-before: page, list-style-type …; paragraph CSS applies to whole paragraphs'),
+        css: str('Any other formatting as CSS: text-indent, border, break-before: page, page: x (new section), tab-stops: 8cm center, 16cm right dotted, list-style-type …; paragraph CSS applies to whole paragraphs'),
         clear: { type: 'boolean', description: 'Removes direct formatting first' },
       },
       required: ['from'],
@@ -247,7 +247,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'table',
-    description: 'Changes the table around a paragraph\'s cell: rows, columns, widths, merging, shading, borders, style.',
+    description: 'Changes the table around a paragraph\'s cell.',
     parameters: {
       type: 'object',
       properties: {
@@ -270,6 +270,7 @@ export const TOOLS: ToolDef[] = [
         zone: { type: 'string', enum: ['header', 'footer'] },
         pages: { type: 'string', enum: ['all', 'first', 'even'], description: 'Which pages, all by default' },
         html: str('Content as HTML; {page} and {pages} are page fields'),
+        section: num('Only this section\'s'),
       },
       required: ['zone', 'html'],
     },
@@ -310,7 +311,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'set_columns',
-    description: 'Sets the text of paragraphs from…to in 1 to 3 columns. Inside a section that already has columns it changes the whole section; 1 removes the columns.',
+    description: 'Sets paragraphs from…to in 1 to 3 columns; inside a section with columns it changes the whole section; 1 removes them.',
     parameters: { type: 'object', properties: { from: num('First paragraph'), to: num('Last paragraph'), count: num('Number of columns, 1–3') }, required: ['from', 'count'] },
   },
   {
@@ -327,7 +328,8 @@ export type PageSetup = {
   decor?: Partial<PageDecor>; properties?: Partial<DocProperties>;
 };
 export type AiHost = {
-  setZone: (zone: HfZone, variant: HfVariant, doc: HfDoc) => void;
+  /** `section` counts from 1, the document's own zones. */
+  setZone: (zone: HfZone, variant: HfVariant, doc: HfDoc, section?: number) => void;
   setPage: (page: PageSetup) => void;
   /** The document's language, a code from LANGUAGES. */
   setLanguage?: (code: DocumentLanguage) => void;
@@ -394,7 +396,7 @@ const alignArg = (v: unknown) => {
 };
 
 // CSS that belongs to the paragraph; the rest formats its runs.
-const BLOCK_CSS = /^(text-align|margin|text-indent|line-height|background|border|padding|page-break|break-|widows|orphans|hyphens|direction)/;
+const BLOCK_CSS = /^(text-align|margin|text-indent|line-height|background|border|padding|page|break-|widows|orphans|hyphens|direction|tab-stops)/;
 
 /**
  * CSS as the paragraph attrs and run marks it parses to, through the dialect and the
@@ -993,7 +995,7 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       const variant: HfVariant = pages === 'first' ? 'first' : pages === 'even' ? 'even' : 'default';
       const dropped: string[] = [];
       const doc = zoneDocFromHtml(String(a.html ?? ''), dropped);
-      ctx.host.setZone(zone, variant, doc);
+      ctx.host.setZone(zone, variant, doc, Math.max(1, Math.round(Number(a.section)) || 1));
       return { result: withDropped(dropped), summary: m.zone(zone === 'footer', !doc) };
     }
     case 'set_language': {

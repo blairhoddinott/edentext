@@ -9,7 +9,7 @@ import { extensions } from '../../src/lib/editor/extensions';
 import { RIBBON_COMMANDS } from '../../src/lib/components/ribbon/commands';
 import { blockTexts, serializeDoc } from '../../src/lib/ai/doc';
 import { runTool, type AiHost, type TurnContext } from '../../src/lib/ai/tools';
-import { saveDifferentFirstPage, saveDifferentOddEven, saveHfDoc } from '../../src/lib/storage/headerFooter';
+import { EMPTY_HF_SET, loadExtraHfSections, saveDifferentFirstPage, saveDifferentOddEven, saveExtraHfSections, saveHfDoc } from '../../src/lib/storage/headerFooter';
 import { savePageFormat } from '../../src/lib/storage/pageFormat';
 import { saveOrientation } from '../../src/lib/storage/pageOrientation';
 import { loadPageMargins, savePageMargins } from '../../src/lib/storage/pageMargins';
@@ -22,6 +22,7 @@ import { loadPageDecor, savePageDecor } from '../../src/lib/storage/pageDecor';
 import { loadFoldMarks, saveFoldMarks } from '../../src/lib/storage/foldMarks';
 import { noteSettings } from '../../src/lib/storage/notes.svelte';
 import { TOOLS, chatSystemPrompt } from '../../src/lib/ai/tools';
+import { putListStyle } from '../../src/lib/styles/sheet.svelte';
 
 type Call = [string, Record<string, unknown>];
 /** A doc (default one paragraph), the calls, and what must hold afterwards. */
@@ -92,11 +93,12 @@ const SCHEMA: Record<string, Entry> = {
   'paragraph.keepNext': check(css('break-after: avoid'), para('keepNext', true)),
   'paragraph.keepLines': check(css('break-inside: avoid'), para('keepLines', true)),
   'paragraph.noHyphenation': check(css('hyphens: none'), para('noHyphenation', true)),
-  'paragraph.sectionBreak': todo('a section with its own header and footer'),
+  'paragraph.sectionBreak': check([['format', { from: 2, css: 'page: next' }], ['set_header_footer', { zone: 'header', section: 2, html: '<p>Two</p>' }]],
+    (d) => d.child(1).attrs.sectionBreak === true && JSON.stringify(loadExtraHfSections()[0]?.header).includes('Two'), '<p>x</p><p>y</p>'),
   'paragraph.dir': check(css('direction: rtl'), para('dir', 'rtl')),
   'paragraph.lang': check(['set_language', { language: 'de-DE', from: 1 }], para('lang', 'de-DE')),
   'paragraph.langAsian': ASIAN,
-  'paragraph.tabStops': todo('tab stops; the model writes tabs, but cannot place a stop'),
+  'paragraph.tabStops': check(css('tab-stops: 8cm center, 16cm right dotted'), para('tabStops', '8c;16r.')),
   'paragraph.textAlign': check(fmt({ align: 'center' }), para('textAlign', 'center')),
   heading: check(fmt({ style: 'Heading 2' }), attr('heading', 'level', 2)),
   'heading.level': same('heading'),
@@ -221,7 +223,7 @@ const SCHEMA: Record<string, Entry> = {
   'bulletList.hanging': IMPORT,
   'bulletList.markerFormat': IMPORT,
   'bulletList.markerSuffix': IMPORT,
-  'bulletList.listStyleName': todo('a named list style; the built-in sheet has none to try'),
+  'bulletList.listStyleName': check(['format', { from: 2, style: 'Dashes' }], attr('bulletList', 'listStyleName', 'Dashes'), LIST),
   'bulletList.bulletChar': check(fmt({ from: 2, css: 'list-style-type: "–"' }), attr('bulletList', 'bulletChar', '–'), LIST),
   'orderedList.start': check([fmt({ from: 2, to: 3, list: 'number' }), fmt({ from: 2, css: 'start: 4' })], attr('orderedList', 'start', 4), LIST),
   'orderedList.type': same('orderedList.listStyleType'),
@@ -400,7 +402,13 @@ const schemaKeys = [
 ];
 
 const host: AiHost = {
-  setZone: (zone, variant, doc) => {
+  setZone: (zone, variant, doc, section = 1) => {
+    if (section > 1) {
+      const sets = loadExtraHfSections();
+      while (sets.length < section - 1) sets.push({ ...EMPTY_HF_SET });
+      sets[section - 2] = { ...sets[section - 2], [zone]: doc };
+      return saveExtraHfSections(sets);
+    }
     if (variant === 'first') saveDifferentFirstPage(true);
     if (variant === 'even') saveDifferentOddEven(true);
     saveHfDoc(zone, doc, variant);
@@ -449,6 +457,8 @@ function runCheck(c: Check): void {
 }
 
 beforeEach(() => localStorage.clear());
+// The built-in sheet has no named list style to assign.
+putListStyle({ name: 'Dashes', levels: [{ kind: 'bullet', bulletChar: '–' }] });
 // A text box's view measures itself.
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

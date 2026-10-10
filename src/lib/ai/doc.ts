@@ -19,7 +19,8 @@ import { styleLabel } from '../i18n/i18n.svelte';
 import { normalizeColor } from '../utils/color';
 import { DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT } from '../utils/dateTime';
 import { findLanguage, loadDocumentLanguage, tagForLanguage } from '../storage/documentLanguage';
-import { nameLookup, normalizeAiHtml, pageFields, type NoteText } from './dialect';
+import { nameLookup, normalizeAiHtml, pageFields, TAB_LEADERS, type NoteText } from './dialect';
+import { parseTabStops } from '../editor/extensions/tabStops';
 import { newNoteId } from '../editor/extensions/notes';
 import { revisions, trackedReplace, type Revision } from '../editor/extensions/trackChanges';
 import { loadPageFormat } from '../storage/pageFormat';
@@ -32,7 +33,7 @@ import { loadFoldMarks } from '../storage/foldMarks';
 import { loadPageDecor } from '../storage/pageDecor';
 import { loadDocProperties } from '../storage/docProperties';
 import { noteSettings } from '../storage/notes.svelte';
-import { loadDifferentFirstPage, loadDifferentOddEven, loadHfDoc, type HfDoc, type HfZone, type HfVariant } from '../storage/headerFooter';
+import { loadDifferentFirstPage, loadDifferentOddEven, loadExtraHfSections, loadHfDoc, type HfDoc, type HfZone, type HfVariant } from '../storage/headerFooter';
 import { headingStyleName, resolveStyle, type ResolvedStyle, type StyleSheet } from '../styles/styleSheet';
 
 export type Block = {
@@ -121,7 +122,10 @@ export function blockTexts(doc: PMNode, sheet: StyleSheet = styleSheet()): Block
       : p === 'listItem' && index === 0 ? listNumberAt(doc, pos, sheet)?.parts.join('.') : undefined;
     const kind = [box ? `box ${box}` : '', at ? `cell T${at.table} r${at.row} c${at.col}` : '',
       node.type.name === 'heading' ? `h${node.attrs.level}` : p === 'listItem' ? 'li' : '', label ?? ''].filter(Boolean).join(' ');
-    out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos), fmt: formatNote(node, sheet), columns: pos < section.end ? section.count : 1, ...(before ? { before } : {}) });
+    // A named list style rides on the outermost list; its first item says so.
+    const list = p === 'listItem' && index === 0 ? doc.resolve(pos).node(-1) : null;
+    const named = list?.firstChild === parent && list?.attrs.listStyleName ? [`list style "${styleLabel(list.attrs.listStyleName)}"`] : [];
+    out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos), fmt: formatNote(node, sheet, named), columns: pos < section.end ? section.count : 1, ...(before ? { before } : {}) });
     before = '';
     // A text box rides in the text; its paragraphs follow the one it is anchored in.
     let framed = false;
@@ -162,8 +166,7 @@ function runLabels(child: PMNode, base: ResolvedStyle): string[] {
  * A textblock's style and the direct formatting its style does not already give,
  * quoting the runs that carry it.
  */
-export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): string {
-  const parts: string[] = [];
+export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet(), parts: string[] = []): string {
   const heading = node.type.name === 'heading';
   const base = resolveStyle(sheet, node.attrs.styleName ?? (heading ? headingStyleName(node.attrs.level) : null));
   const a = node.attrs;
@@ -172,6 +175,7 @@ export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): stri
   if (align && !['left', 'start'].includes(align) && align !== base.para.textAlign) parts.push(`align ${align}`);
   // Paragraph formatting that moves text: a page break or extra space explains a page the model can't see.
   if (a.breakBefore === 'page') parts.push('page break before');
+  if (a.sectionBreak) parts.push('new section');
   if (a.spaceBefore != null && a.spaceBefore !== (base.para.spaceBefore ?? 0)) parts.push(`space before ${a.spaceBefore}pt`);
   if (a.spaceAfter != null && a.spaceAfter !== (base.para.spaceAfter ?? 0)) parts.push(`space after ${a.spaceAfter}pt`);
   for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) {
@@ -190,6 +194,9 @@ export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): stri
   if (a.noHyphenation) parts.push('no hyphenation');
   if (a.dir === 'rtl') parts.push('right to left');
   if (a.lang) parts.push(`lang ${a.lang}`);
+  if (a.tabStops) {
+    parts.push(`tab stops ${parseTabStops(a.tabStops).map((t) => [`${t.pos}cm`, t.align, t.leader && TAB_LEADERS[t.leader]].filter(Boolean).join(' ')).join(', ')}`);
+  }
   const runs = new Map<string, string[]>();
   let whole = '';
   let prev: string[] = [];
@@ -314,16 +321,24 @@ function zoneText(doc: HfDoc): string {
 
 /** The page headers and footers as text, `{page}` standing for the page-number field. */
 export function zoneLines(): string[] {
-  const variants: [HfVariant, string][] = [['default', '']];
-  if (loadDifferentFirstPage()) variants.push(['first', 'First-page ']);
-  if (loadDifferentOddEven()) variants.push(['even', 'Even-page ']);
+  const zone = (z: HfZone, v: HfVariant) => loadHfDoc(z, v);
+  const sets = [{ first: loadDifferentFirstPage(), even: loadDifferentOddEven(), zone }, ...loadExtraHfSections().map((s) => ({
+    first: s.differentFirstPage, even: s.differentOddEven,
+    zone: (z: HfZone, v: HfVariant) => s[`${z}${v === 'first' ? 'First' : v === 'even' ? 'Even' : ''}` as const],
+  }))];
   const out: string[] = [];
-  for (const [variant, prefix] of variants) {
-    for (const zone of ['header', 'footer'] as HfZone[]) {
-      const text = zoneText(loadHfDoc(zone, variant));
-      if (text) out.push(`${prefix ? prefix + zone : zone === 'header' ? 'Header' : 'Footer'}: ${text}`);
+  sets.forEach((set, i) => {
+    const variants: [HfVariant, string][] = [['default', '']];
+    if (set.first) variants.push(['first', 'first-page ']);
+    if (set.even) variants.push(['even', 'even-page ']);
+    for (const [variant, prefix] of variants) {
+      for (const z of ['header', 'footer'] as HfZone[]) {
+        const text = zoneText(set.zone(z, variant));
+        const name = `${i ? `Section ${i + 1} ` : ''}${prefix}${z}`;
+        if (text) out.push(`${name[0].toUpperCase()}${name.slice(1)}: ${text}`);
+      }
     }
-  }
+  });
   return out;
 }
 
