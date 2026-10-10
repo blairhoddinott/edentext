@@ -32,7 +32,9 @@ function outline(node: N, out: string[] = []): string[] {
   for (const child of node.content ?? []) {
     if (child.type === 'text') continue;
     const a = child.type === 'heading' ? child.attrs ?? {} : null;
-    const head = a ? `heading${a.level}${a.styleName ? `[${a.styleName}]` : ''}${a.breakBefore ? '+brk' : ''}` : child.type;
+    // An ordered list's first number: a list split by other blocks continues through it.
+    const start = child.type === 'orderedList' && child.attrs?.start > 1 ? `#${child.attrs.start}` : '';
+    const head = a ? `heading${a.level}${a.styleName ? `[${a.styleName}]` : ''}${a.breakBefore ? '+brk' : ''}` : child.type + start;
     out.push(`${head}:${textOf(child).replace(/\s+/g, ' ').trim()}`);
     outline(child, out);
   }

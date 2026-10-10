@@ -356,7 +356,7 @@ class Numbering {
   private map = new Map<string, ILevelsOptions[]>();
   private mlRefs = new Set<string>();
   private counter = 0;
-  private styleRefs = new Map<string, { reference: string; configIndex: number; instances: number }>();
+  private styleRefs = new Map<string, { reference: string; configIndex: number; instances: number; lastEnd: number }>();
 
   newReference(): string {
     const reference = `num-${this.counter++}`;
@@ -368,8 +368,10 @@ class Numbering {
 
   // One shared reference per named list style, all 9 levels pre-filled from its
   // definition; each list gets its own instance, so every one restarts at the style's
-  // start (the library writes one w:num with a startOverride per instance).
-  refForStyle(style: ListStyleDef): { reference: string; instance: number } {
+  // start (the library writes one w:num with a startOverride per instance). A list whose
+  // `start` is one past the previous list's last number shares that instance, so the
+  // count runs on; any other `start` gets null and a private reference.
+  refForStyle(style: ListStyleDef, start: number | null, items: number): { reference: string; instance: number } | null {
     let entry = this.styleRefs.get(style.name);
     if (!entry) {
       const reference = `num-style-${this.styleRefs.size}`;
@@ -398,11 +400,14 @@ class Numbering {
       }
       this.map.set(reference, levels);
       if (style.multilevel) this.mlRefs.add(reference);
-      entry = { reference, configIndex: this.config.length, instances: 0 };
+      entry = { reference, configIndex: this.config.length, instances: 0, lastEnd: 0 };
       this.config.push({ reference, levels });
       this.styleRefs.set(style.name, entry);
     }
-    return { reference: entry.reference, instance: entry.instances++ };
+    const continues = start != null && start > 1;
+    if (continues && (entry.instances === 0 || start !== entry.lastEnd + 1)) return null;
+    entry.lastEnd = (continues ? start : style.levels[0]?.startAt ?? 1) + items - 1;
+    return { reference: entry.reference, instance: continues ? entry.instances - 1 : entry.instances++ };
   }
 
   // Chapter numbering: one multilevel abstract the heading styles are bound to
@@ -2620,9 +2625,12 @@ function listToParagraphs(
 // definition (its own instance); anything else keeps a private, fully resolved one.
 function listEntryToDocx(node: TiptapNode, num: Numbering, out: (Paragraph | Table | TableOfContents)[]): void {
   const style = listStyleOf(node);
-  if (style && !listStyleOverridden(node) && !subtreeHasStart(node)) {
-    const { reference, instance } = num.refForStyle(style);
-    listToParagraphs(node, 0, reference, 0, num, out, ROOT_ORDERED_CYCLE, style, instance);
+  const start = typeof node.attrs?.start === 'number' ? node.attrs.start : null;
+  const items = (node.content ?? []).filter((c) => c.type === 'listItem').length;
+  const shared = style && !listStyleOverridden(node) && !(node.content ?? []).some(subtreeHasStart)
+    ? num.refForStyle(style, start, items) : null;
+  if (style && shared) {
+    listToParagraphs(node, 0, shared.reference, 0, num, out, ROOT_ORDERED_CYCLE, style, shared.instance);
   } else {
     listToParagraphs(node, 0, num.newReference(), 0, num, out, ROOT_ORDERED_CYCLE, style);
   }

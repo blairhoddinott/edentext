@@ -155,6 +155,9 @@ type Ctx = {
   usedCharStyles: Set<string>;
   // Named list styles (Listenformatvorlagen) lists reference, by ODF name.
   usedListStyles: Set<string>;
+  // Last number of each top-level ordered list, keyed `style:<name>` and `id:<xml:id>`, so
+  // text:continue-numbering / text:continue-list carry the count into a later list.
+  listEnds: Map<string, number>;
   warnings: Set<string>;
   // text:ref-name of every sequence a text:sequence-ref in this file points at. The
   // editor addresses a caption through a bookmark, so those numbers get one.
@@ -1047,7 +1050,7 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
   const first = resolver.hasMasterPage(masters.leading) ? masters.leading : null;
   const geo = resolver.pageGeometry(first) ?? resolver.pageGeometry();
   const contentWidthCm = contentWidthOf(geo);
-  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), warnings, seqRefNames: sequenceRefNames(body), files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, leftMarginCm: geo?.margins.left ?? 0, pageRtl: geo?.rtl ?? false, breakDropsSpace: odfBreakDropsSpace(files), masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
+  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), listEnds: new Map(), warnings, seqRefNames: sequenceRefNames(body), files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, leftMarginCm: geo?.margins.left ?? 0, pageRtl: geo?.rtl ?? false, breakDropsSpace: odfBreakDropsSpace(files), masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
   let blocks = convertBlocks(Array.from(body.children), ctx, 'body');
   if (blocks.length === 0) blocks.push({ type: 'paragraph' });
   pairAlignedFrames(blocks, Math.floor(cmToPx(contentWidthCm)));
@@ -3136,6 +3139,18 @@ function convertList(el: Element, ctx: Ctx, inheritedStyleName: string | null, d
     items.push({ type: 'listItem', content: blocks });
   }
   if (items.length === 0) return null;
+  if (ordered && depth === 1 && styleName) {
+    // LibreOffice continues the latest list of the same style, or the one continue-list names.
+    const ref = el.getAttributeNS(NS.text, 'continue-list');
+    const prev = ref ? ctx.listEnds.get(`id:${ref}`)
+      : el.getAttributeNS(NS.text, 'continue-numbering') === 'true' ? ctx.listEnds.get(`style:${styleName}`) : undefined;
+    if (start == null && prev != null) start = prev + 1;
+    const styleStart = parseInt(levelDef!.getAttributeNS(NS.text, 'start-value') ?? '', 10);
+    const end = (start ?? (styleStart > 0 ? styleStart : 1)) + Array.from(el.children).filter((c) => c.localName === 'list-item').length - 1;
+    ctx.listEnds.set(`style:${styleName}`, end);
+    const id = el.getAttribute('xml:id');
+    if (id) ctx.listEnds.set(`id:${id}`, end);
+  }
 
   // A level's margin-left is absolute, the editor nests one LIST_BASE_MARGIN_CM per
   // level — so the attr is this level's step past the one above, which DOM nesting adds

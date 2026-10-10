@@ -68,6 +68,10 @@ is the list's indent, and a table's `w:tblW w:type="pct"` its width as a share o
 section's text width — the grid is only the columns' weights there, and reading it as a
 width collapses a full-width table to a few millimetres.
 
+An ODF list with `text:continue-numbering="true"` continues the **latest top-level list of
+its style**, `text:continue-list` the one with that `xml:id`; both import as `start`. The
+DOCX export lets such a list share the previous list's `w:num`, so the style name survives.
+
 `utils/shapePresets.json` is generated (`scripts/make-shape-presets.mjs`, MPL-2.0 from LibreOffice): never edit it by hand.
 
 Read `docs/architecture/import.md` before changing parsing, style resolution, default
