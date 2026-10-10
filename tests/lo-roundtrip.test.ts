@@ -676,6 +676,22 @@ describe.skipIf(!SOFFICE)('LibreOffice round-trip (needs soffice on PATH)', () =
     }
   });
 
+  // A shape's text is drawing text to LibreOffice: a formatted link in it must keep its text.
+  it('survives a `soffice` re-save of a formatted link in a shape', { timeout: 180000 }, async () => {
+    const link = { type: 'link', attrs: { href: 'https://example.com' } };
+    const doc: N = { type: 'doc', content: [
+      PBX({ width: 200, height: 120, wrap: 'topBottom', shapeKind: 'diamond' },
+        P(null, T('a '), T('link', { type: 'bold' }, link), T(' b', { type: 'italic' }), T(' after'))),
+    ] };
+    mkdirSync('/tmp/lo-rt', { recursive: true });
+    writeFileSync('/tmp/lo-rt/shapelink.odt', await buildOdt(doc));
+    execSync('soffice --headless --convert-to odt --outdir /tmp/lo-rt/shapelinkout /tmp/lo-rt/shapelink.odt', { stdio: 'pipe', timeout: 120000 });
+    const runs = boxesIn(importOdt(new Uint8Array(readFileSync('/tmp/lo-rt/shapelinkout/shapelink.odt'))).content)[0]?.content?.[0]?.content ?? [];
+    check('LO shape link: the text stays', runs.map((r: N) => r.text).join('') === 'a link b after', runs.map((r: N) => r.text));
+    const marks = (runs.find((r: N) => r.text === 'link')?.marks ?? []).map((m: N) => m.type).sort();
+    check('LO shape link: the run stays a bold link', JSON.stringify(marks) === '["bold","link"]', marks);
+  });
+
   it('survives a `soffice` re-save of the record-changes flag', { timeout: 180000 }, async () => {
     const doc: N = { type: 'doc', content: [P(null, T('Ein Satz.'))] };
     const bytes = await buildOdt(doc, margins, 'portrait', undefined, null, 'A4', undefined,

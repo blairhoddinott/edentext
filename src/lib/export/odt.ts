@@ -4883,9 +4883,14 @@ function textBoxXml(box: TextBoxExport, inner: string, index: number): string {
     : odfEnhancedGeometry(box.shapeKind) ?? '');
   return (
     `<draw:custom-shape draw:name="Shape${n}"${common} svg:height="${box.heightCm}cm"${transform}>` +
-    `${inner}${geometry}</draw:custom-shape>`
+    `${shapeLinks(inner)}${geometry}</draw:custom-shape>`
   );
 }
+
+// LibreOffice reads a shape's text as drawing text, where a link is a field that holds
+// plain text: a span inside <text:a> comes back empty (probed). The span goes outside.
+const shapeLinks = (xml: string) =>
+  xml.replace(/(<text:a\b[^>]*>)<text:span\b([^>]*)>((?:[^<]|<(?!\/?text:(?:span|a)\b))*)<\/text:span><\/text:a>/g, '<text:span$2>$1$3</text:a></text:span>');
 
 // LibreOffice's own standard arrow head, name and path alike, so a file we write and
 // one it writes carry the same marker rather than two that look the same.

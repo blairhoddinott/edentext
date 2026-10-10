@@ -110,6 +110,9 @@ Adding a shape is one entry in `SHAPES` — no icon, no export branch, no import
 - An importer maps the file's `draw:type`/`prst` back through the same table;
   `shapeFromOdfType`/`shapeFromPrst` return **null** for a preset we can't draw, which is
   what makes the warning possible instead of flattening it to a rectangle.
+- A shape's text is drawing text to LibreOffice, where a link is a field holding plain
+  text: a `text:span` inside `text:a` comes back empty. `shapeLinks` in the ODT export puts
+  the span outside the link (probed: text, bold and link all survive a re-save).
 
 ## Lines and arrows
 
