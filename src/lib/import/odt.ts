@@ -1265,10 +1265,25 @@ function contentWidthOf(geo: { margins: PageMargins; orientation: Orientation; f
 
 // The document's first page number: ODF has no document-level start, so LibreOffice puts
 // `style:page-number` on the first paragraph's own style.
+// One that switches master page behind a block that is no paragraph (an index, a table)
+// opens the next section, whose restart it is.
 function odfPageNumberStart(resolver: StyleResolver, body: Element): number {
-  const style = firstParagraph(body)?.getAttributeNS(NS.text, 'style-name');
+  const first = firstParagraph(body);
+  const style = first?.getAttributeNS(NS.text, 'style-name');
   const n = style ? Number(resolver.paraProps(style)['style:page-number']) : NaN;
-  return Number.isFinite(n) ? clampPageStart(n) : 1;
+  if (!Number.isFinite(n) || (resolver.masterPageOf(style!) && contentBefore(first!, body))) return 1;
+  return clampPageStart(n);
+}
+
+// Whether a block of the body precedes `el` (the declarations ahead of the text do not).
+function contentBefore(el: Element, body: Element): boolean {
+  for (let node: Element | null = el; node && node !== body; node = node.parentElement) {
+    for (let sib = node.previousElementSibling; sib; sib = sib.previousElementSibling) {
+      if (!(sib.namespaceURI === NS.text && /-decls$|^tracked-changes$/.test(sib.localName))
+        && !(sib.namespaceURI === NS.office && sib.localName === 'forms')) return true;
+    }
+  }
+  return false;
 }
 
 // The first paragraph in document order, wherever the body keeps it (a section, a list,
