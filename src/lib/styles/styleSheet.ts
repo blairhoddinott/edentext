@@ -426,7 +426,7 @@ function declarations(r: ResolvedStyle): string[] {
   // a bottom rule must not indent the paragraph or push its first line down.
   const left = 'calc(var(--pad-left, 0px) - var(--box-hang, 0px))';
   if (p.borderPadding != null) {
-    const pad = (side: string) => (drawn[side] ? `${p.borderPadding}pt` : '0');
+    const pad = (side: string) => (drawn[side] ? `${p.borderPadding}pt` : '0px');
     out.push(`--pad-left: ${pad('left')}`, `padding: ${pad('top')} ${pad('right')} ${pad('bottom')} ${left}`);
   } else if (boxed) out.push(`padding-left: ${left}`);
   return out;
