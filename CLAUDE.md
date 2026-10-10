@@ -54,7 +54,7 @@ Tests are jsdom Vitest files outside `src/`; `npm test` covers round trips, corp
 
 **Layout constants** — keep `pageBreaks.ts`, `Editor.svelte` and `editor.css` aligned (`PAGE_HEIGHT` 1123px, `PAGE_GAP` 20px and `--user-page-*`/`--user-margin-*`); see `docs/architecture/pagination.md`.
 
-**Browser testing** — use `playwright-core`, never `puppeteer`; see `docs/headless-testing.md`. Only the live app verifies rendering and NodeViews. **Test selection** — run each relevant leg once after its input is final: unit/Vitest for logic, LibreOffice for I/O, browser legs for rendering, parity for layout.
+**Browser testing** — use `playwright-core`, never `puppeteer`; see `docs/headless-testing.md`. Only the live app verifies rendering and NodeViews. **Test selection** — run each relevant leg once after its input is final: unit/Vitest for logic, LibreOffice for I/O, browser legs for rendering, parity for layout. **Unit tests** — keep Vitest tests few and generic: test behaviour through public entry points (round trip, export/import result, command outcome), not internal helpers, call order or exact XML/DOM strings. Assert the invariant a change must keep, so refactors and extensions do not break the test; extend an existing test or table-driven case before adding a file, and never add one that only pins a single bug's document shape.
 
 **Naming** — components are `PascalCase.svelte`; `.ts` modules are `camelCase`; extensions are feature names such as `image.ts`.
 
