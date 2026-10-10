@@ -2070,7 +2070,7 @@ function boxSpecToProps(spec: string): string {
   if (br) props.push(`fo:border-right="${br}"`);
   if (bb) props.push(`fo:border-bottom="${bb}"`);
   if (bl) props.push(`fo:border-left="${bl}"`);
-  // LibreOffice writes 0/0 for "off"; absent means the XSL-FO default of 2.
+  // LibreOffice writes 0/0 for "off"; the default style carries the 2 of "on".
   if (widow === 'w0') props.push('fo:orphans="0"', 'fo:widows="0"');
   if (marginRight) props.push(`${marginRight.endsWith('ic') ? 'loext' : 'fo'}:margin-right="${marginRight}"`);
   if (keepNext === 'k1') props.push('fo:keep-with-next="always"');
@@ -3545,8 +3545,9 @@ function rewriteStylesXml(odtBytes: Uint8Array, lang: ExportLanguage | null, pag
   // The document's tab interval, on the paragraph default-style. Always written: a file
   // that declares none falls back to ODF's own 2cm, which is not what the editor shows
   // (measured — LibreOffice puts a bare A⇥X at 2cm, not at its UI default of 1.25).
+  // Widow-orphan control too, which a file declaring none does not have (probed).
   styles = styles.replace('<office:styles>', '<office:styles>'
-    + `<style:default-style style:family="paragraph"><style:paragraph-properties style:tab-stop-distance="${round3(tabIntervalCm)}cm"/></style:default-style>`
+    + `<style:default-style style:family="paragraph"><style:paragraph-properties fo:orphans="2" fo:widows="2" style:tab-stop-distance="${round3(tabIntervalCm)}cm"/></style:default-style>`
     + notesStyles() + notesConfiguration(notes));
 
   // The separator belongs to the page layout, beside the margins it is measured against.

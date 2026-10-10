@@ -2204,9 +2204,10 @@ function blockAttrs(paraProps: PropMap, textProps: PropMap, defaults: BlockDefau
   // onto the next block, which is what the editor can express.
   if (kind === 'body' && paraProps['fo:break-after'] === 'page') attrs.breakAfter = 'page';
 
-  // Widow-orphan control: LibreOffice writes 0 for "off", absent means the XSL-FO
-  // default of 2 (on) — so only an explicit 0 disables it.
-  if (paraProps['fo:widows'] === '0' || paraProps['fo:orphans'] === '0') attrs.widowControl = false;
+  // Widow-orphan control: LibreOffice writes 0 for "off", and a file declaring neither
+  // anywhere in the chain has none either (probed: a lone last line goes over).
+  const lines = (v: string | undefined) => Number(v ?? 0) > 0;
+  if (!lines(paraProps['fo:widows']) || !lines(paraProps['fo:orphans'])) attrs.widowControl = false;
 
   // Paragraph background ("colored field") + per-side borders ("rule line"), less
   // what the named style supplies.
