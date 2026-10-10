@@ -281,6 +281,23 @@ describe('runTurn', () => {
     editor.destroy();
   });
 
+  it('hands a message sent meanwhile to the next round', async () => {
+    const editor = makeEditor('<p>x</p>');
+    const bodies: { messages: { role: string; content?: string }[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_u: string, init: RequestInit) => {
+      bodies.push(JSON.parse(init.body as string));
+      return bodies.length === 1
+        ? reply({ tool_calls: [{ index: 0, id: 'r', function: { name: 'read_paragraphs', arguments: '{"from":1,"to":1}' } }] })
+        : reply({ content: 'Done.' });
+    }));
+    const history: never[] = [];
+    let queue = ['also bold'];
+    await runTurn({ cfg, editor, history, question: 'q', author: AI, onText: () => {}, onTool: () => {}, signal: new AbortController().signal, takeQueued: () => { const q = queue; queue = []; return q; } });
+    expect(bodies[1].messages.at(-1)?.content).toMatch(/\(The user adds while you work: also bold\)$/);
+    expect(history[0]).toEqual({ role: 'user', content: 'q\n\nalso bold' });
+    editor.destroy();
+  });
+
   it('stops after a bounded number of rounds', async () => {
     const editor = makeEditor('<p>x</p>');
     const fetch = vi.fn(async () => reply({ tool_calls: [{ index: 0, id: 'r', function: { name: 'read_paragraphs', arguments: '{"from":1,"to":1}' } }] }));

@@ -46,6 +46,17 @@
   let list = $state<HTMLElement | null>(null);
   let field = $state<HTMLTextAreaElement | null>(null);
   let request: AbortController | null = null;
+  // Sent while a turn runs: shown at once, read by the turn after its next round of tools,
+  // or sent as the next turn when it ends without one.
+  let queued: string[] = [];
+  // The entry the running request writes into; a queued message waits below it.
+  let replying = $state(-1);
+
+  function startReply(): Entry {
+    entries.push({ role: 'assistant', text: '', tools: [], error: '' });
+    replying = entries.length - 1;
+    return entries[replying];
+  }
   let configured = $derived(!!aiConfig());
   // The selection goes with every question (serializeDoc); the chip shows that it does.
   let selected = $state('');
@@ -124,36 +135,47 @@
     request?.abort();
     if (request) endRequest(request);
     request = null;
+    queued = [];
     busy = false;
   }
 
   async function send(text = question) {
     const q = text.trim();
     const cfg = aiConfig();
-    if (!q || !cfg || !editor || busy) return;
+    const parsed = parseCommand(q);
+    if (!q || !cfg || !editor || (busy && parsed)) return;
     question = '';
     recall = -1;
-    const parsed = parseCommand(q);
     if (parsed) return command(q, parsed);
-    entries.push({ role: 'user', text: q, tools: [], error: '' }, { role: 'assistant', text: '', tools: [], error: '' });
-    const reply = entries[entries.length - 1];
+    entries.push({ role: 'user', text: q, tools: [], error: '' });
+    if (busy) return void queued.push(q);
+    let reply = startReply();
     const author = t().ai.author;
     const before = revisions(editor.state.doc).filter((r) => r.author === author).length;
     busy = true;
-    const mine = (request = startRequest());
-    try {
-      await runTurn({
-        cfg, editor, history, question: q, author, host,
-        onText: (d) => (reply.text += d),
-        onTool: (s) => reply.tools.push(s),
-        signal: mine.signal,
-      });
-    } catch (e) {
-      if (!isAbort(e)) reply.error = aiErrorText(e, t().ai.errors, cfg.endpoint);
-    } finally {
-      endRequest(mine);
-      if (request === mine) { request = null; busy = false; }
+    let asked = q;
+    let mine: AbortController;
+    for (;;) {
+      mine = request = startRequest();
+      try {
+        await runTurn({
+          cfg, editor, history, question: asked, author, host,
+          onText: (d) => (reply.text += d),
+          onTool: (s) => reply.tools.push(s),
+          signal: mine.signal,
+          takeQueued: () => { const q = queued; queued = []; if (q.length) reply = startReply(); return q; },
+        });
+      } catch (e) {
+        if (!isAbort(e)) reply.error = aiErrorText(e, t().ai.errors, cfg.endpoint);
+      } finally {
+        endRequest(mine);
+      }
+      if (request !== mine || !queued.length) break;
+      asked = queued.join('\n\n');
+      queued = [];
+      reply = startReply();
     }
+    if (request === mine) { request = null; busy = false; }
     // Tracked edits nobody can see would look like nothing happened.
     if (!showChanges() && revisions(editor.state.doc).filter((r) => r.author === author).length > before) setShowChanges(true);
   }
@@ -161,8 +183,8 @@
   async function command(q: string, parsed: NonNullable<ReturnType<typeof parseCommand>>) {
     const cfg = aiConfig();
     if (!cfg || !editor) return;
-    entries.push({ role: 'user', text: q, tools: [], error: '' }, { role: 'assistant', text: '', tools: [], error: '' });
-    const reply = entries[entries.length - 1];
+    entries.push({ role: 'user', text: q, tools: [], error: '' });
+    const reply = startReply();
     if ('unknown' in parsed) return void (reply.error = t().ai.unknownCommand(parsed.unknown));
     const target = captureTarget(editor.state);
     if (parsed.command.kind === 'rewrite' && !target.html) return void (reply.error = t().ai.needSelection);
@@ -291,8 +313,8 @@
           {#if e.text}<div class="content" use:render={e.text}></div>{/if}
           {#each e.tools as line, k (k)}<div class="tool">✓ {line}</div>{/each}
           {#if e.error}<div class="error" role="alert">{e.error}</div>{/if}
-          {#if busy && i === entries.length - 1}<div class="working" role="status"><span class="spinner" aria-hidden="true"></span>{t().ai.working}</div>{/if}
-          {#if e.text && !(busy && i === entries.length - 1)}
+          {#if busy && i === replying}<div class="working" role="status"><span class="spinner" aria-hidden="true"></span>{t().ai.working}</div>{/if}
+          {#if e.text && !(busy && i === replying)}
             {#if e.proposal?.applied}
               <div class="tool">✓ {t().ai.applied}</div>
             {:else if e.proposal?.kind === 'rewrite'}
@@ -332,7 +354,7 @@
           </div>
         {/if}
         <textarea bind:this={field} bind:value={question} rows="3" placeholder={t().ai.placeholder} onkeydown={onKeydown} oninput={() => { menuIndex = 0; menuHidden = false; }}></textarea>
-        {#if busy}
+        {#if busy && !question.trim()}
           <button class="send" onclick={stop}>{t().ai.stop}</button>
         {:else}
           <button class="send" disabled={!question.trim()} onclick={() => send()}>{t().ai.send}</button>

@@ -99,6 +99,11 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   `runTurn` waits until `isPaginating` is false (`layoutSettled`) and appends `document now N
   pages, last page about X% full` to the round's last tool result; after 3s or in a hidden
   tab it appends nothing, since a stale count misleads more than none.
+- A chat message sent while a turn runs shows at once and is queued (`takeQueued`): after
+  the next round of tools, `runTurn` appends it to that round's last tool result, the one
+  place both providers take text before the model's next step, and the reply goes on below
+  it. A turn that ends without another round sends the queue as the next turn. Commands
+  wait until nothing runs; Stop drops the queue.
 - **`add_comment`** comments as the assistant; **`reply_comment`** answers a thread and
   **`resolve_comment`** closes it, both directly and undoable.
 - **`table`** (`table_insert` stays as an alias) adds a row or column with the table

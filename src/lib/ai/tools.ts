@@ -857,6 +857,8 @@ export async function runTurn(opts: {
   onText: (delta: string) => void;
   onTool: (summary: string) => void;
   signal: AbortSignal;
+  /** Messages the user sent while the turn runs; read after each round of tools. */
+  takeQueued?: () => string[];
 }): Promise<string> {
   const { editor } = opts;
   const blocks = blockTexts(editor.state.doc);
@@ -873,6 +875,7 @@ export async function runTurn(opts: {
   editor.on('transaction', track);
   const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, docBudget(opts.cfg), pageLayout(editor.view, blocks))}\n\n---\n\n${opts.question}` }];
   let answer = '';
+  const asked = [opts.question];
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const res = await streamChat(opts.cfg, { system: chatSystemPrompt(), messages: [...opts.history, ...turn], tools: TOOLS }, opts.onText, opts.signal);
@@ -894,10 +897,18 @@ export async function runTurn(opts: {
         const last = turn[turn.length - 1];
         if (layout && last.role === 'tool') last.content += `\n(document now ${layout.pages[layout.pages.length - 1]} pages, last page about ${layout.lastFill}% full)`;
       }
+      // A message sent meanwhile rides the tool result, the one place a provider takes
+      // text before the model's next step; the last round would leave it unread.
+      const last = turn[turn.length - 1];
+      const added = round < MAX_ROUNDS - 1 && !opts.signal.aborted ? opts.takeQueued?.() ?? [] : [];
+      if (added.length && last.role === 'tool') {
+        last.content += `\n\n(The user adds while you work: ${added.join('\n\n')})`;
+        asked.push(...added);
+      }
     }
   } finally {
     editor.off('transaction', track);
   }
-  opts.history.push({ role: 'user', content: opts.question }, { role: 'assistant', content: answer });
+  opts.history.push({ role: 'user', content: asked.join('\n\n') }, { role: 'assistant', content: answer });
   return answer;
 }
