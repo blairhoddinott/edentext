@@ -8,7 +8,7 @@
   import { PAGE_FORMAT_CM, type PageFormat } from '../../../storage/pageFormat';
   import { DEFAULT_MARGINS, marginAxisLabel, withMirrored, type PageMargins } from '../../../storage/pageMargins';
   import type { Orientation } from '../../../storage/pageOrientation';
-  import { EMPTY_HF_SET, type HfSet, type HfZone, type PageSide } from '../../../storage/headerFooter';
+  import { EMPTY_HF_SET, spreadMargins, type HfSet, type HfZone, type PageSide } from '../../../storage/headerFooter';
   import { DEFAULT_PAGE_NUMBERING, PAGE_NUM_FORMATS, clampPageStart, type PageNumbering } from '../../../storage/pageNumbering';
   import { EMPTY_PAGE_DECOR, type PageDecor } from '../../../storage/pageDecor';
   import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../../../storage/lineNumbering';
@@ -116,7 +116,11 @@
   function setMargin(edge: (typeof EDGES)[number], raw: string) {
     const v = parseFloat(raw.replace(',', '.'));
     if (isNaN(v)) return;
-    pageMargins = { ...pageMargins, [edge]: Math.min(10, Math.max(0, v)) };
+    setMargins({ ...pageMargins, [edge]: Math.min(10, Math.max(0, v)) });
+  }
+  function setMargins(next: PageMargins) {
+    extraHfSections = spreadMargins(extraHfSections, pageMargins, next);
+    pageMargins = next;
   }
 
   // --- Columns ---
@@ -164,7 +168,7 @@
     {#if isMenuOpen('margins')}
       <div class="ribbon-menu margin-menu" use:anchored role="menu">
         {#each MARGIN_PRESETS as p}
-          <button data-cmd={`margins-${p.key}`} onclick={() => { closeMenu(); pageMargins = withMirrored(p.m, pageMargins.mirrored === true); }}>
+          <button data-cmd={`margins-${p.key}`} onclick={() => { closeMenu(); setMargins(withMirrored(p.m, pageMargins.mirrored === true)); }}>
             {t().ribbon.marginPresets[p.key]}
             <span class="menu-sub">{fmtCm(p.m.top)} / {fmtCm(p.m.left)} cm</span>
           </button>
@@ -189,7 +193,7 @@
           <input
             type="checkbox"
             checked={pageMargins.mirrored === true}
-            onchange={(e) => (pageMargins = withMirrored(pageMargins, e.currentTarget.checked))}
+            onchange={(e) => setMargins(withMirrored(pageMargins, e.currentTarget.checked))}
           />
           {t().toolbarExpanded.mirrorMargins}
         </label>

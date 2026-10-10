@@ -41,7 +41,7 @@
   import { recordChanges, setRecordChanges } from './lib/storage/trackChanges.svelte';
   import { DEFAULT_NOTE_SETTINGS, type NoteSettings } from './lib/storage/noteSettings';
   import { builtinStyleSheet, type StyleFamily, type StyleSheet } from './lib/styles/styleSheet';
-  import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, EMPTY_HF_SET, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
+  import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, spreadMargins, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, EMPTY_HF_SET, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
   import { loadDocName, saveDocName, loadDocFormat, saveDocFormat, stripOdtExtension, sanitizeNameForFile, deriveFilename, filenameFor, loadDocProtected, saveDocProtected, loadDocFile, saveDocFile, type DocumentFormat } from './lib/storage/documentName';
   import { loadDocProperties, saveDocProperties, EMPTY_DOC_PROPERTIES, type DocProperties } from './lib/storage/docProperties';
   import { loadHyphenation, saveHyphenation } from './lib/storage/hyphenation';
@@ -360,7 +360,9 @@
       if (orientation) pageOrientation = orientation;
       if (margins) {
         const dims = pageDimsCm(pageFormat, pageOrientation);
-        pageMargins = fitMargins({ ...pageMargins, ...margins }, dims.w, dims.h);
+        const next = fitMargins({ ...pageMargins, ...margins }, dims.w, dims.h);
+        extraHfSections = spreadMargins(extraHfSections, pageMargins, next);
+        pageMargins = next;
       }
       if (start != null) pageNumbering = { ...pageNumbering, start };
       if (numberFormat) pageNumbering = { ...pageNumbering, format: numberFormat };
@@ -1886,6 +1888,7 @@
           bind:splitView
           bind:pageColumns
           bind:pageMargins
+          bind:extraHfSections
           bind:pageOrientation
           bind:pageFormat
           bind:hyphenate

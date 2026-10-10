@@ -5,7 +5,7 @@ import { importDocx } from '../../src/lib/import/docx';
 import { buildOdt } from '../../src/lib/export/odt';
 import { buildDocx } from '../../src/lib/export/docx';
 import { marginAxisLabel, withMirrored } from '../../src/lib/storage/pageMargins';
-import { EMPTY_HF_SET } from '../../src/lib/storage/headerFooter';
+import { EMPTY_HF_SET, spreadMargins } from '../../src/lib/storage/headerFooter';
 
 // ODF style:page-usage="mirrored" / Word w:mirrorMargins: the declared left and right
 // are the inner/outer pair, so an even (left-hand) page swaps them.
@@ -93,6 +93,10 @@ describe('mirrored page margins', () => {
       .toEqual(['inner', 'outer', 'top']);
     expect(marginAxisLabel('left', plain)).toBe('left');
     expect(importOdt(await buildOdt(doc, on)).margins?.mirrored).toBe(true);
+    // The UI's change reaches sections with margins of their own, and only what changed.
+    const chapter = { ...EMPTY_HF_SET, margins: { ...on, top: 3 } };
+    expect(spreadMargins([chapter, EMPTY_HF_SET], on, { ...plain, left: 2 }).map((s) => s.margins))
+      .toEqual([{ ...plain, top: 3, left: 2 }, null]);
   });
 
   it('leaves an unmirrored DOCX export alone', async () => {

@@ -24,7 +24,7 @@
   import { DEFAULT_MARGINS, cmToPx, marginAxisLabel, withMirrored, type MarginAxis, type PageMargins } from '../storage/pageMargins';
   import type { Orientation } from '../storage/pageOrientation';
   import { pageDimsCm, PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
-  import { DEFAULT_HF_DISTANCES, clampHfDistance, type HfDistances } from '../storage/headerFooter';
+  import { DEFAULT_HF_DISTANCES, clampHfDistance, spreadMargins, type HfDistances, type HfSet } from '../storage/headerFooter';
   import { blockFontSize, coversWholeBlock, DEFAULT_FONT_SIZE, parseSize, sizeLabel, sizeMenu, type SizedBlock } from '../utils/fontSize';
   import { listContext } from '../editor/extensions/indent';
   import { stepFontSize } from '../editor/extensions/shortcuts';
@@ -35,8 +35,8 @@
   import { shortcutHint, type ShortcutId } from '../editor/shortcuts';
   import { MAX_PAGE_COLUMNS } from '../storage/theme';
 
-  let { editor, tick, showFormattingMarks = $bindable(), showRuler = $bindable(true), splitView = $bindable(false), pageColumns = $bindable(1), pageMargins = $bindable(DEFAULT_MARGINS), pageOrientation = $bindable<Orientation>('portrait'), pageFormat = $bindable<PageFormat>('A4'), hyphenate = $bindable(false), pageNumbering = $bindable(DEFAULT_PAGE_NUMBERING), hfDistances = $bindable(DEFAULT_HF_DISTANCES), differentFirstPage = $bindable(false), differentOddEven = $bindable(false), hfActive = null, onEditZone, onDebugDump, onManageTableStyles, onNoteOptions, navigatorOpen = false, onToggleNavigator }:
-    { editor: Editor | null; tick: number; showFormattingMarks: boolean; showRuler?: boolean; splitView?: boolean; pageColumns?: number; pageMargins?: PageMargins; pageOrientation?: Orientation; pageFormat?: PageFormat; hyphenate?: boolean; pageNumbering?: PageNumbering; hfDistances?: HfDistances; differentFirstPage?: boolean; differentOddEven?: boolean; hfActive?: 'header' | 'footer' | null; onEditZone?: (zone: 'header' | 'footer') => void; onDebugDump?: () => void; onManageTableStyles?: () => void; onNoteOptions?: () => void; navigatorOpen?: boolean; onToggleNavigator?: () => void } = $props();
+  let { editor, tick, showFormattingMarks = $bindable(), showRuler = $bindable(true), splitView = $bindable(false), pageColumns = $bindable(1), pageMargins = $bindable(DEFAULT_MARGINS), extraHfSections = $bindable<HfSet[]>([]), pageOrientation = $bindable<Orientation>('portrait'), pageFormat = $bindable<PageFormat>('A4'), hyphenate = $bindable(false), pageNumbering = $bindable(DEFAULT_PAGE_NUMBERING), hfDistances = $bindable(DEFAULT_HF_DISTANCES), differentFirstPage = $bindable(false), differentOddEven = $bindable(false), hfActive = null, onEditZone, onDebugDump, onManageTableStyles, onNoteOptions, navigatorOpen = false, onToggleNavigator }:
+    { editor: Editor | null; tick: number; showFormattingMarks: boolean; showRuler?: boolean; splitView?: boolean; pageColumns?: number; pageMargins?: PageMargins; extraHfSections?: HfSet[]; pageOrientation?: Orientation; pageFormat?: PageFormat; hyphenate?: boolean; pageNumbering?: PageNumbering; hfDistances?: HfDistances; differentFirstPage?: boolean; differentOddEven?: boolean; hfActive?: 'header' | 'footer' | null; onEditZone?: (zone: 'header' | 'footer') => void; onDebugDump?: () => void; onManageTableStyles?: () => void; onNoteOptions?: () => void; navigatorOpen?: boolean; onToggleNavigator?: () => void } = $props();
 
   const PAGE_FORMATS = Object.keys(PAGE_FORMAT_CM) as PageFormat[];
 
@@ -596,9 +596,14 @@
     };
   }
 
+  function setMargins(next: PageMargins) {
+    extraHfSections = spreadMargins(extraHfSections, pageMargins, next);
+    pageMargins = next;
+  }
+
   function setMargin(axis: MarginAxis, value: number) {
     const clamped = Math.min(MARGIN_MAX, Math.max(MARGIN_MIN, Math.round(value * 100) / 100));
-    pageMargins = { ...pageMargins, [axis]: clamped };
+    setMargins({ ...pageMargins, [axis]: clamped });
     marginInputs[axis] = fmtCm(clamped);
   }
 
@@ -1492,7 +1497,7 @@
             <input
               type="checkbox"
               checked={pageMargins.mirrored === true}
-              onchange={(e) => (pageMargins = withMirrored(pageMargins, e.currentTarget.checked))}
+              onchange={(e) => setMargins(withMirrored(pageMargins, e.currentTarget.checked))}
             />
             <span>{t().toolbarExpanded.mirrorMargins}</span>
           </label>

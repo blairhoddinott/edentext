@@ -2,7 +2,7 @@
 // 'default' repeats on every page (odd pages when odd/even is on), 'first' overrides
 // page 1, 'even' overrides even pages — also their precedence. null = empty zone.
 
-import type { PageMargins } from './pageMargins';
+import { withMirrored, type PageMargins } from './pageMargins';
 import type { PageFormat } from './pageFormat';
 import type { Orientation } from './pageOrientation';
 import type { NoteNumFormat } from './noteSettings';
@@ -67,6 +67,17 @@ export const EMPTY_HF_SET: HfSet = {
 // HeaderFooterLayer to Editor.svelte.
 export const HF_ZONE_KEYS = ['header', 'footer', 'headerFirst', 'footerFirst', 'headerEven', 'footerEven'] as const;
 export type HfZoneKey = (typeof HF_ZONE_KEYS)[number];
+
+// A margin edit in the UI: the values that changed go to every section with margins of
+// its own as well, or an imported book whose chapters each carry a pair would not move.
+export function spreadMargins(sections: HfSet[], prev: PageMargins, next: PageMargins): HfSet[] {
+  const keys = (['top', 'bottom', 'left', 'right'] as const).filter((k) => prev[k] !== next[k]);
+  const mirror = !!prev.mirrored !== !!next.mirrored;
+  if (!keys.length && !mirror) return sections;
+  const apply = (m: PageMargins | null | undefined) => m && withMirrored(
+    { ...m, ...Object.fromEntries(keys.map((k) => [k, next[k]])) }, mirror ? !!next.mirrored : !!m.mirrored);
+  return sections.map((s) => ({ ...s, margins: apply(s.margins), marginsFirst: apply(s.marginsFirst) }));
+}
 
 export function hfSetIsEmpty(s: HfSet): boolean {
   return hfIsEmpty(s.header) && hfIsEmpty(s.footer)
