@@ -256,7 +256,10 @@
 
 /* The word being offered (wordCompletion.ts): after the caret, in the text's own
    font, greyed — it is not in the document until Enter takes it. */
-.paper .tiptap .word-completion {
+.paper .tiptap .word-completion::after {
+  content: attr(data-completion);
+  /* Inline: Chromium leaves an inline-block out of a `pb-shift` line's offset. */
+  white-space: pre;
   opacity: 0.45;
   user-select: none;
 }

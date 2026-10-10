@@ -1675,7 +1675,7 @@ export const PageBreaks = Extension.create({
             // Top-level blocks a section's own side margins inset, keyed by doc position.
             const sectionInsets = new Map<number, { to: number; left: number; right: number }>();
             // Parts of a block moved across to their own page's sides (placeSides).
-            const sideShifts: { from: number; to: number; dx: number; inline: boolean }[] = [];
+            const sideShifts: { from: number; to: number; dx: number; inline: boolean; end?: boolean }[] = [];
             // Close/open bands for in-cell + between-rows table breaks. Keyed by the
             // rounded openY (the grouping id) → the unrounded openY (so the band lands
             // exactly on the page cycle) plus whether it's a between-rows break.
@@ -1728,7 +1728,8 @@ export const PageBreaks = Extension.create({
                 const [l, r] = sideInset(grid.pageAt(leaf.naturalTop + splits[k].at + shift));
                 if (l === leafLeft || l + r !== width) continue;
                 const to = splits[k + 1]?.docPos ?? leafFrom + leafNode.nodeSize - 1;
-                sideShifts.push({ from: splits[k].docPos, to, dx: l - leafLeft, inline: true });
+                // The last part takes what is typed at the paragraph's end along until the next pass.
+                sideShifts.push({ from: splits[k].docPos, to, dx: l - leafLeft, inline: true, end: !splits[k + 1] });
               }
             };
 
@@ -2292,7 +2293,7 @@ export const PageBreaks = Extension.create({
             }
             for (const s of sideShifts) {
               const attrs = { class: 'pb-shift', style: `--pb-shift:${s.dx}px` };
-              decoArray.push(s.inline ? Decoration.inline(s.from, s.to, attrs) : blockDeco(s.from, s.to, attrs));
+              decoArray.push(s.inline ? Decoration.inline(s.from, s.to, attrs, { inclusiveEnd: !!s.end }) : blockDeco(s.from, s.to, attrs));
             }
             for (const b of pageTopBlocks) {
               decoArray.push(blockDeco(b.from, b.to, { style: 'padding-top:0;margin-top:0' }));

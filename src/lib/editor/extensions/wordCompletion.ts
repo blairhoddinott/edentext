@@ -63,14 +63,11 @@ export const WordCompletion = Extension.create({
           decorations(state) {
             const s = key.getState(state);
             if (!s) return null;
-            // Per view: a split pane draws the same offer, and one node cannot be in both.
-            const offer = () => {
-              const span = document.createElement('span');
-              span.className = 'word-completion';
-              span.textContent = s.text;
-              return span;
-            };
-            return DecorationSet.create(state.doc, [Decoration.widget(s.pos, offer, { side: 1 })]);
+            // Drawn after the word's last letter rather than as a widget, which no inline
+            // decoration wraps: a line pageBreaks moves across (`pb-shift`) takes it along.
+            return DecorationSet.create(state.doc, [
+              Decoration.inline(s.pos - 1, s.pos, { class: 'word-completion', 'data-completion': s.text }),
+            ]);
           },
 
           // A word ends at the first character that is not part of one, which is where

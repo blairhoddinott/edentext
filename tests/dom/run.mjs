@@ -603,6 +603,28 @@ try {
     check(sides.mirror > 50 && s.pages > 1 && s.spread <= 1,
       `mirrored margins put ${what} at their own page's side (${s.pages} pages, spread ${s.spread}px)`);
   }
+  // Typed at the end of a part moved to its page's side, text goes along with it at once,
+  // not a pass later: the new letter starts where the line's last one ends.
+  const typedGap = await page.evaluate(() => {
+    const view = document.querySelector('.tiptap').editor.view;
+    const end = view.state.doc.firstChild.nodeSize - 1;
+    view.dispatch(view.state.tr.insertText('x', end));
+    const walk = document.createTreeWalker(view.dom.querySelector(':scope > p'), NodeFilter.SHOW_TEXT);
+    const chars = [];
+    for (let n; (n = walk.nextNode());) for (let i = 0; i < n.length; i++) chars.push([n, i]);
+    const [before, typed] = chars.slice(-2).map(([node, i]) => {
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      return range.getBoundingClientRect();
+    });
+    const page = Math.floor((typed.top - view.dom.getBoundingClientRect().top) / 1143) + 1;
+    return { page, gap: Math.round(typed.left - before.right) };
+  });
+  check(typedGap.page % 2 === 0 && Math.abs(typedGap.gap) <= 1,
+    `text typed at a mirrored part's end stays on its line (page ${typedGap.page}, gap ${typedGap.gap}px)`);
+  // The reload saves the edit now, not over the next check's document.
+  await page.reload({ waitUntil: 'load' });
   await page.evaluate(() => localStorage.removeItem('edentext-page-margins'));
 
   // A repeated header row never stays alone at a page foot: it goes down with the row
