@@ -1143,12 +1143,13 @@ try {
   await page.click('.tiptap');
   await page.keyboard.type('The quick fox');
   await page.click('.tiptap', { button: 'right' });
-  const offMenu = await page.$$eval('.cm-label', (els) => els.map((e) => e.textContent));
+  await page.hover('.cm-item[aria-haspopup]');
+  const offMenu = await page.$eval('.cm-item[aria-haspopup]', (e) => ({ disabled: e.getAttribute('aria-disabled'), hint: e.title, sub: !!document.querySelector('.cm-sub') }));
   await page.keyboard.press('Escape');
   await page.keyboard.press('Alt+i');
-  check(!(await page.$('[data-cmd="aiPane"]')) && !offMenu.some((l) => /AI/.test(l))
+  check(!(await page.$('[data-cmd="aiPane"]')) && offMenu.disabled === 'true' && /Settings/.test(offMenu.hint) && !offMenu.sub
     && !(await page.evaluate(() => document.querySelector('.aip')?.matches(':popover-open'))) && aiRequests === 0,
-  'with the assistant off, no AI button, menu item or window shows and nothing is sent');
+  `with the assistant off, no AI button or window shows, the menu's AI entry is greyed with a hint, and nothing is sent (${JSON.stringify(offMenu)})`);
 
   await page.waitForFunction(() => (localStorage.getItem('edentext-doc') ?? '').includes('quick'), null, { timeout: 15_000 });
   await page.evaluate(() => localStorage.setItem('edentext-ai', JSON.stringify({ enabled: true, provider: 'openai', endpoint: 'http://mock.test/v1', apiKey: '', model: 'm' })));
@@ -1174,12 +1175,12 @@ try {
   await page.click('.tiptap');
   await page.keyboard.press(`${MOD}+a`);
   await page.click('.tiptap', { button: 'right' });
-  await page.locator('.cm-item', { hasText: 'Rewrite with AI' }).click();
-  await page.locator('.aip button', { hasText: 'Shorten' }).click();
+  await page.hover('.cm-item[aria-haspopup]');
+  await page.locator('.cm-sub .cm-item', { hasText: 'Shorten' }).click();
   await page.waitForFunction(() => (document.querySelector('.aip-preview')?.textContent ?? '').includes('A slow fox.'), null, { timeout: 10_000 }).catch(() => {});
   await page.locator('.aip button', { hasText: 'Replace' }).click();
   const rewritten = await page.evaluate(() => document.querySelector('.tiptap')?.textContent);
-  check(rewritten === 'A slow fox.', `a rewrite replaces the selection (${rewritten})`);
+  check(rewritten === 'A slow fox.', `a rewrite from the menu's AI submenu replaces the selection (${rewritten})`);
 
   await page.click('.tiptap');
   await page.keyboard.press('Alt+i');

@@ -51,7 +51,6 @@ const es: Messages = {
     group: 'IA',
     chat: 'IA',
     chatTitle: 'Preguntar al asistente de IA sobre el documento o pedirle que lo cambie',
-    draftTitle: 'Escribir contenido nuevo en el cursor con el asistente de IA',
     rewriteMenu: 'Reescribir con IA…',
     draftMenu: 'Redactar con IA…',
     openChat: 'Abrir chat',

@@ -53,7 +53,6 @@ const zhHant: Messages = {
     group: 'AI',
     chat: 'AI',
     chatTitle: '向 AI 助理詢問文件內容，或讓它修改文件',
-    draftTitle: '用 AI 助理在游標處撰寫新內容',
     rewriteMenu: '用 AI 改寫…',
     draftMenu: '用 AI 起草…',
     openChat: '開啟聊天',

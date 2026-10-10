@@ -51,7 +51,6 @@ const de: Messages = {
     group: 'KI',
     chat: 'KI',
     chatTitle: 'Den KI-Assistenten zum Dokument fragen oder es von ihm ändern lassen',
-    draftTitle: 'Mit dem KI-Assistenten neuen Inhalt an der Cursorposition schreiben',
     rewriteMenu: 'Mit KI umschreiben…',
     draftMenu: 'Mit KI entwerfen…',
     openChat: 'Chat öffnen',

@@ -10,8 +10,9 @@ directly with the key from Settings ▸ AI.
 `storage/ai.svelte.ts` holds one app-wide key, `edentext-ai`, with `{enabled, provider,
 endpoint, apiKey, model, contextTokens, mode, side, commands}`. Off is the default. `aiEnabled()` gates every surface:
 
-- the Home tab's AI group (`aiPane`, `aiDraft`, `aiRewrite`) and their command-search entries;
-- the two context-menu items (body editor only);
+- the AI button at the right end of every ribbon tab (`aiPane`) and its command-search entry;
+- the context menu's AI submenu (body editor only), which stays, greyed with a hint
+  pointing to Settings ▸ AI;
 - `Alt+I`, the pane and the popover.
 
 `App.svelte` aborts every request in flight when the switch goes off. The network is gated
@@ -128,8 +129,9 @@ expands to the prompt plus the rest (`expandCustom`) and runs as an ordinary cha
 has the tools in Edit mode; the chat shows what was typed. A built-in name wins, and the row
 says so; the `/` list shows own commands after the built-ins, labelled by the prompt's first line.
 
-Drafting has no window of its own: the ribbon, the context menu and `Alt+I` open the chat
-with `/draft ` filled in (`OPEN_AI_CHAT_EVENT`, `askAi`). The popover only rewrites.
+Drafting has no window of its own: the context menu and `Alt+I` open the chat with
+`/draft ` filled in (`OPEN_AI_CHAT_EVENT`, `askAi`). The popover only rewrites; the
+context menu's presets open it and start at once (`OPEN_AI_PROMPT_EVENT` with a `preset`).
 
 ## Providers
 

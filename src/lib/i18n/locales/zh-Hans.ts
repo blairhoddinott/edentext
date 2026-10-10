@@ -52,7 +52,6 @@ const zhHans: Messages = {
     group: 'AI',
     chat: 'AI',
     chatTitle: '向 AI 助手询问文档内容，或让它修改文档',
-    draftTitle: '用 AI 助手在光标处撰写新内容',
     rewriteMenu: '用 AI 改写…',
     draftMenu: '用 AI 起草…',
     openChat: '打开聊天',

@@ -52,7 +52,6 @@ const en = {
     group: 'AI',
     chat: 'AI',
     chatTitle: 'Ask the AI assistant about the document, or have it change it',
-    draftTitle: 'Write new content at the cursor with the AI assistant',
     rewriteMenu: 'Rewrite with AI…',
     draftMenu: 'Draft with AI…',
     openChat: 'Open chat',

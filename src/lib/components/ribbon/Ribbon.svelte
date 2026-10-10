@@ -4,6 +4,8 @@
   import Icon from './Icon.svelte';
   import RibbonMenu from './RibbonMenu.svelte';
   import HistoryButton from '../HistoryButton.svelte';
+  import RibbonButton from './RibbonButton.svelte';
+  import RibbonGroup from './RibbonGroup.svelte';
   import HomeTab from './tabs/HomeTab.svelte';
   import InsertTab from './tabs/InsertTab.svelte';
   import LayoutTab from './tabs/LayoutTab.svelte';
@@ -517,7 +519,7 @@
   {#if !collapsed}
   <div class="ribbon-body" use:pinPanels>
     {#if tab === 'home'}
-      <HomeTab {editor} {tick} asianDocument={isAsianTag(tagForLanguage(documentLanguage) ?? '') || isAsianTag(locale())} scripts={numberingScripts(documentLanguage, documentLanguageOther, locale())} bind:showFormattingMarks {onManageStyles} {onFind} onParagraphDialog={() => (paragraphDialogOpen = true)} {aiOpen} {onToggleAi} />
+      <HomeTab {editor} {tick} asianDocument={isAsianTag(tagForLanguage(documentLanguage) ?? '') || isAsianTag(locale())} scripts={numberingScripts(documentLanguage, documentLanguageOther, locale())} bind:showFormattingMarks {onManageStyles} {onFind} onParagraphDialog={() => (paragraphDialogOpen = true)} />
     {:else if tab === 'insert'}
       <InsertTab {editor} {tick} {hfActive} {pageMargins} {pageOrientation} {pageFormat} bind:hfDistances bind:differentFirstPage bind:differentOddEven {onEditZone} {onManageTableStyles} {onAutoText} />
     {:else if tab === 'layout'}
@@ -548,6 +550,15 @@
         textVertical={frameAttrs?.textVertical === true}
         textVAlign={frameAttrs?.textVAlign as never}
       />
+    {/if}
+    <!-- The assistant on every tab, at the right end; gone while it is switched off. -->
+    {#if aiEnabled()}
+      <div class="rb-ai">
+        <div class="ribbon-sep"></div>
+        <RibbonGroup label={t().ai.group}>
+          <RibbonButton variant="big" icon="sparkle" cmd="aiPane" label={t().ai.chat} title={t().ai.chatTitle} active={aiOpen} onclick={() => onToggleAi?.()} />
+        </RibbonGroup>
+      </div>
     {/if}
   </div>
   {/if}
@@ -798,4 +809,5 @@
   }
 
   .ribbon-body::-webkit-scrollbar { display: none; }
+  .rb-ai { display: flex; margin-left: auto; }
 </style>

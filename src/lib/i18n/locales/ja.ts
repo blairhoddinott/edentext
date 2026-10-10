@@ -53,7 +53,6 @@ const ja: Messages = {
     group: 'AI',
     chat: 'AI',
     chatTitle: '文書について AI アシスタントに質問する、または変更を依頼する',
-    draftTitle: 'AI アシスタントでカーソル位置に新しい内容を書く',
     rewriteMenu: 'AI で書き直す…',
     draftMenu: 'AI で下書き…',
     openChat: 'チャットを開く',
