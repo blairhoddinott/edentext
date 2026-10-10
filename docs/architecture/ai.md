@@ -133,6 +133,19 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
 - **Commands and the popover** insert like a paste. While recording is on, the change is
   tracked under the user's own name.
 
+## Reply actions
+
+- **Citations.** The prompt asks for `¶12` / `¶12–14`; `linkCitations` turns them into buttons
+  after rendering, and a click selects those paragraphs by `blockTexts` of the current
+  document, so a reply's numbers drift once later edits insert paragraphs before them.
+- **Copy** writes the rendered reply as HTML and plain text.
+- **Regenerate** (last reply) and **edit** (any question) go through `resend`: the entries from
+  that question on go, the tracked changes they left pending are rejected, and the history is
+  cut to the question's `historyAt`; a command keeps the selection it was first sent with.
+- **Keep / Undo** under a reply accept or reject the tracked changes that turn made (`revs`,
+  the assistant's revision ids new after `runTurn`) in one step. Direct formatting is not a
+  revision, so Undo leaves it; Ctrl+Z takes it back.
+
 ## Slash commands
 
 A chat message starting with `/` is a command: `/draft <what>`, `/rewrite <how>`, and the

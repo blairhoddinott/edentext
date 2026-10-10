@@ -56,6 +56,7 @@ export function chatSystemPrompt(mode: AiMode = 'edit'): string {
     edit ? 'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.' : 'Comments follow the document as [C1 …].',
     'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1].',
     ...(edit ? EDIT_LINES : CHAT_LINES),
+    'When your answer refers to a place in the document, cite the paragraph as ¶12 (¶12–14 for a range); the user can click it to go there.',
     `Style names for <p class="…"> (never text of their own): ${styles}.`,
   ].join('\n');
 }
