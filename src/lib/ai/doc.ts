@@ -186,7 +186,10 @@ function frameNote(frame: PMNode): string {
   const g = wrapGap(a.wrapDist);
   const sides = [g.top, g.right, g.bottom, g.left];
   const gap = wrap === 'inline' || a.wrap === 'through' ? '' : sides.every((x) => x === g.top) ? ` gap ${g.top}cm` : ` gap ${sides.join(' ')}cm`;
-  return `${frame.type.name === 'image' ? 'picture' : 'text box'} ${cmOf(a.width)}×${cmOf(a.height)}cm ${wrap}${gap}`;
+  const from = a.wrapFromPage ? ' from page' : a.wrapFromBody ? ' from margin' : '';
+  const at = a.wrap === 'inline' || (a.wrapOffset == null && a.wrapOffsetY == null) ? '' : ` at x ${a.wrapOffset ?? 0} y ${a.wrapOffsetY ?? 0}cm${from}`;
+  const turn = a.rotation ? ` rotated ${Math.round(a.rotation)}°` : '';
+  return `${frame.type.name === 'image' ? 'picture' : 'text box'} ${cmOf(a.width)}×${cmOf(a.height)}cm ${wrap}${gap}${at}${turn}`;
 }
 
 /** The cell around the textblock at `pos`; `tables` holds the table positions seen so far. */

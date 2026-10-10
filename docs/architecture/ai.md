@@ -94,9 +94,13 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   name; `border`/`border_top`/`border_bottom` take CSS (`borderAttr`), so a rule under every
   heading goes into its style, and `heading_numbers` sets the chapter numbering (`setOutline`).
 - **`insert_frame`** builds the dialect's `<aside>` or `<img alt>` and inserts the frame at the
-  start of the paragraph, directly; **`frame`** changes one's wrap, size and gap to the text.
+  start of the paragraph, directly; **`frame`** changes one's wrap (beside, above and below, in
+  the line, in front of or behind the text), size, gap, position (`x_cm` from the column, `y_cm`
+  from the paragraph, page or text area), rotation and stacking (`restackFrame`), moves it to
+  another paragraph, deletes it (tracked, like text), or captions a picture: picture and caption
+  go into one borderless text box in its place, as LibreOffice frames them.
   A paragraph's formatting lists its frames (`frame 1: picture 4×5cm right gap 0.32cm`), a
-  sized picture in the line too, numbered as the tool takes them (deleted ones not counted); a frame's CSS `margin` is its gap, else a new
+  sized picture in the line too, numbered as the tool takes them (deleted ones not counted), with position and rotation once set; a frame's CSS `margin` is its gap, else a new
   frame's.
 - Numbers and booleans may come as strings, and every error names what is accepted ("unknown
   style …; styles are: …"), for small models.

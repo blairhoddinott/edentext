@@ -514,6 +514,30 @@ describe('runTurn', () => {
     editor.destroy();
   });
 
+  it('places, stacks, rotates, moves, captions and deletes a frame', () => {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+    const pic = '<img src="data:image/png;base64,iVBORw0KGgo=" alt="Pic" width="151" height="113" data-wrap="right">';
+    const editor = makeEditor(`<p>one ${pic}</p><p>two ${pic.replace('Pic', 'Other')}</p><p>three</p>`);
+    const frames = () => { const out: PMNode[] = []; editor.state.doc.descendants((n) => { if (n.type.name === 'image' || n.type.name === 'textBox') out.push(n); }); return out; };
+    expect(runTool(turn(editor), call('frame', { paragraph: 1, stack: 'front' })).result).toMatch(/in_front or behind/);
+    expect(runTool(turn(editor), call('frame', { paragraph: 1, wrap: 'in_front', x_cm: 2, y_cm: 3, y_from: 'page', rotation: -90 })).result).toBe('ok');
+    expect(runTool(turn(editor), call('frame', { paragraph: 2, wrap: 'in_front' })).result).toBe('ok');
+    expect(blockTexts(editor.state.doc).map(blockLine)[0]).toContain('picture 4×3cm in front of text at x 2 y 3cm from page rotated 270°');
+    expect(runTool(turn(editor), call('frame', { paragraph: 1, stack: 'front' })).result).toBe('ok');
+    expect(frames().map((f) => [f.attrs.alt, f.attrs.zIndex])).toEqual([['Pic', 1], ['Other', 0]]);
+    expect(runTool(turn(editor), call('frame', { paragraph: 2, move_to: 3, wrap: 'left' })).result).toBe('ok');
+    expect(texts(editor)).toEqual(['one {image "Pic"}', 'two ', '{image "Other"}three']);
+    expect(runTool(turn(editor), call('frame', { paragraph: 3, caption: 'Figure 1: a tractor' })).result).toBe('ok');
+    const box = frames().find((f) => f.type.name === 'textBox')!;
+    expect(box.attrs).toMatchObject({ wrap: 'left', width: 151, strokeColor: null, paddingCm: 0 });
+    expect(box.child(0).firstChild!.attrs.wrap).toBe('inline');
+    expect(box.child(1).attrs.styleName).toBe('Caption');
+    expect(box.child(1).textContent).toBe('Figure 1: a tractor');
+    expect(runTool(turn(editor), call('frame', { paragraph: 1, delete: true })).result).toBe('ok');
+    expect(blockTexts(editor.state.doc)[0].text).toBe('one ');
+    editor.destroy();
+  });
+
   it('writes a footnote\'s text into the note its anchor gets', () => {
     const editor = makeEditor('<p>Intro</p>');
     expect(runTool(turn(editor), call('insert_paragraphs', { after: 1, html: '<p>Claim<sup class="footnote">Source, <em>2024</em>.</sup> here.</p>' })).result).toBe('ok');

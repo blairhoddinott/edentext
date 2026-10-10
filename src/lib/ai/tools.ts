@@ -5,7 +5,7 @@
 import type { Editor } from '@tiptap/core';
 import { Fragment, Slice, type Mark, type Node as PMNode } from '@tiptap/pm/model';
 import { Mapping } from '@tiptap/pm/transform';
-import type { Transaction } from '@tiptap/pm/state';
+import { NodeSelection, type Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { isPaginating } from '../editor/extensions/pageBreaks';
 import { CellSelection, TableMap } from '@tiptap/pm/tables';
@@ -16,7 +16,8 @@ import { putStyle, setOutline, styleSheet } from '../styles/sheet.svelte';
 import { decimalOutline, romanOutline } from '../styles/outlineNumbering';
 import { DEFAULT_BORDER_COLOR, DEFAULT_BORDER_WIDTH_PT } from '../editor/extensions/tableCellBorders';
 import { normalizeColor } from '../utils/color';
-import { BOX_WRAP_GAP, PICTURE_WRAP_GAP, droppedFrameAttrs, wrapGap, wrapGapAttr, type WrapMode } from '../editor/extensions/image';
+import { BOX_WRAP_GAP, PICTURE_WRAP_GAP, droppedFrameAttrs, restackFrame, wrapGap, wrapGapAttr, type WrapMode } from '../editor/extensions/image';
+import { CAPTION_STYLE } from '../editor/extensions/caption';
 import { DEFAULT_STYLE, visibleStyles, type Style } from '../styles/styleSheet';
 import { styleLabel, t } from '../i18n/i18n.svelte';
 import { docBudget, type AiConfig, type AiMode } from '../storage/ai.svelte';
@@ -68,7 +69,7 @@ const CHAT_LINES = [
 
 const EDIT_LINES = [
   'Change a table (rows, columns, widths, merging, shading, borders) with the table tool, never by rebuilding it.',
-  'Formatting meant for every paragraph of a kind (a rule under each heading, a colour, spacing) goes into its style with set_style, not onto each paragraph. Frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes one listed as frame 1 in its paragraph\'s formatting.',
+  'Formatting meant for every paragraph of a kind (a rule under each heading, a colour, spacing) goes into its style with set_style, not onto each paragraph. Frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes, moves, stacks, captions or deletes one listed as frame 1 in its paragraph\'s formatting.',
   'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
   'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
 ];
@@ -204,16 +205,24 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'frame',
-    description: 'Changes a frame (picture or text box) in a paragraph: its wrap, size or space to the text.',
+    description: 'Changes a frame (picture or text box) in a paragraph: wrap, size, position, rotation, stacking order, anchor paragraph, a picture\'s caption, or deletes it.',
     parameters: {
       type: 'object',
       properties: {
         paragraph: num('Paragraph number'),
         frame: num('The frame\'s number in the paragraph, as frame 1; 1 by default'),
-        wrap: { type: 'string', enum: ['left', 'right', 'top_bottom', 'inline'] },
+        wrap: { type: 'string', enum: ['left', 'right', 'top_bottom', 'inline', 'in_front', 'behind'], description: 'left/right: text flows beside it; top_bottom: text only above and below; inline: in the line like a character; in_front/behind: free, over or under the text' },
         width_cm: { type: 'number' },
         height_cm: { type: 'number' },
         gap_cm: str('Space between the frame and the text: one number, or four: top right bottom left'),
+        x_cm: num('Its left edge, in cm from the left edge of the text column'),
+        y_cm: num('Its top edge, in cm below what y_from names'),
+        y_from: { type: 'string', enum: ['paragraph', 'page', 'margin'], description: 'What y_cm counts from: the anchor paragraph (default), the top of the page, or the top of the page\'s text area' },
+        rotation: num('Degrees clockwise'),
+        stack: { type: 'string', enum: ['front', 'back', 'forward', 'backward'], description: 'Order among the frames in front of or behind the text' },
+        move_to: num('Anchors the frame at the start of this paragraph instead'),
+        caption: str('A caption under a picture: picture and caption then form one frame'),
+        delete: { type: 'boolean', description: 'Deletes the frame' },
       },
       required: ['paragraph'],
     },
@@ -500,6 +509,26 @@ function dispatch(ctx: TurnContext, build: (tr: Transaction) => void): void {
   ctx.editor.view.dispatch(tr);
 }
 
+// A captioned picture is one frame, as LibreOffice draws it: a borderless text box in
+// the picture's place holding the picture in its line and the caption under it.
+function captionFrame(ctx: TurnContext, pos: number, text: string): number {
+  const { schema, doc } = ctx.editor.state;
+  const pic = doc.nodeAt(pos)!;
+  const keep = ['width', 'wrap', 'wrapOffset', 'wrapOffsetY', 'wrapFromPage', 'wrapFromBody', 'wrapDist', 'anchorPage', 'zIndex', 'inFront'] as const;
+  const boxAttrs: Record<string, unknown> = { fillColor: null, strokeColor: null, paddingCm: 0 };
+  for (const k of keep) boxAttrs[k] = pic.attrs[k];
+  if (boxAttrs.wrap === 'inline') boxAttrs.wrap = 'topBottom';
+  // At least the picture and a caption line; it grows with a longer caption.
+  boxAttrs.height = (pic.attrs.height as number) + Math.round(0.8 * (96 / 2.54));
+  const inner = pic.type.create({ ...pic.attrs, wrap: 'inline', ...droppedFrameAttrs('inline', false, pic.attrs.wrap), wrapDist: null, zIndex: 0 }, null, pic.marks);
+  const box = schema.nodes.textBox.create(boxAttrs, [
+    schema.nodes.paragraph.create(null, inner),
+    schema.nodes.paragraph.create({ styleName: CAPTION_STYLE }, schema.text(text)),
+  ], pic.marks);
+  dispatch(ctx, (tr) => tr.replaceWith(pos, pos + pic.nodeSize, box));
+  return pos;
+}
+
 function run(ctx: TurnContext, call: ToolCall): ToolResult {
   const a = parseArgs(call.args);
   const m = t().ai.tools;
@@ -737,13 +766,19 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       });
       if (!found) throw new ToolError(count ? `paragraph ${a.paragraph} has ${count} frame(s)` : `paragraph ${a.paragraph} has no frame`);
       const { pos, node } = found as { pos: number; node: PMNode };
+      if (boolArg(a.delete)) {
+        dispatch(ctx, (tr) => trackedReplace(tr, pos, pos + node.nodeSize, null, ctx.author));
+        return { result: 'ok', summary: m.frameSet(Number(a.paragraph)) };
+      }
       const attrs: Record<string, unknown> = { ...node.attrs };
       if (a.wrap != null && a.wrap !== '') {
         const w = String(a.wrap).toLowerCase().replace(/[^a-z]/g, '');
-        const mode: WrapMode = w === 'left' || w === 'right' || w === 'inline' ? w : w.startsWith('top') ? 'topBottom' : (() => { throw new ToolError('wrap is left, right, top_bottom or inline'); })();
-        Object.assign(attrs, { wrap: mode }, droppedFrameAttrs(mode, false, node.attrs.wrap));
+        const free = w.startsWith('infront') || w.startsWith('front') || w.startsWith('behind') || w === 'through';
+        const mode: WrapMode = w === 'left' || w === 'right' || w === 'inline' ? w : w.startsWith('top') ? 'topBottom' : free ? 'through'
+          : (() => { throw new ToolError('wrap is left, right, top_bottom, inline, in_front or behind'); })();
+        Object.assign(attrs, { wrap: mode }, droppedFrameAttrs(mode, w.includes('front'), node.attrs.wrap));
         // A frame that starts to wrap without a gap of its own takes a new frame's.
-        if (mode !== 'inline' && attrs.wrapDist == null) attrs.wrapDist = node.type.name === 'image' ? PICTURE_WRAP_GAP : BOX_WRAP_GAP;
+        if (mode !== 'inline' && mode !== 'through' && attrs.wrapDist == null) attrs.wrapDist = node.type.name === 'image' ? PICTURE_WRAP_GAP : BOX_WRAP_GAP;
       }
       const px = (cm?: number) => (cm != null && cm > 0 ? Math.round(cm * (96 / 2.54)) : null);
       const w = px(numArg(a.width_cm)), h = px(numArg(a.height_cm));
@@ -754,7 +789,37 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
         if (!gap) throw new ToolError('gap_cm is one number, or four: top right bottom left');
         attrs.wrapDist = wrapGapAttr(wrapGap(gap));
       }
+      const x = numArg(a.x_cm), y = numArg(a.y_cm), turn = numArg(a.rotation);
+      if ((x != null || y != null) && attrs.wrap === 'inline') throw new ToolError('a frame in the line has no position; set wrap first');
+      if (x != null) attrs.wrapOffset = Math.round(x * 100) / 100;
+      if (y != null) attrs.wrapOffsetY = Math.round(y * 100) / 100;
+      if (a.y_from != null && a.y_from !== '') {
+        const from = String(a.y_from).toLowerCase();
+        Object.assign(attrs, { wrapFromPage: from.startsWith('page'), wrapFromBody: from.startsWith('margin') || from.startsWith('text'), anchorPage: null });
+      }
+      if (turn != null) attrs.rotation = ((turn % 360) + 360) % 360;
+      const to = a.stack == null || a.stack === '' ? null : String(a.stack).toLowerCase() as 'front' | 'back' | 'forward' | 'backward';
+      if (to && !['front', 'back', 'forward', 'backward'].includes(to)) throw new ToolError('stack is front, back, forward or backward');
+      if (to && attrs.wrap !== 'through') throw new ToolError('only a frame in front of or behind the text has a stacking order; set wrap to in_front or behind');
       dispatch(ctx, (tr) => tr.setNodeMarkup(pos, undefined, attrs));
+      if (to) {
+        const { state } = ctx.editor;
+        restackFrame(state.apply(state.tr.setSelection(NodeSelection.create(state.doc, pos))), (tr) => ctx.editor.view.dispatch(tr), to);
+      }
+      let at = pos;
+      const caption = String(a.caption ?? '').trim();
+      if (caption) {
+        if (node.type.name !== 'image') throw new ToolError('only a picture takes a caption; a text box takes it as one of its paragraphs');
+        at = captionFrame(ctx, pos, caption);
+      }
+      if (a.move_to != null && a.move_to !== '') {
+        const target = current(ctx, a.move_to);
+        dispatch(ctx, (tr) => {
+          const moved = tr.doc.nodeAt(at)!;
+          tr.delete(at, at + moved.nodeSize);
+          tr.insert(tr.mapping.map(target.pos + 1), moved);
+        });
+      }
       return { result: 'ok', summary: m.frameSet(Number(a.paragraph)) };
     }
     case 'set_header_footer': {
