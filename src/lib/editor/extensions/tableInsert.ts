@@ -11,7 +11,7 @@ type PmCommand = (state: EditorState, dispatch?: (tr: Transaction) => void) => b
  */
 export function inheritingInsert(insert: PmCommand, axis: 'row' | 'column', side: 'before' | 'after'): Command {
   return (state, dispatch) => {
-    if (!dispatch) return insert(state);
+    if (!dispatch || !insert(state)) return insert(state);
     const rect = selectedRect(state);
     return insert(state, (tr) => {
       const at = side === 'after' ? (axis === 'row' ? rect.bottom : rect.right) : (axis === 'row' ? rect.top : rect.left);

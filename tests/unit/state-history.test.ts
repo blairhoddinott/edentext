@@ -1,6 +1,6 @@
 // Header/footer zones and watched stores (page setup, styles …) join the body's undo
 // stack: one history for the whole document.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
@@ -12,9 +12,14 @@ import { resetHistoryLog } from '../../src/lib/utils/historyLog.svelte';
 
 const para = (text: string) => ({ type: 'doc', content: [text ? { type: 'paragraph', content: [{ type: 'text', text }] } : { type: 'paragraph' }] });
 
+// Destroyed after each test so no view's DOM-observer timer fires after the environment is torn down.
+const editors: Editor[] = [];
+afterEach(() => { for (const ed of editors.splice(0)) if (!ed.isDestroyed) ed.destroy(); });
+
 function setup() {
   const body = new Editor({ extensions: [Document, Paragraph, Text, UndoRedo, StateHistory], content: para('body') });
   const zone = new Editor({ extensions: [Document, Paragraph, Text, ZoneHistory.configure({ body: () => body, id: 'hf:0:header' })], content: para('') });
+  editors.push(body, zone);
   // What HeaderFooterLayer does: an undo or redo hands back the zone's content.
   const restored: unknown[] = [];
   body.on('transaction', ({ transaction }) => {
