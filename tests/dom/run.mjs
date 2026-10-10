@@ -594,6 +594,31 @@ try {
   check(Math.abs(dx - 60) <= 2 && Math.abs(dy - 40) <= 2,
     `a frame out of the flow is dragged by its own offsets (moved ${dx}/${dy}, wanted 60/40)`);
 
+  // A side float re-anchors on every line it is dragged across, and one undo takes the
+  // whole drag back: a move kept out of the history left a copy at both ends.
+  await page.evaluate((d) => document.querySelector('.tiptap').editor.commands.setContent(d), { type: 'doc', content: [
+    block(frame({ wrap: 'right' }), words('first paragraph with its picture')),
+    ...Array.from({ length: 8 }, (_, i) => block(words(`line ${i} ${'word '.repeat(30)}`))),
+  ] });
+  await settle(page, true);
+  const floatBox = await frameBox();
+  await page.mouse.move(floatBox.x + 60, floatBox.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(floatBox.x - 200, floatBox.y + 300, { steps: 12 });
+  await page.mouse.up();
+  await settle(page, true);
+  const frames = () => page.evaluate(() => {
+    const doc = document.querySelector('.tiptap').editor.state.doc;
+    const at = [];
+    doc.forEach((p, _, i) => p.forEach((n) => { if (n.type.name === 'image') at.push(i); }));
+    return at;
+  });
+  const dragged = await frames();
+  await page.evaluate(() => document.querySelector('.tiptap').editor.commands.undo());
+  const floatUndone = await frames();
+  check(dragged.length === 1 && dragged[0] > 0 && floatUndone.join() === '0',
+    `undo takes a side float's drag back as one step (dragged to ${dragged}, undone to ${floatUndone})`);
+
   // A text box in that mode moves the same way, but by its frame ring — its own drag
   // is ProseMirror's node move, which would re-anchor it instead. Past the autosave's
   // debounce, or its write puts the dragged picture back in the text box's place.

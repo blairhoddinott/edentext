@@ -6,6 +6,7 @@ import type { EditorState, Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { dropCursor } from '@tiptap/pm/dropcursor';
+import { closeHistory } from '@tiptap/pm/history';
 import { cmToPx } from '../../storage/pageMargins';
 import { readVerticalMargins, placeFrameSoon, placeInColumn, freeDragX, sinkSideFloat } from './pageBreaks';
 
@@ -901,7 +902,8 @@ class ImageView {
 
   // Drag an image to re-anchor it live to the text position under the cursor (text
   // reflows in real time, throttled): a float re-anchors on a line change, an inline
-  // image to the exact character. One undo step (later moves are addToHistory:false).
+  // image to the exact character. Every move is recorded, grouped into one undo step: a
+  // move left out of the history was rebased under the first, and undo kept both copies.
   // The press selects the image, as it does a shape, so its frame shows while it moves.
   private startReposition(event: MouseEvent): void {
     if (!this.editor.isEditable) return;
@@ -917,6 +919,7 @@ class ImageView {
 
     let curPos = origPos;
     let firstMove = true;
+    const group = {}; // history merges transactions sharing a composition value
     let raf = 0;
     let lastX = event.clientX;
     let lastY = event.clientY;
@@ -951,7 +954,8 @@ class ImageView {
         const ip = tr.mapping.map(target);
         tr.insert(ip, node);
         tr.setSelection(NodeSelection.create(tr.doc, ip));
-        if (!firstMove) tr.setMeta('addToHistory', false);
+        tr.setMeta('composition', group);
+        if (firstMove) closeHistory(tr);
         view.dispatch(tr);
         curPos = ip;
         firstMove = false;
