@@ -24,7 +24,9 @@ formatting. Splitting a heading starts a body paragraph; clearing direct formatt
 named style and hyperlinks.
 
 `styleCss` projects resolved styles into document-scoped CSS. Heading fallbacks apply only to
-headings without a style name. List markers need the list item's resolved text properties, not
+headings without a style name. A paragraph style's rules (`borderTop`…, `'<W>pt solid #RRGGBB'`)
+draw only where set and not `'none'`, which overrules a parent's; `borderPadding` pads the ruled
+sides only. The style manager's paragraph tab edits all four and the padding. List markers need the list item's resolved text properties, not
 only the nested paragraph's. Inline marks and node attributes retain their normal precedence.
 
 ## List styles

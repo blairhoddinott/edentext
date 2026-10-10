@@ -197,6 +197,21 @@
   const borderValue = (width: string, color: string) =>
     width === 'none' ? 'none' : borderAttrValue({ widthPt: parseFloat(width), color });
 
+  // A paragraph style's rules: none unless the style or a parent draws one.
+  const PARA_BORDERS = [
+    { key: 'borderTop', label: () => t().borders.top },
+    { key: 'borderBottom', label: () => t().borders.bottom },
+    { key: 'borderLeft', label: () => t().borders.left },
+    { key: 'borderRight', label: () => t().borders.right },
+  ] as const;
+  type ParaBorder = (typeof PARA_BORDERS)[number]['key'];
+  const paraBorderParts = (v: string | undefined) => (v && v !== 'none' ? borderParts(v) : { width: 'none', color: '#000000' });
+  // 'none' only overrules a parent's rule; without one the style just has none.
+  function paraBorder(key: ParaBorder, width: string, color: string) {
+    const parentHas = !!resolveStyle(sheet, style.parent, family).para[key];
+    edit({ para: { [key]: width === 'none' ? (parentHas ? 'none' : undefined) : `${parseFloat(width)}pt solid ${color.toUpperCase()}` } });
+  }
+
   function depthOf(s: Style): number {
     let depth = 0;
     let cur = s.parent;
@@ -862,40 +877,42 @@
             onchange={(e) => editText({ strike: e.currentTarget.checked })} />{t().styles.strike}</label>
         </div>
 
+        {#snippet borderField(label: string, id: string, parts: { width: string; color: string }, apply: (width: string, color: string) => void, clear: () => void)}
+          <div class="field">
+            <span class="field-label">{label}</span>
+            <div class="border-row">
+              <select value={parts.width} onchange={(e) => apply(e.currentTarget.value, parts.color)}>
+                {#each BORDER_WIDTHS as w}
+                  <option value={w}>{w === 'none' ? t().styles.noBorder : t().borders.pt(Number(w))}</option>
+                {/each}
+              </select>
+              {#key current + id}
+                <ColorPicker
+                  editor={null}
+                  currentColor={parts.color}
+                  defaultColor={parts.color}
+                  title={t().borders.lineColor}
+                  chevronTitle={t().borders.lineColor}
+                  clearLabel="—"
+                  onApply={(c) => apply(parts.width === 'none' ? '0.5' : parts.width, c)}
+                  onClear={clear}
+                >
+                  {#snippet icon()}
+                    <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                      <rect x="2" y="2" width="14" height="14" stroke="currentColor" stroke-width="1.3"/>
+                    </svg>
+                  {/snippet}
+                </ColorPicker>
+              {/key}
+            </div>
+          </div>
+        {/snippet}
+
         {#if isTable}
         <div class="row">
           {#each BORDER_FIELDS as { key, label }}
-            <div class="field">
-              <span class="field-label">{label()}</span>
-              <div class="border-row">
-                <select
-                  value={borderParts(borderOf(key)).width}
-                  onchange={(e) => editTable({ [key]: borderValue(e.currentTarget.value, borderParts(borderOf(key)).color) })}
-                >
-                  {#each BORDER_WIDTHS as w}
-                    <option value={w}>{w === 'none' ? t().styles.noBorder : t().borders.pt(Number(w))}</option>
-                  {/each}
-                </select>
-                {#key current + key}
-                  <ColorPicker
-                    editor={null}
-                    currentColor={borderParts(borderOf(key)).color}
-                    defaultColor={borderParts(borderOf(key)).color}
-                    title={t().borders.lineColor}
-                    chevronTitle={t().borders.lineColor}
-                    clearLabel="—"
-                    onApply={(c) => editTable({ [key]: borderValue(borderParts(borderOf(key)).width, c) })}
-                    onClear={() => editTable({ [key]: null })}
-                  >
-                    {#snippet icon()}
-                      <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-                        <rect x="2" y="2" width="14" height="14" stroke="currentColor" stroke-width="1.3"/>
-                      </svg>
-                    {/snippet}
-                  </ColorPicker>
-                {/key}
-              </div>
-            </div>
+            {@render borderField(label(), key, borderParts(borderOf(key)),
+              (w, c) => editTable({ [key]: borderValue(w, c) }), () => editTable({ [key]: null }))}
           {/each}
         </div>
         {/if}
@@ -934,6 +951,17 @@
             <input type="number" min="0" max="20" step="0.25" value={style.para.indent ?? ''}
               placeholder={inherited(resolved.para.indent ?? 0)}
               onchange={(e) => edit({ para: { indent: num(e.currentTarget.value) } })} />
+          </label>
+        </div>
+
+        <div class="border-grid">
+          {#each PARA_BORDERS as { key, label }}
+            {@render borderField(label(), key, paraBorderParts(resolved.para[key]), (w, c) => paraBorder(key, w, c), () => edit({ para: { [key]: undefined } }))}
+          {/each}
+          <label class="pad">{t().styles.borderPadding}
+            <input type="number" min="0" max="31" step="0.5" value={style.para.borderPadding ?? ''}
+              placeholder={inherited(resolved.para.borderPadding ?? 0)}
+              onchange={(e) => edit({ para: { borderPadding: num(e.currentTarget.value) } })} />
           </label>
         </div>
         {/if}
@@ -1011,6 +1039,9 @@
   .tp-text { display: block; width: 100%; }
 
   .border-row { display: flex; align-items: center; gap: 0.3rem; }
+  /* One grid, so the two columns' fields share their rows. */
+  .border-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.6rem; }
+  .border-grid .pad input::-webkit-inner-spin-button { opacity: 1; }
   .border-row select { flex: 1; min-width: 0; }
 
   .card {

@@ -293,6 +293,7 @@ const el: Messages = {
     spaceBefore: "Διάστημα πριν (στ.)",
     spaceAfter: "Διάστημα μετά (στ.)",
     indent: "Εσοχή (cm)",
+    borderPadding: "Απόσταση από το κείμενο (στ.)",
     newFromSelection: "Νέο από την επιλογή",
     updateFromSelection: "Ενημέρωση από την επιλογή",
     rename: "Μετονομασία…",

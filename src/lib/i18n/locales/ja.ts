@@ -287,6 +287,7 @@ const ja: Messages = {
     spaceBefore: '段落前の間隔 (pt)',
     spaceAfter: '段落後の間隔 (pt)',
     indent: 'インデント (cm)',
+    borderPadding: '文字との間隔 (pt)',
     newFromSelection: '選択範囲から新規作成',
     updateFromSelection: '選択範囲で更新',
     rename: '名前の変更…',

@@ -293,6 +293,7 @@ const ru: Messages = {
     spaceBefore: 'Интервал перед (пт)',
     spaceAfter: 'Интервал после (пт)',
     indent: 'Отступ (см)',
+    borderPadding: 'Отступ от текста (пт)',
     newFromSelection: 'Создать из выделения',
     updateFromSelection: 'Обновить по выделению',
     rename: 'Переименовать…',

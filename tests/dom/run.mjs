@@ -644,6 +644,19 @@ try {
   check(wrapped.left === '12px' && widened.left === '38px' && gapUndone.gap === wrapped.gap,
     `a picture wraps with a gap the ribbon widens and undo restores (${wrapped.left} → ${widened.left}, undone ${gapUndone.gap})`);
 
+  // A rule set on a paragraph style in the style manager draws under its paragraphs.
+  await page.evaluate(() => { const ed = document.querySelector('.tiptap').editor; ed.commands.setContent('<h2>Ruled</h2><p>x</p>'); ed.commands.setTextSelection(2); });
+  await page.locator('.ribbon-tab', { hasText: 'Home' }).first().click();
+  await page.click('.gallery-more');
+  await page.click('.rb-menu-foot');
+  await page.locator('.border-grid select').nth(1).selectOption('1');
+  const ruleWidth = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.tiptap h2')).borderBottomWidth));
+  const ruled = await ruleWidth();
+  await page.locator('footer button', { hasText: 'Reset to default' }).click();
+  const unruled = await ruleWidth();
+  await page.keyboard.press('Escape');
+  check(ruled > 0 && unruled === 0, `a paragraph style's rule from the style manager draws and resets (${ruled} → ${unruled})`);
+
   // A text box in that mode moves the same way, but by its frame ring — its own drag
   // is ProseMirror's node move, which would re-anchor it instead. Past the autosave's
   // debounce, or its write puts the dragged picture back in the text box's place.

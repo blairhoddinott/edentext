@@ -285,6 +285,7 @@ const es: Messages = {
     spaceBefore: 'Espacio encima (pt)',
     spaceAfter: 'Espacio debajo (pt)',
     indent: 'Sangría (cm)',
+    borderPadding: 'Espacio hasta el texto (pt)',
     newFromSelection: 'Nuevo a partir de la selección',
     updateFromSelection: 'Actualizar desde la selección',
     rename: 'Renombrar…',

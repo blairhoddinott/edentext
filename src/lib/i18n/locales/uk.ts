@@ -293,6 +293,7 @@ const uk: Messages = {
     spaceBefore: 'Інтервал перед (пт)',
     spaceAfter: 'Інтервал після (пт)',
     indent: 'Відступ (см)',
+    borderPadding: 'Відступ від тексту (пт)',
     newFromSelection: 'Створити з виділення',
     updateFromSelection: 'Оновити за виділенням',
     rename: 'Перейменувати…',

@@ -284,6 +284,7 @@ const pt: Messages = {
     spaceBefore: 'Espaço acima (pt)',
     spaceAfter: 'Espaço abaixo (pt)',
     indent: 'Avanço (cm)',
+    borderPadding: 'Espaço até ao texto (pt)',
     newFromSelection: 'Criar a partir da seleção',
     updateFromSelection: 'Atualizar da seleção',
     rename: 'Renomear…',

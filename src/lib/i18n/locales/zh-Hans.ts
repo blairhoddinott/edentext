@@ -286,6 +286,7 @@ const zhHans: Messages = {
     spaceBefore: '段前距（磅）',
     spaceAfter: '段后距（磅）',
     indent: '缩进（厘米）',
+    borderPadding: '与文本的间距（磅）',
     newFromSelection: '从所选内容新建',
     updateFromSelection: '以所选内容更新',
     rename: '重命名…',

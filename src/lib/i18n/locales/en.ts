@@ -292,6 +292,7 @@ const en = {
     spaceBefore: 'Space above (pt)',
     spaceAfter: 'Space below (pt)',
     indent: 'Indent (cm)',
+    borderPadding: 'Space to text (pt)',
     newFromSelection: 'New from selection',
     updateFromSelection: 'Update from selection',
     rename: 'Rename…',

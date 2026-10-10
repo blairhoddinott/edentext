@@ -287,6 +287,7 @@ const zhHant: Messages = {
     spaceBefore: '與前段距離（點）',
     spaceAfter: '與後段距離（點）',
     indent: '縮排（公分）',
+    borderPadding: '與文字的間距（點）',
     newFromSelection: '從選取範圍新增',
     updateFromSelection: '以選取範圍更新',
     rename: '重新命名…',

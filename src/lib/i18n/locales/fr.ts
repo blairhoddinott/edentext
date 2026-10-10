@@ -290,6 +290,7 @@ const fr: Messages = {
     spaceBefore: 'Espace au-dessus (pt)',
     spaceAfter: 'Espace en dessous (pt)',
     indent: 'Retrait (cm)',
+    borderPadding: 'Espace jusqu’au texte (pt)',
     newFromSelection: 'Créer à partir de la sélection',
     updateFromSelection: 'Actualiser à partir de la sélection',
     rename: 'Renommer…',

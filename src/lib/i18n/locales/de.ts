@@ -284,6 +284,7 @@ const de: Messages = {
     spaceBefore: 'Abstand oben (pt)',
     spaceAfter: 'Abstand unten (pt)',
     indent: 'Einzug (cm)',
+    borderPadding: 'Abstand zum Text (pt)',
     newFromSelection: 'Neu aus Auswahl',
     updateFromSelection: 'Aus Auswahl aktualisieren',
     rename: 'Umbenennen…',
