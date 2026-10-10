@@ -57,7 +57,7 @@ kept in sync by the primary view; it is not an independent document editor.
 ### Page grid
 
 Grid cells are clipped windows onto whole-document views: a column contains non-contiguous
-pages, so it cannot be one view. Reuse two rows of cells while scrolling. Split and grid are
+pages, so it cannot be one view. Reuse as many rows of cells as the viewport shows at once (one more than fit whole) while scrolling. Split and grid are
 mutually exclusive.
 
 - One scroller carries the canvas and defines the coordinate space for floating layers.

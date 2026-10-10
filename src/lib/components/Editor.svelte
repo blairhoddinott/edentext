@@ -520,9 +520,11 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   // grid cell in one scroller. Only one of the two layouts is on.
   let gridCols = $derived(splitView ? 1 : Math.min(MAX_PAGE_COLUMNS, Math.max(1, pageColumns)));
   let multiPage = $derived(gridCols > 1);
-  // Two rows of cells: a scroll shows the foot of one row above the head of the next,
-  // and the pair is recycled as it passes, so no view is built for a row off screen.
-  let paneCount = $derived(multiPage ? gridCols * 2 : splitView ? 2 : 1);
+  // As many rows of cells as the viewport can show at once (one more than fit whole: a
+  // scroll shows the foot of one row above the next), recycled as they pass.
+  let gridViewHeight = $state(0);
+  let gridSlots = $derived.by(() => Math.max(2, Math.ceil(gridViewHeight / (firstCycle * appliedZoom / 100)) + 1));
+  let paneCount = $derived(multiPage ? gridCols * gridSlots : splitView ? 2 : 1);
   let extraPanes = $derived(Array.from({ length: paneCount - 1 }, (_, k) => k + 1));
   // One scroller for the whole grid, so every floating layer keeps measuring against
   // the one scroll space it is positioned in.
@@ -1398,11 +1400,11 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   // --- The page grid ---
   // Rows of `gridCols` pages, filled left to right, scrolling as one canvas. A cell
   // is a window of exactly one page: pane index = slot * gridCols + column, and the
-  // two slots take turns being the upper row, so a scroll only re-aims the views.
+  // slots take turns being the upper row, so a scroll only re-aims the views.
   let gridRows = $derived(Math.ceil(Math.max(1, numPages) / gridCols));
   let firstRow = $state(0);
   let canvasEl = $state<HTMLDivElement | null>(null);
-  const rowOfSlot = (slot: number) => firstRow + ((slot - firstRow) & 1);
+  const rowOfSlot = (slot: number) => firstRow + (((slot - firstRow) % gridSlots) + gridSlots) % gridSlots;
   const pageOfPane = (pane: number) => rowOfSlot(Math.floor(pane / gridCols)) * gridCols + (pane % gridCols) + 1;
   let cells = $derived(
     !multiPage ? [] : Array.from({ length: paneCount }, (_, pane) => {
@@ -1521,11 +1523,11 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     return { top: (r.top - (origin?.top ?? 0)) / z, bottom: (r.bottom - (origin?.top ?? 0)) / z, left: (r.left - (origin?.left ?? 0)) / z };
   }
 
-  // Scrolls to `page`'s row unless it is one of the two on screen — the slots alternate,
+  // Scrolls to `page`'s row unless it is one of those on screen — the slots rotate,
   // so pane 0 is not reliably the first of them.
   function showRowOf(page: number) {
     const top = firstRow * gridCols + 1;
-    if (page < top || page >= top + 2 * gridCols) scrollGridToPage(page);
+    if (page < top || page >= top + gridSlots * gridCols) scrollGridToPage(page);
   }
 
   const gridFocused = () => paneViews.some((v) => v?.hasFocus()) || !!editor?.view.hasFocus();
@@ -1740,6 +1742,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     <div
       class="editor"
       bind:this={scrollers[0]}
+      bind:clientHeight={gridViewHeight}
       use:paneEvents={0}
       onwheel={(e) => onWheel(e, 0)}
       onscroll={() => stalePanes.size && flushPanes()}

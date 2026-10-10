@@ -962,6 +962,14 @@ try {
     const pages = live.map(sheetAt);
     if (pages.includes(0)) bad.push(`a cell shows no whole page (${pages})`);
     if (new Set(pages).size !== pages.length) bad.push(`a page shows twice (${pages})`);
+    // Every row the viewport shows, even a sliver of, has its pages in cells.
+    const scroller = document.querySelector('.editor-panes.grid > .editor').getBoundingClientRect();
+    const canvas = document.querySelector('.grid-canvas').getBoundingClientRect();
+    const total = +/of (\d+)/.exec(document.querySelector('.statusbar').textContent)[1];
+    const cols = 3, rowH = canvas.height / Math.ceil(total / cols);
+    for (let row = Math.max(0, Math.floor((scroller.top - canvas.top) / rowH)); row * rowH < scroller.bottom - canvas.top && row * cols < total; row++)
+      for (let p = row * cols + 1; p <= Math.min(total, row * cols + cols); p++)
+        if (!pages.includes(p)) bad.push(`page ${p} on screen has no cell (${pages})`);
     const cell = document.activeElement?.closest('.page-cell');
     const sel = getSelection();
     if (!cell || !sel.rangeCount) return [...bad, 'no cell has the focus'];
@@ -1036,7 +1044,10 @@ try {
   // first, so the click lands in the current document and every view ends up the same.
   await page.keyboard.type('caught up ');
   const otherCell = await page.evaluate(() => {
-    const cell = [...document.querySelectorAll('.page-cell:not(.empty)')].find((c) => !c.contains(document.activeElement));
+    const view = document.querySelector('.editor-panes.grid > .editor').getBoundingClientRect();
+    const onScreen = (r) => r.top + r.height / 2 > view.top && r.top + r.height / 2 < view.bottom;
+    const cell = [...document.querySelectorAll('.page-cell:not(.empty)')]
+      .find((c) => !c.contains(document.activeElement) && onScreen(c.getBoundingClientRect()));
     const r = cell.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
