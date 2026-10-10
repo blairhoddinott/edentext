@@ -21,7 +21,7 @@ import { DEFAULT_STYLE, visibleStyles, type Style } from '../styles/styleSheet';
 import { styleLabel, t } from '../i18n/i18n.svelte';
 import { docBudget, type AiConfig, type AiMode } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
-import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, type CellAt, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, fillNotes, type Block } from './doc';
+import { blockLine, blockText, blockTexts, cellAt, isFrame, htmlToSlice, type CellAt, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, fillNotes, type Block } from './doc';
 import { borderAttr, nameLookup, parseMargins, splitDocumentHtml, type NoteText, type PageSpec } from './dialect';
 import { PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
 import type { Orientation } from '../storage/pageOrientation';
@@ -559,9 +559,17 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       const toN = Number(a.to) || fromN;
       const from = contentRange(current(ctx, fromN))[0];
       const to = contentRange(current(ctx, toN))[1];
-      if (to <= from) throw new ToolError('empty range');
       guardRevisions(ctx, from, to);
-      dispatch(ctx, (tr) => trackedReplace(tr, from, to, null, ctx.author));
+      if (to > from) dispatch(ctx, (tr) => trackedReplace(tr, from, to, null, ctx.author));
+      // Nothing tracks a paragraph's own removal, so one left empty goes directly (undoable);
+      // a cell or a frame keeps its last paragraph.
+      const empty: number[] = [];
+      for (let n = toN; n >= fromN; n--) {
+        const p = current(ctx, n);
+        if (!p.node.content.size && ctx.editor.state.doc.resolve(p.pos).parent.childCount > 1) empty.push(p.pos);
+      }
+      if (to <= from && !empty.length) throw new ToolError('empty range');
+      if (empty.length) dispatch(ctx, (tr) => { for (const pos of empty) tr.delete(pos, pos + tr.doc.nodeAt(pos)!.nodeSize); });
       return { result: 'ok', summary: m.delete(fromN, toN) };
     }
     case 'format': {
@@ -724,7 +732,7 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       let found: { pos: number; node: PMNode } | null = null;
       let count = 0;
       p.node.forEach((child, offset) => {
-        if (child.type.name !== 'image' && child.type.name !== 'textBox') return;
+        if (!isFrame(child)) return;
         if (++count === want) found = { pos: p.pos + 1 + offset, node: child };
       });
       if (!found) throw new ToolError(count ? `paragraph ${a.paragraph} has ${count} frame(s)` : `paragraph ${a.paragraph} has no frame`);
@@ -906,6 +914,8 @@ export async function runTurn(opts: {
       for (const call of res.toolCalls) {
         if (opts.signal.aborted) break;
         const r = runTool(ctx, call);
+        // A style changes the layout without touching the document.
+        if (call.name === 'set_style' && r.result.startsWith('ok')) reflowed = true;
         if (r.summary) opts.onTool(r.summary);
         turn.push({ role: 'tool', id: call.id, content: r.result });
       }

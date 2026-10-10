@@ -92,6 +92,23 @@ describe('tools', () => {
     editor.destroy();
   });
 
+  it('removes empty paragraphs it deletes, but leaves a cell its last one', () => {
+    const editor = makeEditor('<p>a</p><p></p><p></p><p>b</p><table><tr><td><p></p></td></tr></table>');
+    expect(runTool(turn(editor), call('delete_paragraphs', { from: 2, to: 3 })).result).toBe('ok');
+    // The paragraph after the table is the editor's own, for the caret.
+    expect(texts(editor)).toEqual(['a', 'b', '', '']);
+    expect(runTool(turn(editor), call('delete_paragraphs', { from: 3, to: 3 })).result).toMatch(/^error: empty range/);
+    editor.destroy();
+  });
+
+  it('lists a picture in the line as a frame, so its size can be changed', () => {
+    const editor = makeEditor('<p><img src="data:image/png;base64,iVBORw0KGgo=" alt="Pic" width="378" height="189"></p>');
+    expect(blockTexts(editor.state.doc).map(blockLine)[0]).toContain('frame 1: picture 10×5cm inline');
+    expect(runTool(turn(editor), call('frame', { paragraph: 1, width_cm: 5, height_cm: 2.5 })).result).toBe('ok');
+    expect(blockTexts(editor.state.doc).map(blockLine)[0]).toContain('frame 1: picture 5×2.5cm inline');
+    editor.destroy();
+  });
+
   it('removes a picture it inserted itself outright when it deletes it', () => {
     const editor = makeEditor('<p>Title</p>');
     expect(runTool(turn(editor), call('insert_paragraphs', { after: 1, html: '<p><img alt="Pic" width="4cm" height="3cm"></p>' })).result).toBe('ok');
@@ -469,7 +486,7 @@ describe('runTurn', () => {
     const img = editor.state.doc.firstChild!.firstChild!;
     expect(img.attrs).toMatchObject({ width: 113, wrapDist: { top: 0.6, right: 0.6, bottom: 0.6, left: 0.6 } });
     expect(runTool(ctx, call('frame', { paragraph: 1, frame: 2 })).result).toMatch(/has 1 frame/);
-    expect(serializeDoc(editor.state)).toContain('frame 1: picture 2.99×5cm right gap 0.6cm');
+    expect(serializeDoc(editor.state)).toContain('frame 1: picture 3×5cm right gap 0.6cm');
     editor.destroy();
   });
 

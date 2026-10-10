@@ -162,17 +162,22 @@ export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): stri
       : list.slice(0, 4).map((x) => JSON.stringify(x.length > 30 ? x.slice(0, 30) + '…' : x)).join(', ') + (list.length > 4 ? ', …' : '');
     parts.push(`${label}: ${quoted}`);
   }
-  // Its floating frames, numbered as the frame tool takes them; one in the line is a character.
+  // Its frames, numbered as the frame tool takes them — one in the line too, so its size
+  // can be changed, unless it has none to change; a deleted one is not counted.
   let k = 0;
   node.forEach((child) => {
-    if (child.type.name !== 'image' && child.type.name !== 'textBox') return;
+    if (!isFrame(child)) return;
     k++;
-    if ((child.attrs.wrap ?? 'inline') !== 'inline') parts.push(`frame ${k}: ${frameNote(child)}`);
+    if ((child.attrs.wrap ?? 'inline') !== 'inline' || child.attrs.width) parts.push(`frame ${k}: ${frameNote(child)}`);
   });
   return parts.length ? ` {${parts.join('; ')}}` : '';
 }
 
-const cmOf = (px: unknown) => (typeof px === 'number' ? Math.round((px / (96 / 2.54)) * 100) / 100 : 0);
+/** A picture or text box in a paragraph's line, not marked as deleted. */
+export const isFrame = (n: PMNode) => (n.type.name === 'image' || n.type.name === 'textBox') && !n.marks.some((m) => m.type.name === 'deletion');
+
+// To a millimetre: the pixels a size is stored in would read 2.5cm back as 2.49cm.
+const cmOf = (px: unknown) => (typeof px === 'number' ? Math.round((px / (96 / 2.54)) * 10) / 10 : 0);
 
 /** A frame's kind, size, wrap and gap to the text, as the frame tool sets them. */
 function frameNote(frame: PMNode): string {

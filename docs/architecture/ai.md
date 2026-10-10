@@ -83,7 +83,9 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   `delete_paragraphs`) go through `trackedReplace` (`trackChanges.ts`). Each edit becomes
   a revision by the localized author `t().ai.author`, whether or not recording is on.
   The Review pane accepts or rejects it. An edit over another author's pending change
-  is refused: `markDeleted` would delete their insertion outright.
+  is refused: `markDeleted` would delete their insertion outright. Track changes has no
+  paragraph removal, so a paragraph `delete_paragraphs` leaves empty goes directly (a cell
+  or frame keeps its last one).
 - **`format`** uses `applyFormat`, the search-replace formatting, plus mark removal and the
   highlight; alignment, spacing, indent, line height, shading and a page break before are
   paragraph attributes set on the whole paragraphs, and `list` runs the list commands. Track
@@ -93,12 +95,12 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   heading goes into its style, and `heading_numbers` sets the chapter numbering (`setOutline`).
 - **`insert_frame`** builds the dialect's `<aside>` or `<img alt>` and inserts the frame at the
   start of the paragraph, directly; **`frame`** changes one's wrap, size and gap to the text.
-  A paragraph's formatting lists its floating frames (`frame 1: picture 4×5cm right gap
-  0.32cm`), numbered as the tool takes them; a frame's CSS `margin` is its gap, else a new
+  A paragraph's formatting lists its frames (`frame 1: picture 4×5cm right gap 0.32cm`), a
+  sized picture in the line too, numbered as the tool takes them (deleted ones not counted); a frame's CSS `margin` is its gap, else a new
   frame's.
 - Numbers and booleans may come as strings, and every error names what is accepted ("unknown
   style …; styles are: …"), for small models.
-- After a round that changed the text or went through the host (page, zone, language),
+- After a round that changed the text, a style or went through the host (page, zone, language),
   `runTurn` waits until `isPaginating` is false (`layoutSettled`) and appends `document now N
   pages, last page about X% full` to the round's last tool result; after 3s or in a hidden
   tab it appends nothing, since a stale count misleads more than none.
