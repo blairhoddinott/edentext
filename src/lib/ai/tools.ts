@@ -757,7 +757,8 @@ export async function runTurn(opts: {
       // After a round that changed the text, the next layout pass tells the model how
       // long the document now is, so "two pages" is something it can check.
       if (!editor.state.doc.eq(before) && typeof requestAnimationFrame === 'function') {
-        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+        // A hidden tab runs no frames; the timeout keeps the turn going without the layout.
+        await new Promise((done) => { requestAnimationFrame(() => requestAnimationFrame(done)); setTimeout(done, 500); });
         const layout = pageLayout(editor.view, blockTexts(editor.state.doc));
         const last = turn[turn.length - 1];
         if (layout && last.role === 'tool') last.content += `\n(document now ${layout.pages[layout.pages.length - 1]} pages, last page about ${layout.lastFill}% full)`;
