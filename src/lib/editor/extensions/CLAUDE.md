@@ -17,6 +17,8 @@ These extensions are documented separately; read the document before changing th
 | `notes.ts` | `docs/architecture/notes.md` |
 | `paragraphStyle.ts`, `characterStyle.ts` | `src/lib/styles/CLAUDE.md` |
 
+A frame's `wrapDist` is a plain number (the text side) or `{top, right, bottom, left}` in cm; every reader goes through `wrapGap()` in `image.ts`, and a frame that starts to wrap without one gets `PICTURE_WRAP_GAP`/`BOX_WRAP_GAP` (frames.md, Wrap distance).
+
 ## Other extensions
 
 - **`fontColor.ts`** (`FontColor`) — `color` attr on the TextStyle mark; also emits `data-color` so theme CSS (allBlack) can target color-bearing spans.
