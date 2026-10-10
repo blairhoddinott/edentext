@@ -1124,6 +1124,8 @@ try {
   // goes out; switched on, a chat turn's tool call lands as the assistant's tracked change,
   // a rewrite replaces the selection, and drafting opens the chat with /draft.
   let aiRequests = 0;
+  const aiFailed = [];
+  page.on('requestfailed', (r) => { if (r.url().includes('mock.test')) aiFailed.push(`${r.method()} ${r.url()}: ${r.failure()?.errorText}`); });
   await page.route('http://mock.test/**', async (route) => {
     const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST' };
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
@@ -1161,6 +1163,9 @@ try {
     del: document.querySelector('.tiptap [data-deletion]')?.textContent,
     author: document.querySelector('.tiptap [data-insertion]')?.getAttribute('data-rev-author'),
   }));
+  // A failure says whether the mock was reached and what the pane shows.
+  if (tracked.ins !== 'slow') Object.assign(tracked, { requests: aiRequests, failed: aiFailed,
+    pane: await page.evaluate(() => document.querySelector('.ai-pane')?.textContent?.replace(/\s+/g, ' ').slice(-200)) });
   check(tracked.ins === 'slow' && tracked.del === 'quick' && tracked.author === 'AI',
     `a chat turn's edit is the assistant's tracked change (${JSON.stringify(tracked)})`);
   await page.waitForSelector('.ai-pane .tool', { timeout: 5_000 }).catch(() => {});
