@@ -66,7 +66,7 @@ const es: Messages = {
     model: 'Modelo',
     modelHint: 'Como lo llama el proveedor, p. ej. gpt-4.1-mini, claude-sonnet-5 o qwen2.5:7b',
     contextSize: 'Tamaño de contexto',
-    contextSizeHint: 'La ventana de contexto del modelo en tokens; decide cuánto del documento se envía. Ollama la recibe.',
+    contextSizeHint: 'Cuánto texto puede leer el modelo a la vez. Un valor mayor le deja ver más de un documento largo; si dudas, deja el predeterminado o usa el valor que indica tu proveedor para el modelo.',
     apiKey: 'Clave de API',
     apiKeyHint: 'Se guarda sin cifrar en este navegador. Un servidor local no la necesita.',
     test: 'Probar',

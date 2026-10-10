@@ -67,7 +67,7 @@ const en = {
     model: 'Model',
     modelHint: 'As the provider names it, e.g. gpt-4.1-mini, claude-sonnet-5 or qwen2.5:7b',
     contextSize: 'Context size',
-    contextSizeHint: 'The model\'s context window in tokens; it decides how much of the document goes along. Ollama is given it.',
+    contextSizeHint: 'How much text the model can read at once. A larger value lets it see more of a long document; if unsure, keep the default or use the value your provider gives for the model.',
     apiKey: 'API key',
     apiKeyHint: 'Stored unencrypted in this browser. A local server needs none.',
     test: 'Test',

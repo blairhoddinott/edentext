@@ -66,7 +66,7 @@ const de: Messages = {
     model: 'Modell',
     modelHint: 'Wie der Anbieter es nennt, z. B. gpt-4.1-mini, claude-sonnet-5 oder qwen2.5:7b',
     contextSize: 'Kontextgröße',
-    contextSizeHint: 'Das Kontextfenster des Modells in Token; es bestimmt, wie viel vom Dokument mitgeht. Ollama bekommt es mitgeteilt.',
+    contextSizeHint: 'Wie viel Text das Modell auf einmal lesen kann. Bei einem größeren Wert sieht es mehr von einem langen Dokument; im Zweifel den Standard lassen oder den Wert nehmen, den der Anbieter für das Modell angibt.',
     apiKey: 'API-Schlüssel',
     apiKeyHint: 'Wird unverschlüsselt in diesem Browser gespeichert. Ein lokaler Server braucht keinen.',
     test: 'Testen',

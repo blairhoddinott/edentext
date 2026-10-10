@@ -67,7 +67,7 @@ const zhHans: Messages = {
     model: '模型',
     modelHint: '按服务提供商的命名，例如 gpt-4.1-mini、claude-sonnet-5 或 qwen2.5:7b',
     contextSize: '上下文大小',
-    contextSizeHint: '模型的上下文窗口（token 数），决定随请求发送多少文档内容。会告知 Ollama。',
+    contextSizeHint: '模型一次能读取的文字量。数值越大，长文档能被读到的部分越多；不确定时请保留默认值，或使用提供商为该模型标注的数值。',
     apiKey: 'API 密钥',
     apiKeyHint: '以未加密形式保存在此浏览器中。本地服务器不需要密钥。',
     test: '测试',

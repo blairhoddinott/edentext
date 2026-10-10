@@ -66,7 +66,7 @@ const fr: Messages = {
     model: 'Modèle',
     modelHint: 'Tel que le fournisseur le nomme, p. ex. gpt-4.1-mini, claude-sonnet-5 ou qwen2.5:7b',
     contextSize: 'Taille du contexte',
-    contextSizeHint: 'La fenêtre de contexte du modèle en jetons ; elle détermine la part du document envoyée. Ollama la reçoit.',
+    contextSizeHint: 'La quantité de texte que le modèle peut lire d’un coup. Une valeur plus grande lui montre davantage d’un long document ; en cas de doute, gardez la valeur par défaut ou celle que votre fournisseur indique pour le modèle.',
     apiKey: 'Clé d’API',
     apiKeyHint: 'Enregistrée sans chiffrement dans ce navigateur. Un serveur local n’en a pas besoin.',
     test: 'Tester',

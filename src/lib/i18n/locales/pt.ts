@@ -66,7 +66,7 @@ const pt: Messages = {
     model: 'Modelo',
     modelHint: 'Como o fornecedor lhe chama, p. ex. gpt-4.1-mini, claude-sonnet-5 ou qwen2.5:7b',
     contextSize: 'Tamanho do contexto',
-    contextSizeHint: 'A janela de contexto do modelo em tokens; decide quanto do documento é enviado. O Ollama a recebe.',
+    contextSizeHint: 'Quanto texto o modelo consegue ler de uma vez. Um valor maior permite-lhe ver mais de um documento longo; em caso de dúvida, mantenha o padrão ou use o valor que o fornecedor indica para o modelo.',
     apiKey: 'Chave de API',
     apiKeyHint: 'Guardada sem encriptação neste navegador. Um servidor local não precisa dela.',
     test: 'Testar',

@@ -68,7 +68,7 @@ const ja: Messages = {
     model: 'モデル',
     modelHint: 'プロバイダーでの名前 (例: gpt-4.1-mini、claude-sonnet-5、qwen2.5:7b)',
     contextSize: 'コンテキストサイズ',
-    contextSizeHint: 'モデルのコンテキストウィンドウ（トークン数）。文書をどれだけ送るかが決まります。Ollama にも伝えます。',
+    contextSizeHint: 'モデルが一度に読める文章の量です。大きくすると長い文書をより多く読めます。迷ったら既定値のままにするか、プロバイダーがそのモデルに示す値を使ってください。',
     apiKey: 'API キー',
     apiKeyHint: 'このブラウザーに暗号化せずに保存されます。ローカル サーバーには不要です。',
     test: 'テスト',
