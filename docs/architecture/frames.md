@@ -110,9 +110,6 @@ Adding a shape is one entry in `SHAPES` — no icon, no export branch, no import
 - An importer maps the file's `draw:type`/`prst` back through the same table;
   `shapeFromOdfType`/`shapeFromPrst` return **null** for a preset we can't draw, which is
   what makes the warning possible instead of flattening it to a rectangle.
-- A shape's text is drawing text to LibreOffice, where a link is a field holding plain
-  text: a `text:span` inside `text:a` comes back empty. `shapeLinks` in the ODT export puts
-  the span outside the link (probed: text, bold and link all survive a re-save).
 
 ## Lines and arrows
 
@@ -148,8 +145,7 @@ A drawing this editor offers no tool to author — a polygon, a polyline, a bezi
 a connector's elbow — still has to survive being opened and saved. The box keeps the
 file's own outline in `shapePath`, an SVG `d` in the same **0…100 box** a preset's
 points live in (`utils/shapes.ts`), and its presence is what makes the box draw itself.
-An outline that never closes is **stroked only**, whatever fill its style declares,
-which is how both products draw a polyline.
+An open outline is **stroked only**, whatever fill its style declares, as both products draw it.
 
 - **Reading** takes four path dialects, all through `parseSvgPath`, which resolves the
   relative commands both products write into absolute `M`/`L`/`C`/`Z`: ODF's
@@ -200,6 +196,5 @@ which is how both products draw a polyline.
   and its style places that box; the first member carries the placement and the rest
   run through over it (`convertDrawGroup`).
 - **Writing** goes back out as the shape's own geometry: ODF a `non-primitive`
-  `<draw:enhanced-geometry>` in its 21600 viewBox (probed: LibreOffice writes that
-  straight back out unchanged), DOCX an `<a:custGeom>` path list in the shape's EMU
-  extent. Both render in LibreOffice exactly as the editor draws them.
+  `<draw:enhanced-geometry>` in its 21600 viewBox (LibreOffice writes it back unchanged),
+  DOCX an `<a:custGeom>` path list in its EMU extent; LibreOffice draws both as we do.

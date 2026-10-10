@@ -17,6 +17,8 @@ named styles and direct formatting separately so values matching product default
 implicit. `saveDocument` settles the format before constructing bytes; do not infer it from
 the browser save dialog.
 
+A shape's text is drawing text to LibreOffice, where a link holds plain text: `shapeLinks` writes a span outside `text:a`, since one inside comes back empty (probed).
+
 Read `docs/architecture/export.md` before changing ODF/DOCX export, post-pack passes,
 sentinels, heading defaults, review printing, or header/footer export. Read the focused
 architecture document for tables, frames, formulas, formatting, notes, or encryption.
