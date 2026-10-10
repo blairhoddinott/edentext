@@ -854,8 +854,9 @@ const MAX_ROUNDS = 8;
  */
 async function layoutSettled(view: EditorView): Promise<boolean> {
   const end = Date.now() + 3000;
-  // A change dispatched this tick queues its pass on the next frame.
-  await new Promise((done) => requestAnimationFrame(done));
+  // A text change queues its pass on the next frame; a page setup change reaches the
+  // editor through a Svelte effect that dispatches in a frame of its own, one later.
+  await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   while (!document.hidden && Date.now() < end) {
     if (!isPaginating(view)) return true;
     await new Promise((done) => { requestAnimationFrame(done); setTimeout(done, 100); });
