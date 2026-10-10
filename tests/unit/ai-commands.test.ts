@@ -5,7 +5,7 @@ import { Editor } from '@tiptap/core';
 import { extensions } from '../../src/lib/editor/extensions';
 import { blockTexts } from '../../src/lib/ai/doc';
 import { REWRITE_PROMPT } from '../../src/lib/ai/tools';
-import { captureTarget, commandRequest, insertAtCursor, insertBelowTarget, parseCommand, replaceTarget } from '../../src/lib/ai/commands';
+import { captureTarget, commandRequest, insertAtCursor, expandCustom, insertBelowTarget, parseCommand, replaceTarget } from '../../src/lib/ai/commands';
 
 function makeEditor(html: string) {
   const el = document.createElement('div');
@@ -22,6 +22,15 @@ describe('parseCommand', () => {
     expect(parseCommand('/shorten')).toMatchObject({ command: { name: 'shorten' }, arg: '' });
     expect(parseCommand('/foo bar')).toEqual({ unknown: 'foo' });
     expect(parseCommand('what is /draft?')).toBeNull();
+  });
+
+  it('expands a saved command to its prompt plus what follows, a built-in winning', () => {
+    const saved = [{ name: 'Sum Up', prompt: 'Summarize the document.\n' }, { name: 'draft', prompt: 'never' }, { name: 'empty', prompt: ' ' }];
+    expect(expandCustom('/sum-up in three bullets', saved)).toBe('Summarize the document.\n\nin three bullets');
+    expect(expandCustom('/SUM-UP', saved)).toBe('Summarize the document.');
+    expect(expandCustom('/draft a poem', saved)).toBeNull();
+    expect(expandCustom('/empty', saved)).toBeNull();
+    expect(expandCustom('plain /sum-up', saved)).toBeNull();
   });
 });
 

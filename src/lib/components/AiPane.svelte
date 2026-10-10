@@ -39,7 +39,7 @@
   import { blockTexts, contentToDom, htmlToSlice, stripFences } from '../ai/doc';
   import { TextSelection } from '@tiptap/pm/state';
   import { splitDocumentHtml } from '../ai/dialect';
-  import { COMMANDS, captureTarget, commandLabel, commandRequest, insertAtCursor, insertBelowTarget, parseCommand, replaceTarget, uiLanguage } from '../ai/commands';
+  import { COMMANDS, captureTarget, commandLabel, commandName, commandRequest, expandCustom, insertAtCursor, insertBelowTarget, parseCommand, replaceTarget, uiLanguage } from '../ai/commands';
   import { runTurn, startRequest, endRequest, type AiHost } from '../ai/tools';
   import { readSource, sourcesBlock, SOURCE_ACCEPT, type Source } from '../ai/sources';
   import Icon from './ribbon/Icon.svelte';
@@ -160,7 +160,9 @@
   async function send(text = question, target?: Target, again?: Pick<Entry, 'files' | 'context'>) {
     const q = text.trim();
     const cfg = aiConfig();
-    const parsed = parseCommand(q);
+    // A saved command stands for its prompt and runs as a chat turn, the tools included.
+    const custom = cfg && expandCustom(q, cfg.commands);
+    const parsed = custom ? null : parseCommand(q);
     if (!q || !cfg || !editor || (busy && parsed)) return;
     if (text === question) question = '';
     recall = -1;
@@ -170,12 +172,12 @@
     attachError = '';
     if (parsed) return command(q, parsed, target, files);
     entries.push({ role: 'user', text: q, tools: [], error: '', historyAt: history.length, ...files });
-    if (busy) return void queued.push(q);
+    if (busy) return void queued.push(custom ?? q);
     let reply = startReply();
     const author = t().ai.author;
     const before = revisions(editor.state.doc).filter((r) => r.author === author).length;
     busy = true;
-    let asked = q;
+    let asked = custom ?? q;
     let context = files.context;
     let mine: AbortController;
     for (;;) {
@@ -357,7 +359,12 @@
   let matches = $derived.by(() => {
     if (menuHidden || !/^\/\S*$/.test(question)) return [];
     const q = question.slice(1).toLowerCase();
-    return COMMANDS.filter((c) => c.name.startsWith(q) || commandLabel(c, t().ai).toLowerCase().includes(q));
+    const all = [
+      ...COMMANDS.map((c) => ({ name: c.name, label: commandLabel(c, t().ai) })),
+      ...aiSettings().commands.map((c) => ({ name: commandName(c.name), label: c.prompt.trim().split('\n')[0] }))
+        .filter((c) => c.name && !COMMANDS.some((b) => b.name === c.name)),
+    ];
+    return all.filter((c) => c.name.startsWith(q) || c.label.toLowerCase().includes(q));
   });
 
   function pick(i: number) {
@@ -516,7 +523,7 @@
         <div class="menu" role="listbox" aria-label={t().ai.commandsTitle}>
           {#each matches as c, k (c.name)}
             <button role="option" aria-selected={k === menuIndex} class:on={k === menuIndex} onmousedown={(ev) => ev.preventDefault()} onclick={() => pick(k)}>
-              <span class="cmd">/{c.name}</span><span class="label">{commandLabel(c, t().ai)}</span>
+              <span class="cmd">/{c.name}</span><span class="label">{c.label}</span>
             </button>
           {/each}
         </div>
@@ -694,7 +701,7 @@
   .menu button { display: flex; gap: 8px; align-items: baseline; padding: 5px 8px; text-align: left; }
   .menu button.on { background: var(--w-accent-soft); }
   .menu .cmd { font-weight: 600; color: var(--w-accent); }
-  .menu .label { color: var(--color-text-muted); }
+  .menu .label { color: var(--color-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* One composer box: the field and its button share the border and the focus ring. */
   .ask {
     display: flex;

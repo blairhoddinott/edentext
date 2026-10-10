@@ -8,7 +8,10 @@ export type AiProvider = 'openai' | 'anthropic';
 /** 'chat' answers in the pane only; 'edit' changes the document through the tools. */
 export type AiMode = 'chat' | 'edit';
 /** `contextTokens`: the model's context window, which sizes the document sent along. */
-export type AiSettings = { enabled: boolean; provider: AiProvider; endpoint: string; apiKey: string; model: string; contextTokens: number; mode: AiMode; side: 'left' | 'right' };
+/** A saved prompt the chat runs as `/name`. */
+export type CustomCommand = { name: string; prompt: string };
+/** `commands`: the user's own slash commands. */
+export type AiSettings = { enabled: boolean; provider: AiProvider; endpoint: string; apiKey: string; model: string; contextTokens: number; mode: AiMode; side: 'left' | 'right'; commands: CustomCommand[] };
 export type AiConfig = Omit<AiSettings, 'enabled'>;
 
 const KEY = 'edentext-ai';
@@ -24,17 +27,20 @@ export const AI_COMMENT_EVENT = 'edentext-ai-comment';
 export const aiAnswering = new SvelteMap<string, string>();
 
 export const DEFAULT_CONTEXT_TOKENS = 32_000;
-const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '', contextTokens: DEFAULT_CONTEXT_TOKENS, mode: 'edit', side: 'right' };
+const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '', contextTokens: DEFAULT_CONTEXT_TOKENS, mode: 'edit', side: 'right', commands: [] };
 
 /** The characters of document a request may carry: half the context, at about four a token. */
 export function docBudget(cfg: Pick<AiConfig, 'contextTokens'>): number {
   return Math.max(4000, Math.round((cfg.contextTokens || DEFAULT_CONTEXT_TOKENS) * 2));
 }
 
+const validCommands = (v: unknown): CustomCommand[] =>
+  Array.isArray(v) ? v.filter((c) => c && typeof c.name === 'string' && typeof c.prompt === 'string') : [];
+
 function load(): AiSettings {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    return raw && typeof raw === 'object' ? { ...DEFAULTS, ...raw, enabled: raw.enabled === true, mode: raw.mode === 'chat' ? 'chat' : 'edit', side: raw.side === 'left' ? 'left' : 'right' } : { ...DEFAULTS };
+    return raw && typeof raw === 'object' ? { ...DEFAULTS, ...raw, enabled: raw.enabled === true, mode: raw.mode === 'chat' ? 'chat' : 'edit', side: raw.side === 'left' ? 'left' : 'right', commands: validCommands(raw.commands) } : { ...DEFAULTS };
   } catch {
     return { ...DEFAULTS };
   }
@@ -55,7 +61,7 @@ export function aiConfig(): AiConfig | null {
 
 export function setAi(patch: Partial<AiSettings>): void {
   current = { ...current, ...patch };
-  const isDefault = (Object.keys(DEFAULTS) as (keyof AiSettings)[]).every((k) => current[k] === DEFAULTS[k]);
+  const isDefault = (Object.keys(DEFAULTS) as (keyof AiSettings)[]).every((k) => JSON.stringify(current[k]) === JSON.stringify(DEFAULTS[k]));
   if (isDefault) localStorage.removeItem(KEY);
   else localStorage.setItem(KEY, JSON.stringify(current));
 }

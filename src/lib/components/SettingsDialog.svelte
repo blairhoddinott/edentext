@@ -8,7 +8,8 @@
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
   import Icon from './ribbon/Icon.svelte';
   import Toggle from './Toggle.svelte';
-  import { aiSettings, setAi, aiConfig, AI_PRESETS, presetOf, DEFAULT_CONTEXT_TOKENS } from '../storage/ai.svelte';
+  import { aiSettings, setAi, aiConfig, AI_PRESETS, presetOf, DEFAULT_CONTEXT_TOKENS, type CustomCommand } from '../storage/ai.svelte';
+  import { COMMANDS, commandName } from '../ai/commands';
   import { streamChat, aiErrorText } from '../ai/client';
 
   // App-wide settings, one section per side-bar entry. Each control writes through the
@@ -75,6 +76,8 @@
       aiTest = { busy: false, ok: false, text: aiErrorText(e, t().ai.errors, cfg.endpoint) };
     }
   }
+
+  const editCommand = (i: number, patch: Partial<CustomCommand>) => setAi({ commands: ai.commands.map((c, k) => (k === i ? { ...c, ...patch } : c)) });
 
   function pickPreset(id: string) {
     const p = AI_PRESETS.find((x) => x.id === id);
@@ -248,6 +251,22 @@
           </div>
           <button class="btn" disabled={!ai.enabled || aiTest?.busy} onclick={testAi}>{t().ai.test}</button>
         </div>
+        <div class="row stack sub" class:dim={!ai.enabled}>
+          <div class="info"><div class="name">{t().ai.customCommands}</div><div class="desc">{t().ai.customCommandsHint}</div></div>
+          {#each ai.commands as c, i (i)}
+            {@const name = commandName(c.name)}
+            <div class="command">
+              <input class="field" type="text" spellcheck="false" placeholder={t().ai.commandName} aria-label={t().ai.commandName}
+                value={c.name ? `/${name}` : ''} disabled={!ai.enabled} onchange={(e) => editCommand(i, { name: commandName(e.currentTarget.value) })} />
+              <textarea class="field" rows="2" placeholder={t().ai.commandPrompt} aria-label={t().ai.commandPrompt}
+                value={c.prompt} disabled={!ai.enabled} onchange={(e) => editCommand(i, { prompt: e.currentTarget.value })}></textarea>
+              <button class="btn icon" disabled={!ai.enabled} onclick={() => setAi({ commands: ai.commands.filter((_, k) => k !== i) })}
+                title={t().ai.removeCommand} aria-label={t().ai.removeCommand}><Icon name="close" size={12} /></button>
+              {#if COMMANDS.some((b) => b.name === name)}<div class="desc taken">{t().ai.commandTaken(name)}</div>{/if}
+            </div>
+          {/each}
+          <div><button class="btn" disabled={!ai.enabled} onclick={() => setAi({ commands: [...ai.commands, { name: '', prompt: '' }] })}>{t().ai.addCommand}</button></div>
+        </div>
 
       {:else}
         <div class="row stack">
@@ -381,6 +400,10 @@
   .field.short { width: 100px; }
   .field:disabled, select:disabled { opacity: 0.45; cursor: default; }
   .desc.ok { color: var(--w-accent); font-weight: 600; }
+  .command { display: grid; grid-template-columns: 150px 1fr auto; gap: 6px; align-items: start; }
+  .command .field { width: auto; min-width: 0; font: inherit; }
+  .command textarea { resize: vertical; }
+  .command .taken { grid-column: 1 / -1; color: #e5534b; }
 
   .segmented {
     display: grid;

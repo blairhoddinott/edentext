@@ -8,7 +8,7 @@ directly with the key from Settings ▸ AI.
 ## Kill switch
 
 `storage/ai.svelte.ts` holds one app-wide key, `edentext-ai`, with `{enabled, provider,
-endpoint, apiKey, model, contextTokens}`. Off is the default. `aiEnabled()` gates every surface:
+endpoint, apiKey, model, contextTokens, mode, side, commands}`. Off is the default. `aiEnabled()` gates every surface:
 
 - the Home tab's AI group (`aiPane`, `aiDraft`, `aiRewrite`) and their command-search entries;
 - the two context-menu items (body editor only);
@@ -178,6 +178,11 @@ filtered by name or localized label. A command sends its fixed prompt without to
 small local models manage it; the rewrite commands need a selection, captured when sent. The
 reply is a proposal: Replace or Insert below for a rewrite, Insert at cursor for a draft,
 refused once the selected text changed. It enters the chat history, so a follow-up refines it.
+
+Own commands (Settings ▸ AI, `commands` in `edentext-ai`) are saved prompts. `/name more`
+expands to the prompt plus the rest (`expandCustom`) and runs as an ordinary chat turn, so it
+has the tools in Edit mode; the chat shows what was typed. A built-in name wins, and the row
+says so; the `/` list shows own commands after the built-ins, labelled by the prompt's first line.
 
 Drafting has no window of its own: the ribbon, the context menu and `Alt+I` open the chat
 with `/draft ` filled in (`OPEN_AI_CHAT_EVENT`, `askAi`). The popover only rewrites.

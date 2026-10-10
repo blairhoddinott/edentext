@@ -8,6 +8,7 @@ import { TextSelection, type EditorState } from '@tiptap/pm/state';
 import type { Messages } from '../i18n/locales/en';
 import { locale } from '../i18n/i18n.svelte';
 import { LANGUAGES } from '../storage/documentLanguage';
+import type { CustomCommand } from '../storage/ai.svelte';
 import type { ChatRequest } from './client';
 import { fillNotes, htmlToSlice, selectionHtml, serializeDoc, stripFences } from './doc';
 import { splitDocumentHtml, type NoteText } from './dialect';
@@ -37,6 +38,17 @@ export function parseCommand(text: string): { command: Command; arg: string } | 
   if (!m) return null;
   const command = COMMANDS.find((c) => c.name === m[1].toLowerCase());
   return command ? { command, arg: m[2].trim() } : { unknown: m[1] };
+}
+
+/** A saved command's name as typed after `/`: one lower-case word. */
+export const commandName = (s: string): string => s.trim().replace(/^\/+/, '').toLowerCase().replace(/\s+/g, '-');
+
+/** `/name more` for a saved command, as the chat message it stands for; a built-in wins. */
+export function expandCustom(text: string, saved: CustomCommand[]): string | null {
+  const parsed = parseCommand(text);
+  if (!parsed || !('unknown' in parsed)) return null;
+  const c = saved.find((s) => commandName(s.name) === parsed.unknown.toLowerCase() && s.prompt.trim());
+  return c ? `${c.prompt.trim()}\n\n${text.trim().slice(parsed.unknown.length + 1).trim()}`.trim() : null;
 }
 
 /** What a rewrite works on, fixed when it is asked for. */
