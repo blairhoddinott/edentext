@@ -264,8 +264,7 @@ class TocView {
     this.dom.dataset.toc = 'true';
     this.dom.setAttribute('contenteditable', 'false');
     this.applyFlow(node);
-    // A file's index with no cached row was never generated (LibreOffice fills it on load).
-    this.updating = Array.isArray(node.attrs.entries) && node.attrs.entries.length ? false : 'all';
+    this.updating = Array.isArray(node.attrs.entries) ? false : 'all';
     this.lastLook = lookOf(node);
 
     tocViews.add(this);

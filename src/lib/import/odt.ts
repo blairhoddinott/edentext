@@ -1571,7 +1571,9 @@ function convertToc(el: Element, ctx: Ctx, indexKind: IndexKind): Node {
     }
     entries.push({ text, level, page: nums[0] ?? 1, ...(nums.length > 1 ? { pages: nums } : {}) });
   }
-  attrs.entries = entries;
+  // A body with nothing in it was never generated, and LibreOffice fills it on load
+  // (probed); one holding an empty paragraph stays empty there.
+  attrs.entries = indexBody && !indexBody.children.length ? null : entries;
   return { type: 'tableOfContents', attrs };
 }
 

@@ -73,6 +73,14 @@ describe('an imported index', () => {
     expect(toc(importOdt(odt)).attrs.entries).toEqual([
       { text: '[1] A. Author, Title.', level: 1, page: 1 }, { text: '[2] B. Author, Other.', level: 1, page: 1 }]);
   });
+
+  it('generates an ODF index whose body holds nothing, as LibreOffice does on load', () => {
+    const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"';
+    const odt = (body: string) => zipSync({ 'content.xml': strToU8(`<?xml version="1.0"?><office:document-content ${NS}>
+      <office:body><office:text><text:table-of-content text:name="T"><text:index-body>${body}</text:index-body></text:table-of-content></office:text></office:body></office:document-content>`) });
+    expect(toc(importOdt(odt(''))).attrs.entries).toBeNull();
+    expect(toc(importOdt(odt('<text:p/>'))).attrs.entries).toEqual([]);
+  });
 });
 
 describe('updating page numbers only', () => {
