@@ -149,6 +149,15 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   the assistant's revision ids new after `runTurn`) in one step. Direct formatting is not a
   revision, so Undo leaves it; Ctrl+Z takes it back.
 
+## Attached files
+
+The paperclip or a drop onto the pane attaches files as material (`ai/sources.ts`): .docx and
+.odt through the importers, .txt/.md/.csv and .html as text; a PDF or a protected file is
+refused. Their text (`sourcesBlock`, half the document budget shared out) prefaces the next
+question that starts a turn or command, and only that one: the history keeps the question,
+and the stored chat the file names (`files`) but not the text (`context`), so Regenerate
+and Edit resend the files within the session only.
+
 ## Slash commands
 
 A chat message starting with `/` is a command: `/draft <what>`, `/rewrite <how>`, and the

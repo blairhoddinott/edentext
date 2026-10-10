@@ -884,6 +884,8 @@ export async function runTurn(opts: {
   signal: AbortSignal;
   /** Messages the user sent while the turn runs; read after each round of tools. */
   takeQueued?: () => string[];
+  /** Attached files' text: sent with this turn only, never kept in the history. */
+  context?: string;
 }): Promise<string> {
   const { editor } = opts;
   const chat = opts.cfg.mode === 'chat';
@@ -900,7 +902,8 @@ export async function runTurn(opts: {
   const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host, readOnly: chat };
   const track = ({ transaction }: { transaction: Transaction }) => ctx.mapping.appendMapping(transaction.mapping);
   editor.on('transaction', track);
-  const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, docBudget(opts.cfg), pageLayout(editor.view, blocks))}\n\n---\n\n${opts.question}` }];
+  const preface = opts.context ? `${opts.context}\n\n---\n\n` : '';
+  const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, docBudget(opts.cfg), pageLayout(editor.view, blocks))}\n\n---\n\n${preface}${opts.question}` }];
   let answer = '';
   const asked = [opts.question];
   try {

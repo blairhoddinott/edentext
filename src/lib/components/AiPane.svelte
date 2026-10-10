@@ -6,8 +6,9 @@
   // A command's reply is a proposal: it reaches the document by its buttons only.
   type Proposal = { kind: Command['kind']; target: Target; applied: boolean };
   // `historyAt`: the history's length when a question was sent, so editing or regenerating
-  // it cuts the history there; `revs`: the tracked changes a reply made.
-  type Entry = { role: 'user' | 'assistant'; text: string; tools: string[]; error: string; proposal?: Proposal; historyAt?: number; revs?: string[] };
+  // it cuts the history there; `revs`: the tracked changes a reply made; `files` and
+  // `context`: the files a question came with and their text, which is never stored.
+  type Entry = { role: 'user' | 'assistant'; text: string; tools: string[]; error: string; proposal?: Proposal; historyAt?: number; revs?: string[]; files?: string[]; context?: string };
 
   // The conversation outlives the pane being closed and a reload: it is kept with the document.
   const stored = loadAiChat<{ entries: Entry[]; history: ChatMessage[] }>();
@@ -40,6 +41,7 @@
   import { splitDocumentHtml } from '../ai/dialect';
   import { COMMANDS, captureTarget, commandLabel, commandRequest, insertAtCursor, insertBelowTarget, parseCommand, replaceTarget, uiLanguage } from '../ai/commands';
   import { runTurn, startRequest, endRequest, type AiHost } from '../ai/tools';
+  import { readSource, sourcesBlock, SOURCE_ACCEPT, type Source } from '../ai/sources';
   import Icon from './ribbon/Icon.svelte';
 
   // Copilot's chat pane: questions about the document with the document as context, and
@@ -66,7 +68,7 @@
   let configured = $derived(!!aiConfig());
   // Written once a reply is complete, not per streamed token; history changes only then too.
   $effect(() => {
-    const snapshot = $state.snapshot(entries);
+    const snapshot = $state.snapshot(entries).map(({ context: _, ...e }) => e);
     if (!busy) saveAiChat({ entries: snapshot, history });
   });
   // Settings ▸ AI can dock the pane left of the pages; the editor row orders it first.
@@ -155,28 +157,33 @@
     busy = false;
   }
 
-  async function send(text = question, target?: Target) {
+  async function send(text = question, target?: Target, again?: Pick<Entry, 'files' | 'context'>) {
     const q = text.trim();
     const cfg = aiConfig();
     const parsed = parseCommand(q);
     if (!q || !cfg || !editor || (busy && parsed)) return;
     if (text === question) question = '';
     recall = -1;
-    if (parsed) return command(q, parsed, target);
-    entries.push({ role: 'user', text: q, tools: [], error: '', historyAt: history.length });
+    // Attached files go with the next question that starts a turn; a queued one waits.
+    const files = again ?? (busy || !attached.length ? {} : { files: attached.map((s) => s.name), context: sourcesBlock(attached, docBudget(cfg) / 2) });
+    if (!again && files.files) attached = [];
+    attachError = '';
+    if (parsed) return command(q, parsed, target, files);
+    entries.push({ role: 'user', text: q, tools: [], error: '', historyAt: history.length, ...files });
     if (busy) return void queued.push(q);
     let reply = startReply();
     const author = t().ai.author;
     const before = revisions(editor.state.doc).filter((r) => r.author === author).length;
     busy = true;
     let asked = q;
+    let context = files.context;
     let mine: AbortController;
     for (;;) {
       mine = request = startRequest();
       const known = new Set(aiRevisionIds(editor));
       try {
         await runTurn({
-          cfg, editor, history, question: asked, author, host,
+          cfg, editor, history, question: asked, author, host, context,
           onText: (d) => (reply.text += d),
           onTool: (s) => reply.tools.push(s),
           signal: mine.signal,
@@ -191,6 +198,7 @@
       }
       if (request !== mine || !queued.length) break;
       asked = queued.join('\n\n');
+      context = undefined;
       queued = [];
       reply = startReply();
     }
@@ -199,16 +207,16 @@
     if (!showChanges() && revisions(editor.state.doc).filter((r) => r.author === author).length > before) setShowChanges(true);
   }
 
-  async function command(q: string, parsed: NonNullable<ReturnType<typeof parseCommand>>, kept?: Target) {
+  async function command(q: string, parsed: NonNullable<ReturnType<typeof parseCommand>>, kept?: Target, files: Pick<Entry, 'files' | 'context'> = {}) {
     const cfg = aiConfig();
     if (!cfg || !editor) return;
-    entries.push({ role: 'user', text: q, tools: [], error: '', historyAt: history.length });
+    entries.push({ role: 'user', text: q, tools: [], error: '', historyAt: history.length, ...files });
     const reply = startReply();
     if ('unknown' in parsed) return void (reply.error = t().ai.unknownCommand(parsed.unknown));
     // Regenerated or edited, a command rewrites the selection it was first sent with.
     const target = kept ?? captureTarget(editor.state);
     if (parsed.command.kind === 'rewrite' && !target.html) return void (reply.error = t().ai.needSelection);
-    const made = commandRequest(parsed.command, parsed.arg, editor.state, target, uiLanguage(), docBudget(cfg));
+    const made = commandRequest(parsed.command, parsed.arg, editor.state, target, uiLanguage(), docBudget(cfg), files.context);
     if (!made) return void (reply.error = t().ai.needInstruction);
     reply.proposal = { kind: parsed.command.kind, target, applied: false };
     busy = true;
@@ -256,11 +264,39 @@
     const asked = entries[i];
     if (busy || asked?.role !== 'user' || asked.historyAt == null) return;
     const target = entries[i + 1]?.proposal?.target;
+    // A file's text is kept for this session only; after a reload the question goes without it.
+    const files = asked.context ? { files: asked.files, context: asked.context } : {};
     for (const e of entries.slice(i)) settle(e, false);
     history.length = Math.min(history.length, asked.historyAt);
     entries.splice(i);
     editing = -1;
-    void send(text, target);
+    void send(text, target, files);
+  }
+
+  // Files attached to the next question, read to text in the browser.
+  let attached = $state<Source[]>([]);
+  let attachError = $state('');
+  let picker = $state<HTMLInputElement | null>(null);
+  let dragging = $state(false);
+
+  async function attach(files: Iterable<File>) {
+    if (!editor) return;
+    attachError = '';
+    for (const file of files) {
+      try {
+        const source = await readSource(file, editor.schema);
+        attached = [...attached.filter((s) => s.name !== source.name), source];
+      } catch {
+        attachError = t().ai.attachFailed(file.name);
+      }
+    }
+  }
+
+  function onDrop(e: DragEvent) {
+    dragging = false;
+    if (!e.dataTransfer?.files.length || !configured) return;
+    e.preventDefault();
+    void attach(e.dataTransfer.files);
   }
 
   let editing = $state(-1);
@@ -384,7 +420,10 @@
   }
 </script>
 
-<aside class="ai-pane" class:left aria-label={t().ai.name} style:flex-basis="{width}px">
+<aside class="ai-pane" class:left class:dragging aria-label={t().ai.name} style:flex-basis="{width}px"
+  ondragover={(e) => { if (configured && e.dataTransfer?.types.includes('Files')) { e.preventDefault(); dragging = true; } }}
+  ondragleave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) dragging = false; }}
+  ondrop={onDrop}>
   <!-- A focusable separator is a widget (ARIA), which Svelte does not know. -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div class="resize" role="separator" aria-orientation="vertical" aria-label={t().ai.paneWidth}
@@ -422,7 +461,7 @@
           </div>
         </div>
       {:else if e.role === 'user'}
-        <div class="msg user">{e.text}{#if !busy && e.historyAt != null}<button class="icon edit" onclick={() => { editing = i; editText = e.text; }} title={t().ai.editMessage} aria-label={t().ai.editMessage}><Icon name="pencil" size={12} /></button>{/if}</div>
+        <div class="msg user">{e.text}{#if e.files?.length}<span class="files">{#each e.files as f (f)}<span class="file"><Icon name="attach" size={12} />{f}</span>{/each}</span>{/if}{#if !busy && e.historyAt != null}<button class="icon edit" onclick={() => { editing = i; editText = e.text; }} title={t().ai.editMessage} aria-label={t().ai.editMessage}><Icon name="pencil" size={12} /></button>{/if}</div>
       {:else}
         <div class="msg assistant">
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -491,8 +530,21 @@
             </button>
           </div>
         {/if}
+        {#if attached.length || attachError}
+          <div class="chips-row">
+            {#each attached as s (s.name)}
+              <span class="sel"><span class="sel-text"><Icon name="attach" size={12} /> {s.name}</span>
+                <button class="icon" onclick={() => (attached = attached.filter((x) => x !== s))} title={t().ai.removeFile} aria-label={t().ai.removeFile}><Icon name="close" size={12} /></button>
+              </span>
+            {/each}
+            {#if attachError}<span class="error" role="alert">{attachError}</span>{/if}
+          </div>
+        {/if}
         <textarea bind:this={field} bind:value={question} rows="3" placeholder={aiSettings().mode === 'chat' ? t().ai.placeholder : t().ai.placeholderEdit} onkeydown={onKeydown} oninput={() => { menuIndex = 0; menuHidden = false; }}></textarea>
         <div class="row">
+          <input bind:this={picker} type="file" multiple accept={SOURCE_ACCEPT} hidden
+            onchange={(e) => { const f = e.currentTarget.files; if (f) void attach([...f]); e.currentTarget.value = ''; }} />
+          <button class="icon clip" onclick={() => picker?.click()} title={t().ai.attach} aria-label={t().ai.attach}><Icon name="attach" size={16} /></button>
           <!-- Read at send: a switch while the assistant works applies from the next turn. -->
           <div class="modes" role="radiogroup" aria-label={t().ai.modeLabel} title={t().ai.modeLabel}>
             {#each ['chat', 'edit'] as const as m (m)}
@@ -676,7 +728,13 @@
     color: var(--color-text);
     font: inherit;
   }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .row { display: flex; align-items: center; gap: 6px; }
+  .row .send { margin-left: auto; }
+  .chips-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .chips-row .error { font-size: 0.72rem; }
+  .files { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; white-space: normal; }
+  .file { display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; opacity: 0.8; }
+  .ai-pane.dragging::after { content: ''; position: absolute; inset: 4px; border: 2px dashed var(--w-accent); border-radius: 10px; background: var(--w-accent-soft); pointer-events: none; }
   .modes {
     display: flex;
     padding: 2px;

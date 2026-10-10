@@ -51,19 +51,21 @@ export function captureTarget(state: EditorState): Target {
  * The request a command sends, and the question it leaves in the chat history; null
  * while an instruction is missing. A preset takes `arg` as an addition, translate as the language.
  */
-export function commandRequest(command: Command, arg: string, state: EditorState, target: Target, language: string, budget?: number): { request: ChatRequest; asked: string } | null {
+/** `context`: attached files' text, sent ahead of the request but not kept as `asked`. */
+export function commandRequest(command: Command, arg: string, state: EditorState, target: Target, language: string, budget?: number, context = ''): { request: ChatRequest; asked: string } | null {
+  const preface = context ? `${context}\n\n---\n\n` : '';
   if (command.kind === 'draft') {
     if (!arg) return null;
     const asked = `Write this at the cursor: ${arg}`;
     // An empty document is no context; small models would only echo its outline back.
     const empty = state.doc.childCount <= 1 && !state.doc.textContent.trim();
-    return { request: { system: draftPrompt(empty), messages: [{ role: 'user', content: empty ? asked : `${serializeDoc(state, undefined, budget)}\n\n---\n\n${asked}` }] }, asked };
+    return { request: { system: draftPrompt(empty), messages: [{ role: 'user', content: empty ? preface + asked : `${serializeDoc(state, undefined, budget)}\n\n---\n\n${preface}${asked}` }] }, asked };
   }
   const p = command.preset;
   const ask = p === 'translate' ? REWRITE_PRESETS.translate(arg || language) : p ? `${REWRITE_PRESETS[p]} ${arg}`.trim() : arg;
   if (!ask) return null;
   const asked = `${ask}\n\nPassage:\n${target.html}`;
-  return { request: { system: REWRITE_PROMPT, messages: [{ role: 'user', content: asked }] }, asked };
+  return { request: { system: REWRITE_PROMPT, messages: [{ role: 'user', content: preface + asked }] }, asked };
 }
 
 /** The range must still hold the text the reply was written for. */
