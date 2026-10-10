@@ -2783,15 +2783,17 @@ function applyListLevelProps(odtBytes: Uint8Array, props: ListLevelProps[][]): U
   return rezipOdt(files);
 }
 
-// Marker formatting per nesting level of each top-level list, from the first list at
-// that level (null unless its items agree — see listMarkerFormat). Nested lists that
-// odf-kit restyles keep their plain marker.
+// Marker formatting per nesting level of each top-level list, where every list at that
+// level agrees (null unless its items agree too — see listMarkerFormat): a level carries
+// one, and LibreOffice falls back to each item's first portion without it.
 function collectListMarkerFormats(doc: TiptapNode, result: (MarkerFormat | null)[][]): void {
   for (const child of doc.content ?? []) {
     if (child.type !== 'bulletList' && child.type !== 'orderedList') continue;
     const levels: (MarkerFormat | null)[] = [];
     const visit = (list: TiptapNode, depth: number) => {
-      if (levels[depth - 1] === undefined) levels[depth - 1] = listMarkerFormat(list, charStyleProps(exportSheet));
+      const own = listMarkerFormat(list, charStyleProps(exportSheet));
+      if (levels[depth - 1] === undefined) levels[depth - 1] = own;
+      else if (JSON.stringify(levels[depth - 1]) !== JSON.stringify(own)) levels[depth - 1] = null;
       for (const item of list.content ?? []) {
         for (const block of item.content ?? []) {
           if (block.type === 'bulletList' || block.type === 'orderedList') visit(block, depth + 1);

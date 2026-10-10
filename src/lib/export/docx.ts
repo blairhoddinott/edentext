@@ -459,7 +459,7 @@ class Numbering {
   }
 
   // A level keeps the first format it saw, so a sibling nested list of another kind,
-  // number format or bullet char forks its own reference (the ODT side mints its own
+  // number format, bullet char or label formatting forks its own reference (the ODT side mints its own
   // list style). The fork copies the shallower levels so the importer's cycle walk
   // (listBaseCycle) still sees the ancestry.
   forkFor(reference: string, depth: number, node: TiptapNode, cycle: OrderedCycle, style: ListStyleDef | null = null): string {
@@ -479,7 +479,8 @@ class Numbering {
       format = LevelFormat.BULLET;
       text = bulletCharOf(node, depth, style);
     }
-    if (l.format === format && l.text === text) return reference;
+    if (l.format === format && l.text === text
+      && JSON.stringify(l.style?.run ?? null) === JSON.stringify(markerRunProps(node) ?? null)) return reference;
     const fork = this.newReference();
     this.map.get(fork)!.push(...levels.filter((lv) => lv.level < depth));
     return fork;
