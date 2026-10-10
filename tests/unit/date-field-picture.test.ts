@@ -1,34 +1,21 @@
 // A DATE/TIME field whose picture the catalog does not list: it stays a live field,
 // keyed by the picture itself, and renders and re-exports the same.
 import { describe, it, expect } from 'vitest';
-import { zipSync, strToU8, unzipSync, strFromU8 } from 'fflate';
+import { unzipSync, strFromU8 } from 'fflate';
 import { importDocx } from '../../src/lib/import/docx';
 import { buildDocx } from '../../src/lib/export/docx';
 import { findFormat, renderFormat, docxPicture, defaultDateFormat, DEFAULT_DATE_FORMAT } from '../../src/lib/utils/dateTime';
+import { docxOf } from '../docxFixture';
 
-const CT = `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-<Default Extension="xml" ContentType="application/xml"/>
-<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-</Types>`;
-
-const RELS = `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-
-const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
-const DOCUMENT = `<?xml version="1.0"?><w:document ${W}><w:body><w:p>
+const BODY = `<w:p>
 <w:r><w:fldChar w:fldCharType="begin"/></w:r>
 <w:r><w:instrText xml:space="preserve"> DATE  \\@ "MMMM d"  \\* MERGEFORMAT </w:instrText></w:r>
 <w:r><w:fldChar w:fldCharType="separate"/></w:r>
 <w:r><w:t>July 10</w:t></w:r>
 <w:r><w:fldChar w:fldCharType="end"/></w:r>
-</w:p></w:body></w:document>`;
+</w:p>`;
 
-const file = zipSync({
-  '[Content_Types].xml': strToU8(CT),
-  '_rels/.rels': strToU8(RELS),
-  'word/document.xml': strToU8(DOCUMENT),
-});
+const file = docxOf(BODY);
 
 const walk = (n: any, type: string, out: any[] = []): any[] => {
   for (const c of n.content ?? []) { if (c.type === type) out.push(c); walk(c, type, out); }

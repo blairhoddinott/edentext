@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { importDocx } from '../../src/lib/import/docx';
 import { buildDocx } from '../../src/lib/export/docx';
-import { docxOf } from '../docxFixture';
+import { docxOf, roundTrips } from '../docxFixture';
 
 type N = any;
 
@@ -66,5 +66,36 @@ describe('a TOC field', () => {
     const files = unzipSync(await buildDocx(r.content as never, undefined, 'portrait', undefined, null, 'A4', r.styles));
     expect(strFromU8(files['word/document.xml'])).toContain('<w:pStyle w:val="Contents2"/>');
     expect(strFromU8(files['word/styles.xml'])).toContain('w:styleId="Contents2"');
+  });
+});
+
+// A TOC field's \t switch maps styles to levels of their own, which can lie past \o's range.
+describe('a TOC field mapping styles with \\t', () => {
+  it('lists down to the deepest level either switch names', () => {
+    const r = (x: string) => `<w:r>${x}</w:r>`;
+    const docx = docxOf('<w:p>'
+      + r('<w:fldChar w:fldCharType="begin"/>') + r('<w:instrText xml:space="preserve"> TOC \\o "3-3" \\h \\t "Heading 1;1;Heading 4;4" </w:instrText>')
+      + r('<w:fldChar w:fldCharType="separate"/>') + r('<w:t>1</w:t>') + r('<w:tab/>') + r('<w:t>Intro</w:t>') + r('<w:tab/>') + r('<w:t>2</w:t>')
+      + `</w:p><w:p>${r('<w:fldChar w:fldCharType="end"/>')}</w:p>`);
+    const toc = (importDocx(docx).content as any).content.find((n: any) => n.type === 'tableOfContents');
+    expect(toc.attrs.maxLevel).toBe(4);
+    expect(toc.attrs.entries[0].text).toBe('1\tIntro');
+  });
+});
+
+// A contents row's tab between its number and its title is what sets the title at the
+// level's hanging indent; read as a space, every title ran on behind its number.
+describe('a tab inside a contents row', () => {
+  it('survives both formats', async () => {
+    const doc = { type: 'doc', content: [
+      { type: 'tableOfContents', attrs: { title: '', maxLevel: 2, leader: '.', entries: [
+        { text: '1\tPurpose', level: 1, page: 2 },
+        { text: '1.2\tText conventions', level: 2, page: 3 },
+      ] } },
+      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Purpose' }] },
+    ] };
+    for (const back of await roundTrips(doc)) {
+      expect(back.content.find((n: any) => n.type === 'tableOfContents').attrs.entries.map((e: any) => e.text)).toEqual(['1\tPurpose', '1.2\tText conventions']);
+    }
   });
 });

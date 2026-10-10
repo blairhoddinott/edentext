@@ -13,6 +13,7 @@ import { zipSync, strToU8, unzipSync, strFromU8 } from 'fflate';
 import { importDocx } from '../../src/lib/import/docx';
 import { importOdt } from '../../src/lib/import/odt';
 import { buildOdt } from '../../src/lib/export/odt';
+import { docxOf } from '../docxFixture';
 
 // The break attr survives only where a file can hold it: a body block or a list item.
 type N = any;
@@ -90,7 +91,6 @@ describe('page break before is not inherited on split', () => {
 // Where a block opening a page keeps its space above (all probed in LibreOffice): Word's
 // 2013 layout drops it after a paragraph's own page break, an older file keeps it, a
 // section start always does, and a page break character never leaves it.
-const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
 const spaced = '<w:spacing w:before="480"/>';
 const sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>';
 const body = `<w:p><w:r><w:t>first</w:t></w:r></w:p>`
@@ -98,11 +98,9 @@ const body = `<w:p><w:r><w:t>first</w:t></w:r></w:p>`
   + `<w:p><w:pPr>${sect}</w:pPr><w:r><w:t>ends section</w:t></w:r></w:p>`
   + `<w:p><w:pPr><w:pageBreakBefore/>${spaced}</w:pPr><w:r><w:t>opens section</w:t></w:r></w:p>`
   + `<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p><w:pPr>${spaced}</w:pPr><w:r><w:t>after a break character</w:t></w:r></w:p>`;
-const docx = (mode: string | null) => zipSync({
-  '[Content_Types].xml': strToU8('<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'),
-  'word/document.xml': strToU8(`<?xml version="1.0"?><w:document ${W}><w:body>${body}${sect}</w:body></w:document>`),
-  ...(mode ? { 'word/settings.xml': strToU8(`<?xml version="1.0"?><w:settings ${W}><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="${mode}"/></w:compat></w:settings>`) } : {}),
-});
+const docx = (mode: string | null) => docxOf(body + sect, mode ? {
+  settings: `<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="${mode}"/></w:compat>`,
+} : {});
 const spaces = (doc: any): Record<string, unknown> => Object.fromEntries((doc.content as any[])
   .filter((n) => n.content?.[0]?.text && n.content[0].text !== 'first' && n.content[0].text !== 'ends section')
   .map((n) => [n.content[0].text, n.attrs?.spaceBefore]));

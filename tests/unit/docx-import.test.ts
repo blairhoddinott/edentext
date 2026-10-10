@@ -148,6 +148,37 @@ describe('DocxStyles.paragraphRun', () => {
   });
 });
 
+// What a paragraph style chain sets must arrive and survive both formats: a style's
+// first-line offset, a page break inherited through w:basedOn (a direct w:val="0" turns it
+// off), and a direct w:ind w:left="0" that beats the style's indent.
+describe('the paragraph style chain', () => {
+  const NORMAL = '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>';
+  const style = (id: string, base: string, pPr = '') => `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${id}"/><w:basedOn w:val="${base}"/>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}</w:style>`;
+  const styled = (id: string, pPr = '') => para('x', `<w:pStyle w:val="${id}"/>${pPr}`);
+  const attr = (key: string) => (r: N) => r.content.content.map((b: N) => b.attrs?.[key] ?? null);
+  it.each([
+    ['a first-line offset, a derived style inheriting it',
+      style('Hang', 'Normal', '<w:ind w:left="850" w:hanging="680"/>') + style('Hang2', 'Hang', '<w:ind w:left="1191"/>') + style('First', 'Normal', '<w:ind w:firstLine="567"/>'),
+      styled('Hang') + styled('Hang2') + styled('First'),
+      (r: N) => ['Hang', 'Hang2', 'First'].map((n) => r.styles.paragraph[n]?.para?.indentFirst), [-1.2, undefined, 1]],
+    ['a page break before from the chain',
+      style('Base', 'Normal', '<w:pageBreakBefore/>') + style('Chapter', 'Base'),
+      para('lead') + styled('Chapter') + styled('Chapter', '<w:pageBreakBefore w:val="0"/>'),
+      attr('breakBefore'), [null, 'page', null]],
+    ['a direct zero left indent over a style that indents',
+      style('Deep', 'Normal', '<w:ind w:left="1948"/>'),
+      styled('Deep', '<w:ind w:left="0"/>') + styled('Deep'),
+      attr('indent'), [0, null]],
+  ])('%s', async (_name, styles, body, pick, want) => {
+    const imported = importDocx(docxOf(body, { styles: NORMAL + styles }));
+    expect(pick(imported)).toEqual(want);
+    const docx = await buildDocx(imported.content as N, undefined, 'portrait', undefined, null, 'A4', imported.styles);
+    const odt = await buildOdt(imported.content as N, undefined, 'portrait', undefined, null, 'A4', imported.styles);
+    expect(pick(importDocx(docx)), 'DOCX').toEqual(want);
+    expect(pick(importOdt(odt)), 'ODT').toEqual(want);
+  });
+});
+
 // A style's w:numId and w:ilvl inherit along w:basedOn one by one; a level left open is
 // the one whose w:pStyle names the style.
 describe("a paragraph style's numbering", () => {

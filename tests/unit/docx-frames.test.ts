@@ -1,7 +1,9 @@
 // DOCX import of drawings: text boxes, shapes and pictures, in the body and in the zones.
 import { describe, it, expect } from 'vitest';
+import { getSchema } from '@tiptap/core';
+import { extensions } from '../../src/lib/editor/extensions';
 import { importDocx } from '../../src/lib/import/docx';
-import { docxOf, W_NS } from '../docxFixture';
+import { docxOf, roundTrips, W_NS } from '../docxFixture';
 
 type N = any;
 
@@ -97,4 +99,39 @@ it('keeps a footer text box with a live page number in it', () => {
   expect(box.content[0].content).toEqual([{ type: 'pageNumber' }]);
   expect(box.content[0].attrs.textAlign).toBe('right');
   expect([...res.warnings]).not.toContain('Text boxes in headers or footers were flattened to text');
+});
+
+// An inline wps shape: the frame's own geometry and line, around the given parts.
+const inlineShape = (cNvPr: string, xfrm: string, geom: string, rest: string) => '<w:p><w:r><w:drawing><wp:inline><wp:extent cx="1800000" cy="360000"/><wp:docPr id="1" name="S"/>'
+  + `<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp>${cNvPr}`
+  + `<wps:spPr><a:xfrm${xfrm}><a:off x="0" y="0"/><a:ext cx="1800000" cy="360000"/></a:xfrm><a:prstGeom prst="${geom}"><a:avLst/></a:prstGeom>${rest}`
+  + '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+
+// Each case reads a property of every text box, then again after both exports; a DOCX
+// export writes every box at its fixed extent (see buildDocx), so a growing one comes back fixed.
+// A connector flipped across runs from its frame's right edge, so the head at its end
+// points left; a head at the start alone is the same line run the other way.
+const line = (flip: string, head: string, tail: string) => inlineShape('<wps:cNvCnPr/>', flip, 'straightConnector1',
+  `<a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:headEnd type="${head}"/><a:tailEnd type="${tail}"/></a:ln></wps:spPr><wps:bodyPr/></wps:wsp>`);
+// A text box without a:spAutoFit keeps its extent and clips what overflows; with it the
+// box grows. The top and bottom insets are apart: the text area is the box less each.
+const box = (fit: string, ins = '') => inlineShape('<wps:cNvSpPr txBox="1"/>', '', 'rect',
+  `</wps:spPr><wps:txbx><w:txbxContent><w:p><w:r><w:t>text</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr${ins}>${fit}</wps:bodyPr></wps:wsp>`);
+
+describe('a text box property through import and both exports', () => {
+  it.each([
+    ['a line flipped across, or headed at its start', line(' flipH="1"', 'none', 'triangle') + line('', 'triangle', 'none'),
+      (b: N) => `${b.attrs.shapeKind} ${b.attrs.flipH ? 'H' : '-'}${b.attrs.flipV ? 'V' : '-'}`, ['lineArrow H-', 'lineArrow HV']],
+    ['a box fixed without a:spAutoFit, growing with it', box('<a:noAutofit/>') + box('<a:spAutoFit/>'),
+      (b: N) => b.attrs.fixedHeight ?? false, [true, false], [true, true]],
+    ['a box with its own top and bottom inset', box('<a:noAutofit/>', ' tIns="36000" bIns="0"'),
+      (b: N) => [b.attrs.paddingTopCm, b.attrs.paddingBottomCm], [[0.1, 0]]],
+  ])('%s', async (_name, body, pick, want, docxWant = want) => {
+    // As the editor holds it: every attr the schema defaults filled in.
+    const doc = getSchema(extensions).nodeFromJSON(importDocx(docxOf(body)).content).toJSON();
+    expect(collect(doc, 'textBox').map(pick)).toEqual(want);
+    const [docx, odt] = await roundTrips(doc);
+    expect(collect(docx, 'textBox').map(pick), 'DOCX').toEqual(docxWant);
+    expect(collect(odt, 'textBox').map(pick), 'ODT').toEqual(want);
+  });
 });

@@ -6,6 +6,7 @@ import { buildDocx } from '../../src/lib/export/docx';
 import { importDocx } from '../../src/lib/import/docx';
 import { parseRunProps, W } from '../../src/lib/import/docxStyles';
 import { builtinStyleSheet, DEFAULT_STYLE } from '../../src/lib/styles/styleSheet';
+import { docxOf } from '../docxFixture';
 
 // A style carries western, asian and complex-script fonts side by side; text is set from
 // the set its own script belongs to — the asian font as the pair's second half. Probed against LibreOffice: a Hebrew paragraph whose
@@ -82,24 +83,11 @@ describe('script-dependent run properties', () => {
 
 // DOCX carries the asian font alone (w:rFonts w:eastAsia); the format has no asian size
 // or weight, and the choice is per w:r rather than per text node.
-const CT = `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-<Default Extension="xml" ContentType="application/xml"/>
-<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-</Types>`;
-const RELS = `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
 const WNS = `xmlns:w="${W}"`;
 const RFONTS = '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="SimSun"/>';
 const run = (text: string) => `<w:r><w:rPr>${RFONTS}</w:rPr><w:t>${text}</w:t></w:r>`;
 
-const docx = () => zipSync({
-  '[Content_Types].xml': strToU8(CT),
-  '_rels/.rels': strToU8(RELS),
-  'word/document.xml': strToU8(`<?xml version="1.0"?><w:document ${WNS}><w:body>
-    <w:p>${run(CHINESE)}${run('latin tail')}</w:p>
-  </w:body></w:document>`),
-});
+const docx = () => docxOf(`<w:p>${run(CHINESE)}${run('latin tail')}</w:p>`);
 
 const rPr = (inner: string) =>
   new DOMParser().parseFromString(`<w:rPr ${WNS}>${inner}</w:rPr>`, 'application/xml').documentElement;
