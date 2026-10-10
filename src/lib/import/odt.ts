@@ -3217,7 +3217,10 @@ function convertList(el: Element, ctx: Ctx, inheritedStyleName: string | null, d
 // The text style a level formats its label with, as the list's own marker format.
 function listLevelMarker(levelDef: Element | null, ctx: Ctx): { markerFormat?: Partial<MarkerFormat> } {
   const name = levelDef?.getAttributeNS(NS.text, 'style-name');
-  const own = name ? markerFormatFromText(textPropsFromOdf(ctx.resolver.spanTextProps(name), ctx.resolver)) : null;
+  const props = name ? ctx.resolver.spanTextProps(name) : null;
+  // The family as a run reads it, which is what the first portion it is held against has.
+  const family = props && ctx.resolver.fontFamilyOf(props);
+  const own = props ? markerFormatFromText({ ...textPropsFromOdf(props, ctx.resolver), ...(family ? { fontFamily: family } : {}) }) : null;
   return own ? { markerFormat: own } : {};
 }
 

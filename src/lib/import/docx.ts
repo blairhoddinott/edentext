@@ -1015,7 +1015,8 @@ function makeListNode(ctx: Ctx, numId: number, ilvl: number, own: ItemIndent = E
     if (Math.abs(extra) > LIST_INDENT_EPS_CM) attrs.indent = extra;
   }
   if (def.rightAligned) attrs.markerAlign = 'right';
-  const marker = def.run ? markerFormatFromText(runTextProps(def.run)) : null;
+  // The family as a run reads it, which is what the first portion it is held against has.
+  const marker = def.run ? markerFormatFromText({ ...runTextProps(def.run), ...(def.run.font ? { fontFamily: def.run.font } : {}) }) : null;
   if (marker) attrs.markerFormat = marker;
   const hang = own.hang ?? def.hangingTwip;
   if (hang != null && Math.abs(twipToCm(hang) - LIST_HANGING_CM) > LIST_INDENT_EPS_CM) attrs.hanging = round2(twipToCm(hang));
