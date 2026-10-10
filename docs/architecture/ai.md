@@ -29,7 +29,7 @@ Pages origin can read it, and the settings row says so.
 | `ai/doc.ts` | The document as numbered lines (`blockTexts`, `serializeDoc`); the model's HTML as a slice (`htmlToSlice`) |
 | `ai/tools.ts` | Tool schemas, `runTool`, the chat turn `runTurn`, prompts, and the abort registry |
 | `ai/commands.ts` | Slash commands (`parseCommand`, `commandRequest`) and the helpers that place a reply |
-| `components/AiPane.svelte` | Docked chat, right of the pages or left (`side` in `edentext-ai`, Settings ▸ AI; `order: -1` in the editor row). The history lives in module state: it survives closing the pane, but not a reload or a new document |
+| `components/AiPane.svelte` | Docked chat, right of the pages or left (`side` in `edentext-ai`, Settings ▸ AI; `order: -1` in the editor row). The history survives closing the pane and a reload (`storage/aiChat.ts`, doc-scoped `edentext-ai-chat`, written once a reply is complete); a new or opened document starts a new one |
 | `components/AiPrompt.svelte` | Popover for a quick rewrite of the selection, with a preview first |
 
 ## Document in, content out

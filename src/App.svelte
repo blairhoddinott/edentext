@@ -363,7 +363,8 @@
   let aiOpen = $state(false);
   // The kill switch stops whatever is in flight; a new document starts a new chat.
   $effect(() => { if (!aiEnabled()) abortAiRequests(); });
-  $effect(() => { void documentEpoch; abortAiRequests(); resetAiChat(); });
+  // Not on mount: the chat kept with this document survives a reload.
+  $effect(() => { if (documentEpoch) { abortAiRequests(); resetAiChat(); } });
   function openAiChat(prefill: string) {
     aiOpen = true;
     askAi(prefill);

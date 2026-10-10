@@ -1,14 +1,16 @@
 <script module lang="ts">
   import type { ChatMessage } from '../ai/client';
   import type { Command, Target } from '../ai/commands';
+  import { loadAiChat, saveAiChat } from '../storage/aiChat';
 
   // A command's reply is a proposal: it reaches the document by its buttons only.
   type Proposal = { kind: Command['kind']; target: Target; applied: boolean };
   type Entry = { role: 'user' | 'assistant'; text: string; tools: string[]; error: string; proposal?: Proposal };
 
-  // The conversation outlives the pane being closed, not a reload: nothing is stored.
-  let entries = $state<Entry[]>([]);
-  let history: ChatMessage[] = [];
+  // The conversation outlives the pane being closed and a reload: it is kept with the document.
+  const stored = loadAiChat<{ entries: Entry[]; history: ChatMessage[] }>();
+  let entries = $state<Entry[]>(Array.isArray(stored?.entries) ? stored.entries : []);
+  let history: ChatMessage[] = Array.isArray(stored?.history) ? stored.history : [];
   let prefill = $state<string | null>(null);
 
   /** Fills the chat field, as the pane opens or while it is open. */
@@ -20,6 +22,7 @@
   export function resetAiChat(): void {
     entries = [];
     history = [];
+    saveAiChat(null);
   }
 </script>
 
@@ -58,6 +61,11 @@
     return entries[replying];
   }
   let configured = $derived(!!aiConfig());
+  // Written once a reply is complete, not per streamed token; history changes only then too.
+  $effect(() => {
+    const snapshot = $state.snapshot(entries);
+    if (!busy) saveAiChat({ entries: snapshot, history });
+  });
   // Settings ▸ AI can dock the pane left of the pages; the editor row orders it first.
   let left = $derived(aiSettings().side === 'left');
   // The selection goes with every question (serializeDoc); the chip shows that it does.
