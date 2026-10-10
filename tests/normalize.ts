@@ -119,6 +119,8 @@ export function normalize(node: N): N {
     if (k in ORDERED_DEFAULTS && ORDERED_DEFAULTS[k] === v) continue;
     if (volatileKey(k)) continue;
     if (k === 'zIndex') continue;
+    // An index with no cached row and one never generated both generate on mount.
+    if (node.type === 'tableOfContents' && k === 'entries' && Array.isArray(v) && !v.length) continue;
     if (k === 'colwidth') { attrs.colwidth = 'CW'; continue; } // ratios compared separately
     // A frame's gap as drawn: the text's side beside a side wrap, above and below for
     // every mode that wraps; zero is no gap at all.
