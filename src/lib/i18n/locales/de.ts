@@ -120,6 +120,7 @@ const de: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Fußzeile entfernt' : 'Fußzeile gesetzt') : removed ? 'Kopfzeile entfernt' : 'Kopfzeile gesetzt'),
       page: 'Seite eingerichtet',
       style: (name: string) => `Formatvorlage ${name} gesetzt`,
+      language: (name: string) => `Sprache auf ${name} gesetzt`,
       frame: (n: number) => `Rahmen an Absatz ${n} eingefügt`,
       frameSet: (n: number) => `Rahmen an Absatz ${n} geändert`,
       table: (n: number) => `Tabelle ${n} geändert`,

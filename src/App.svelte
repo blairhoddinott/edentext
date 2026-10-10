@@ -352,6 +352,7 @@
       }
       if (start != null) pageNumbering = { ...pageNumbering, start };
     },
+    setLanguage: (code) => setDocumentLanguage(code),
   };
 
   let templateGalleryOpen = $state(false);

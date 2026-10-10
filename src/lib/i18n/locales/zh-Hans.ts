@@ -121,6 +121,7 @@ const zhHans: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? '已删除页脚' : '已设置页脚') : removed ? '已删除页眉' : '已设置页眉'),
       page: '已更改页面设置',
       style: (name: string) => `已设置样式 ${name}`,
+      language: (name: string) => `已将语言设置为 ${name}`,
       frame: (n: number) => `已在第 ${n} 段添加框`,
       frameSet: (n: number) => `已更改第 ${n} 段的框`,
       table: (n: number) => `已更改表格 ${n}`,

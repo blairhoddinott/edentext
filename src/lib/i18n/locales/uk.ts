@@ -124,6 +124,7 @@ const uk: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Нижній колонтитул видалено' : 'Нижній колонтитул задано') : removed ? 'Верхній колонтитул видалено' : 'Верхній колонтитул задано'),
       page: 'Параметри сторінки змінено',
       style: (name: string) => `Стиль ${name} задано`,
+      language: (name: string) => `Мову ${name} задано`,
       frame: (n: number) => `Додано рамку біля абзацу ${n}`,
       frameSet: (n: number) => `Змінено рамку біля абзацу ${n}`,
       table: (n: number) => `Таблицю ${n} змінено`,

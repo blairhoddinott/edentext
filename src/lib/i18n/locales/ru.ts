@@ -124,6 +124,7 @@ const ru: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Нижний колонтитул удалён' : 'Нижний колонтитул задан') : removed ? 'Верхний колонтитул удалён' : 'Верхний колонтитул задан'),
       page: 'Параметры страницы изменены',
       style: (name: string) => `Стиль ${name} задан`,
+      language: (name: string) => `Язык ${name} задан`,
       frame: (n: number) => `Добавлена рамка у абзаца ${n}`,
       frameSet: (n: number) => `Изменена рамка у абзаца ${n}`,
       table: (n: number) => `Таблица ${n} изменена`,

@@ -120,6 +120,7 @@ const pt: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Rodapé removido' : 'Rodapé definido') : removed ? 'Cabeçalho removido' : 'Cabeçalho definido'),
       page: 'Configuração da página alterada',
       style: (name: string) => `Estilo ${name} definido`,
+      language: (name: string) => `Idioma ${name} definido`,
       frame: (n: number) => `Moldura adicionada no parágrafo ${n}`,
       frameSet: (n: number) => `Moldura alterada no parágrafo ${n}`,
       table: (n: number) => `Tabela ${n} alterada`,

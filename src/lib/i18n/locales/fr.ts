@@ -120,6 +120,7 @@ const fr: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Pied de page supprimé' : 'Pied de page défini') : removed ? 'En-tête supprimé' : 'En-tête défini'),
       page: 'Mise en page modifiée',
       style: (name: string) => `Style ${name} défini`,
+      language: (name: string) => `Langue ${name} définie`,
       frame: (n: number) => `Cadre ajouté au paragraphe ${n}`,
       frameSet: (n: number) => `Cadre modifié au paragraphe ${n}`,
       table: (n: number) => `Tableau ${n} modifié`,

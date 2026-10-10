@@ -95,22 +95,28 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
   frame's.
 - Numbers and booleans may come as strings, and every error names what is accepted ("unknown
   style …; styles are: …"), for small models.
-- After a round that changed the text, `runTurn` waits two frames for the layout pass and
-  appends `document now N pages, last page about X% full` to the round's last tool result.
+- After a round that changed the text or went through the host (page, zone, language),
+  `runTurn` waits until `isPaginating` is false (`layoutSettled`) and appends `document now N
+  pages, last page about X% full` to the round's last tool result; after 3s or in a hidden
+  tab it appends nothing, since a stale count misleads more than none.
 - **`add_comment`** comments as the assistant; **`reply_comment`** answers a thread and
   **`resolve_comment`** closes it, both directly and undoable.
 - **`table`** (`table_insert` stays as an alias) adds a row or column with the table
-  commands and tracks the new cells' text; deleting rows or columns, `widths` (each cell's
+  commands and tracks the new cells' text: inline HTML goes into the copied paragraph, a list or
+  several paragraphs take its place; deleting rows or columns, `widths` (each cell's
   `colwidth` weights), `merge_right`, `shade`, `borders` and `style` apply directly.
 - **`set_columns`** runs `setColumns` over the paragraphs' range, which refuses a bare
   cursor's whole-document case; columns apply directly.
-- **`set_header_footer`** and **`set_page`** go through the `AiHost` that `App.svelte` hands
+- **`set_header_footer`**, **`set_page`** and a document-wide **`set_language`** go through the `AiHost` that `App.svelte` hands
   the pane, since zones and page setup are its `$state` (storage would be overwritten by the
   next effect). Setting a zone closes an open zone editor first; a first-page or even-page
   zone switches that variant on. A reply's `<header>`, `<footer>` (`data-page`) and `<page>`
   (`splitDocumentHtml`) take the same way from `insert_paragraphs` and from a draft's
   Insert at cursor; the draft preview shows them as a line above and below. Only a draft into
   an empty document is asked for them.
+- **`set_language`** takes a name ("English (UK)", "German") or tag; for paragraphs
+  `from`/`to` it runs `setBlockLanguage` with any valid tag, for the document only a
+  `LANGUAGES` entry (`pickDocumentLanguage` in the host).
 - **`replace_text`** lets a form blank (a run of dots or underscores, an ellipsis) in `find`
   match any such run: a model miscounts long ones.
 - **Paragraph numbers** come from the turn's snapshot. Every transaction during the turn

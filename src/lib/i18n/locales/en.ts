@@ -121,6 +121,7 @@ const en = {
       zone: (footer: boolean, removed: boolean): string => (footer ? (removed ? 'Removed the footer' : 'Set the footer') : removed ? 'Removed the header' : 'Set the header'),
       page: 'Changed the page setup',
       style: (name: string) => `Set the style ${name}`,
+      language: (name: string) => `Set the language to ${name}`,
       frame: (n: number) => `Added a frame at paragraph ${n}`,
       frameSet: (n: number) => `Changed a frame at paragraph ${n}`,
       table: (n: number) => `Changed table ${n}`,

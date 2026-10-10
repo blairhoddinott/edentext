@@ -6,6 +6,8 @@ import type { Editor } from '@tiptap/core';
 import { Fragment, Slice, type Mark, type Node as PMNode } from '@tiptap/pm/model';
 import { Mapping } from '@tiptap/pm/transform';
 import type { Transaction } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
+import { isPaginating } from '../editor/extensions/pageBreaks';
 import { CellSelection, TableMap } from '@tiptap/pm/tables';
 import { trackedReplace } from '../editor/extensions/trackChanges';
 import { applyFormat, FORMAT_MARKS, type FormatSpec } from '../editor/extensions/searchReplace';
@@ -25,6 +27,7 @@ import { PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
 import type { Orientation } from '../storage/pageOrientation';
 import type { PageMargins } from '../storage/pageMargins';
 import type { HfDoc, HfVariant, HfZone } from '../storage/headerFooter';
+import { LANGUAGES, codeForTag, findLanguage, odfFromTag, tagForLanguage, type DocumentLanguage } from '../storage/documentLanguage';
 
 // What a model writes anyway (semantic tags, plain CSS); ai/dialect.ts maps it onto the
 // editor's nodes. Short enough for a small local model to keep in view.
@@ -48,7 +51,7 @@ export function chatSystemPrompt(): string {
     'Formatting follows a paragraph in braces, as {bold: "word"; style "Quote"}; "all" means the whole paragraph. It is not part of the text and lists only what the paragraph style does not already give.',
     'In the text, {image "alt text"} is a picture (you see only its alt text), ‹Name› a placeholder to fill in and {date} a date field; replace_text can replace each as a whole.',
     'A number after li or a heading level, as [57 li VI], is the number the page shows. [12–28] (empty) stands for empty paragraphs 12 to 28. — page 2 — lines mark where a page starts.',
-    '— 2 columns — lines mark where text columns start or end; set_columns changes them. The page setup and the page headers and footers are shown after the document; set_page and set_header_footer change them.',
+    '— 2 columns — lines mark where text columns start or end; set_columns changes them. The page setup, the language and the page headers and footers are shown after the document; set_page, set_language and set_header_footer change them.',
     'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
     'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1]. Change a table (rows, columns, widths, merging, shading, borders) with the table tool, never by rebuilding it.',
     'Formatting meant for every paragraph of a kind (a rule under each heading, a colour, spacing) goes into its style with set_style, not onto each paragraph. Frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes one listed as frame 1 in its paragraph\'s formatting.',
@@ -219,7 +222,7 @@ export const TOOLS: ToolDef[] = [
       properties: {
         paragraph: num('A paragraph in the cell'),
         action: { type: 'string', enum: TABLE_ACTIONS },
-        cells: { type: 'array', items: { type: 'string' }, description: 'New row or column: its cells as inline HTML, in order' },
+        cells: { type: 'array', items: { type: 'string' }, description: 'New row or column: its cells as HTML, in order; a cell takes several paragraphs or a list' },
         widths: { type: 'array', items: { type: 'number' }, description: 'widths: one relative width per column, as 25, 75' },
         color: str('shade: the cell\'s background, #rrggbb, or none'),
         borders: { type: 'string', enum: ['all', 'outer', 'inner', 'none'] },
@@ -240,6 +243,11 @@ export const TOOLS: ToolDef[] = [
       },
       required: ['zone', 'html'],
     },
+  },
+  {
+    name: 'set_language',
+    description: 'Sets the language of the document, or of paragraphs from…to; spelling and hyphenation follow it.',
+    parameters: { type: 'object', properties: { language: str('A language name or tag, as English (UK) or en-GB'), from: num('First paragraph, for only some'), to: num('Last paragraph') }, required: ['language'] },
   },
   {
     name: 'set_page',
@@ -271,6 +279,8 @@ export type PageSetup = { format?: PageFormat; orientation?: Orientation; margin
 export type AiHost = {
   setZone: (zone: HfZone, variant: HfVariant, doc: HfDoc) => void;
   setPage: (page: PageSetup) => void;
+  /** The document's language, a code from LANGUAGES. */
+  setLanguage?: (code: DocumentLanguage) => void;
 };
 
 /** One turn's view of the document: numbers from its snapshot, positions mapped since. */
@@ -339,6 +349,16 @@ export type ToolResult = { result: string; summary: string | null };
 class ToolError extends Error {}
 
 // The paragraph as it is now: the snapshot's node, followed through every edit since.
+const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' });
+
+/** A language name ("English (UK)", "German") or tag ("en-GB") as a code from LANGUAGES. */
+function languageCode(asked: string): DocumentLanguage | null {
+  const q = asked.toLowerCase();
+  const hit = LANGUAGES.find((l) => [l.label, l.code, tagForLanguage(l.code) ?? '', LANGUAGE_NAMES.of(l.code) ?? ''].some((n) => n.toLowerCase() === q));
+  return hit?.code ?? (odfFromTag(asked) ? codeForTag(asked) : null)
+    ?? LANGUAGES.find((l) => (LANGUAGE_NAMES.of(l.code) ?? '').toLowerCase().startsWith(q))?.code ?? null;
+}
+
 function current(ctx: TurnContext, n: unknown): { node: PMNode; pos: number; text: string; map: number[] } {
   const b = ctx.blocks[Number(n) - 1];
   if (!b) throw new ToolError(`no paragraph ${String(n)}; the document has ${ctx.blocks.length}`);
@@ -601,8 +621,18 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       const texts = Array.isArray(a.cells) ? a.cells.map(String) : [];
       dispatch(ctx, (tr) => {
         for (let k = Math.min(cells.length, texts.length) - 1; k >= 0; k--) {
-          const content = inlineContent(htmlToSlice(texts[k], ctx.editor.state), schema);
+          const slice = htmlToSlice(texts[k], ctx.editor.state);
           const into = at.tablePos + 1 + cells[k] + 2;
+          // Several paragraphs or a list take the new cell's empty paragraph's place; inline
+          // content goes into it and keeps the formatting the row copied.
+          const blocks = slice.content;
+          if (blocks.childCount > 1 || (blocks.firstChild && !blocks.firstChild.isInline && !blocks.firstChild.isTextblock)) {
+            const para = tr.doc.nodeAt(into - 1)!;
+            trackedReplace(tr, into - 1 + para.nodeSize, into - 1 + para.nodeSize, new Slice(blocks, 0, 0), ctx.author);
+            tr.delete(into - 1, into - 1 + para.nodeSize);
+            continue;
+          }
+          const content = inlineContent(slice, schema);
           if (content.size) trackedReplace(tr, into, into, new Slice(content, 0, 0), ctx.author);
         }
       });
@@ -715,6 +745,23 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       ctx.host.setZone(zone, variant, doc);
       return { result: withDropped(dropped), summary: m.zone(zone === 'footer', !doc) };
     }
+    case 'set_language': {
+      const asked = String(a.language ?? '').trim();
+      const code = languageCode(asked);
+      if (a.from == null || a.from === '') {
+        if (!ctx.host?.setLanguage) throw new ToolError('the document language cannot be changed here');
+        if (!code) throw new ToolError(`unknown language "${asked}"; languages are: ${LANGUAGES.map((l) => l.label).join(', ')}`);
+        ctx.host.setLanguage(code);
+        return { result: 'ok', summary: m.language(findLanguage(code)!.label) };
+      }
+      // A paragraph may be in any language a tag names, also one without a dictionary.
+      const tag = code ? tagForLanguage(code) : odfFromTag(asked) ? asked : null;
+      if (!tag) throw new ToolError(`unknown language "${asked}"; give a name from ${LANGUAGES.map((l) => l.label).join(', ')} or a tag such as en-GB`);
+      const p = current(ctx, a.from);
+      const q = current(ctx, a.to ?? a.from);
+      if (!ctx.editor.chain().setTextSelection({ from: p.pos + 1, to: q.pos + 1 + q.node.content.size }).setBlockLanguage(tag).run()) throw new ToolError('the language cannot be set there');
+      return { result: 'ok', summary: m.language(code ? findLanguage(code)!.label : tag) };
+    }
     case 'set_page': {
       if (!ctx.host) throw new ToolError('the page setup cannot be changed here');
       const margins = a.margins_cm == null || a.margins_cm === '' ? undefined
@@ -785,6 +832,21 @@ const MAX_ROUNDS = 8;
  * One chat turn: the question with the current document, then tool rounds until the
  * model answers without tools. `history` gains the question and the final answer.
  */
+/**
+ * Waits until no pagination pass runs or is queued; false after 3s or in a hidden tab,
+ * which runs no frames: a stale page count misleads more than none.
+ */
+async function layoutSettled(view: EditorView): Promise<boolean> {
+  const end = Date.now() + 3000;
+  // A change dispatched this tick queues its pass on the next frame.
+  await new Promise((done) => requestAnimationFrame(done));
+  while (!document.hidden && Date.now() < end) {
+    if (!isPaginating(view)) return true;
+    await new Promise((done) => { requestAnimationFrame(done); setTimeout(done, 100); });
+  }
+  return false;
+}
+
 export async function runTurn(opts: {
   cfg: AiConfig;
   editor: Editor;
@@ -798,7 +860,15 @@ export async function runTurn(opts: {
 }): Promise<string> {
   const { editor } = opts;
   const blocks = blockTexts(editor.state.doc);
-  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host: opts.host };
+  // A page, zone or language change reflows the pages without touching the text.
+  let reflowed = false;
+  const h = opts.host;
+  const host: AiHost | undefined = h && {
+    setZone: (...z) => { reflowed = true; h.setZone(...z); },
+    setPage: (p) => { reflowed = true; h.setPage(p); },
+    setLanguage: h.setLanguage && ((c) => { reflowed = true; h.setLanguage!(c); }),
+  };
+  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host };
   const track = ({ transaction }: { transaction: Transaction }) => ctx.mapping.appendMapping(transaction.mapping);
   editor.on('transaction', track);
   const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, docBudget(opts.cfg), pageLayout(editor.view, blocks))}\n\n---\n\n${opts.question}` }];
@@ -810,17 +880,16 @@ export async function runTurn(opts: {
       turn.push({ role: 'assistant', content: res.text, toolCalls: res.toolCalls });
       if (!res.toolCalls.length) break;
       const before = editor.state.doc;
+      reflowed = false;
       for (const call of res.toolCalls) {
         if (opts.signal.aborted) break;
         const r = runTool(ctx, call);
         if (r.summary) opts.onTool(r.summary);
         turn.push({ role: 'tool', id: call.id, content: r.result });
       }
-      // After a round that changed the text, the next layout pass tells the model how
-      // long the document now is, so "two pages" is something it can check.
-      if (!editor.state.doc.eq(before) && typeof requestAnimationFrame === 'function') {
-        // A hidden tab runs no frames; the timeout keeps the turn going without the layout.
-        await new Promise((done) => { requestAnimationFrame(() => requestAnimationFrame(done)); setTimeout(done, 500); });
+      // After a round that changed the text or the page, the settled layout tells the
+      // model how long the document now is, so "two pages" is something it can check.
+      if ((reflowed || !editor.state.doc.eq(before)) && typeof requestAnimationFrame === 'function' && await layoutSettled(editor.view)) {
         const layout = pageLayout(editor.view, blockTexts(editor.state.doc));
         const last = turn[turn.length - 1];
         if (layout && last.role === 'tool') last.content += `\n(document now ${layout.pages[layout.pages.length - 1]} pages, last page about ${layout.lastFill}% full)`;

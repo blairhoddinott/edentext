@@ -120,6 +120,7 @@ const es: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Pie de página eliminado' : 'Pie de página definido') : removed ? 'Encabezado eliminado' : 'Encabezado definido'),
       page: 'Configuración de página cambiada',
       style: (name: string) => `Estilo ${name} definido`,
+      language: (name: string) => `Idioma ${name} definido`,
       frame: (n: number) => `Marco añadido en el párrafo ${n}`,
       frameSet: (n: number) => `Marco cambiado en el párrafo ${n}`,
       table: (n: number) => `Tabla ${n} modificada`,

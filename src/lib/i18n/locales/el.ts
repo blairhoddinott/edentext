@@ -122,6 +122,7 @@ const el: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'Καταργήθηκε το υποσέλιδο' : 'Ορίστηκε το υποσέλιδο') : removed ? 'Καταργήθηκε η κεφαλίδα' : 'Ορίστηκε η κεφαλίδα'),
       page: 'Άλλαξε η διαμόρφωση σελίδας',
       style: (name: string) => `Ορίστηκε το στυλ ${name}`,
+      language: (name: string) => `Ορίστηκε η γλώσσα ${name}`,
       frame: (n: number) => `Προστέθηκε πλαίσιο στην παράγραφο ${n}`,
       frameSet: (n: number) => `Άλλαξε πλαίσιο στην παράγραφο ${n}`,
       table: (n: number) => `Άλλαξε ο πίνακας ${n}`,

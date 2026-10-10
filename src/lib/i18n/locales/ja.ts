@@ -122,6 +122,7 @@ const ja: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? 'フッターを削除しました' : 'フッターを設定しました') : removed ? 'ヘッダーを削除しました' : 'ヘッダーを設定しました'),
       page: 'ページ設定を変更しました',
       style: (name: string) => `スタイル ${name} を設定しました`,
+      language: (name: string) => `言語を ${name} に設定しました`,
       frame: (n: number) => `段落 ${n} に枠を追加しました`,
       frameSet: (n: number) => `段落 ${n} の枠を変更しました`,
       table: (n: number) => `表 ${n} を変更しました`,

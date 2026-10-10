@@ -175,6 +175,28 @@ describe('tools', () => {
     editor.destroy();
   });
 
+  it('fills a new cell with a list or several paragraphs as tracked blocks', () => {
+    const editor = makeEditor('<table><tr><td><p>a</p></td><td><p>1</p></td></tr></table>');
+    expect(runTool(turn(editor), call('table', { paragraph: 1, action: 'row_below', cells: ['<ul><li>x</li><li>y</li></ul>', '<p>p</p><p>q</p>'] })).result).toBe('ok');
+    expect(blockTexts(editor.state.doc).map((b) => `${b.kind}=${b.text}`).slice(2, 6)).toEqual(['cell T1 r2 c1 li=x', 'cell T1 r2 c1 li=y', 'cell T1 r2 c2=p', 'cell T1 r2 c2=q']);
+    expect(revisions(editor.state.doc).map((r) => r.author)).toContain(AI);
+    editor.destroy();
+  });
+
+  it('sets the document language through the host and a paragraph\'s on it', () => {
+    const editor = makeEditor('<p>one</p><p>two</p>');
+    const langs: string[] = [];
+    const ctx = { ...turn(editor), host: { setZone: () => {}, setPage: () => {}, setLanguage: (c: string) => langs.push(c) } };
+    expect(runTool(ctx, call('set_language', { language: 'English (UK)' })).result).toBe('ok');
+    expect(runTool(ctx, call('set_language', { language: 'german' })).result).toBe('ok');
+    expect(langs).toEqual(['en-GB', 'de']);
+    expect(runTool(ctx, call('set_language', { language: 'Klingon' })).result).toMatch(/unknown language "Klingon"; languages are: English \(US\)/);
+    expect(runTool(ctx, call('set_language', { language: 'it-IT', from: 2 })).result).toBe('ok');
+    expect(editor.state.doc.child(1).attrs.lang).toBe('it-IT');
+    expect(runTool(turn(editor), call('set_language', { language: 'de' })).result).toMatch(/cannot be changed here/);
+    editor.destroy();
+  });
+
   it('fills a form blank however many dots the model copies, and sets columns', () => {
     const editor = makeEditor(`<p>Name: ${'.'.repeat(40)} (employee)</p><p>Second</p><p></p>`);
     const ctx = turn(editor);

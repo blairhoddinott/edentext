@@ -122,6 +122,7 @@ const zhHant: Messages = {
       zone: (footer: boolean, removed: boolean) => (footer ? (removed ? '已刪除頁尾' : '已設定頁尾') : removed ? '已刪除頁首' : '已設定頁首'),
       page: '已變更版面設定',
       style: (name: string) => `已設定樣式 ${name}`,
+      language: (name: string) => `已將語言設定為 ${name}`,
       frame: (n: number) => `已在第 ${n} 段新增框`,
       frameSet: (n: number) => `已變更第 ${n} 段的框`,
       table: (n: number) => `已變更表格 ${n}`,
