@@ -34,8 +34,8 @@ export const HTML_GUIDE = [
   'Tables: <td width="30%"> or <col width="30%"> sets column widths; <table border="0"> removes the lines; td takes background and vertical-align.',
   'A text box: <aside style="width:5cm;height:6cm;float:right">…</aside>, anchored to the paragraph after it. A picture placeholder: <img alt="Photo" width="4cm" height="5cm"> without src (no other images).',
   'A footnote: <sup class="footnote">its text</sup> where the anchor goes (class="endnote" for an endnote). A fill-in field: <input placeholder="Your name">. Today\'s date: <time></time>. Text columns: <section columns="2">…</section>. A table of contents: <nav></nav>. Tabs stay tabs.',
-  'Page header and footer: <header>…</header>, <footer>…</footer>, with {page} and {pages} as page fields; data-page="first" or "even" for those pages only. Page setup: <page size="A4" orientation="portrait" margin="2cm 2cm 2cm 2.5cm">.',
-  'Example: <h1>Ada Lovelace</h1><aside style="width:4cm;height:5cm;float:right"><p><img alt="Photo" width="3.5cm" height="4.5cm"></p></aside><p><input placeholder="Address"></p><h2>Experience</h2><table border="0"><tr><td width="25%">1843</td><td><strong>Notes on the Analytical Engine</strong></td></tr></table>',
+  'Page header and footer: <header>…</header>, <footer>…</footer>, with {page} and {pages} as page fields; data-page="first" or "even" for those pages only. Page setup: <page size="A4" orientation="portrait" margin="2cm">, with the size (A5, letter, …), orientation (landscape) and margins the request asks for.',
+  'Shape of a CV (fill in the real content, never these dots): <h1>…</h1><aside style="width:4cm;height:5cm;float:right"><p><img alt="Photo" width="3.5cm" height="4.5cm"></p></aside><p><input placeholder="…"></p><h2>…</h2><table border="0"><tr><td width="25%">…</td><td><strong>…</strong> …</td></tr></table>',
 ].join('\n');
 
 export function chatSystemPrompt(): string {
@@ -53,7 +53,7 @@ export function chatSystemPrompt(): string {
     'Paragraph styles change with set_style; frames (a text box, a picture placeholder) go in with insert_frame or in the HTML.',
     'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
     'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
-    `Paragraph styles: ${styles}.`,
+    `Style names for <p class="…"> (never text of their own): ${styles}.`,
   ].join('\n');
 }
 
@@ -63,7 +63,7 @@ export const REWRITE_PROMPT = `You rewrite a passage from a document. The passag
 export function draftPrompt(emptyDocument = false): string {
   const styles = visibleStyles(styleSheet()).map((s) => styleLabel(s.name)).join(', ');
   const parts = emptyDocument ? 'The document is empty: write the whole document, with its page setup, header and footer where it needs them.' : 'Do not write <header>, <footer> or <page>: the document has its own.';
-  return `You write new content for a document at the cursor; the document follows for context. Reply with the content only. Write in the document's language unless told otherwise. No preface, no explanation.\n${HTML_GUIDE}\n${parts}\nParagraph styles: ${styles}.`;
+  return `You write new content for a document at the cursor; the document follows for context. Reply with the content only. Write in the document's language unless told otherwise. No preface, no explanation.\n${HTML_GUIDE}\n${parts}\nStyle names for <p class="…"> (never text of their own): ${styles}.`;
 }
 
 export const REWRITE_PRESETS = {

@@ -123,6 +123,10 @@ function columnWeights(table: HTMLTableElement): (number | null)[] {
 }
 
 function table(t: HTMLTableElement, o: DialectOptions, dropped: string[]): void {
+  // A row without cells (a reply still streaming, or a careless one) would parse into a
+  // node the schema does not allow.
+  for (const row of [...t.rows]) if (!row.cells.length) row.remove();
+  if (!t.rows.length) return void t.remove();
   const cls = t.getAttribute('class');
   if (cls && o.tableStyle) {
     const name = o.tableStyle(cls.trim());
@@ -197,8 +201,10 @@ export function placeholderImage(label: string, w: number, h: number, doc: Docum
     canvas.height = h;
     g.fillStyle = '#E5E7EB';
     g.fillRect(0, 0, w, h);
-    g.fillStyle = '#6B7280';
-    g.font = `${Math.max(10, Math.min(16, Math.round(w / 10)))}px sans-serif`;
+    g.strokeStyle = '#9CA3AF';
+    g.strokeRect(0.5, 0.5, w - 1, h - 1);
+    g.fillStyle = '#4B5563';
+    g.font = `600 ${Math.max(11, Math.min(22, Math.round(w / 7)))}px sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText(label, w / 2, h / 2, w - 8);

@@ -86,4 +86,9 @@ describe('AI HTML dialect', () => {
     const { nodes } = parse('<p>2020\tEngineer</p>\n<p>  plain   text  </p>');
     expect(nodes.map((n) => n.textContent)).toEqual(['2020\tEngineer', 'plain text']);
   });
+
+  it('drops a table without cells, as a reply still streaming has one', () => {
+    expect(parse('<p>a</p><table border="0">').nodes.map((n) => n.type.name)).toEqual(['paragraph']);
+    expect(parse('<table><tr></tr><tr><td>x</td></tr></table>').nodes[0].childCount).toBe(1);
+  });
 });

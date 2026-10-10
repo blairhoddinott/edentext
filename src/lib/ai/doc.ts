@@ -402,6 +402,9 @@ export function fillNotes(editor: Editor, notes: NoteText[], author?: string): v
 export function contentToDom(content: Fragment, schema: Schema): HTMLElement | DocumentFragment {
   const dom = DOMSerializer.fromSchema(schema).serializeFragment(content);
   for (const a of dom.querySelectorAll('a')) { a.target = '_blank'; a.rel = 'noopener'; }
+  // Column widths are weights, which a table renders as pixels: in the pane they crush it.
+  for (const c of dom.querySelectorAll('colgroup')) c.remove();
+  for (const t of dom.querySelectorAll('table')) { t.style.width = ''; t.style.minWidth = ''; }
   return dom;
 }
 

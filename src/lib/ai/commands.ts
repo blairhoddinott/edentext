@@ -55,7 +55,9 @@ export function commandRequest(command: Command, arg: string, state: EditorState
   if (command.kind === 'draft') {
     if (!arg) return null;
     const asked = `Write this at the cursor: ${arg}`;
-    return { request: { system: draftPrompt(state.doc.childCount <= 1 && !state.doc.textContent.trim()), messages: [{ role: 'user', content: `${serializeDoc(state, undefined, budget)}\n\n---\n\n${asked}` }] }, asked };
+    // An empty document is no context; small models would only echo its outline back.
+    const empty = state.doc.childCount <= 1 && !state.doc.textContent.trim();
+    return { request: { system: draftPrompt(empty), messages: [{ role: 'user', content: empty ? asked : `${serializeDoc(state, undefined, budget)}\n\n---\n\n${asked}` }] }, asked };
   }
   const p = command.preset;
   const ask = p === 'translate' ? REWRITE_PRESETS.translate(arg || language) : p ? `${REWRITE_PRESETS[p]} ${arg}`.trim() : arg;
@@ -96,7 +98,10 @@ export function insertBelowTarget(editor: Editor, target: Target, html: string):
 
 /** Inserts a draft at the cursor; its header, footer and page setup go to `host`. */
 export function insertAtCursor(editor: Editor, html: string, host?: AiHost): void {
-  const body = host ? applyDocumentParts(html, host).body : splitDocumentHtml(stripFences(html)).body;
+  // A header or page setup that cannot be applied (an unknown size) still leaves the text.
+  let body: string;
+  try { body = host ? applyDocumentParts(html, host).body : splitDocumentHtml(stripFences(html)).body; }
+  catch { body = splitDocumentHtml(stripFences(html)).body; }
   editor.commands.focus();
   if (!body.trim()) return;
   const notes: NoteText[] = [];
