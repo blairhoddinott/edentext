@@ -1023,6 +1023,12 @@
   /* The table's space above adds to the block above it, as a paragraph's does. */
   padding-top: var(--space-before);
 }
+/* A frame the text runs through reaches past its row, as in LibreOffice; flow-root still
+   keeps the wrapper off a float beside it. */
+.paper .tiptap .tableWrapper:has(td [data-wrap='through'], th [data-wrap='through']) {
+  overflow: visible;
+  display: flow-root;
+}
 .paper[data-spacing-model='max'] .tiptap .tableWrapper {
   padding-top: 0;
   margin-top: var(--space-before);

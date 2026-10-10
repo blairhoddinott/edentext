@@ -1,6 +1,7 @@
 // Word's in-front-of / behind-text (wp:wrapNone + behindDoc) and ODF's run-through:
 // the text runs over or under the frame, so it reserves neither width nor height.
 import { describe, it, expect } from 'vitest';
+import { zipSync, strToU8 } from 'fflate';
 import { buildOdt } from '../../src/lib/export/odt';
 import { buildDocx } from '../../src/lib/export/docx';
 import { importOdt } from '../../src/lib/import/odt';
@@ -58,6 +59,38 @@ describe('a run-through frame', () => {
 // Picking a mode by hand is "put it there": the offsets go, and so do the coordinate
 // systems they were measured in — a page-placed frame set to a side wrap would
 // otherwise export as vertical-rel="page" with an offset that now counts from a paragraph.
+// LibreOffice reads an absent style:run-through by the frame's style chain (probed).
+describe('a run-through text box that names no side of the text', () => {
+  const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" '
+    + 'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+    + 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"';
+  const inFront = (parent: string) => {
+    const styles = `<?xml version="1.0"?><office:document-styles ${NS}><office:styles>
+      <style:style style:name="Frame" style:family="graphic"><style:graphic-properties style:wrap="none"/></style:style>
+    </office:styles></office:document-styles>`;
+    const content = `<?xml version="1.0"?><office:document-content ${NS}><office:automatic-styles>
+      <style:style style:name="fr1" style:family="graphic"${parent}><style:graphic-properties style:wrap="run-through"/></style:style>
+    </office:automatic-styles><office:body><office:text><text:p><draw:frame draw:style-name="fr1" text:anchor-type="paragraph"
+      svg:width="3cm" svg:height="2cm"><draw:text-box><text:p>box</text:p></draw:text-box></draw:frame>text</text:p></office:text></office:body></office:document-content>`;
+    const doc = importOdt(zipSync({ 'content.xml': strToU8(content), 'styles.xml': strToU8(styles) })).content;
+    const box = (doc.content[0].content as N[]).find((n: N) => n.type === 'textBox');
+    return box.attrs.wrap === 'through' && box.attrs.inFront === true;
+  };
+
+  it('sits in front under a common style and behind on a lone automatic one', () => {
+    expect(inFront(' style:parent-style-name="Frame"')).toBe(true);
+    expect(inFront('')).toBe(false);
+  });
+
+  it('stays behind the text through our own ODT, which names the Frame parent', async () => {
+    const box: N = { type: 'textBox', attrs: { width: 120, height: 80, wrap: 'through' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'box' }] }] };
+    const doc: N = { type: 'doc', content: [{ type: 'paragraph', content: [box, { type: 'text', text: 'anchor' }] }] };
+    const back = (importOdt(await buildOdt(doc, margins, 'portrait')).content.content[0].content as N[]).find((n: N) => n.type === 'textBox');
+    expect(back.attrs.wrap).toBe('through');
+    expect(back.attrs.inFront).not.toBe(true);
+  });
+});
+
 describe('picking a wrap mode by hand', () => {
   it('drops the offsets and the frame of reference they belonged to', () => {
     const dropped = droppedFrameAttrs('left', false, 'through');

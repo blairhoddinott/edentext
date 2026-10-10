@@ -304,6 +304,7 @@ export class StyleResolver {
         const name = el.getAttributeNS(NS.style, 'name');
         const family = el.getAttributeNS(NS.style, 'family');
         if (name && family) this.styles.set(`${family}\0${name}`, entryFromStyleElement(el));
+        if (name && named && family === 'graphic') this.namedGraphicNames.add(name);
         if (name && named && (family === 'paragraph' || family === 'text' || family === 'table')) {
           if (family === 'paragraph') this.namedParagraphNames.add(name);
           else if (family === 'table') this.namedTableNames.add(name);
@@ -396,6 +397,21 @@ export class StyleResolver {
   graphicProps(styleName: string | null): PropMap {
     return styleName ? this.merged('graphic', styleName).misc : {};
   }
+
+  // A draw:frame's graphic properties. LibreOffice reads an absent style:run-through as
+  // "foreground" once a common style is in the chain, and "background" on a lone
+  // automatic style or none (probed).
+  frameGraphicProps(styleName: string | null): PropMap {
+    const gp = this.graphicProps(styleName);
+    if (gp['style:run-through']) return gp;
+    const seen = new Set<string>();
+    for (let cur = styleName; cur && !seen.has(cur); cur = this.styles.get(`graphic\0${cur}`)?.parent ?? null) {
+      if (this.namedGraphicNames.has(cur)) return { ...gp, 'style:run-through': 'foreground' };
+      seen.add(cur);
+    }
+    return gp;
+  }
+  private namedGraphicNames = new Set<string>();
 
   // A frame style's own paragraph properties, which is where its writing mode lives
   // (probed: in the graphic properties LibreOffice drops it).

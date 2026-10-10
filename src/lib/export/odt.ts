@@ -4400,7 +4400,7 @@ function imageWrapProps(wrap: WrapMode, offset: number | null, align?: string | 
   const gap = ([['top', g.top], ['bottom', g.bottom], ...(side ? [[side, g[side]]] : [])] as [string, number][])
     .filter(([, v]) => v > 0).map(([k, v]) => ` fo:margin-${k}="${v}cm"`).join('');
   // run-through reserves nothing; without style:run-through it sits behind the text,
-  // which is LibreOffice's own default for a frame in that mode.
+  // which is LibreOffice's own default for a frame whose style has no parent.
   if (wrap === 'through') return `style:wrap="run-through" style:horizontal-pos="${pos ?? 'left'}"`;
   if (wrap === 'left') return `style:wrap="right" style:horizontal-pos="${pos ?? 'left'}"${gap}`;
   if (wrap === 'right') return `style:wrap="left" style:horizontal-pos="${pos ?? 'right'}"${gap}`;
@@ -4799,7 +4799,8 @@ function textBoxGraphicStyle(box: TextBoxExport, index: number): string {
   const wrap = box.wrap === 'inline'
     ? ' style:vertical-pos="top" style:vertical-rel="baseline"'
     : ` ${imageWrapProps(box.wrap, box.wrapOffsetCm, box.wrapAlign, box.wrapDist, 'left')} style:number-wrapped-paragraphs="no-limit"`
-      + (box.wrap === 'through' && box.inFront ? ' style:run-through="foreground"' : '') +
+      // Spelled out either way: under the `Frame` parent an absent one reads as foreground.
+      + (box.wrap === 'through' ? ` style:run-through="${box.inFront ? 'foreground' : 'background'}"` : '') +
       // A run-through x counts from the column, as on an image.
       ` style:horizontal-rel="${box.wrap === 'through' && box.wrapOffsetCm != null ? 'paragraph' : 'paragraph-content'}"` +
       ` style:vertical-pos="${box.wrapOffsetYCm != null ? 'from-top' : 'top'}"` +
