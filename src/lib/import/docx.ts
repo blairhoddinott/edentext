@@ -367,7 +367,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   const docNumbering = docxPageNumbering(groups[0]?.sectPr ?? finalSectPr);
   const hfSections = sectionHfSets(
     groups.filter((_, gi) => !colsOnly[gi] && marked[gi]).map((g) => g.sectPr ?? finalSectPr), ctx, oddEven,
-    { ...docPaper, numFormat: docNumbering.format });
+    { ...docPaper, numFormat: docNumbering.format, mirrored });
   const first = hfSections[0];
   // A first-page/even zone reserves the header/footer band even when its default is empty;
   // the distance is document-wide, so any section having one is enough.
@@ -4065,7 +4065,7 @@ function sectMargins(sect: Element | null): PageMargins | null {
 // section, odd/even is document-wide (settings.xml).
 function sectionHfSets(
   sectPrs: (Element | null)[], ctx: Ctx, oddEven: boolean,
-  doc: { format: PageFormat | null; orientation: Orientation | null; numFormat: NoteNumFormat },
+  doc: { format: PageFormat | null; orientation: Orientation | null; numFormat: NoteNumFormat; mirrored: boolean },
 ): HfSet[] {
   const out: HfSet[] = [];
   // Word's edge→zone distances are per section too; the first section's are the
@@ -4103,7 +4103,8 @@ function sectionHfSets(
     const pgFmt = DOCX_PAGE_NUM_FORMAT[fc(sect, 'pgNumType')?.getAttributeNS(W, 'fmt') ?? ''] ?? '1';
     out.push({
       startsOn: sectionStartSide(sect),
-      margins: sectMargins(sect),
+      // w:mirrorMargins is document-wide, so every section's pair is inner/outer.
+      margins: withMirror(sectMargins(sect), doc.mirrored),
       distances: sameDist(dist, docDist) ? null : dist,
       pageNumberStart: out.length && pgStart != null ? clampPageStart(pgStart) : null,
       pageNumberFormat: out.length && pgFmt !== doc.numFormat ? pgFmt : null,

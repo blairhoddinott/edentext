@@ -31,7 +31,7 @@ Tests are jsdom Vitest files outside `src/`; `npm test` covers round trips, corp
 - Read the existing code and relevant local `CLAUDE.md` before changing files.
 - Follow the established architecture, naming and surrounding code style.
 - Prefer the smallest correct change; do not rewrite unrelated code or add dependencies without need.
-- Fix root causes rather than symptoms: when a document renders, imports or exports wrongly, fix the general rule it exposes so any document is handled correctly, never that one document's shape at the risk of others.
+- Fix root causes rather than symptoms: when a document renders, imports or exports wrongly, fix the general rule it exposes so any document is handled correctly, never that one document's shape at the risk of others. Then look for related bugs: the same rule in the other format, direction (import/export) or per-section/per-page variant.
 - Preserve persisted or externally consumed behaviour; add compatibility code only for a concrete need.
 - Run the test legs that the final change can affect.
 - Do not push unless requested.

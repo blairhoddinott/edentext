@@ -6058,8 +6058,10 @@ function applySectionMasterPages(odtBytes: Uint8Array, sets: HfSet[], zoneXmlOf:
       ? `<style:${kind}-style/>`
       : `<style:${kind}-style><style:header-footer-properties fo:min-height="${round3(minH)}cm" ${kind === 'header' ? 'fo:margin-bottom' : 'fo:margin-top'}="0cm" style:dynamic-spacing="false"/></style:${kind}-style>`);
     const name = `${layout}Sec${index + 1}${side ? side[0] : ''}`;
-    let xml = (side ? layoutXml.replace(/\s*style:page-usage="[^"]*"/, '') : layoutXml)
-      .replace(`style:name="${layout}"`, `style:name="${name}"${side ? ` style:page-usage="${side}"` : ''}`)
+    // The usage is the section's own: mirrored or not, whatever the document's layout says.
+    const usage = side ?? (body.mirrored ? 'mirrored' : null);
+    let xml = layoutXml.replace(/\s*style:page-usage="[^"]*"/, '')
+      .replace(`style:name="${layout}"`, `style:name="${name}"${usage ? ` style:page-usage="${usage}"` : ''}`)
       .replace(/<style:page-layout-properties\b[^>]*>/, (props) => {
         // The page border and its padding sit inside the margins (rewriteStylesXml).
         const cm = (v: number) => `${Math.max(0, round3(v - insetCm))}cm`;

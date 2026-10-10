@@ -5,6 +5,7 @@ import { importDocx } from '../../src/lib/import/docx';
 import { buildOdt } from '../../src/lib/export/odt';
 import { buildDocx } from '../../src/lib/export/docx';
 import { marginAxisLabel, withMirrored } from '../../src/lib/storage/pageMargins';
+import { EMPTY_HF_SET } from '../../src/lib/storage/headerFooter';
 
 // ODF style:page-usage="mirrored" / Word w:mirrorMargins: the declared left and right
 // are the inner/outer pair, so an even (left-hand) page swaps them.
@@ -61,6 +62,24 @@ describe('mirrored page margins', () => {
     const bytes = await buildDocx(doc, margins);
     expect(strFromU8(unzipSync(bytes)['word/settings.xml'])).toContain('mirrorMargins');
     expect(importDocx(bytes).margins).toMatchObject({ left: 1.5, right: 3, mirrored: true });
+    // The setting is document-wide: a later section's own margins are mirrored too.
+    const files = unzipSync(bytes);
+    files['word/document.xml'] = strToU8(strFromU8(files['word/document.xml']).replace(/<w:body>/,
+      '<w:body><w:p><w:pPr><w:sectPr><w:pgMar w:top="1134" w:right="1701" w:bottom="1134" w:left="851"/></w:sectPr></w:pPr></w:p>'));
+    expect(importDocx(zipSync(files)).hfSections?.every((s) => s.margins?.mirrored)).toBe(true);
+  });
+
+  // ODF mirrors per page layout, Word per document: a mirrored body after a plain cover
+  // keeps exactly that in ODF, and mirrors the whole document in DOCX.
+  it('keeps a section mirrored that the document is not', async () => {
+    const plain = { top: 2, bottom: 2, left: 1.5, right: 3 };
+    const two = { type: 'doc', content: [doc.content[0],
+      { type: 'paragraph', attrs: { sectionBreak: true, breakBefore: 'page' }, content: [{ type: 'text', text: 'Ch' }] }] };
+    const hf = { header: null, footer: null, pageCount: 2,
+      sections: [{ ...EMPTY_HF_SET, margins: plain }, { ...EMPTY_HF_SET, margins: withMirrored(plain, true) }] };
+    const mirroredOf = (r: any) => (r.hfSections ?? []).map((s: any) => s.margins?.mirrored === true);
+    expect(mirroredOf(importOdt(await buildOdt(two, plain, 'portrait', hf as never)))).toEqual([false, true]);
+    expect(mirroredOf(importDocx(await buildDocx(two, plain, 'portrait', hf as never)))).toEqual([true, true]);
   });
 
   it('is switched on and off without leaving a false behind', async () => {

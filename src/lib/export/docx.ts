@@ -3571,7 +3571,9 @@ export async function buildDocx(
   const withNotePr = applyNotePrDocx(cited, notesSettings);
   const withNotes = docNoteIds.size ? applyEndnoteImagesDocx(applyNoteMarksDocx(applyNoteBookmarksDocx(withNotePr))) : withNotePr;
   const threaded = applyCommentsExtendedDocx(withNotes);
-  const mirrored = margins.mirrored ? applyMirrorMarginsDocx(threaded) : threaded;
+  // Word mirrors the whole document or nothing: any mirrored section mirrors it.
+  const mirrorAny = margins.mirrored || !!hf?.sections?.some((s) => s.margins?.mirrored);
+  const mirrored = mirrorAny ? applyMirrorMarginsDocx(threaded) : threaded;
   const bidi = applyParagraphFlagsDocx(rtl ? applyBidiDocx(mirrored) : mirrored);
   const dims = pageDimsCm(pageFormat, orientation);
   const foldMarked = applyFoldMarksDocx(bidi, foldMarks, dims.w * 10);
