@@ -345,7 +345,7 @@
       else if (zone === 'header') headerDoc = doc;
       else footerDoc = doc;
     },
-    setPage({ format, orientation, margins, start }) {
+    setPage({ format, orientation, margins, start, numberFormat, lineNumbers, hyphenation, foldMarks: fold, decor, properties }) {
       if (format) pageFormat = format;
       if (orientation) pageOrientation = orientation;
       if (margins) {
@@ -353,6 +353,12 @@
         pageMargins = fitMargins({ ...pageMargins, ...margins }, dims.w, dims.h);
       }
       if (start != null) pageNumbering = { ...pageNumbering, start };
+      if (numberFormat) pageNumbering = { ...pageNumbering, format: numberFormat };
+      if (lineNumbers != null) lineNumbering = { ...lineNumbering, on: lineNumbers };
+      if (hyphenation != null) hyphenate = hyphenation;
+      if (fold != null) foldMarks = fold;
+      if (decor) pageDecor = { ...pageDecor, ...decor };
+      if (properties) { docProps = { ...docProps, ...properties }; saveDocProperties(docProps); }
     },
     setLanguage: (code) => setDocumentLanguage(code),
   };

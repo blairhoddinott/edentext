@@ -151,6 +151,7 @@ const zhHans: Messages = {
       language: (name: string) => `已将语言设置为 ${name}`,
       frame: (n: number) => `已在第 ${n} 段添加框`,
       frameSet: (n: number) => `已更改第 ${n} 段的框`,
+      review: (accept: boolean, n: number) => `已${accept ? '接受' : '拒绝'} ${n} 处修订`,
       table: (n: number) => `已更改表格 ${n}`,
       failed: (msg: string) => `未执行：${msg}`,
     },

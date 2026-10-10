@@ -38,7 +38,7 @@ describe('serializeDoc', () => {
     const { view, state } = editor;
     view.dispatch(trackedReplace(state.tr, 12, 18, null, 'Ada'));
     editor.commands.setTextSelection(3);
-    expect(serializeDoc(editor.state)).toBe('Document, one paragraph per line, numbered:\n[1 h1] Title\n[2] The fox\n[3 li] item\n\nPage: A4 portrait, margins 2/2/2/2 cm (top/right/bottom/left)\nLanguage: English (US) (en-US)\n\nThe cursor is in paragraph 1.');
+    expect(serializeDoc(editor.state)).toBe('Document, one paragraph per line, numbered:\n[1 h1] Title\n[2] The fox\n[3 li] item\n\nPage: A4 portrait, margins 2/2/2/2 cm (top/right/bottom/left)\nLanguage: English (US) (en-US)\n\nTracked changes, numbered:\n[R1 deletion by Ada on paragraph 2] «quick »\n\nThe cursor is in paragraph 1.');
     editor.destroy();
   });
 
@@ -544,7 +544,7 @@ describe('runTurn', () => {
     let note: PMNode | null = null;
     editor.state.doc.descendants((n) => { note ??= n.type.name === 'note' ? n : null; return !note; });
     expect(note!.textContent).toBe('Source, 2024.');
-    expect(texts(editor)).toContain('Claim here.');
+    expect(texts(editor)).toContain('Claim{footnote} here.');
     editor.destroy();
   });
 });

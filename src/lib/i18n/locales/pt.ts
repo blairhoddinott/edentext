@@ -150,6 +150,7 @@ const pt: Messages = {
       language: (name: string) => `Idioma ${name} definido`,
       frame: (n: number) => `Moldura adicionada no parágrafo ${n}`,
       frameSet: (n: number) => `Moldura alterada no parágrafo ${n}`,
+      review: (accept: boolean, n: number) => `${n} ${n === 1 ? 'alteração' : 'alterações'} ${accept ? (n === 1 ? 'aceite' : 'aceites') : (n === 1 ? 'rejeitada' : 'rejeitadas')}`,
       table: (n: number) => `Tabela ${n} alterada`,
       failed: (msg: string) => `Não efetuado: ${msg}`,
     },

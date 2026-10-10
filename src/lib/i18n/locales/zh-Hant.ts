@@ -152,6 +152,7 @@ const zhHant: Messages = {
       language: (name: string) => `已將語言設定為 ${name}`,
       frame: (n: number) => `已在第 ${n} 段新增框`,
       frameSet: (n: number) => `已變更第 ${n} 段的框`,
+      review: (accept: boolean, n: number) => `已${accept ? '接受' : '拒絕'} ${n} 處修訂`,
       table: (n: number) => `已變更表格 ${n}`,
       failed: (msg: string) => `未執行：${msg}`,
     },

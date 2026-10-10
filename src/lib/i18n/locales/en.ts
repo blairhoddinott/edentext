@@ -151,6 +151,7 @@ const en = {
       language: (name: string) => `Set the language to ${name}`,
       frame: (n: number) => `Added a frame at paragraph ${n}`,
       frameSet: (n: number) => `Changed a frame at paragraph ${n}`,
+      review: (accept: boolean, n: number) => `${accept ? 'Accepted' : 'Rejected'} ${n} tracked change${n === 1 ? '' : 's'}`,
       table: (n: number) => `Changed table ${n}`,
       failed: (msg: string) => `Not done: ${msg}`,
     },

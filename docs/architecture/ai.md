@@ -74,70 +74,10 @@ a paragraph holding a space), then goes through the schema, then `fitPastedSlice
 path's fixes). That drops scripts, handlers, unknown tags and remote images. Previews
 serialize the slice back with `DOMSerializer`, so they show only what would be inserted.
 
-## Edits
+## Edits and coverage
 
-- **Modes.** A switch under the chat field picks Chat or Edit (`mode` in `edentext-ai`, Edit
-  by default). Chat offers only `read_paragraphs` and a prompt without the editing lines, and
-  `runTool` refuses any other call a model makes anyway; the user copies what a reply proposes.
-- **Text tools** (`replace_text`, `rewrite_paragraph`, `insert_paragraphs`,
-  `delete_paragraphs`) go through `trackedReplace` (`trackChanges.ts`). Each edit becomes
-  a revision by the localized author `t().ai.author`, whether or not recording is on.
-  The Review pane accepts or rejects it. An edit over another author's pending change
-  is refused: `markDeleted` would delete their insertion outright. Track changes has no
-  paragraph removal, so a paragraph `delete_paragraphs` leaves empty goes directly (a cell
-  or frame keeps its last one).
-- **`format`** uses `applyFormat`, the search-replace formatting, plus mark removal and the
-  highlight; alignment, spacing, indent, line height, shading and a page break before are
-  paragraph attributes set on the whole paragraphs, and `list` runs the list commands. Track
-  changes cannot record formatting, so it applies directly and is undoable.
-- **`set_style`** creates or changes a paragraph style (`putStyle`), by internal or display
-  name; `border`/`border_top`/`border_bottom` take CSS (`borderAttr`), so a rule under every
-  heading goes into its style, and `heading_numbers` sets the chapter numbering (`setOutline`).
-- **`insert_frame`** builds the dialect's `<aside>` or `<img alt>` and inserts the frame at the
-  start of the paragraph, directly; **`frame`** changes one's wrap (beside, above and below, in
-  the line, in front of or behind the text), size, gap, position (`x_cm` from the column, `y_cm`
-  from the paragraph, page or text area), rotation and stacking (`restackFrame`), moves it to
-  another paragraph, deletes it (tracked, like text), or captions a picture: picture and caption
-  go into one borderless text box in its place, as LibreOffice frames them.
-  A paragraph's formatting lists its frames (`frame 1: picture 4×5cm right gap 0.32cm`), a
-  sized picture in the line too, numbered as the tool takes them (deleted ones not counted), with position and rotation once set; a frame's CSS `margin` is its gap, else a new
-  frame's.
-- Numbers and booleans may come as strings, and every error names what is accepted ("unknown
-  style …; styles are: …"), for small models.
-- After a round that changed the text, a style or went through the host (page, zone, language),
-  `runTurn` waits until `isPaginating` is false (`layoutSettled`) and appends `document now N
-  pages, last page about X% full` to the round's last tool result; after 3s or in a hidden
-  tab it appends nothing, since a stale count misleads more than none.
-- A chat message sent while a turn runs shows at once and is queued (`takeQueued`): after
-  the next round of tools, `runTurn` appends it to that round's last tool result, the one
-  place both providers take text before the model's next step, and the reply goes on below
-  it. A turn that ends without another round sends the queue as the next turn. Commands
-  wait until nothing runs; Stop drops the queue.
-- **`add_comment`** comments as the assistant; **`reply_comment`** answers a thread and
-  **`resolve_comment`** closes it, both directly and undoable.
-- **`table`** (`table_insert` stays as an alias) adds a row or column with the table
-  commands and tracks the new cells' text: inline HTML goes into the copied paragraph, a list or
-  several paragraphs take its place; deleting rows or columns, `widths` (each cell's
-  `colwidth` weights), `merge_right`, `shade`, `borders` and `style` apply directly.
-- **`set_columns`** runs `setColumns` over the paragraphs' range, which refuses a bare
-  cursor's whole-document case; columns apply directly.
-- **`set_header_footer`**, **`set_page`** and a document-wide **`set_language`** go through the `AiHost` that `App.svelte` hands
-  the pane, since zones and page setup are its `$state` (storage would be overwritten by the
-  next effect). Setting a zone closes an open zone editor first; a first-page or even-page
-  zone switches that variant on. A reply's `<header>`, `<footer>` (`data-page`) and `<page>`
-  (`splitDocumentHtml`) take the same way from `insert_paragraphs` and from a draft's
-  Insert at cursor; the draft preview shows them as a line above and below. Only a draft into
-  an empty document is asked for them.
-- **`set_language`** takes a name ("English (UK)", "German") or tag; for paragraphs
-  `from`/`to` it runs `setBlockLanguage` with any valid tag, for the document only a
-  `LANGUAGES` entry (`pickDocumentLanguage` in the host).
-- **`replace_text`** lets a form blank (a run of dots or underscores, an ellipsis) in `find`
-  match any such run: a model miscounts long ones.
-- **Paragraph numbers** come from the turn's snapshot. Every transaction during the turn
-  is appended to a `Mapping`, so a number still finds its paragraph after earlier edits.
-  Inserted paragraphs only get a number in the next turn.
-- **Commands and the popover** insert like a paste. While recording is on, the change is
-  tracked under the user's own name.
+The tools, how each edit lands, and the coverage matrix with its prompt budget:
+`docs/architecture/ai-tools.md`.
 
 ## Reply actions
 

@@ -154,6 +154,7 @@ const uk: Messages = {
       language: (name: string) => `Мову ${name} задано`,
       frame: (n: number) => `Додано рамку біля абзацу ${n}`,
       frameSet: (n: number) => `Змінено рамку біля абзацу ${n}`,
+      review: (accept: boolean, n: number) => `${accept ? 'Прийнято' : 'Відхилено'} змін: ${n}`,
       table: (n: number) => `Таблицю ${n} змінено`,
       failed: (msg: string) => `Не виконано: ${msg}`,
     },

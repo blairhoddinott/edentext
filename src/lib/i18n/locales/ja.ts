@@ -152,6 +152,7 @@ const ja: Messages = {
       language: (name: string) => `言語を ${name} に設定しました`,
       frame: (n: number) => `段落 ${n} に枠を追加しました`,
       frameSet: (n: number) => `段落 ${n} の枠を変更しました`,
+      review: (accept: boolean, n: number) => `${n} 件の変更を${accept ? '承諾' : '却下'}しました`,
       table: (n: number) => `表 ${n} を変更しました`,
       failed: (msg: string) => `実行できませんでした: ${msg}`,
     },

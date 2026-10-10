@@ -150,6 +150,7 @@ const es: Messages = {
       language: (name: string) => `Idioma ${name} definido`,
       frame: (n: number) => `Marco añadido en el párrafo ${n}`,
       frameSet: (n: number) => `Marco cambiado en el párrafo ${n}`,
+      review: (accept: boolean, n: number) => `${n} ${n === 1 ? 'cambio' : 'cambios'} ${accept ? (n === 1 ? 'aceptado' : 'aceptados') : (n === 1 ? 'rechazado' : 'rechazados')}`,
       table: (n: number) => `Tabla ${n} modificada`,
       failed: (msg: string) => `No realizado: ${msg}`,
     },

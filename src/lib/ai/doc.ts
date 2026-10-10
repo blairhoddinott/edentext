@@ -17,13 +17,21 @@ import { styleSheet } from '../styles/sheet.svelte';
 import { wrapGap } from '../editor/extensions/image';
 import { styleLabel } from '../i18n/i18n.svelte';
 import { normalizeColor } from '../utils/color';
+import { DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT } from '../utils/dateTime';
 import { findLanguage, loadDocumentLanguage, tagForLanguage } from '../storage/documentLanguage';
 import { nameLookup, normalizeAiHtml, pageFields, type NoteText } from './dialect';
 import { newNoteId } from '../editor/extensions/notes';
-import { trackedReplace } from '../editor/extensions/trackChanges';
+import { revisions, trackedReplace, type Revision } from '../editor/extensions/trackChanges';
 import { loadPageFormat } from '../storage/pageFormat';
 import { loadOrientation } from '../storage/pageOrientation';
 import { loadPageMargins } from '../storage/pageMargins';
+import { loadPageNumbering } from '../storage/pageNumbering';
+import { loadLineNumbering } from '../storage/lineNumbering';
+import { loadHyphenation } from '../storage/hyphenation';
+import { loadFoldMarks } from '../storage/foldMarks';
+import { loadPageDecor } from '../storage/pageDecor';
+import { loadDocProperties } from '../storage/docProperties';
+import { noteSettings } from '../storage/notes.svelte';
 import { loadDifferentFirstPage, loadDifferentOddEven, loadHfDoc, type HfDoc, type HfZone, type HfVariant } from '../storage/headerFooter';
 import { headingStyleName, resolveStyle, type ResolvedStyle, type StyleSheet } from '../styles/styleSheet';
 
@@ -41,6 +49,9 @@ export type Block = {
   fmt: string;
   /** Text columns of the section it is in, 1 outside one. */
   columns: number;
+  /** A block without text before or after it, as a table of contents, as a line of its own. */
+  before?: string;
+  after?: string;
 };
 
 export function blockText(node: PMNode, pos: number): { text: string; map: number[] } {
@@ -55,16 +66,31 @@ export function blockText(node: PMNode, pos: number): { text: string; map: numbe
       for (let k = 0; k < t.length; k++) { text += t[k]; map.push(at + k); }
     } else {
       // An inline atom reads as a token that covers it whole, so find can name it.
-      const name = child.type.name;
-      const token = name === 'hardBreak' ? '\n'
-        : name === 'placeholderField' ? `‹${child.attrs.text}›`
-        : name === 'dateTimeField' ? `{${child.attrs.kind}}`
-        : name === 'image' ? (child.attrs.alt ? `{image ${JSON.stringify(clip(child.attrs.alt, 60))}}` : '{image}')
-        : '';
+      const token = atomToken(child);
       for (const ch of token) { text += ch; map.push(at); }
     }
   });
   return { text, map };
+}
+
+// An inline atom as the model reads it; where the HTML guide has a form, the same one.
+function atomToken(n: PMNode): string {
+  const a = n.attrs;
+  switch (n.type.name) {
+    case 'hardBreak': return '\n';
+    case 'placeholderField': return `‹${a.text}›`;
+    case 'dateTimeField': return `{${a.kind}${a.fixed && a.value ? ` ${a.value}` : ''}${a.format && a.format !== DEFAULT_DATE_FORMAT && a.format !== DEFAULT_TIME_FORMAT ? ` format ${a.format}` : ''}}`;
+    case 'image': return a.alt ? `{image ${JSON.stringify(clip(a.alt, 60))}}` : '{image}';
+    case 'formula': return a.display ? `\\[${a.latex}\\]` : `\\(${a.latex}\\)`;
+    case 'crossRef': return `{ref #${a.name}${a.format !== 'text' ? ` ${a.format}` : ''}}`;
+    case 'sequenceField': return `{${a.category}}`;
+    case 'indexEntry': return `{index ${JSON.stringify(a.term)}}`;
+    case 'bibliographyEntry': return `{cite ${a.identifier}}`;
+    case 'ruby': return `{ruby ${a.base} ${a.text}}`;
+    case 'noteRef': return `{${a.kind}}`;
+    case 'textBox': return '';
+    default: return `{${n.type.name}}`;
+  }
 }
 
 /** Where a cell sits: its table (numbered in document order), row and column, 1-based. */
@@ -76,10 +102,15 @@ export function blockTexts(doc: PMNode, sheet: StyleSheet = styleSheet()): Block
   const headings = headingNumbers(doc, sheet.outline);
   const boxes: number[] = [];
   let section = { end: -1, count: 1 };
+  let before = '';
   doc.descendants((node, pos, parent, index) => {
     if (node.type.spec.tableRole === 'table') tables.push(pos);
     if (node.type.name === 'textBox') boxes.push(pos);
     if (node.type.name === 'columns') section = { end: pos + node.nodeSize, count: node.attrs.count };
+    if (node.type.name === 'tableOfContents') {
+      before = `— ${node.attrs.index && node.attrs.index !== 'toc' ? `index of ${node.attrs.index}` : 'table of contents'} —`;
+      return false;
+    }
     if (!node.isTextblock) return true;
     const p = parent?.type.name ?? '';
     // Where it sits (a text box, a cell, both), then what it is: a list item in a cell is both.
@@ -90,29 +121,38 @@ export function blockTexts(doc: PMNode, sheet: StyleSheet = styleSheet()): Block
       : p === 'listItem' && index === 0 ? listNumberAt(doc, pos, sheet)?.parts.join('.') : undefined;
     const kind = [box ? `box ${box}` : '', at ? `cell T${at.table} r${at.row} c${at.col}` : '',
       node.type.name === 'heading' ? `h${node.attrs.level}` : p === 'listItem' ? 'li' : '', label ?? ''].filter(Boolean).join(' ');
-    out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos), fmt: formatNote(node, sheet), columns: pos < section.end ? section.count : 1 });
+    out.push({ n: out.length + 1, kind, from: pos + 1, to: pos + 1 + node.content.size, ...blockText(node, pos), fmt: formatNote(node, sheet), columns: pos < section.end ? section.count : 1, ...(before ? { before } : {}) });
+    before = '';
     // A text box rides in the text; its paragraphs follow the one it is anchored in.
     let framed = false;
     node.forEach((child) => { framed ||= child.type.name === 'textBox'; });
     return framed;
   });
+  if (before && out.length) out[out.length - 1].after = before;
   return out;
 }
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n) + '…' : s);
 
-const MARK_LABELS = ['bold', 'italic', 'underline', 'strike', 'superscript', 'subscript', 'highlight'];
+const MARK_LABELS = ['bold', 'italic', 'strike', 'superscript', 'subscript', 'highlight'];
 
 // The formatting a run carries beyond its paragraph style, as the labels the model reads.
 function runLabels(child: PMNode, base: ResolvedStyle): string[] {
   const out: string[] = [];
   for (const m of child.marks) {
     if (MARK_LABELS.includes(m.type.name)) out.push(m.type.name);
+    else if (m.type.name === 'underline') out.push(m.attrs.lineStyle ? `underline ${m.attrs.lineStyle}` : 'underline');
+    else if (m.type.name === 'link') out.push(`link ${m.attrs.href}`);
+    else if (m.type.name === 'bookmark') out.push(`bookmark #${m.attrs.name}`);
+    else if (m.type.name === 'charStyle') out.push(`char style "${styleLabel(m.attrs.name)}"`);
     else if (m.type.name === 'textStyle') {
       if (m.attrs.fontFamily && m.attrs.fontFamily.toLowerCase() !== base.text.fontFamily?.toLowerCase()) out.push(`font "${m.attrs.fontFamily}"`);
       if (m.attrs.fontSize && parseFloat(m.attrs.fontSize) !== base.text.fontSizePt) out.push(`size ${m.attrs.fontSize}`);
       const color = normalizeColor(m.attrs.color);
       if (color) out.push(`color ${color}`);
+      if (m.attrs.caps) out.push(m.attrs.caps === 'smallCaps' ? 'small caps' : `case ${m.attrs.caps}`);
+      if (m.attrs.textPosition) out.push(`raised ${m.attrs.textPosition}pt`);
+      if (m.attrs.emphasis) out.push(`emphasis ${m.attrs.emphasis}`);
     }
   }
   return out;
@@ -140,6 +180,15 @@ export function formatNote(node: PMNode, sheet: StyleSheet = styleSheet()): stri
   }
   const bg = normalizeColor(a.backgroundColor);
   if (bg && bg !== normalizeColor(base.para.backgroundColor)) parts.push(`background ${bg}`);
+  if (a.indent != null && a.indent !== (base.para.indent ?? 0)) parts.push(`indent ${a.indent}cm`);
+  if (a.indentRight) parts.push(`indent right ${a.indentRight}cm`);
+  if (a.indentFirst != null && a.indentFirst !== (base.para.indentFirst ?? 0)) parts.push(`first line ${a.indentFirst}cm`);
+  if (a.lineHeight && a.lineHeight !== (base.para.lineHeight ?? '1')) parts.push(`line height ${a.lineHeight}`);
+  if (a.keepNext) parts.push('keep with next');
+  if (a.keepLines) parts.push('keep together');
+  if (a.widowControl === false) parts.push('no widow control');
+  if (a.noHyphenation) parts.push('no hyphenation');
+  if (a.dir === 'rtl') parts.push('right to left');
   if (a.lang) parts.push(`lang ${a.lang}`);
   const runs = new Map<string, string[]>();
   let whole = '';
@@ -291,7 +340,8 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
   const last = blockAt(blocks, to);
   const pages = layout?.pages;
   const lines = blocks.map((b, i) => (pages && i && pages[i] > pages[i - 1] ? `— page ${pages[i]} —\n` : '')
-    + (b.columns !== (blocks[i - 1]?.columns ?? 1) ? `— ${b.columns > 1 ? `${b.columns} columns` : 'end of columns'} —\n` : '') + blockLine(b));
+    + (b.columns !== (blocks[i - 1]?.columns ?? 1) ? `— ${b.columns > 1 ? `${b.columns} columns` : 'end of columns'} —\n` : '')
+    + (b.before ? `${b.before}\n` : '') + blockLine(b) + (b.after ? `\n${b.after}` : ''));
   let body: string;
   if (lines.reduce((s, l) => s + l.length + 1, 0) <= budget) body = collapseEmpty(lines).join('\n');
   else {
@@ -320,16 +370,39 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
   const m = loadPageMargins();
   body += `\n\nPage: ${loadPageFormat()} ${loadOrientation()}, margins ${[m.top, m.right, m.bottom, m.left].join('/')} cm (top/right/bottom/left)`
     + (pages ? `, ${pages[pages.length - 1]} page${pages[pages.length - 1] > 1 ? 's' : ''}` : '');
+  const settings = documentSettings();
+  if (settings.length) body += `\nSettings: ${settings.join('; ')}`;
   const lang = loadDocumentLanguage();
   body += `\nLanguage: ${findLanguage(lang) ? `${findLanguage(lang)!.label} (${tagForLanguage(lang)})` : 'none'}`;
   const zones = zoneLines();
   if (zones.length) body += `\nPage headers and footers:\n${zones.join('\n')}`;
   const notes = commentLines(state.doc, blocks);
   if (notes.length) body += `\n\nComments, numbered:\n${notes.join('\n')}`;
+  const changes = changeLines(state.doc, blocks);
+  if (changes.length) body += `\n\nTracked changes, numbered:\n${changes.join('\n')}`;
   const where = empty
     ? `The cursor is in paragraph ${first?.n ?? 1}.`
     : `Selected: paragraphs ${first?.n ?? 1}–${last?.n ?? 1}: «${state.doc.textBetween(from, to, '\n', '')}»`;
   return `Document, one paragraph per line, numbered:\n${body}\n\n${where}`;
+}
+
+/** The document settings that differ from a new document's, as set_page names them. */
+function documentSettings(): string[] {
+  const out: string[] = [];
+  const numbers = loadPageNumbering();
+  if (numbers.format !== '1') out.push(`page numbers ${numbers.format}`);
+  if (numbers.start !== 1) out.push(`first page number ${numbers.start}`);
+  if (noteSettings().footnote.numFormat !== '1') out.push(`footnote numbers ${noteSettings().footnote.numFormat}`);
+  if (loadLineNumbering().on) out.push('line numbers');
+  if (loadHyphenation()) out.push('hyphenation');
+  if (loadFoldMarks()) out.push('fold marks');
+  const decor = loadPageDecor();
+  if (decor.background) out.push(`background ${decor.background}`);
+  if (decor.border) out.push(`border ${decor.border.widthPt}pt solid ${decor.border.color}`);
+  if (decor.watermark) out.push(`watermark ${JSON.stringify(decor.watermark.text)}`);
+  const props = loadDocProperties();
+  for (const k of ['title', 'subject', 'keywords'] as const) if (props[k]) out.push(`${k} ${JSON.stringify(props[k])}`);
+  return out;
 }
 
 /** A run of plain empty paragraphs as one line, `[12–28] (empty)`; their numbers stay. */
@@ -350,6 +423,22 @@ export function commentLines(doc: PMNode, blocks = blockTexts(doc)): string[] {
     `[C${i + 1} on paragraph ${blockAt(blocks, c.from)?.n ?? 1} «${clip(c.quote, 60)}», by ${c.author || '?'}, ${c.resolved ? 'resolved' : 'open'}] ${c.text}`,
     ...c.replies.map((r) => `  ↳ ${r.author || '?'}: ${r.text}`),
   ]);
+}
+
+/** One tracked change per id, numbered as the review tool takes them: `[R1 deletion by Ada on paragraph 4] «text»`. */
+export function changeLines(doc: PMNode, blocks = blockTexts(doc)): string[] {
+  return trackedChanges(doc).map((r, i) => `[R${i + 1} ${r.kind} by ${r.author || '?'} on paragraph ${blockAt(blocks, r.from)?.n ?? 1}] «${clip(r.text, 60)}»`);
+}
+
+/** The tracked changes, one per id in document order. */
+export function trackedChanges(doc: PMNode): Revision[] {
+  const seen = new Map<string, Revision>();
+  for (const r of revisions(doc)) {
+    const had = seen.get(r.id);
+    if (had) had.text += r.text;
+    else seen.set(r.id, { ...r });
+  }
+  return [...seen.values()];
 }
 
 /** The selection as HTML, so its formatting reaches the model. */

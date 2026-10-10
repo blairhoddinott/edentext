@@ -5,6 +5,8 @@
 
 import { normalizeColor } from '../utils/color';
 import { BOX_WRAP_GAP, PICTURE_WRAP_GAP, wrapGap, wrapGapText, type WrapGap } from '../editor/extensions/image';
+import { isShapeKind } from '../utils/shapes';
+import { CELL_PAD_VARS } from '../editor/extensions/tableCellPadding';
 
 export type DialectOptions = {
   /** A paragraph style by internal or display name, case-insensitive. */
@@ -98,6 +100,23 @@ function paragraph(el: HTMLElement, o: DialectOptions, dropped: string[]): void 
     el.append(span);
   }
   if (/always|page/.test(s.pageBreakBefore + s.breakBefore)) el.setAttribute('data-page-break-before', 'page');
+  const css = (p: string) => s.getPropertyValue(p).trim();
+  if (/avoid/.test(css('break-after') + css('page-break-after'))) el.setAttribute('data-keep-next', 'true');
+  if (/avoid/.test(css('break-inside') + css('page-break-inside'))) el.setAttribute('data-keep-lines', 'true');
+  if (/^[01]$/.test(css('widows') || css('orphans'))) el.setAttribute('data-widow-control', 'false');
+  if (/none|manual/.test(css('hyphens'))) el.setAttribute('data-no-hyphenation', 'true');
+  if (/^(rtl|ltr)$/.test(s.direction)) el.setAttribute('dir', s.direction);
+}
+
+/** A run's background as a highlight, the only run shading the editor has. */
+function runShading(el: HTMLElement): void {
+  const bg = normalizeColor(el.style.backgroundColor || el.style.background);
+  if (!bg?.startsWith('#')) return;
+  const mark = el.ownerDocument.createElement('mark');
+  mark.setAttribute('data-color', bg);
+  mark.style.backgroundColor = bg;
+  mark.append(...el.childNodes);
+  el.append(mark);
 }
 
 /** Column weights from `<col width>` and the cells' own `width`, as percentages. */
@@ -147,11 +166,21 @@ function table(t: HTMLTableElement, o: DialectOptions, dropped: string[]): void 
       col += cell.colSpan;
       if (noBorder) for (const side of SIDES) cell.setAttribute(`data-border-${side}`, 'none');
       borders(cell, 'data-border');
+      cellPadding(cell);
       cell.removeAttribute('width');
     }
   }
+  for (const row of t.rows) { const h = toPx(row.style.height); if (h) row.style.height = `${h}px`; }
   // TipTap would read <col> widths by cell index, skipping the first column.
   t.querySelectorAll('colgroup, col').forEach((c) => c.remove());
+}
+
+/** A cell's CSS padding in the custom properties the cell reads it from. */
+export function cellPadding(cell: HTMLElement): void {
+  const s = cell.style;
+  const sides = [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft];
+  if (!sides.some(Boolean)) return;
+  sides.forEach((v, i) => { const cm = toCm(v); if (cm != null) s.setProperty(CELL_PAD_VARS[i], `${cm}cm`); });
 }
 
 const WRAPS: Record<string, string> = { left: 'left', right: 'right' };
@@ -163,6 +192,24 @@ function setGap(el: HTMLElement, frame: HTMLElement, fallback: WrapGap): void {
   const sides = [s.marginTop, s.marginRight, s.marginBottom, s.marginLeft];
   const gap = sides.some(Boolean) ? wrapGap({ top: cm(sides[0]), right: cm(sides[1]), bottom: cm(sides[2]), left: cm(sides[3]) }) : fallback;
   el.setAttribute('data-wrap-dist', wrapGapText(gap)!);
+}
+
+/**
+ * A text box's CSS beyond size, float and fill: padding, vertical text, the text's vertical
+ * alignment, and its shape from border-radius (50% an ellipse) or `shape: <kind>`.
+ */
+export function frameCss(box: HTMLElement, el: HTMLElement): void {
+  const s = el.style;
+  const css = (p: string) => s.getPropertyValue(p).trim();
+  const pad = toCm(s.paddingTop || s.padding, 'cm');
+  if (pad != null) box.setAttribute('data-padding', String(pad));
+  if (/vertical/.test(css('writing-mode'))) box.setAttribute('data-text-vertical', 'true');
+  const v = css('vertical-align') || css('align-content');
+  if (/middle|center/.test(v)) box.setAttribute('data-text-valign', 'middle');
+  else if (/bottom|end/.test(v)) box.setAttribute('data-text-valign', 'bottom');
+  const shape = (/shape\s*:\s*([\w-]+)/i.exec(el.getAttribute('style') ?? '') ?? [])[1] ?? el.getAttribute('class')?.trim();
+  if (isShapeKind(shape)) box.setAttribute('data-shape', shape);
+  else if (s.borderRadius) box.setAttribute('data-shape', /50%/.test(s.borderRadius) ? 'ellipse' : 'roundRect');
 }
 
 /** `<aside>` as a text box, anchored at the start of the paragraph after it. */
@@ -178,6 +225,7 @@ function textBox(el: HTMLElement): void {
   if (wrap) { box.setAttribute('data-wrap', wrap); setGap(box, el, BOX_WRAP_GAP); }
   const fill = normalizeColor(s.backgroundColor || s.background);
   box.setAttribute('data-fill', fill ?? '#FFFFFF');
+  frameCss(box, el);
   const border = s.getPropertyValue('border');
   const stroke = border ? borderAttr(border) : '1pt solid #000000';
   if (stroke && stroke !== 'none') {
@@ -245,6 +293,52 @@ function image(img: HTMLImageElement, dropped: string[]): void {
 }
 
 const FIELD_TOKEN = /\{(date|time)\}/g;
+const SEQ_TOKEN = /\{(figure|table)\}/gi;
+// LaTeX between \( \) inline, \[ \] on a line of its own; split keeps the delimiters.
+const FORMULA_TOKEN = /(\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\])/g;
+
+function formula(doc: Document, tex: string): HTMLElement {
+  const span = doc.createElement('span');
+  span.setAttribute('data-formula', tex.slice(2, -2).trim());
+  if (tex.startsWith('\\[')) span.setAttribute('data-display', 'true');
+  return span;
+}
+
+/**
+ * `<a id>` without href marks a bookmark; `<a href="#name">` is a cross-reference to
+ * one, showing its text, or with class page, number or direction that.
+ */
+function anchor(a: HTMLAnchorElement): void {
+  const doc = a.ownerDocument;
+  const href = a.getAttribute('href');
+  const name = a.getAttribute('id') || a.getAttribute('name');
+  if (!href && name) {
+    const span = doc.createElement('span');
+    span.setAttribute('data-bookmark', name);
+    span.append(...a.childNodes);
+    a.replaceWith(span);
+  } else if (href?.startsWith('#') && href.length > 1) {
+    const ref = doc.createElement('span');
+    ref.setAttribute('data-cross-ref', decodeURIComponent(href.slice(1)));
+    const format = a.getAttribute('class')?.trim();
+    ref.setAttribute('data-format', format && /^(page|number|direction)$/.test(format) ? format : 'text');
+    ref.setAttribute('data-text', a.textContent || '');
+    a.replaceWith(ref);
+  }
+}
+
+/** `<cite title author year …>Key</cite>` as a citation of that source; Key is its short name. */
+function citation(el: HTMLElement): HTMLElement {
+  const span = el.ownerDocument.createElement('span');
+  const id = (el.textContent || el.getAttribute('title') || 'Source').trim();
+  const fields: Record<string, string> = {};
+  for (const at of [...el.attributes]) if (!/^(type|class|style)$/.test(at.name)) fields[at.name] = at.value;
+  span.setAttribute('data-bib-id', id);
+  span.setAttribute('data-bib-type', el.getAttribute('type') || 'book');
+  span.setAttribute('data-bib-fields', JSON.stringify(fields));
+  span.setAttribute('data-bib-text', `[${id}]`);
+  return span;
+}
 const PAGE_TOKEN = /\{(page|pages|chapter)\}/g;
 const PAGE_FIELD: Record<string, string> = { page: 'number', pages: 'count', chapter: 'chapter' };
 
@@ -290,6 +384,7 @@ export function normalizeAiHtml(body: HTMLElement, o: DialectOptions = {}): { dr
     if (BLOCKS.has(tag)) paragraph(el, o, dropped);
     else if (tag === 'TABLE') table(el as HTMLTableElement, o, dropped);
     else if (tag === 'IMG') image(el as HTMLImageElement, dropped);
+    else if (tag === 'SPAN') runShading(el);
     else if (tag === 'HR') {
       const next = el.nextElementSibling;
       if (next) next.setAttribute('data-page-break-before', 'page');
@@ -299,7 +394,21 @@ export function normalizeAiHtml(body: HTMLElement, o: DialectOptions = {}): { dr
       span.setAttribute('data-placeholder-field', el.getAttribute('placeholder') || el.getAttribute('value') || '…');
       el.replaceWith(span);
     } else if (tag === 'TIME') {
-      el.replaceWith(field(doc, /^\d\d:\d\d/.test(el.getAttribute('datetime') ?? '') ? 'time' : 'date'));
+      const when = el.getAttribute('datetime') ?? '';
+      const f = field(doc, /^\d\d:\d\d/.test(when) ? 'time' : 'date');
+      // A given moment is a fixed field; without one it shows the current date.
+      if (when && !Number.isNaN(Date.parse(when))) { f.setAttribute('data-fixed', 'true'); f.setAttribute('data-value', when); }
+      const format = el.getAttribute('format');
+      if (format) f.setAttribute('data-format', format);
+      el.replaceWith(f);
+    } else if (tag === 'A') {
+      anchor(el as HTMLAnchorElement);
+    } else if (tag === 'DFN') {
+      const entry = doc.createElement('span');
+      entry.setAttribute('data-index-term', el.getAttribute('title') || el.textContent || '');
+      el.replaceWith(entry, ...el.childNodes);
+    } else if (tag === 'CITE') {
+      el.replaceWith(citation(el));
     } else if (tag === 'SECTION') {
       const n = parseInt(el.getAttribute('columns') || el.style.columnCount, 10);
       if (n >= 2) {
@@ -308,9 +417,17 @@ export function normalizeAiHtml(body: HTMLElement, o: DialectOptions = {}): { dr
         div.append(...el.childNodes);
         el.replaceWith(div);
       }
+    } else if ((tag === 'OL' || tag === 'UL') && el.style.listStyleType) {
+      const type = el.style.listStyleType.trim();
+      if (tag === 'UL') { const ch = /^["'](.+)["']$/.exec(type)?.[1]; if (ch) el.setAttribute('data-bullet', ch); }
+      else el.setAttribute('data-list-style', type);
     } else if (tag === 'NAV') {
       const toc = doc.createElement('div');
       toc.setAttribute('data-toc', '');
+      const kind = el.getAttribute('class')?.trim();
+      if (kind && /^(figures|tables|alphabetical|bibliography)$/.test(kind)) toc.setAttribute('data-toc-index', kind);
+      if (el.title) toc.setAttribute('data-toc-title', el.title);
+      if (el.getAttribute('levels')) toc.setAttribute('data-toc-levels', el.getAttribute('levels')!);
       toc.setAttribute('data-entries', 'null');
       el.replaceWith(toc);
     }
@@ -318,6 +435,8 @@ export function normalizeAiHtml(body: HTMLElement, o: DialectOptions = {}): { dr
   // After the tables, so a paragraph inside a box keeps what it was given.
   for (const el of [...body.querySelectorAll('aside')] as HTMLElement[]) textBox(el);
   replaceTokens(body, FIELD_TOKEN, (kind) => field(doc, kind));
+  replaceTokens(body, SEQ_TOKEN, (cat) => { const seq = doc.createElement('span'); seq.setAttribute('data-seq', cat.toLowerCase()); return seq; });
+  replaceTokens(body, FORMULA_TOKEN, (tex) => formula(doc, tex));
   const tabs = (body.textContent ?? '').includes('\t');
   if (tabs) collapseSpaces(body);
   return { dropped, tabs, notes };

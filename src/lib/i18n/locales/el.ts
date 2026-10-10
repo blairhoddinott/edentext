@@ -152,6 +152,7 @@ const el: Messages = {
       language: (name: string) => `Ορίστηκε η γλώσσα ${name}`,
       frame: (n: number) => `Προστέθηκε πλαίσιο στην παράγραφο ${n}`,
       frameSet: (n: number) => `Άλλαξε πλαίσιο στην παράγραφο ${n}`,
+      review: (accept: boolean, n: number) => `${accept ? 'Αποδοχή' : 'Απόρριψη'} ${n} ${n === 1 ? 'αλλαγής' : 'αλλαγών'}`,
       table: (n: number) => `Άλλαξε ο πίνακας ${n}`,
       failed: (msg: string) => `Δεν έγινε: ${msg}`,
     },

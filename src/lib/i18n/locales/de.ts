@@ -150,6 +150,7 @@ const de: Messages = {
       language: (name: string) => `Sprache auf ${name} gesetzt`,
       frame: (n: number) => `Rahmen an Absatz ${n} eingefügt`,
       frameSet: (n: number) => `Rahmen an Absatz ${n} geändert`,
+      review: (accept: boolean, n: number) => `${n} ${n === 1 ? 'Änderung' : 'Änderungen'} ${accept ? 'angenommen' : 'abgelehnt'}`,
       table: (n: number) => `Tabelle ${n} geändert`,
       failed: (msg: string) => `Nicht ausgeführt: ${msg}`,
     },
