@@ -3541,7 +3541,11 @@ function tableMargins(tbl: Element, weights: number[] | null, ctx: Ctx, leftPadC
 
   if (Math.abs(left) < 0.05 && Math.abs(right) < 0.05) return null;
   if (left + right > content - 1) return null;
-  const l = twipCm(Math.round((left / 2.54) * 1440)), r = twipCm(Math.round((right / 2.54) * 1440));
+  // The width is a sum of whole-twip columns, each rounded on export: within that much of
+  // a hundredth the right margin is the hundredth it was written from.
+  const slack = ((weights?.length ?? 1) + 1) * 2.54 / 1440;
+  const snap = (cm: number) => (Math.abs(cm - round2(cm)) <= slack ? round2(cm) : cm);
+  const l = twipCm(Math.round((left / 2.54) * 1440)), r = snap(twipCm(Math.round((right / 2.54) * 1440)));
   // A zero side is the attr's default (null); rounding may also leave a -0 behind.
   return { ...(Math.abs(l) >= 0.005 ? { marginLeft: l } : {}), ...(Math.abs(r) >= 0.005 ? { marginRight: r } : {}) };
 }
