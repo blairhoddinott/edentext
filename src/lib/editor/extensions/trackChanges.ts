@@ -361,7 +361,8 @@ function keptRanges(doc: PMNode, from: number, to: number): [number, number][] {
 function ownInsertions(doc: PMNode, from: number, to: number): [number, number][] {
   const out: [number, number][] = [];
   doc.nodesBetween(from, to, (node, pos) => {
-    if (!node.isText) return true;
+    // A picture or field is inline as text is: one still pending goes as its text would.
+    if (!node.isInline) return true;
     if (!node.marks.some((m) => m.type.name === 'insertion')) return false;
     out.push([Math.max(from, pos), Math.min(to, pos + node.nodeSize)]);
     return false;

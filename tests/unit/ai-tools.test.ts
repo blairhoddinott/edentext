@@ -92,6 +92,17 @@ describe('tools', () => {
     editor.destroy();
   });
 
+  it('removes a picture it inserted itself outright when it deletes it', () => {
+    const editor = makeEditor('<p>Title</p>');
+    expect(runTool(turn(editor), call('insert_paragraphs', { after: 1, html: '<p><img alt="Pic" width="4cm" height="3cm"></p>' })).result).toBe('ok');
+    expect(runTool(turn(editor), call('delete_paragraphs', { from: 2, to: 2 })).result).toBe('ok');
+    let images = 0;
+    editor.state.doc.descendants((n) => { if (n.type.name === 'image') images++; });
+    expect(images).toBe(0);
+    expect(revisions(editor.state.doc).filter((r) => r.kind === 'deletion')).toHaveLength(0);
+    editor.destroy();
+  });
+
   it('replaces text as a tracked change by the assistant, and reject restores it', () => {
     const editor = makeEditor('<p>One</p><p>The <strong>quick</strong> fox</p>');
     const ctx = turn(editor);
