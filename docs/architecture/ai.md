@@ -78,7 +78,7 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
 
 - **Modes.** A switch under the chat field picks Chat or Edit (`mode` in `edentext-ai`, Edit
   by default). Chat offers only `read_paragraphs` and a prompt without the editing lines, and
-  `runTool` refuses any other call a model makes anyway; a reply goes in by Insert at cursor.
+  `runTool` refuses any other call a model makes anyway; the user copies what a reply proposes.
 - **Text tools** (`replace_text`, `rewrite_paragraph`, `insert_paragraphs`,
   `delete_paragraphs`) go through `trackedReplace` (`trackChanges.ts`). Each edit becomes
   a revision by the localized author `t().ai.author`, whether or not recording is on.
@@ -138,7 +138,8 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
 - **Citations.** The prompt asks for `¶12` / `¶12–14`; `linkCitations` turns them into buttons
   after rendering, and a click selects those paragraphs by `blockTexts` of the current
   document, so a reply's numbers drift once later edits insert paragraphs before them.
-- **Copy** writes the rendered reply as HTML and plain text.
+- **Copy** writes the rendered reply as HTML and plain text. Insert at cursor shows under a draft only: a chat reply is
+  mostly explanation.
 - **Regenerate** (last reply) and **edit** (any question) go through `resend`: the entries from
   that question on go, the tracked changes they left pending are rejected, and the history is
   cut to the question's `historyAt`; a command keeps the selection it was first sent with.

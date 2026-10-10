@@ -61,9 +61,9 @@ export function chatSystemPrompt(mode: AiMode = 'edit'): string {
   ].join('\n');
 }
 
-// Chat mode offers no tool that changes the document; a reply is text the user may insert.
+// Chat mode offers no tool that changes the document; a reply is text the user may copy.
 const CHAT_LINES = [
-  'You cannot change the document in this mode. When asked for a change, write the new text in your answer as HTML the user can insert, or tell them to switch to Edit mode.',
+  'You cannot change the document in this mode. When asked for a change, write the new text in your answer as HTML the user can copy, or tell them to switch to Edit mode.',
 ];
 
 const EDIT_LINES = [

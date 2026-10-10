@@ -459,8 +459,9 @@
                 <button class="act primary" onclick={() => apply(e, replaceTarget)}>{t().ai.replace}</button>
                 <button class="act" onclick={() => apply(e, insertBelowTarget)}>{t().ai.insertBelow}</button>
               </div>
-            {:else}
-              <button class="link" onclick={() => { if (editor) { insertAtCursor(editor, e.text, host); if (e.proposal) e.proposal.applied = true; } }}>{t().ai.insertAtCursor}</button>
+            {:else if e.proposal}
+              <!-- Only a draft is content; a chat reply is mostly talk, and Copy takes what is not. -->
+              <button class="link" onclick={() => { if (editor && e.proposal) { insertAtCursor(editor, e.text, host); e.proposal.applied = true; } }}>{t().ai.insertAtCursor}</button>
             {/if}
           {/if}
         </div>
