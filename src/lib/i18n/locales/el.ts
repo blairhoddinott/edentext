@@ -98,6 +98,7 @@ const el: Messages = {
     attach: 'Επισύναψη αρχείου ως υλικό',
     removeFile: 'Αφαίρεση αρχείου',
     attachFailed: (f: string) => `Δεν ήταν δυνατή η ανάγνωση του ${f}: επισυνάψτε αρχείο .docx, .odt, .txt, .md ή .html χωρίς κωδικό.`,
+    answering: 'Ο βοηθός απαντά…',
     needSelection: 'Επιλέξτε πρώτα κείμενο.',
     needInstruction: 'Γράψτε μετά την εντολή τι να γραφτεί.',
     unknownCommand: (name: string) => `Άγνωστη εντολή /${name}. Πληκτρολογήστε / για τη λίστα.`,

@@ -100,6 +100,7 @@ const ru: Messages = {
     attach: 'Прикрепить файл как материал',
     removeFile: 'Убрать файл',
     attachFailed: (f: string) => `Не удалось прочитать ${f}: прикрепите файл .docx, .odt, .txt, .md или .html без пароля.`,
+    answering: 'Помощник отвечает…',
     needSelection: 'Сначала выделите текст.',
     needInstruction: 'Напишите после команды, что нужно написать.',
     unknownCommand: (name: string) => `Неизвестная команда /${name}. Введите / для списка.`,

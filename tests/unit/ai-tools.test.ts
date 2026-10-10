@@ -9,7 +9,8 @@ import { revisions, trackedReplace } from '../../src/lib/editor/extensions/track
 import { blockLine, blockTexts, htmlToSlice, serializeDoc } from '../../src/lib/ai/doc';
 import { deleteStyle, setOutline, styleSheet } from '../../src/lib/styles/sheet.svelte';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { runTool, runTurn, type AiHost, type PageSetup, type TurnContext } from '../../src/lib/ai/tools';
+import { comments } from '../../src/lib/editor/extensions/comment';
+import { answerComment, mentionsAi, runTool, runTurn, type AiHost, type PageSetup, type TurnContext } from '../../src/lib/ai/tools';
 import type { ToolCall } from '../../src/lib/ai/client';
 
 const AI = 'AI';
@@ -331,6 +332,29 @@ describe('runTurn', () => {
     expect(bodies[1].messages.at(-1)?.content).toMatch(/^error: chat mode/);
     expect(texts(editor)).toEqual(['Hello world']);
     expect(revisions(editor.state.doc)).toHaveLength(0);
+    editor.destroy();
+  });
+
+  it('answers "@AI" in a comment thread, through the tool or with its text', async () => {
+    expect(mentionsAi('@AI please check')).toBe(true);
+    expect(mentionsAi('see mail@AI.org or @AIR')).toBe(false);
+    const editor = makeEditor('<p>alpha</p><p>beta gamma</p>');
+    editor.chain().setTextSelection({ from: 8, to: 12 }).addComment({ author: 'Ada', text: '@AI why beta?' }).run();
+    const id = comments(editor.state.doc)[0].id;
+    const bodies: { tools?: { function: { name: string } }[]; messages: { role: string; content?: string }[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_u: string, init: RequestInit) => {
+      bodies.push(JSON.parse(init.body as string));
+      return bodies.length === 1
+        ? reply({ tool_calls: [{ index: 0, id: 'c1', function: { name: 'reply_comment', arguments: '{"comment":1,"text":"Second letter."}' } }] })
+        : reply({ content: 'Done.' });
+    }));
+    await answerComment({ cfg: { ...cfg, mode: 'chat' as const }, editor, id, signal: new AbortController().signal });
+    expect(bodies[0].tools?.map((d) => d.function.name)).toEqual(['read_paragraphs', 'reply_comment']);
+    expect(bodies[0].messages.at(-1)?.content).toContain('In comment C1, Ada asks you: «@AI why beta?»');
+    expect(comments(editor.state.doc)[0].replies.map((r) => r.text)).toEqual(['Second letter.']);
+    vi.stubGlobal('fetch', vi.fn(async () => reply({ content: '<p>Because it is.</p>' })));
+    await answerComment({ cfg, editor, id, signal: new AbortController().signal });
+    expect(comments(editor.state.doc)[0].replies.map((r) => `${r.author}: ${r.text}`)).toEqual(['AI: Second letter.', 'AI: Because it is.']);
     editor.destroy();
   });
 

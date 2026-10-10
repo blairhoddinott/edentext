@@ -2,6 +2,8 @@
   import type { Editor } from '@tiptap/core';
   import type { CommentRange } from '../editor/extensions/comment';
   import { t } from '../i18n/i18n.svelte';
+  import { aiAnswering, aiEnabled, AI_COMMENT_EVENT } from '../storage/ai.svelte';
+  import { mentionsAi } from '../ai/tools';
 
   // One comment thread as both reviewing views show it: the quote it hangs on, its text,
   // the answers to it and a box to add one. Edit / resolve / remove sit behind the ⋯
@@ -33,6 +35,7 @@
   function sendReply() {
     if (!reply.trim()) return;
     editor?.chain().focus().replyToComment(c.id, { author, text: reply }).run();
+    if (aiEnabled() && mentionsAi(reply)) window.dispatchEvent(new CustomEvent(AI_COMMENT_EVENT, { detail: { id: c.id } }));
     reply = '';
     replying = false;
   }
@@ -113,6 +116,12 @@
   </div>
 {/each}
 
+{#if aiAnswering.get(c.id) === ''}
+  <div class="reply ai-working" role="status"><span class="spinner" aria-hidden="true"></span>{t().ai.answering}</div>
+{:else if aiAnswering.has(c.id)}
+  <div class="reply ai-error" role="alert">{aiAnswering.get(c.id)}</div>
+{/if}
+
 {#if replying}
   <textarea
     rows="2"
@@ -132,6 +141,10 @@
 {/if}
 
 <style>
+  .ai-error { color: #e5534b; }
+  .ai-working { display: flex; align-items: center; gap: 6px; color: var(--color-text-muted); }
+  .spinner { width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .head { display: flex; align-items: flex-start; gap: 4px; }
   .head .card { flex: 1; min-width: 0; }
 

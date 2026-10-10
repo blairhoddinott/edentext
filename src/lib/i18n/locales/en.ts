@@ -97,6 +97,7 @@ const en = {
     attach: 'Attach a file as material',
     removeFile: 'Remove file',
     attachFailed: (f: string) => `Could not read ${f}: attach a .docx, .odt, .txt, .md or .html file without a password.`,
+    answering: 'The assistant is answering…',
     needSelection: 'Select the text first.',
     needInstruction: 'Say what to write after the command.',
     unknownCommand: (name: string) => `Unknown command /${name}. Type / for the list.`,

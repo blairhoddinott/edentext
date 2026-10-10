@@ -97,6 +97,7 @@ const zhHans: Messages = {
     attach: '附加文件作为材料',
     removeFile: '移除文件',
     attachFailed: (f: string) => `无法读取 ${f}：请附加没有密码的 .docx、.odt、.txt、.md 或 .html 文件。`,
+    answering: '助手正在回复…',
     needSelection: '请先选择文本。',
     needInstruction: '请在命令后说明要写的内容。',
     unknownCommand: (name: string) => `未知命令 /${name}。输入 / 查看列表。`,

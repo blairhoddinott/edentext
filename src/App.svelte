@@ -76,9 +76,10 @@
   import NavigatorPane from './lib/components/NavigatorPane.svelte';
   import AiPane, { askAi, resetAiChat } from './lib/components/AiPane.svelte';
   import AiPrompt from './lib/components/AiPrompt.svelte';
-  import { aiEnabled, OPEN_AI_CHAT_EVENT } from './lib/storage/ai.svelte';
-  import { abortAll as abortAiRequests, type AiHost } from './lib/ai/tools';
-  import { OPEN_COMMENT_EVENT } from './lib/editor/extensions/comment';
+  import { aiConfig, aiAnswering, aiEnabled, AI_COMMENT_EVENT, OPEN_AI_CHAT_EVENT } from './lib/storage/ai.svelte';
+  import { aiErrorText, isAbort } from './lib/ai/client';
+  import { abortAll as abortAiRequests, answerComment, mentionsAi, startRequest, endRequest, type AiHost } from './lib/ai/tools';
+  import { comments, OPEN_COMMENT_EVENT } from './lib/editor/extensions/comment';
   import AutoCorrectDialog from './lib/components/AutoCorrectDialog.svelte';
   import AutoTextDialog from './lib/components/AutoTextDialog.svelte';
   import ThesaurusDialog from './lib/components/ThesaurusDialog.svelte';
@@ -1101,10 +1102,36 @@
     if (!editor || editor.state.selection.empty) return;
     const text = prompt(t().comments.prompt, '');
     if (text === null) return;
+    const had = new Set(comments(editor.state.doc).map((c) => c.id));
     editor.chain().focus().addComment({ author: docProps.author.trim(), text: text.trim() }).run();
     // A comment nobody can see is worse than none: the new one brings its kind back.
     setShowComments(true);
+    const id = comments(editor.state.doc).find((c) => !had.has(c.id))?.id;
+    if (id && aiEnabled() && mentionsAi(text)) void askAiInComment(id);
   }
+
+  // "@KI" in a comment or reply: the assistant answers in the thread, a turn of its own.
+  async function askAiInComment(id: string) {
+    const cfg = aiConfig();
+    if (!editor || !cfg || aiAnswering.get(id) === '') return;
+    aiAnswering.set(id, '');
+    const request = startRequest();
+    try {
+      await answerComment({ cfg, editor, id, host: aiHost, signal: request.signal });
+      aiAnswering.delete(id);
+    } catch (e) {
+      if (isAbort(e)) aiAnswering.delete(id);
+      else aiAnswering.set(id, aiErrorText(e, t().ai.errors, cfg.endpoint));
+    } finally {
+      endRequest(request);
+    }
+  }
+
+  $effect(() => {
+    const ask = (e: Event) => void askAiInComment((e as CustomEvent<{ id: string }>).detail.id);
+    window.addEventListener(AI_COMMENT_EVENT, ask);
+    return () => window.removeEventListener(AI_COMMENT_EVENT, ask);
+  });
 
   $effect(() => {
     const open = () => addComment();

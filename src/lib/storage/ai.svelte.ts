@@ -2,6 +2,8 @@
 // App-wide, one JSON key, removed while everything is at its default (off and empty);
 // switching off keeps the provider so switching back on needs no retyping.
 
+import { SvelteMap } from 'svelte/reactivity';
+
 export type AiProvider = 'openai' | 'anthropic';
 /** 'chat' answers in the pane only; 'edit' changes the document through the tools. */
 export type AiMode = 'chat' | 'edit';
@@ -15,6 +17,11 @@ const KEY = 'edentext-ai';
 export const OPEN_AI_PROMPT_EVENT = 'edentext-ai-prompt';
 /** Opens the chat pane; detail `{ prefill }` fills its field, e.g. `/draft `. */
 export const OPEN_AI_CHAT_EVENT = 'edentext-ai-chat';
+/** A comment or reply named the assistant; detail `{ id }` is the thread to answer. */
+export const AI_COMMENT_EVENT = 'edentext-ai-comment';
+
+/** The comment threads the assistant is answering ('') or failed to (the error), for their cards. */
+export const aiAnswering = new SvelteMap<string, string>();
 
 export const DEFAULT_CONTEXT_TOKENS = 32_000;
 const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '', contextTokens: DEFAULT_CONTEXT_TOKENS, mode: 'edit', side: 'right' };

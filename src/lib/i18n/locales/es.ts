@@ -96,6 +96,7 @@ const es: Messages = {
     attach: 'Adjuntar un archivo como material',
     removeFile: 'Quitar archivo',
     attachFailed: (f: string) => `No se pudo leer ${f}: adjunte un archivo .docx, .odt, .txt, .md o .html sin contraseña.`,
+    answering: 'El asistente está respondiendo…',
     needSelection: 'Seleccione primero el texto.',
     needInstruction: 'Escriba tras el comando qué debe redactarse.',
     unknownCommand: (name: string) => `Comando desconocido /${name}. Escriba / para ver la lista.`,

@@ -298,7 +298,7 @@ export type AiHost = {
 };
 
 /** One turn's view of the document: numbers from its snapshot, positions mapped since. */
-export type TurnContext = { editor: Editor; blocks: Block[]; mapping: Mapping; author: string; commentIds?: string[]; host?: AiHost; readOnly?: boolean };
+export type TurnContext = { editor: Editor; blocks: Block[]; mapping: Mapping; author: string; commentIds?: string[]; host?: AiHost; allowed?: Set<string> };
 
 const pageFormat = (name: unknown) => (Object.keys(PAGE_FORMAT_CM) as PageFormat[]).find((f) => f.toLowerCase() === String(name).trim().toLowerCase().replace(/^iso\s*/, 'iso'));
 
@@ -823,7 +823,7 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
 /** Runs one tool call; a failure goes back to the model as text, not as an exception. */
 export function runTool(ctx: TurnContext, call: ToolCall): ToolResult {
   // A model may call a tool it was not offered.
-  if (ctx.readOnly && !READ_TOOLS.has(call.name)) return { result: 'error: chat mode cannot change the document; tell the user to switch to Edit mode', summary: '' };
+  if (ctx.allowed && !ctx.allowed.has(call.name)) return { result: 'error: chat mode cannot change the document; tell the user to switch to Edit mode', summary: '' };
   try {
     return run(ctx, call);
   } catch (e) {
@@ -886,10 +886,13 @@ export async function runTurn(opts: {
   takeQueued?: () => string[];
   /** Attached files' text: sent with this turn only, never kept in the history. */
   context?: string;
+  /** Tools chat mode offers beyond reading, as a comment's question needs reply_comment. */
+  allow?: string[];
 }): Promise<string> {
   const { editor } = opts;
   const chat = opts.cfg.mode === 'chat';
-  const tools = chat ? TOOLS.filter((d) => READ_TOOLS.has(d.name)) : TOOLS;
+  const allowed = chat ? new Set([...READ_TOOLS, ...(opts.allow ?? [])]) : undefined;
+  const tools = allowed ? TOOLS.filter((d) => allowed.has(d.name)) : TOOLS;
   const blocks = blockTexts(editor.state.doc);
   // A page, zone or language change reflows the pages without touching the text.
   let reflowed = false;
@@ -899,7 +902,7 @@ export async function runTurn(opts: {
     setPage: (p) => { reflowed = true; h.setPage(p); },
     setLanguage: h.setLanguage && ((c) => { reflowed = true; h.setLanguage!(c); }),
   };
-  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host, readOnly: chat };
+  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host, allowed };
   const track = ({ transaction }: { transaction: Transaction }) => ctx.mapping.appendMapping(transaction.mapping);
   editor.on('transaction', track);
   const preface = opts.context ? `${opts.context}\n\n---\n\n` : '';
@@ -943,4 +946,40 @@ export async function runTurn(opts: {
   }
   opts.history.push({ role: 'user', content: asked.join('\n\n') }, { role: 'assistant', content: answer });
   return answer;
+}
+
+/** "@KI" (the assistant's localized name) or "@AI" in a comment asks the assistant. */
+export function mentionsAi(text: string): boolean {
+  const names = [...new Set([t().ai.author, 'AI'])].map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`(^|\\s)@(${names.join('|')})(?![\\p{L}\\p{N}])`, 'iu').test(text);
+}
+
+/**
+ * Answers the newest message of comment thread `id` in the thread, as a turn of its own:
+ * no chat history, the change asked for made first where the mode allows. A reply the
+ * model wrote as text instead of through reply_comment is posted for it.
+ */
+export async function answerComment(opts: { cfg: AiConfig; editor: Editor; id: string; host?: AiHost; signal: AbortSignal }): Promise<void> {
+  const { editor, id } = opts;
+  const list = comments(editor.state.doc);
+  const n = list.findIndex((c) => c.id === id) + 1;
+  const c = list[n - 1];
+  if (!c) return;
+  const last = c.replies.at(-1) ?? { author: c.author, text: c.text };
+  const author = t().ai.author;
+  const question = [
+    `In comment C${n}, ${last.author || 'the user'} asks you: «${last.text}».`,
+    opts.cfg.mode === 'chat'
+      ? `Answer in that thread with reply_comment, in their language.`
+      : `If they ask for a change to the document, make it first. Then answer in that thread with reply_comment, in their language, saying briefly what you did.`,
+  ].join(' ');
+  const before = c.replies.length;
+  const answer = await runTurn({
+    cfg: opts.cfg, editor, history: [], question, author, host: opts.host, allow: ['reply_comment'],
+    onText: () => {}, onTool: () => {}, signal: opts.signal,
+  });
+  const now = comments(editor.state.doc).find((x) => x.id === id);
+  const replied = now?.replies.slice(before).some((r) => r.author === author);
+  const text = new DOMParser().parseFromString(stripFences(answer), 'text/html').body.textContent?.trim();
+  if (now && !replied && text && !opts.signal.aborted) editor.commands.replyToComment(id, { author, text });
 }

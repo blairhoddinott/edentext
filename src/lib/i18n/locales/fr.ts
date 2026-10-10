@@ -96,6 +96,7 @@ const fr: Messages = {
     attach: 'Joindre un fichier comme matériau',
     removeFile: 'Retirer le fichier',
     attachFailed: (f: string) => `Impossible de lire ${f} : joignez un fichier .docx, .odt, .txt, .md ou .html sans mot de passe.`,
+    answering: 'L’assistant répond…',
     needSelection: 'Sélectionnez d\'abord du texte.',
     needInstruction: 'Indiquez après la commande ce qu\'il faut écrire.',
     unknownCommand: (name: string) => `Commande inconnue /${name}. Tapez / pour la liste.`,

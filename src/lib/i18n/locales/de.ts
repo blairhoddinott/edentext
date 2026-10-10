@@ -96,6 +96,7 @@ const de: Messages = {
     attach: 'Datei als Material anhängen',
     removeFile: 'Datei entfernen',
     attachFailed: (f: string) => `${f} ließ sich nicht lesen: Hängen Sie eine .docx-, .odt-, .txt-, .md- oder .html-Datei ohne Passwort an.`,
+    answering: 'Der KI-Assistent antwortet…',
     needSelection: 'Markieren Sie zuerst Text.',
     needInstruction: 'Schreiben Sie hinter den Befehl, was entstehen soll.',
     unknownCommand: (name: string) => `Unbekannter Befehl /${name}. Mit / sehen Sie die Liste.`,

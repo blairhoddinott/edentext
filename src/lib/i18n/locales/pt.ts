@@ -96,6 +96,7 @@ const pt: Messages = {
     attach: 'Anexar um arquivo como material',
     removeFile: 'Remover arquivo',
     attachFailed: (f: string) => `Não foi possível ler ${f}: anexe um arquivo .docx, .odt, .txt, .md ou .html sem senha.`,
+    answering: 'O assistente está respondendo…',
     needSelection: 'Selecione primeiro o texto.',
     needInstruction: 'Escreva após o comando o que deve ser redigido.',
     unknownCommand: (name: string) => `Comando desconhecido /${name}. Digite / para ver a lista.`,

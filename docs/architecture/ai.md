@@ -158,6 +158,17 @@ question that starts a turn or command, and only that one: the history keeps the
 and the stored chat the file names (`files`) but not the text (`context`), so Regenerate
 and Edit resend the files within the session only.
 
+## Comments
+
+A new comment or a reply that names the assistant (`mentionsAi`: `@` plus its localized
+name or `@AI`, case-insensitive, not inside a word or address) starts `answerComment`
+from `App.svelte`; a reply dispatches `AI_COMMENT_EVENT` from `CommentCard`. It is a turn
+of its own, without the chat history: the newest message of the thread is the question,
+chat mode adds `reply_comment` to the read-only tools, edit mode asks for the change first.
+A model that answers as text instead of through the tool gets its text posted as the reply.
+`aiAnswering` (thread id → `''` while running, else the error) drives the card's status
+line; the request joins `startRequest`, so switching off or opening another document aborts it.
+
 ## Slash commands
 
 A chat message starting with `/` is a command: `/draft <what>`, `/rewrite <how>`, and the

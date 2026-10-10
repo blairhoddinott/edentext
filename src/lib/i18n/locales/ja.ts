@@ -98,6 +98,7 @@ const ja: Messages = {
     attach: 'ファイルを資料として添付',
     removeFile: 'ファイルを削除',
     attachFailed: (f: string) => `${f} を読み込めませんでした。パスワードのない .docx、.odt、.txt、.md、.html ファイルを添付してください。`,
+    answering: 'アシスタントが回答しています…',
     needSelection: '先にテキストを選択してください。',
     needInstruction: 'コマンドの後に書く内容を指定してください。',
     unknownCommand: (name: string) => `不明なコマンド /${name}。/ で一覧を表示します。`,

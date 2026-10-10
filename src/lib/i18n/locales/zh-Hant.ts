@@ -98,6 +98,7 @@ const zhHant: Messages = {
     attach: '附加檔案作為材料',
     removeFile: '移除檔案',
     attachFailed: (f: string) => `無法讀取 ${f}：請附加沒有密碼的 .docx、.odt、.txt、.md 或 .html 檔案。`,
+    answering: '助理正在回覆…',
     needSelection: '請先選取文字。',
     needInstruction: '請在命令後說明要寫的內容。',
     unknownCommand: (name: string) => `未知命令 /${name}。輸入 / 查看清單。`,

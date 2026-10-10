@@ -100,6 +100,7 @@ const uk: Messages = {
     attach: 'Прикріпити файл як матеріал',
     removeFile: 'Прибрати файл',
     attachFailed: (f: string) => `Не вдалося прочитати ${f}: прикріпіть файл .docx, .odt, .txt, .md або .html без пароля.`,
+    answering: 'Помічник відповідає…',
     needSelection: 'Спершу виділіть текст.',
     needInstruction: 'Напишіть після команди, що потрібно написати.',
     unknownCommand: (name: string) => `Невідома команда /${name}. Введіть / для списку.`,
