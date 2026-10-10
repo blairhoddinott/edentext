@@ -4,8 +4,8 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
-import { changedRanges, blockLangOf, HIGHLIGHTS, paintHighlight, type Range } from './spellCheck';
-import { hasGrammar } from '../../storage/documentLanguage';
+import { changedRanges, blockLangOf, langOf, HIGHLIGHTS, paintHighlight, type Range } from './spellCheck';
+import { hasGrammar, NO_LANGUAGE } from '../../storage/documentLanguage';
 import { grammarLanguage, grammarReady, lintText, subscribeGrammar, type GrammarFix, type GrammarLint } from '../../spell/grammar.svelte';
 import { isPaginating } from './pageBreaks';
 import { mostlyAsian } from '../../utils/script';
@@ -68,19 +68,31 @@ export function grammarFix(state: EditorState, at: Range, fix: GrammarFix): Tran
 
 // Harper only knows English, so a block in another language is not linted at all —
 // the document's own language stands in where the block names none. A block of East
-// Asian text has no English sentence even where its western language is English.
+// Asian text has no English sentence even where its western language is English. With
+// checking off for the document, nothing is linted, as nothing is spell checked.
 function lintable(node: PmNode, docLang: string): boolean {
-  if (!node.isTextblock || node.content.size < MIN_CHARS || mostlyAsian(node.textContent)) return false;
+  if (docLang === NO_LANGUAGE || !node.isTextblock || node.content.size < MIN_CHARS || mostlyAsian(node.textContent)) return false;
   return hasGrammar(blockLangOf(node) ?? docLang);
 }
 
-// Every textblock worth linting, in document order but rotated onto the one holding
-// the caret, so the visible page finishes first.
-function buildQueue(state: EditorState, docLang: string): Range[] {
+// A finding that touches a run in a language without grammar, which Harper read as English.
+function inForeignRun(doc: PmNode, from: number, to: number): boolean {
+  let foreign = false;
+  doc.nodesBetween(from, to, (node) => {
+    const code = node.isText ? langOf(node, undefined) : undefined;
+    if (code && !hasGrammar(code)) foreign = true;
+    return !foreign;
+  });
+  return foreign;
+}
+
+// Every textblock, in document order but rotated onto the one holding the caret, so
+// the visible page finishes first. Unlintable ones are queued too, to drop old findings.
+function buildQueue(state: EditorState): Range[] {
   const blocks: Range[] = [];
   state.doc.descendants((node, pos) => {
     if (!node.isTextblock) return true;
-    if (lintable(node, docLang)) blocks.push({ from: pos + 1, to: pos + node.nodeSize - 1 });
+    blocks.push({ from: pos + 1, to: pos + node.nodeSize - 1 });
     return false;
   });
   const caret = state.selection.from;
@@ -89,17 +101,17 @@ function buildQueue(state: EditorState, docLang: string): Range[] {
 }
 
 // The blocks the dirty ranges touch, so an edit re-lints only what changed.
-function dirtyBlocks(doc: PmNode, dirty: Range[], docLang: string): Range[] {
+function dirtyBlocks(doc: PmNode, dirty: Range[]): Range[] {
   const out = new Map<number, Range>();
   for (const { from, to } of dirty) {
     const $pos = doc.resolve(Math.min(from, doc.content.size));
     if (from === to) {
-      if (lintable($pos.parent, docLang)) out.set($pos.before(), { from: $pos.start(), to: $pos.end() });
+      if ($pos.parent.isTextblock) out.set($pos.before(), { from: $pos.start(), to: $pos.end() });
       continue;
     }
     doc.nodesBetween(from, to, (node, pos) => {
       if (!node.isTextblock) return true;
-      if (lintable(node, docLang)) out.set(pos, { from: pos + 1, to: pos + node.nodeSize - 1 });
+      out.set(pos, { from: pos + 1, to: pos + node.nodeSize - 1 });
       return false;
     });
   }
@@ -150,6 +162,7 @@ export const GrammarCheck = Extension.create({
           let queueDoc: PmNode | null = null;
           let swept = false; // a full pass has finished at least once
           let lastEdit = 0;
+          let generation = 0;
 
           const schedule = () => {
             if (queued || view.isDestroyed) return;
@@ -177,30 +190,35 @@ export const GrammarCheck = Extension.create({
             let rebuilt = false;
             if (!queue.length || queueDoc !== view.state.doc) {
               const dirty = grammarKey.getState(view.state)?.dirty ?? [];
-              const docLang = grammarLanguage();
-              const edited = dirtyBlocks(view.state.doc, dirty, docLang);
+              const edited = dirtyBlocks(view.state.doc, dirty);
               // Until one full pass is through, the edited blocks only jump the queue.
-              queue = swept ? edited : dedupe(edited.concat(buildQueue(view.state, docLang)));
+              queue = swept ? edited : dedupe(edited.concat(buildQueue(view.state)));
               queueDoc = view.state.doc;
               rebuilt = true;
             }
 
             const doc = queueDoc;
+            const started = generation;
+            const docLang = grammarLanguage();
             const results: Results = [];
             const deadline = Date.now() + BUDGET_MS;
             while (queue.length && Date.now() < deadline) {
               const block = queue.shift()!;
-              const lints = await lintText(blockText(doc, block));
+              // A block that left English (or checking) reports no findings, clearing its old ones.
+              const node = doc.nodeAt(block.from - 1);
+              const lints = node && lintable(node, docLang) ? await lintText(blockText(doc, block)) : [];
               // An in-flight result is never mapped forward: a lint costs 3 ms, so
               // re-linting is cheaper than the bookkeeping and cannot be subtly wrong.
               if (view.isDestroyed) return;
+              // A language, switch or ignore change restarted the pass, which this lint predates.
+              if (generation !== started) return schedule();
               if (view.state.doc !== doc) {
                 queue = [];
                 return schedule();
               }
               // Every checked block is reported, so a block that lost its last
               // finding loses its decoration too.
-              results.push({ block, lints });
+              results.push({ block, lints: lints.filter((l) => !inForeignRun(doc, block.from + l.from, block.from + l.to)) });
             }
             // The dispatch also clears the dirty ranges the rebuild just consumed.
             if (results.length || rebuilt) view.dispatch(view.state.tr.setMeta(RESULTS_META, results));
@@ -209,6 +227,7 @@ export const GrammarCheck = Extension.create({
           }
 
           const unsubscribe = subscribeGrammar(() => {
+            generation++;
             queue = [];
             queueDoc = null;
             swept = false;

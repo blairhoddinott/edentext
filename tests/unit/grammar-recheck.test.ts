@@ -66,6 +66,28 @@ describe('grammar recheck after an edit', () => {
     editor.destroy();
   });
 
+  it('drops the finding of a paragraph switched to a language without grammar', async () => {
+    const editor = await makeEditor();
+    editor.chain().setTextSelection(RUN_A).setBlockLanguage('de-DE').run();
+    await settle(editor, () => !grammarErrorAt(editor.state, RUN_A));
+
+    expect(grammarErrorAt(editor.state, RUN_A)).toBeNull();
+    expect(linted).not.toContain('The dog run fast.');
+    expect(grammarErrorAt(editor.state, RUN_B)?.message).toBe('Verb agreement');
+    editor.destroy();
+  });
+
+  it('drops a finding that touches a run in a language without grammar', async () => {
+    const editor = await makeEditor();
+    editor.chain().setTextSelection({ from: 9, to: 12 }).setRunLanguage('de-DE').run();
+    await settle(editor, () => !grammarErrorAt(editor.state, RUN_A));
+
+    expect(linted).toContain('The dog run fast.');
+    expect(grammarErrorAt(editor.state, RUN_A)).toBeNull();
+    expect(grammarErrorAt(editor.state, RUN_B)?.message).toBe('Verb agreement');
+    editor.destroy();
+  });
+
   it('carries a finding\'s fixes on the decoration', async () => {
     const editor = await makeEditor();
     const found = grammarErrorAt(editor.state, RUN_A);

@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { Node as PmNode } from '@tiptap/pm/model';
+import { AddMarkStep, RemoveMarkStep } from '@tiptap/pm/transform';
 import { spellController } from '../../spell/controller';
 import { codeForTag, westLang, type DocumentLanguage } from '../../storage/documentLanguage';
 import { isPaginating } from './pageBreaks';
@@ -34,7 +35,7 @@ function codeOf(tag: unknown): DocumentLanguage | undefined {
   return west ? codeForTag(west) ?? undefined : undefined;
 }
 
-function langOf(node: PmNode, blockLang: DocumentLanguage | undefined): DocumentLanguage | undefined {
+export function langOf(node: PmNode, blockLang: DocumentLanguage | undefined): DocumentLanguage | undefined {
   return codeOf(node.marks.find((m) => m.type.name === 'textStyle')?.attrs.lang) ?? blockLang;
 }
 
@@ -103,10 +104,13 @@ function recheckBlocks(doc: PmNode, set: DecorationSet, dirty: Range[]): Decorat
 // quadratic in steps (seconds for a format change across a long document).
 export function changedRanges(tr: Transaction): Range[] {
   let lo = Infinity, hi = -Infinity;
-  for (const map of tr.mapping.maps) {
+  tr.mapping.maps.forEach((map, i) => {
     if (lo <= hi) { lo = map.map(lo, -1); hi = map.map(hi, 1); }
     map.forEach((_oldFrom, _oldTo, from, to) => { lo = Math.min(lo, from); hi = Math.max(hi, to); });
-  }
+    // A mark step moves nothing, so its map is empty, yet a run's language may have changed.
+    const step = tr.steps[i];
+    if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) { lo = Math.min(lo, step.from); hi = Math.max(hi, step.to); }
+  });
   return lo <= hi ? [{ from: lo, to: hi }] : [];
 }
 
