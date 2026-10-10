@@ -1,6 +1,6 @@
 // The HTML a model writes (semantic tags, plain CSS) as the editor's own nodes: one case
 // per construct the dialect knows, through htmlToSlice on the real schema.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { extensions } from '../../src/lib/editor/extensions';
@@ -13,6 +13,7 @@ beforeAll(() => {
   document.body.appendChild(el);
   editor = new Editor({ element: el, extensions, content: '<p></p>' });
 });
+afterAll(() => editor.destroy());
 
 function parse(html: string) {
   const dropped: string[] = [];

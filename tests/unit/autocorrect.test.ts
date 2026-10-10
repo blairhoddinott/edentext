@@ -135,5 +135,6 @@ describe('AutoCorrect', () => {
     expect(ed.getText()).toBe('a -->');
     ed.commands.undo();
     expect(ed.getText()).toBe('a --');
+    ed.destroy();
   });
 });
