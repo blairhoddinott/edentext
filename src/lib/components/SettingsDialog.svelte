@@ -105,6 +105,10 @@
   onclick={(e) => e.target === dialogEl && (open = false)}
   aria-label={t().settings.title}
 >
+  <!-- On the dialog, not in the scrolling pane, so it stays in view. -->
+  <button class="close" onclick={() => (open = false)} aria-label={t().common.close} title={t().common.close}>
+    <Icon name="close" size={16} />
+  </button>
   <div class="shell">
     <nav aria-label={t().settings.title}>
       <h2>{t().settings.title}</h2>
@@ -117,9 +121,6 @@
     </nav>
 
     <div class="pane">
-      <button class="close" onclick={() => (open = false)} aria-label={t().common.close} title={t().common.close}>
-        <Icon name="close" size={16} />
-      </button>
       <h3>{t().settings.sections[section]}</h3>
 
       {#if section === 'general'}
@@ -351,6 +352,7 @@
     position: absolute;
     top: 14px;
     right: 14px;
+    z-index: 1;
     display: grid;
     place-items: center;
     width: 28px;
@@ -460,7 +462,7 @@
   /* A phone: the side bar becomes a row of tabs above the pane. */
   @media (max-width: 600px) {
     .shell { flex-direction: column; }
-    nav { width: auto; flex-direction: row; overflow-x: auto; padding: 10px; border-right: 0; border-bottom: 1px solid var(--w-border); }
+    nav { width: auto; flex-direction: row; overflow-x: auto; padding: 10px; margin-right: 48px; border-right: 0; border-bottom: 1px solid var(--w-border); }
     h2 { display: none; }
     .nav-item { flex: none; }
     .pane { padding: 14px 16px 20px; }

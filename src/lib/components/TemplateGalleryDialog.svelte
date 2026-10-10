@@ -32,12 +32,13 @@
 </script>
 
 <dialog class="gallery" bind:this={dialogEl} onclose={onClose} onclick={onClick} aria-label={t().templates.title}>
+  <!-- On the dialog, not in the scrolling card, so it stays in view. -->
+  <button class="close" onclick={() => (open = false)} aria-label={t().common.close} title={t().common.close}>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+    </svg>
+  </button>
   <div class="card">
-    <button class="close" onclick={() => (open = false)} aria-label={t().common.close} title={t().common.close}>
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-        <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-      </svg>
-    </button>
     <h2>{t().templates.title}</h2>
     <div class="grid">
       {#each TEMPLATES as entry (entry.id)}
@@ -116,6 +117,7 @@
     position: absolute;
     top: 8px;
     right: 8px;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
