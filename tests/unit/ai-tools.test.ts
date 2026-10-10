@@ -84,6 +84,14 @@ describe('serializeDoc', () => {
 });
 
 describe('tools', () => {
+  it('leaves a picture marked as deleted out of what the model reads', () => {
+    const editor = makeEditor('<p>a<img src="data:image/png;base64,iVBORw0KGgo=" alt="Old">b</p>');
+    expect(blockTexts(editor.state.doc)[0].text).toBe('a{image "Old"}b');
+    expect(runTool(turn(editor), call('delete_paragraphs', { from: 1, to: 1 })).result).toBe('ok');
+    expect(blockTexts(editor.state.doc)[0].text).toBe('');
+    editor.destroy();
+  });
+
   it('replaces text as a tracked change by the assistant, and reject restores it', () => {
     const editor = makeEditor('<p>One</p><p>The <strong>quick</strong> fox</p>');
     const ctx = turn(editor);

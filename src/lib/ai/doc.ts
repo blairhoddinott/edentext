@@ -48,8 +48,9 @@ export function blockText(node: PMNode, pos: number): { text: string; map: numbe
   const map: number[] = [];
   node.forEach((child, offset) => {
     const at = pos + 1 + offset;
+    // A picture or field marked as deleted is gone once accepted, like deleted text.
+    if (child.marks.some((m) => m.type.name === 'deletion')) return;
     if (child.isText) {
-      if (child.marks.some((m) => m.type.name === 'deletion')) return;
       const t = child.text ?? '';
       for (let k = 0; k < t.length; k++) { text += t[k]; map.push(at + k); }
     } else {
