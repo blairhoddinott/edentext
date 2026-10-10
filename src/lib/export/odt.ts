@@ -5806,6 +5806,15 @@ function applySpacingModel(odtBytes: Uint8Array, model: SpacingModel, atPageStar
   return rezipOdt(files);
 }
 
+// A zone's band of `minH` up to the body. LibreOffice lays a zone out from the band's
+// body-facing edge, which keeps a header at its distance; a footer stands on its distance,
+// as the editor draws it, only as a dynamic gap the size of the band (probed).
+function hfBandProps(kind: 'header' | 'footer', minH: number): string {
+  return kind === 'header'
+    ? `<style:header-footer-properties fo:min-height="${minH}cm" fo:margin-bottom="0cm" style:dynamic-spacing="false"/>`
+    : `<style:header-footer-properties fo:min-height="${minH}cm" fo:margin-top="${minH}cm" style:dynamic-spacing="true"/>`;
+}
+
 // Header/footer post-processing on styles.xml: section 1's zones replace the sentinel
 // paragraphs odf-kit wrote (variants go in beside them), and the geometry is rewritten
 // to ODF's own mapping (page margin = HF distance, min-height fills up to the body margin).
@@ -5821,11 +5830,9 @@ function applyHfPostProcess(odtBytes: Uint8Array, margins: PageMargins, zones: R
     // min-height fills the gap between the edge→zone distance and the body margin,
     // so the body still starts at bodyMarginCm (page margin was set to distCm).
     const minH = round3(Math.max(0.2, bodyMarginCm - distCm));
-    // The spacing attr sits on the body-facing side: below the header, above the footer.
-    const spacingAttr = kind === 'header' ? 'fo:margin-bottom' : 'fo:margin-top';
     styles = styles.replace(
       new RegExp(`<style:${kind}-style>[\\s\\S]*?</style:${kind}-style>`),
-      `<style:${kind}-style><style:header-footer-properties fo:min-height="${minH}cm" ${spacingAttr}="0cm" style:dynamic-spacing="false"/></style:${kind}-style>`,
+      `<style:${kind}-style>${hfBandProps(kind, minH)}</style:${kind}-style>`,
     );
   };
   if (zones.header != null) band('header', margins.top, headerDist);
@@ -6056,7 +6063,7 @@ function applySectionMasterPages(odtBytes: Uint8Array, sets: HfSet[], zoneXmlOf:
     const bottom = band('footer', 'bottom');
     const bandXml = (kind: 'header' | 'footer', minH: number | null) => (minH == null
       ? `<style:${kind}-style/>`
-      : `<style:${kind}-style><style:header-footer-properties fo:min-height="${round3(minH)}cm" ${kind === 'header' ? 'fo:margin-bottom' : 'fo:margin-top'}="0cm" style:dynamic-spacing="false"/></style:${kind}-style>`);
+      : `<style:${kind}-style>${hfBandProps(kind, round3(minH))}</style:${kind}-style>`);
     const name = `${layout}Sec${index + 1}${side ? side[0] : ''}`;
     // The usage is the section's own: mirrored or not, whatever the document's layout says.
     const usage = side ?? (body.mirrored ? 'mirrored' : null);
