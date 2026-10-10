@@ -7,7 +7,10 @@ import { buildOdt } from '../../src/lib/export/odt';
 import { buildDocx } from '../../src/lib/export/docx';
 import { importOdt } from '../../src/lib/import/odt';
 import { importDocx } from '../../src/lib/import/docx';
-import { parseTabStops, formatTabStops, nextStopCm } from '../../src/lib/editor/extensions/tabStops';
+import {
+  parseTabStops, formatTabStops, nextStopCm, sameLayout,
+} from '../../src/lib/editor/extensions/tabStops';
+import { Decoration } from '@tiptap/pm/view';
 
 type N = any;
 
@@ -77,5 +80,24 @@ describe('tab stops', () => {
     expect(stopsOf(back, 0)).toBe(null);
     expect(stopsOf(back, 1)).toBe('6c;12r;16d');
     expect(stopsOf(back, 2)).toBe('10r');
+  });
+});
+
+// A tab layout equal to the live decorations is not dispatched again, and with it the
+// page recalc it asks for: a rounding step in an advance is the same layout.
+const tab = (pos: number, width: number, leader: string | null = null) =>
+  Decoration.inline(pos, pos + 1, {}, { width, leader });
+const wrap = (pos: number) => Decoration.widget(pos, () => document.createElement('br'), { key: 'tab-wrap' });
+
+describe('sameLayout', () => {
+  const live = [tab(10, 72.14), tab(40, 30, '.'), wrap(55)];
+  it('ignores a sub-pixel change in an advance', () => {
+    expect(sameLayout({ widths: [{ pos: 40, width: 30, leader: '.' }, { pos: 10, width: 72.15, leader: null }], breaks: [55] }, live)).toBe(true);
+  });
+  it('sees a moved tab, a wider advance, a new leader or a new wrap', () => {
+    expect(sameLayout({ widths: [{ pos: 11, width: 72.14, leader: null }, { pos: 40, width: 30, leader: '.' }], breaks: [55] }, live)).toBe(false);
+    expect(sameLayout({ widths: [{ pos: 10, width: 80, leader: null }, { pos: 40, width: 30, leader: '.' }], breaks: [55] }, live)).toBe(false);
+    expect(sameLayout({ widths: [{ pos: 10, width: 72.14, leader: null }, { pos: 40, width: 30, leader: '-' }], breaks: [55] }, live)).toBe(false);
+    expect(sameLayout({ widths: [{ pos: 10, width: 72.14, leader: null }, { pos: 40, width: 30, leader: '.' }], breaks: [55, 60] }, live)).toBe(false);
   });
 });

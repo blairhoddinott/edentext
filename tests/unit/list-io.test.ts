@@ -143,3 +143,31 @@ describe('a list item holding more than one block', () => {
     expect(strFromU8(unzipSync(await buildDocx(doc([list([p('one'), p('two')])])))['word/document.xml'])).toContain('two');
   });
 });
+
+// Which end of the hanging indent a list label is set against: Word's w:lvlJc,
+// ODF's fo:text-align on the level properties. `right` is what keeps a Roman
+// numeral out of the text it labels.
+const item = (text: string): N => ({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });
+const doc = (markerAlign?: string): N => ({
+  type: 'doc',
+  content: [{
+    type: 'orderedList',
+    attrs: { listStyleType: 'upper-roman', ...(markerAlign ? { markerAlign } : {}) },
+    content: [item('one'), item('two')],
+  }],
+});
+
+const margins = { top: 2, bottom: 2, left: 2, right: 2 };
+const list = (d: N) => d.content.find((n: N) => n.type === 'orderedList');
+
+describe('a list label’s alignment', () => {
+  it('round-trips through ODF', async () => {
+    expect(list((await importOdt(await buildOdt(doc('right'), margins, 'portrait'))).content).attrs?.markerAlign).toBe('right');
+    expect(list((await importOdt(await buildOdt(doc(), margins, 'portrait'))).content).attrs?.markerAlign).toBeUndefined();
+  });
+
+  it('round-trips through DOCX', async () => {
+    expect(list(importDocx(await buildDocx(doc('right'), margins, 'portrait')).content).attrs?.markerAlign).toBe('right');
+    expect(list(importDocx(await buildDocx(doc(), margins, 'portrait')).content).attrs?.markerAlign).toBeUndefined();
+  });
+});

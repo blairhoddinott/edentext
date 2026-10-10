@@ -3,6 +3,9 @@ import { describe, it, expect } from 'vitest';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { buildOdt } from '../../src/lib/export/odt';
 import { importOdt } from '../../src/lib/import/odt';
+import { buildDocx } from '../../src/lib/export/docx';
+import { importDocx } from '../../src/lib/import/docx';
+import { DEFAULT_MARGINS } from '../../src/lib/storage/pageMargins';
 
 type N = any;
 
@@ -49,5 +52,51 @@ describe('table keep-rows', () => {
     const { xml, keepRows } = await roundTrip({});
     expect(xml).not.toContain('may-break-between-rows');
     expect(keepRows).toBe(null);
+  });
+});
+
+// A cell's verticalAlign attr round-trips through DOCX (w:vAlign); the ODF leg
+// (style:vertical-align) rides along in roundtrip.test.ts.
+const cell = (text: string, verticalAlign?: string): N => ({
+  type: 'tableCell',
+  attrs: { colspan: 1, rowspan: 1, colwidth: [120], ...(verticalAlign ? { verticalAlign } : {}) },
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+});
+
+describe('table cell vertical alignment', () => {
+  it('round-trips middle/bottom and leaves top unset', async () => {
+    const doc: N = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Before' }] },
+        { type: 'table', content: [
+          { type: 'tableRow', content: [cell('A', 'middle'), cell('B', 'bottom'), cell('C')] },
+        ] },
+      ],
+    };
+    const res = importDocx(await buildDocx(doc, { top: 2, bottom: 2, left: 2, right: 2 }, 'portrait'));
+    const cells = (res.content.content!.find((n: N) => n.type === 'table') as N).content[0].content;
+    expect(cells.map((c: N) => c.attrs?.verticalAlign ?? null)).toEqual(['middle', 'bottom', null]);
+  });
+});
+
+// A row that may not break across pages (w:cantSplit, ODF's row fo:keep-together)
+// keeps the flag through both formats.
+const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+const row = (cant: boolean) => `<w:tr>${cant ? '<w:trPr><w:cantSplit/></w:trPr>' : ''}<w:tc><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc></w:tr>`;
+const docx = zipSync({
+  '[Content_Types].xml': strToU8('<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'),
+  'word/document.xml': strToU8(`<?xml version="1.0"?><w:document ${W}><w:body><w:tbl><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid>${row(true)}${row(false)}</w:tbl><w:p/></w:body></w:document>`),
+});
+const flags = (doc: any) => doc.content.find((n: any) => n.type === 'table').content.map((r: any) => r.attrs?.cantSplit ?? false);
+
+describe('a row that may not break across pages', () => {
+  const imported = importDocx(docx);
+  it('imports from w:cantSplit', () => expect(flags(imported.content)).toEqual([true, false]));
+  it('survives a DOCX round trip', async () => {
+    expect(flags(importDocx(await buildDocx(imported.content as any, DEFAULT_MARGINS, 'portrait')).content)).toEqual([true, false]);
+  });
+  it('survives an ODT round trip', async () => {
+    expect(flags(importOdt(await buildOdt(imported.content as any, DEFAULT_MARGINS, 'portrait')).content)).toEqual([true, false]);
   });
 });
