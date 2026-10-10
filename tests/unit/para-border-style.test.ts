@@ -5,6 +5,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { importDocx } from '../../src/lib/import/docx';
 import { importOdt } from '../../src/lib/import/odt';
 import { buildOdt } from '../../src/lib/export/odt';
+import { styleCss } from '../../src/lib/styles/styleSheet';
 
 type N = any;
 
@@ -52,5 +53,14 @@ describe('a paragraph style’s rule line', () => {
     const back = importOdt(bytes).styles.paragraph['Title'].para;
     expect(back.borderBottom).toBe('1pt solid #4F81BD');
     expect(back.borderPadding).toBe(4);
+  });
+
+  it('starts where a hanging first line does, as LibreOffice draws it', () => {
+    const hang = '<w:ind w:left="1134" w:hanging="567"/>';
+    const sheet = importDocx(zipSync({ 'word/document.xml': strToU8(doc), 'word/styles.xml': strToU8(styles(rule + hang)) })).styles;
+    const css = styleCss(sheet).split('\n\n').find((r) => r.includes('[data-style="Title"]'))!;
+    expect(css).toContain('--box-hang: min(0px, var(--indent-first, 0px))');
+    expect(css).toContain('margin-left: calc(var(--sec-inset-left, 0px) + var(--ind, 0px) + var(--box-hang, 0px))');
+    expect(css).toContain('padding: 0 0 4pt calc(var(--pad-left, 0px) - var(--box-hang, 0px))');
   });
 });

@@ -407,9 +407,8 @@ function declarations(r: ResolvedStyle): string[] {
   if (p.spaceBefore != null) out.push(`--space-before: ${p.spaceBefore}pt`);
   // The property beside it is what the multi-column rule turns the space below into.
   if (p.spaceAfter != null) out.push(`margin-bottom: ${p.spaceAfter}pt`, `--space-after: ${p.spaceAfter}pt`);
-  // Plus the section inset, which .tiptap's own padding can't draw (editor.css).
-  if (p.indent != null) out.push(`margin-left: calc(var(--sec-inset-left, 0px) + ${p.indent}cm)`);
-  if (p.indentFirst != null) out.push(`text-indent: ${p.indentFirst}cm`);
+  if (p.indent != null) out.push(`--ind: ${p.indent}cm`);
+  if (p.indentFirst != null) out.push(`text-indent: ${p.indentFirst}cm`, `--indent-first: ${p.indentFirst}cm`);
   const background = normalizeColor(p.backgroundColor);
   if (background) out.push(`background-color: ${background}`);
   const drawn: Record<string, boolean> = {};
@@ -418,12 +417,18 @@ function declarations(r: ResolvedStyle): string[] {
     drawn[side] = !!v && v !== 'none';
     if (drawn[side]) out.push(`border-${side}: ${v}`);
   }
+  const boxed = !!background || Object.values(drawn).some(Boolean);
+  // The rule and shading start where a hanging first line does (editor.css --box-hang).
+  if (boxed) out.push('--box-hang: min(0px, var(--indent-first, 0px))');
+  // Plus the section inset, which .tiptap's own padding can't draw (editor.css).
+  if (p.indent != null || boxed) out.push('margin-left: calc(var(--sec-inset-left, 0px) + var(--ind, 0px) + var(--box-hang, 0px))');
   // The gap the file puts between the text and its rule, on the ruled sides only —
   // a bottom rule must not indent the paragraph or push its first line down.
+  const left = 'calc(var(--pad-left, 0px) - var(--box-hang, 0px))';
   if (p.borderPadding != null) {
     const pad = (side: string) => (drawn[side] ? `${p.borderPadding}pt` : '0');
-    out.push(`padding: ${pad('top')} ${pad('right')} ${pad('bottom')} ${pad('left')}`);
-  }
+    out.push(`--pad-left: ${pad('left')}`, `padding: ${pad('top')} ${pad('right')} ${pad('bottom')} ${left}`);
+  } else if (boxed) out.push(`padding-left: ${left}`);
   return out;
 }
 

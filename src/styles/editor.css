@@ -157,6 +157,19 @@
 .paper .tiptap > * * {
   --sec-inset-left: 0px;
   --sec-inset-right: 0px;
+  --ind: 0px;
+  --indent-first: 0px;
+  --box-hang: 0px;
+  --pad-left: 0px;
+}
+
+/* LibreOffice draws a paragraph's rule and shading from where a hanging first line
+   starts: the box moves left by the hang and takes it back as padding. The indent
+   sources set --ind and --indent-first; a style that draws a box does this itself. */
+.paper .tiptap :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10):is([data-bg], [data-pborder-top], [data-pborder-right], [data-pborder-bottom], [data-pborder-left]) {
+  --box-hang: min(0px, var(--indent-first, 0px));
+  margin-left: calc(var(--sec-inset-left, 0px) + var(--ind, 0px) + var(--box-hang));
+  padding-left: calc(var(--pad-left, 0px) - var(--box-hang));
 }
 
 /* No paragraph spacing by default, like LibreOffice's Default Paragraph Style and

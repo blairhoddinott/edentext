@@ -140,8 +140,8 @@ describe('chapter numbering', () => {
   it('hangs the label out of the indent, in the size the file gives it', () => {
     const sheet = importOdt(odtWithGeometry()).styles!;
     const css = styleCss(sheet);
-    expect(css).toMatch(/h1[^{]*\{\n[^}]*margin-left: calc\(var\(--sec-inset-left, 0px\) \+ 0\.762cm\)/);
-    expect(css).toMatch(/h1[^{]*\{\n[^}]*text-indent: -0\.762cm/);
+    expect(css).toMatch(/h1[^{]*\{\n[^}]*margin-left: calc\(var\(--sec-inset-left, 0px\) \+ 0\.762cm \+ var\(--box-hang, 0px\)\)/);
+    expect(css).toMatch(/h1[^{]*\{\n[^}]*text-indent: -0\.762cm;\n  --indent-first: -0\.762cm/);
     // The stop the label's tab runs to is its minimum width; a wider label overruns it.
     // A tab to the level's indent runs to the heading's own hanging indent when it has one.
     expect(css).toMatch(/h1[^{]*::before \{\n[^}]*min-width: calc\(-1 \* var\(--indent-first, -0\.762cm\)\)/);

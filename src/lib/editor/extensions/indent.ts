@@ -169,8 +169,9 @@ export const Indent = Extension.create({
               const cm = Number(attributes.indent);
               return {
                 'data-indent': String(cm),
-                // Plus the section inset, which .tiptap's own padding can't draw (editor.css).
-                style: `margin-left: calc(var(--sec-inset-left, 0px) + ${cm}cm)`,
+                // Plus the section inset, which .tiptap's own padding can't draw, and a
+                // boxed paragraph's hang (editor.css).
+                style: `margin-left: calc(var(--sec-inset-left, 0px) + ${cm}cm + var(--box-hang, 0px)); --ind: ${cm}cm`,
               };
             },
           },
@@ -182,7 +183,8 @@ export const Indent = Extension.create({
             renderHTML: (attributes: Record<string, unknown>) => {
               if (attributes.indentChars == null) return {};
               const n = Number(attributes.indentChars);
-              return { 'data-indent-chars': String(n), style: `margin-left: calc(var(--sec-inset-left, 0px) + ${n} * var(--char-unit, 1em))` };
+              const ind = `calc(${n} * var(--char-unit, 1em))`;
+              return { 'data-indent-chars': String(n), style: `margin-left: calc(var(--sec-inset-left, 0px) + ${ind} + var(--box-hang, 0px)); --ind: ${ind}` };
             },
           },
           // Right indent in characters, the mirror of `indentChars`.
