@@ -62,7 +62,7 @@
   import GrammarToggle from './lib/components/GrammarToggle.svelte';
   import UiLanguagePicker from './lib/components/UiLanguagePicker.svelte';
   import AboutDialog from './lib/components/AboutDialog.svelte';
-  import SettingsDialog from './lib/components/SettingsDialog.svelte';
+  import SettingsDialog, { type Section as SettingsSection } from './lib/components/SettingsDialog.svelte';
   import TemplateGalleryDialog from './lib/components/TemplateGalleryDialog.svelte';
   import type { TemplateEntry } from './lib/templates/types';
   import DocPropertiesDialog from './lib/components/DocPropertiesDialog.svelte';
@@ -293,6 +293,7 @@
   let docPropsOpen = $state(false);
   let browserDocsOpen = $state(false);
   let settingsOpen = $state(false);
+  let settingsSection = $state<SettingsSection>('general');
   let hyphenate = $state(loadHyphenation());
   let pageNumbering: PageNumbering = $state(loadPageNumbering());
   let pageDecor: PageDecor = $state(loadPageDecor());
@@ -1948,7 +1949,7 @@
     <NavigatorPane {editor} {tick} onClose={() => (navigatorOpen = false)} />
   {/if}
   {#if aiEnabled() && aiOpen}
-    <AiPane {editor} host={aiHost} onClose={() => (aiOpen = false)} />
+    <AiPane {editor} host={aiHost} onClose={() => (aiOpen = false)} onSettings={() => { settingsSection = 'ai'; settingsOpen = true; }} />
   {/if}
   {#if commentsInPane()}
     <CommentsPane {editor} {tick} author={docProps.author} onClose={() => setShowComments(false)} />
@@ -2038,6 +2039,7 @@
   <BrowserDocumentsDialog bind:open={browserDocsOpen} />
   <SettingsDialog
     bind:open={settingsOpen}
+    bind:section={settingsSection}
     {themeMode}
     onSelectTheme={selectTheme}
     bind:showRuler

@@ -47,7 +47,7 @@
   // Copilot's chat pane: questions about the document with the document as context, and
   // changes the assistant makes through its tools — text edits as tracked changes under
   // its own author, which the Review pane accepts or rejects like anyone else's.
-  let { editor, host, onClose }: { editor: Editor | null; host?: AiHost; onClose: () => void } = $props();
+  let { editor, host, onClose, onSettings }: { editor: Editor | null; host?: AiHost; onClose: () => void; onSettings: () => void } = $props();
 
   let question = $state('');
   let busy = $state(false);
@@ -441,6 +441,9 @@
     <span class="title">{t().ai.name}</span>
     <button class="icon" onclick={resetAiChat} disabled={busy || !entries.length} title={t().ai.newChat} aria-label={t().ai.newChat}>
       <Icon name="newDoc" size={16} />
+    </button>
+    <button class="icon" onclick={onSettings} title={t().settings.title} aria-label={t().settings.title}>
+      <Icon name="settings" size={16} />
     </button>
     <button class="icon" onclick={onClose} title={t().common.close} aria-label={t().common.close}>
       <Icon name="close" size={16} />

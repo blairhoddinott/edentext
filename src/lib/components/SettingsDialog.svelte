@@ -1,3 +1,7 @@
+<script module lang="ts">
+  export type Section = 'general' | 'editing' | 'view' | 'ai' | 'privacy';
+</script>
+
 <script lang="ts">
   import { loadRetention, saveRetention, volatile, type Retention } from '../storage/docScope';
   import { wordCompletion, setWordCompletion } from '../storage/wordCompletion.svelte';
@@ -16,6 +20,7 @@
   // store that already owns the setting, so the ribbon and the dialogs stay in step.
   let {
     open = $bindable(false),
+    section = $bindable('general'),
     themeMode,
     onSelectTheme,
     showRuler = $bindable(),
@@ -27,6 +32,8 @@
     onAutoCorrect,
   }: {
     open?: boolean;
+    /** The side-bar entry shown; the AI pane opens the dialog on 'ai'. */
+    section?: Section;
     themeMode: ThemeMode;
     onSelectTheme: (mode: ThemeMode) => void;
     showRuler: boolean;
@@ -38,7 +45,6 @@
     onAutoCorrect: () => void;
   } = $props();
 
-  type Section = 'general' | 'editing' | 'view' | 'ai' | 'privacy';
   const SECTIONS: { id: Section; icon: 'settings' | 'autoCorrect' | 'ruler' | 'sparkle' | 'lock' }[] = [
     { id: 'general', icon: 'settings' },
     { id: 'editing', icon: 'autoCorrect' },
@@ -50,7 +56,6 @@
   const LEVELS: Retention[] = ['keep', 'closed', 'none'];
 
   let dialogEl = $state<HTMLDialogElement | null>(null);
-  let section = $state<Section>('general');
   let retention = $state<Retention>(loadRetention());
   let accent = $state<Accent>(loadAccent());
 
