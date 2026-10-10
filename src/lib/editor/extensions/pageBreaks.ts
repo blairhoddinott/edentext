@@ -1627,6 +1627,8 @@ export const PageBreaks = Extension.create({
             .map((g) => g.split('|').map(Number))
             .filter((g) => g.length === 2 && g.every(Number.isFinite));
           const mirrorAt = (i: number) => mirrors[Math.min(i, mirrors.length - 1)] ?? [0, 0];
+          // Only then does any block need its position: docPosBeforeElement is a pass's dearest call.
+          const sided = inset.some((g) => g.some(Boolean)) || mirrors.some((g) => g.some(Boolean));
 
           const scale = getScaleFactor();
           const leaves = collectLeaves(CONTENT_HEIGHT, scale);
@@ -1670,12 +1672,63 @@ export const PageBreaks = Extension.create({
             const pageTopBlocks: { from: number; to: number }[] = [];
             // Top-level blocks a section's own side margins inset, keyed by doc position.
             const sectionInsets = new Map<number, { to: number; left: number; right: number }>();
+            // Parts of a block moved across to their own page's sides (placeSides).
+            const sideShifts: { from: number; to: number; dx: number; inline: boolean }[] = [];
             // Close/open bands for in-cell + between-rows table breaks. Keyed by the
             // rounded openY (the grouping id) → the unrounded openY (so the band lands
             // exactly on the page cycle) plus whether it's a between-rows break.
             const tableBands = new Map<number, { openY: number; rowBreak: boolean; lines: boolean }>();
             const leavesDebug: PageBreakDebugSnapshot['leaves'] = [];
             const placementsDebug: PageBreakDebugSnapshot['placements'] = [];
+
+            // A page's side insets against .tiptap's padding: the section's own margins,
+            // and on a left page of a mirrored section the difference between its two.
+            const sideInset = (pg: number): [number, number] => {
+              const ins = insetAt(sectionIndex);
+              const first = pg === sectionFirstPage;
+              const printed = printedPageNumber(pg, sectionIndex, numStarts, (i) => sectionFirstPages[i] ?? 1);
+              const mir = isLeftPage(printed) ? mirrorAt(sectionIndex)[first ? 0 : 1] : 0;
+              return [Math.round((first ? ins[0] : ins[2]) + mir), Math.round((first ? ins[1] : ins[3]) - mir)];
+            };
+            // The inset the top-level block takes is the page its first leaf starts on. A
+            // later part on a page of the same text width but other sides is moved across
+            // (`pb-shift`, out of the flow so nothing is re-measured), as both word processors
+            // set each part at its own page's margins; a width change would re-break the lines.
+            const blockSides = new Map<HTMLElement, { from: number; left: number; right: number }>();
+            const placeSides = (leaf: Leaf, shiftAtTop: number, applied: { at: number; height: number; docPos: number; split: boolean }[]) => {
+              let shift = shiftAtTop;
+              for (const a of applied) if (!a.split) shift += a.height;
+              const [left, right] = sideInset(grid.pageAt(leaf.naturalTop + shift));
+              let block: HTMLElement = leaf.el;
+              while (block.parentElement && block.parentElement !== dom) block = block.parentElement;
+              let sides = blockSides.get(block);
+              if (!sides) {
+                const from = block.parentElement === dom ? docPosBeforeElement(block) : null;
+                const node = from !== null ? editorView.state.doc.nodeAt(from) : null;
+                if (from === null || !node) return;
+                sides = { from, left, right };
+                blockSides.set(block, sides);
+                if (left || right) sectionInsets.set(from, { to: from + node.nodeSize, left, right });
+              }
+              if (leaf.inTableCell) return;
+              const width = sides.left + sides.right;
+              const leafFrom = leaf.el === block ? sides.from : docPosBeforeElement(leaf.el);
+              const leafNode = leafFrom !== null ? editorView.state.doc.nodeAt(leafFrom) : null;
+              if (leafFrom === null || !leafNode) return;
+              let leafLeft = sides.left;
+              if (leaf.el !== block && left !== sides.left && left + right === width) {
+                sideShifts.push({ from: leafFrom, to: leafFrom + leafNode.nodeSize, dx: left - sides.left, inline: false });
+                leafLeft = left;
+              }
+              const splits = applied.filter((a) => a.split);
+              for (let k = 0; k < splits.length; k++) {
+                shift += splits[k].height;
+                const [l, r] = sideInset(grid.pageAt(leaf.naturalTop + splits[k].at + shift));
+                if (l === leafLeft || l + r !== width) continue;
+                const to = splits[k + 1]?.docPos ?? leafFrom + leafNode.nodeSize - 1;
+                sideShifts.push({ from: splits[k].docPos, to, dx: l - leafLeft, inline: true });
+              }
+            };
 
             for (let i = 0; i < leaves.length; i++) {
               const leaf = leaves[i];
@@ -2014,7 +2067,7 @@ export const PageBreaks = Extension.create({
               // height, so an unrounded model shakes 1px per keystroke at non-100% zoom).
               let placedAny = false;
               const shiftAtLeafTop = cumulativeShift;
-              const applied: { at: number; height: number }[] = [];
+              const applied: { at: number; height: number; docPos: number; split: boolean }[] = [];
               for (const br of breaks) {
                 if (br.docPos === null) continue;
                 // A repeated header row sits in the gap, so the rows below start that
@@ -2045,7 +2098,7 @@ export const PageBreaks = Extension.create({
                   columns: br.row ? br.row.columns : null,
                 });
                 cumulativeShift += h;
-                applied.push({ at: br.naturalY, height: h });
+                applied.push({ at: br.naturalY, height: h, docPos: br.docPos, split: br.reason === 'line-split' });
                 placedAny = true;
               }
               // Where each anchor in this leaf ended up: the shift at the leaf's top plus
@@ -2070,24 +2123,7 @@ export const PageBreaks = Extension.create({
               // Read after this leaf's own spacer, so the page is the one it really lands on.
               const landedPage = grid.pageAt(leaf.naturalTop + cumulativeShift);
               if (leaf.sectionStart) sectionStartPages.push(landedPage);
-              const ins = insetAt(sectionIndex);
-              const printed = printedPageNumber(landedPage, sectionIndex, numStarts,
-                (i) => sectionFirstPages[i] ?? 1);
-              const mir = isLeftPage(printed)
-                ? mirrorAt(sectionIndex)[landedPage === sectionFirstPage ? 0 : 1] : 0;
-              const insLeft = Math.round((landedPage === sectionFirstPage ? ins[0] : ins[2]) + mir);
-              const insRight = Math.round((landedPage === sectionFirstPage ? ins[1] : ins[3]) - mir);
-              if (insLeft || insRight) {
-                // The leaf may be a row, or a line inside one; the inset belongs on the
-                // top-level block, which is the ancestor .tiptap holds directly.
-                let block: HTMLElement = leaf.el;
-                while (block.parentElement && block.parentElement !== dom) block = block.parentElement;
-                const from = block.parentElement === dom ? docPosBeforeElement(block) : null;
-                const node = from !== null ? editorView.state.doc.nodeAt(from) : null;
-                if (from !== null && node && !sectionInsets.has(from)) {
-                  sectionInsets.set(from, { to: from + node.nodeSize, left: insLeft, right: insRight });
-                }
-              }
+              if (sided) placeSides(leaf, shiftAtLeafTop, applied);
               cumulativeShift -= droppedShift;
               // Track the lowest rendered content bottom (cumulativeShift now includes
               // this leaf's own spacer, so a pushed/split leaf counts at its real spot).
@@ -2104,7 +2140,7 @@ export const PageBreaks = Extension.create({
             }
             return {
               anchorPages, maxEffectiveBottom, sectionStartPages, placements, collapsedTrailing,
-              pageTopBlocks, sectionInsets, tableBands, leavesDebug, placementsDebug, grid,
+              pageTopBlocks, sectionInsets, sideShifts, tableBands, leavesDebug, placementsDebug, grid,
             };
           }
 
@@ -2148,7 +2184,7 @@ export const PageBreaks = Extension.create({
           }
           const {
             maxEffectiveBottom, sectionStartPages, placements, collapsedTrailing,
-            pageTopBlocks, sectionInsets, tableBands, leavesDebug, placementsDebug,
+            pageTopBlocks, sectionInsets, sideShifts, tableBands, leavesDebug, placementsDebug,
           } = placed;
 
           // Stack each page's notes up from its content end, in anchor order. The top
@@ -2179,6 +2215,7 @@ export const PageBreaks = Extension.create({
             (collapsedTrailing ? `|c${collapsedTrailing.from}` : '') +
             pageTopBlocks.map((b) => `|t${b.from}`).join('') +
             Array.from(sectionInsets, ([f, s]) => `|i${f}:${s.left}:${s.right}`).join('') +
+            sideShifts.map((s) => `|s${s.from}-${s.to}:${s.dx}`).join('') +
             // The notes ride the same guard: a frozen layout would leave every footnote
             // at the position, and on the page, it used to belong to.
             notePlacements.map((n) => `|n${n.from}:${Math.round(n.top)}`).join('');
@@ -2191,51 +2228,56 @@ export const PageBreaks = Extension.create({
             // Every spacer is built per view: a split pane renders the same decorations,
             // and one DOM node cannot sit in two documents at once — each would keep
             // taking it back from the other.
-            const decoArray: Decoration[] = placements.map((p) => spacerDeco(p.docPos, () => {
-              if (p.row) {
-                // A table breaks between rows: the spacer must be a <tr> so it's
-                // valid inside <tbody> and creates a borderless gap that pushes
-                // the following rows to the next page.
-                const trEl = document.createElement('tr');
-                trEl.dataset.pageBreakSpacer = 'true';
-                trEl.setAttribute('contenteditable', 'false');
-                const tdEl = document.createElement('td');
-                tdEl.dataset.pageBreakSpacerCell = 'true';
-                tdEl.setAttribute('colspan', String(p.row.columns));
-                tdEl.style.height = `${p.height}px`;
-                // Collapsed borders paint a shared edge once, so without these lines the
-                // gap keeps it and one of the two fragments ends unclosed. Out of flow:
-                // a collapsed border on the spacer itself moves every row below by half.
-                tdEl.style.position = 'relative';
-                for (const [border, side] of [[p.row.close, 'top'], [p.row.open, 'bottom']] as const) {
-                  if (!border) continue;
-                  const line = document.createElement('div');
-                  line.style.cssText = `position:absolute;left:0;right:0;${side}:0;border-${side}:${border}`;
-                  tdEl.appendChild(line);
+            const decoArray: Decoration[] = placements.map((p) => {
+              // The open line and the repeated header belong to the row below, on its page's sides.
+              const dx = p.row ? sideShifts.find((s) => !s.inline && s.from === p.docPos)?.dx ?? 0 : 0;
+              return spacerDeco(p.docPos, () => {
+                if (p.row) {
+                  // A table breaks between rows: the spacer must be a <tr> so it's
+                  // valid inside <tbody> and creates a borderless gap that pushes
+                  // the following rows to the next page.
+                  const trEl = document.createElement('tr');
+                  trEl.dataset.pageBreakSpacer = 'true';
+                  trEl.setAttribute('contenteditable', 'false');
+                  const tdEl = document.createElement('td');
+                  tdEl.dataset.pageBreakSpacerCell = 'true';
+                  tdEl.setAttribute('colspan', String(p.row.columns));
+                  tdEl.style.height = `${p.height}px`;
+                  // Collapsed borders paint a shared edge once, so without these lines the
+                  // gap keeps it and one of the two fragments ends unclosed. Out of flow:
+                  // a collapsed border on the spacer itself moves every row below by half.
+                  tdEl.style.position = 'relative';
+                  for (const [border, side] of [[p.row.close, 'top'], [p.row.open, 'bottom']] as const) {
+                    if (!border) continue;
+                    const line = document.createElement('div');
+                    const x = side === 'bottom' ? dx : 0;
+                    line.style.cssText = `position:absolute;left:${x}px;right:${-x}px;${side}:0;border-${side}:${border}`;
+                    tdEl.appendChild(line);
+                  }
+                  // The repeated header row, drawn at the foot of the gap — which is the
+                  // top of the continuation. Out of flow, like the closing lines above.
+                  if (p.row.header) {
+                    const hdr = document.createElement('div');
+                    hdr.style.cssText = `position:absolute;left:${dx}px;right:${-dx}px;bottom:0;pointer-events:none`;
+                    hdr.innerHTML = p.row.header.html;
+                    for (const el of Array.from(hdr.querySelectorAll('[contenteditable]'))) el.removeAttribute('contenteditable');
+                    tdEl.appendChild(hdr);
+                  }
+                  trEl.appendChild(tdEl);
+                  return trEl;
                 }
-                // The repeated header row, drawn at the foot of the gap — which is the
-                // top of the continuation. Out of flow, like the closing lines above.
-                if (p.row.header) {
-                  const hdr = document.createElement('div');
-                  hdr.style.cssText = 'position:absolute;left:0;right:0;bottom:0;pointer-events:none';
-                  hdr.innerHTML = p.row.header.html;
-                  for (const el of Array.from(hdr.querySelectorAll('[contenteditable]'))) el.removeAttribute('contenteditable');
-                  tdEl.appendChild(hdr);
-                }
-                trEl.appendChild(tdEl);
-                return trEl;
-              }
-              const spacerEl = document.createElement('div');
-              spacerEl.dataset.pageBreakSpacer = 'true';
-              // A negative one pulls the block above the padding — the only way up, since
-              // a box's height can't be.
-              spacerEl.style.height = `${Math.max(0, p.height)}px`;
-              if (p.height < 0) spacerEl.style.marginTop = `${p.height}px`;
-              spacerEl.style.pointerEvents = 'none';
-              spacerEl.style.userSelect = 'none';
-              spacerEl.setAttribute('contenteditable', 'false');
-              return spacerEl;
-            }, spacerKey(p)));
+                const spacerEl = document.createElement('div');
+                spacerEl.dataset.pageBreakSpacer = 'true';
+                // A negative one pulls the block above the padding — the only way up, since
+                // a box's height can't be.
+                spacerEl.style.height = `${Math.max(0, p.height)}px`;
+                if (p.height < 0) spacerEl.style.marginTop = `${p.height}px`;
+                spacerEl.style.pointerEvents = 'none';
+                spacerEl.style.userSelect = 'none';
+                spacerEl.setAttribute('contenteditable', 'false');
+                return spacerEl;
+              }, `${spacerKey(p)}|${dx}`);
+            });
             if (collapsedTrailing) {
               decoArray.push(blockDeco(collapsedTrailing.from, collapsedTrailing.to, {
                 style: 'height:0;min-height:0;margin:0;overflow:hidden',
@@ -2245,6 +2287,10 @@ export const PageBreaks = Extension.create({
               decoArray.push(blockDeco(from, s.to, {
                 style: `--sec-inset-left:${s.left}px;--sec-inset-right:${s.right}px`,
               }));
+            }
+            for (const s of sideShifts) {
+              const attrs = { class: 'pb-shift', style: `--pb-shift:${s.dx}px` };
+              decoArray.push(s.inline ? Decoration.inline(s.from, s.to, attrs) : blockDeco(s.from, s.to, attrs));
             }
             for (const b of pageTopBlocks) {
               decoArray.push(blockDeco(b.from, b.to, { style: 'padding-top:0;margin-top:0' }));

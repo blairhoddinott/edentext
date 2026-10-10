@@ -154,6 +154,12 @@
   margin-left: var(--sec-inset-left, 0px);
   margin-right: var(--sec-inset-right, 0px);
 }
+/* A later part of a block on a page of other sides (pageBreaks.ts placeSides), moved out of
+   the flow. Lowest specificity, so a frame that positions itself keeps its own place. */
+:where(.paper .tiptap .pb-shift) {
+  position: relative;
+  left: var(--pb-shift);
+}
 .paper .tiptap > * * {
   --sec-inset-left: 0px;
   --sec-inset-right: 0px;

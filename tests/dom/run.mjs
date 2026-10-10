@@ -557,6 +557,53 @@ try {
   const drift = await page.evaluate((x) => Math.max(...window.__xs.map((s) => Math.abs(s - x))), inset.x);
   check(inset.left > 0 && drift <= 1,
     `a style change keeps the block's section inset (${inset.left}px, drifted ${drift}px)`);
+
+  // Mirrored margins: every part of a block stands at its own page's sides, as in both word
+  // processors — a paragraph's lines past a page break, a list's items, a table's rows.
+  const lorem = 'The quick brown fox jumps over the lazy dog and keeps on running far away. ';
+  await page.evaluate(([d, m]) => {
+    localStorage.setItem('edentext-doc', JSON.stringify(d));
+    localStorage.setItem('edentext-page-margins', JSON.stringify(m));
+  }, [{ type: 'doc', content: [
+    block(words(lorem.repeat(70))),
+    { type: 'bulletList', content: Array.from({ length: 70 }, (_, i) => ({ type: 'listItem', content: [block(words(`item ${i}`))] })) },
+    { type: 'table', content: Array.from({ length: 70 }, (_, i) => ({ type: 'tableRow', content: [0, 1].map((c) => ({
+      type: 'tableCell', content: [block(words(`row ${i} cell ${c}`))] })) })) },
+  ] }, { top: 2, bottom: 2, left: 1, right: 4, mirrored: true }]);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.tiptap table', { timeout: 15_000 });
+  await settle(page, true);
+  const sides = await page.evaluate(() => {
+    const dom = document.querySelector('.tiptap-host .tiptap');
+    const origin = dom.getBoundingClientRect();
+    const cs = getComputedStyle(dom);
+    const mirror = Number(cs.getPropertyValue('--pb-section-mirror').split(',')[0].split('|')[1]) || 0;
+    // Each line's left edge against its own page's text edge: page 2 is a left page.
+    const offset = (r) => {
+      const page = Math.floor((r.top - origin.top) / (1123 + 20));
+      return Math.round(r.left - origin.left - parseFloat(cs.paddingLeft) - (page % 2 ? mirror : 0));
+    };
+    const pages = (rects) => new Set(rects.map((r) => Math.floor((r.top - origin.top) / 1143))).size;
+    const range = document.createRange();
+    range.selectNodeContents(dom.querySelector(':scope > p'));
+    // A line's start is its leftmost rect; a trailing space has one of its own.
+    const starts = new Map();
+    for (const r of range.getClientRects()) {
+      const k = Math.round(r.top);
+      if (r.width > 1 && !(starts.get(k)?.left <= r.left)) starts.set(k, r);
+    }
+    const lines = Array.from(starts.values());
+    const firstText = (els) => els.map((el) => { range.selectNodeContents(el); return range.getClientRects()[0]; });
+    const items = firstText(Array.from(dom.querySelectorAll(':scope > ul p')));
+    const cells = firstText(Array.from(dom.querySelectorAll(':scope table tr > :first-child p')));
+    const spread = (rects) => { const o = rects.map(offset); return { pages: pages(rects), spread: Math.max(...o) - Math.min(...o) }; };
+    return { mirror, para: spread(lines), list: spread(items), table: spread(cells) };
+  });
+  for (const [what, s] of [['a paragraph\'s lines', sides.para], ['a list\'s items', sides.list], ['a table\'s rows', sides.table]]) {
+    check(sides.mirror > 50 && s.pages > 1 && s.spread <= 1,
+      `mirrored margins put ${what} at their own page's side (${s.pages} pages, spread ${s.spread}px)`);
+  }
+  await page.evaluate(() => localStorage.removeItem('edentext-page-margins'));
   // Behind the text: the frame leaves the flow (so the paragraph loses its height again)
   // and is then moved by its own offsets, since there is no text position to re-anchor to.
   await page.evaluate((d) => localStorage.setItem('edentext-doc', JSON.stringify(d)), { type: 'doc', content: [
