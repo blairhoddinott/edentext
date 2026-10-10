@@ -281,6 +281,23 @@ describe('runTurn', () => {
     editor.destroy();
   });
 
+  it('offers only reading in chat mode and refuses an edit all the same', async () => {
+    const editor = makeEditor('<p>Hello world</p>');
+    const bodies: { tools?: { function: { name: string } }[]; messages: { role: string; content?: string }[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_u: string, init: RequestInit) => {
+      bodies.push(JSON.parse(init.body as string));
+      return bodies.length === 1
+        ? reply({ tool_calls: [{ index: 0, id: 'c1', function: { name: 'replace_text', arguments: '{"paragraph":1,"find":"world","replace":"there"}' } }] })
+        : reply({ content: 'I can only suggest it.' });
+    }));
+    await runTurn({ cfg: { ...cfg, mode: 'chat' as const }, editor, history: [], question: 'Change it', author: AI, onText: () => {}, onTool: () => {}, signal: new AbortController().signal });
+    expect(bodies[0].tools?.map((d) => d.function.name)).toEqual(['read_paragraphs']);
+    expect(bodies[1].messages.at(-1)?.content).toMatch(/^error: chat mode/);
+    expect(texts(editor)).toEqual(['Hello world']);
+    expect(revisions(editor.state.doc)).toHaveLength(0);
+    editor.destroy();
+  });
+
   it('hands a message sent meanwhile to the next round', async () => {
     const editor = makeEditor('<p>x</p>');
     const bodies: { messages: { role: string; content?: string }[] }[] = [];

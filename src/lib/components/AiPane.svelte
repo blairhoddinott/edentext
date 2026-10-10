@@ -26,7 +26,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { t } from '../i18n/i18n.svelte';
-  import { aiConfig, docBudget } from '../storage/ai.svelte';
+  import { aiConfig, aiSettings, docBudget, setAi } from '../storage/ai.svelte';
   import { showChanges, setShowChanges } from '../storage/markup.svelte';
   import { revisions } from '../editor/extensions/trackChanges';
   import { aiErrorText, isAbort, streamChat } from '../ai/client';
@@ -353,12 +353,22 @@
             </button>
           </div>
         {/if}
-        <textarea bind:this={field} bind:value={question} rows="3" placeholder={t().ai.placeholder} onkeydown={onKeydown} oninput={() => { menuIndex = 0; menuHidden = false; }}></textarea>
-        {#if busy && !question.trim()}
-          <button class="send" onclick={stop}>{t().ai.stop}</button>
-        {:else}
-          <button class="send" disabled={!question.trim()} onclick={() => send()}>{t().ai.send}</button>
-        {/if}
+        <textarea bind:this={field} bind:value={question} rows="3" placeholder={aiSettings().mode === 'chat' ? t().ai.placeholder : t().ai.placeholderEdit} onkeydown={onKeydown} oninput={() => { menuIndex = 0; menuHidden = false; }}></textarea>
+        <div class="row">
+          <!-- Read at send: a switch while the assistant works applies from the next turn. -->
+          <div class="modes" role="radiogroup" aria-label={t().ai.modeLabel} title={t().ai.modeLabel}>
+            {#each ['chat', 'edit'] as const as m (m)}
+              <button role="radio" aria-checked={aiSettings().mode === m} class:on={aiSettings().mode === m} onclick={() => setAi({ mode: m })}>
+                {m === 'chat' ? t().ai.modeChat : t().ai.modeEdit}
+              </button>
+            {/each}
+          </div>
+          {#if busy && !question.trim()}
+            <button class="send" onclick={stop}>{t().ai.stop}</button>
+          {:else}
+            <button class="send" disabled={!question.trim()} onclick={() => send()}>{t().ai.send}</button>
+          {/if}
+        </div>
       </div>
     {/if}
     <p class="note">{t().ai.disclaimer}</p>
@@ -516,8 +526,20 @@
     color: var(--color-text);
     font: inherit;
   }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .modes {
+    display: flex;
+    padding: 2px;
+    border-radius: 8px;
+    background: var(--color-btn-hover);
+  }
+  .modes button {
+    padding: 3px 10px;
+    border-radius: 6px;
+    color: var(--color-text-muted);
+  }
+  .modes button.on { background: var(--color-surface); color: var(--color-text); font-weight: 600; box-shadow: 0 0 0 1px var(--color-border); }
   .send {
-    align-self: flex-end;
     padding: 5px 12px;
     border-radius: 8px;
     background: var(--w-accent-fill);

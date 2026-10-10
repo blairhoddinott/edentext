@@ -3,8 +3,10 @@
 // switching off keeps the provider so switching back on needs no retyping.
 
 export type AiProvider = 'openai' | 'anthropic';
+/** 'chat' answers in the pane only; 'edit' changes the document through the tools. */
+export type AiMode = 'chat' | 'edit';
 /** `contextTokens`: the model's context window, which sizes the document sent along. */
-export type AiSettings = { enabled: boolean; provider: AiProvider; endpoint: string; apiKey: string; model: string; contextTokens: number };
+export type AiSettings = { enabled: boolean; provider: AiProvider; endpoint: string; apiKey: string; model: string; contextTokens: number; mode: AiMode };
 export type AiConfig = Omit<AiSettings, 'enabled'>;
 
 const KEY = 'edentext-ai';
@@ -15,7 +17,7 @@ export const OPEN_AI_PROMPT_EVENT = 'edentext-ai-prompt';
 export const OPEN_AI_CHAT_EVENT = 'edentext-ai-chat';
 
 export const DEFAULT_CONTEXT_TOKENS = 32_000;
-const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '', contextTokens: DEFAULT_CONTEXT_TOKENS };
+const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '', contextTokens: DEFAULT_CONTEXT_TOKENS, mode: 'edit' };
 
 /** The characters of document a request may carry: half the context, at about four a token. */
 export function docBudget(cfg: Pick<AiConfig, 'contextTokens'>): number {
@@ -25,7 +27,7 @@ export function docBudget(cfg: Pick<AiConfig, 'contextTokens'>): number {
 function load(): AiSettings {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    return raw && typeof raw === 'object' ? { ...DEFAULTS, ...raw, enabled: raw.enabled === true } : { ...DEFAULTS };
+    return raw && typeof raw === 'object' ? { ...DEFAULTS, ...raw, enabled: raw.enabled === true, mode: raw.mode === 'chat' ? 'chat' : 'edit' } : { ...DEFAULTS };
   } catch {
     return { ...DEFAULTS };
   }

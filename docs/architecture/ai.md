@@ -76,6 +76,9 @@ serialize the slice back with `DOMSerializer`, so they show only what would be i
 
 ## Edits
 
+- **Modes.** A switch under the chat field picks Chat or Edit (`mode` in `edentext-ai`, Edit
+  by default). Chat offers only `read_paragraphs` and a prompt without the editing lines, and
+  `runTool` refuses any other call a model makes anyway; a reply goes in by Insert at cursor.
 - **Text tools** (`replace_text`, `rewrite_paragraph`, `insert_paragraphs`,
   `delete_paragraphs`) go through `trackedReplace` (`trackChanges.ts`). Each edit becomes
   a revision by the localized author `t().ai.author`, whether or not recording is on.

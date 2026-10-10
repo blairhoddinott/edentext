@@ -19,7 +19,7 @@ import { normalizeColor } from '../utils/color';
 import { BOX_WRAP_GAP, PICTURE_WRAP_GAP, droppedFrameAttrs, wrapGap, wrapGapAttr, type WrapMode } from '../editor/extensions/image';
 import { DEFAULT_STYLE, visibleStyles, type Style } from '../styles/styleSheet';
 import { styleLabel, t } from '../i18n/i18n.svelte';
-import { docBudget, type AiConfig } from '../storage/ai.svelte';
+import { docBudget, type AiConfig, type AiMode } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
 import { blockLine, blockText, blockTexts, cellAt, htmlToSlice, type CellAt, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, fillNotes, type Block } from './doc';
 import { borderAttr, nameLookup, parseMargins, splitDocumentHtml, type NoteText, type PageSpec } from './dialect';
@@ -42,8 +42,9 @@ export const HTML_GUIDE = [
   'Shape of a CV (fill in the real content, never these dots): <h1>…</h1><aside style="width:4cm;height:5cm;float:right"><p><img alt="Photo" width="3.5cm" height="4.5cm"></p></aside><p><input placeholder="…"></p><h2>…</h2><table border="0"><tr><td width="25%">…</td><td><strong>…</strong> …</td></tr></table>',
 ].join('\n');
 
-export function chatSystemPrompt(): string {
+export function chatSystemPrompt(mode: AiMode = 'edit'): string {
   const styles = visibleStyles(styleSheet()).map((s) => styleLabel(s.name)).join(', ');
+  const edit = mode === 'edit';
   return [
     'You are the writing assistant in edentext, a word processor that runs in the browser and saves .odt and .docx. Each user message starts with the document, one numbered paragraph per line.',
     'Answer in the language the user writes in, briefly.',
@@ -51,15 +52,27 @@ export function chatSystemPrompt(): string {
     'Formatting follows a paragraph in braces, as {bold: "word"; style "Quote"}; "all" means the whole paragraph. It is not part of the text and lists only what the paragraph style does not already give.',
     'In the text, {image "alt text"} is a picture (you see only its alt text), ‹Name› a placeholder to fill in and {date} a date field; replace_text can replace each as a whole.',
     'A number after li or a heading level, as [57 li VI], is the number the page shows. [12–28] (empty) stands for empty paragraphs 12 to 28. — page 2 — lines mark where a page starts.',
-    '— 2 columns — lines mark where text columns start or end; set_columns changes them. The page setup, the language and the page headers and footers are shown after the document; set_page, set_language and set_header_footer change them.',
-    'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.',
-    'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1]. Change a table (rows, columns, widths, merging, shading, borders) with the table tool, never by rebuilding it.',
-    'Formatting meant for every paragraph of a kind (a rule under each heading, a colour, spacing) goes into its style with set_style, not onto each paragraph. Frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes one listed as frame 1 in its paragraph\'s formatting.',
-    'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
-    'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
+    `— 2 columns — lines mark where text columns start or end${edit ? '; set_columns changes them' : ''}. The page setup, the language and the page headers and footers are shown after the document${edit ? '; set_page, set_language and set_header_footer change them' : ''}.`,
+    edit ? 'Comments follow the document as [C1 …]; answer one with reply_comment, close it with resolve_comment.' : 'Comments follow the document as [C1 …].',
+    'A table cell\'s paragraph is marked [n cell T1 r2 c3]: table 1, row 2, column 3, and a text box\'s [n box 1].',
+    ...(edit ? EDIT_LINES : CHAT_LINES),
     `Style names for <p class="…"> (never text of their own): ${styles}.`,
   ].join('\n');
 }
+
+// Chat mode offers no tool that changes the document; a reply is text the user may insert.
+const CHAT_LINES = [
+  'You cannot change the document in this mode. When asked for a change, write the new text in your answer as HTML the user can insert, or tell them to switch to Edit mode.',
+];
+
+const EDIT_LINES = [
+  'Change a table (rows, columns, widths, merging, shading, borders) with the table tool, never by rebuilding it.',
+  'Formatting meant for every paragraph of a kind (a rule under each heading, a colour, spacing) goes into its style with set_style, not onto each paragraph. Frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes one listed as frame 1 in its paragraph\'s formatting.',
+  'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
+  'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
+];
+
+const READ_TOOLS = new Set(['read_paragraphs']);
 
 export const REWRITE_PROMPT = `You rewrite a passage from a document. The passage comes as HTML. Reply with the rewritten passage only, keeping its formatting tags. Write HTML, no markdown, no code fences, no wrapper element. Keep its language unless told to translate. No explanation.`;
 
@@ -284,7 +297,7 @@ export type AiHost = {
 };
 
 /** One turn's view of the document: numbers from its snapshot, positions mapped since. */
-export type TurnContext = { editor: Editor; blocks: Block[]; mapping: Mapping; author: string; commentIds?: string[]; host?: AiHost };
+export type TurnContext = { editor: Editor; blocks: Block[]; mapping: Mapping; author: string; commentIds?: string[]; host?: AiHost; readOnly?: boolean };
 
 const pageFormat = (name: unknown) => (Object.keys(PAGE_FORMAT_CM) as PageFormat[]).find((f) => f.toLowerCase() === String(name).trim().toLowerCase().replace(/^iso\s*/, 'iso'));
 
@@ -800,6 +813,8 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
 
 /** Runs one tool call; a failure goes back to the model as text, not as an exception. */
 export function runTool(ctx: TurnContext, call: ToolCall): ToolResult {
+  // A model may call a tool it was not offered.
+  if (ctx.readOnly && !READ_TOOLS.has(call.name)) return { result: 'error: chat mode cannot change the document; tell the user to switch to Edit mode', summary: '' };
   try {
     return run(ctx, call);
   } catch (e) {
@@ -861,6 +876,8 @@ export async function runTurn(opts: {
   takeQueued?: () => string[];
 }): Promise<string> {
   const { editor } = opts;
+  const chat = opts.cfg.mode === 'chat';
+  const tools = chat ? TOOLS.filter((d) => READ_TOOLS.has(d.name)) : TOOLS;
   const blocks = blockTexts(editor.state.doc);
   // A page, zone or language change reflows the pages without touching the text.
   let reflowed = false;
@@ -870,7 +887,7 @@ export async function runTurn(opts: {
     setPage: (p) => { reflowed = true; h.setPage(p); },
     setLanguage: h.setLanguage && ((c) => { reflowed = true; h.setLanguage!(c); }),
   };
-  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host };
+  const ctx: TurnContext = { editor, blocks, mapping: new Mapping(), author: opts.author, commentIds: comments(editor.state.doc).map((c) => c.id), host, readOnly: chat };
   const track = ({ transaction }: { transaction: Transaction }) => ctx.mapping.appendMapping(transaction.mapping);
   editor.on('transaction', track);
   const turn: ChatMessage[] = [{ role: 'user', content: `${serializeDoc(editor.state, blocks, docBudget(opts.cfg), pageLayout(editor.view, blocks))}\n\n---\n\n${opts.question}` }];
@@ -878,7 +895,7 @@ export async function runTurn(opts: {
   const asked = [opts.question];
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const res = await streamChat(opts.cfg, { system: chatSystemPrompt(), messages: [...opts.history, ...turn], tools: TOOLS }, opts.onText, opts.signal);
+      const res = await streamChat(opts.cfg, { system: chatSystemPrompt(chat ? 'chat' : 'edit'), messages: [...opts.history, ...turn], tools }, opts.onText, opts.signal);
       answer += res.text;
       turn.push({ role: 'assistant', content: res.text, toolCalls: res.toolCalls });
       if (!res.toolCalls.length) break;
