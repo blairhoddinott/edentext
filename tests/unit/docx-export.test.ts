@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { buildDocx } from '../../src/lib/export/docx';
+import { importDocx } from '../../src/lib/import/docx';
 import { HEADER_SHADE } from '../../src/lib/editor/extensions/tableHeaderRow';
 
 // 1×1 transparent PNG.
@@ -160,5 +161,32 @@ describe('buildDocx', () => {
     const footerXml = strFromU8(files[footerName]);
     expect(footerXml).toContain('PAGE');
     expect(footerXml).toContain('NUMPAGES');
+  });
+});
+
+// Formulas walk their own namespace beside the w:r runs; the docx library has no OMML,
+// so they ride a sentinel run that a post-pack pass swaps out.
+describe('DOCX formulas', () => {
+  const formula = (latex: string, display = false) => ({ type: 'formula', attrs: { latex, display } });
+
+  it('writes OMML for an inline formula and oMathPara for a display one', async () => {
+    const files = unzipSync(await buildDocx({ type: 'doc', content: [
+      para([text('Es gilt '), formula('E=mc^{2}'), text(' immer.')]),
+      para([formula('\\frac{a}{b}', true)]),
+    ] } as any));
+    const xml = strFromU8(files['word/document.xml']);
+    for (const el of ['<m:oMath', '<m:sSup>', '<m:oMathPara', '<m:f>', 'Es gilt ']) expect(xml).toContain(el);
+    // The sentinel run must be gone, not merely wrapped.
+    expect(xml).not.toContain('\uE012');
+  });
+
+  it('round-trips both through import', async () => {
+    const res = importDocx(await buildDocx({ type: 'doc', content: [
+      para([text('x '), formula('\\sum_{i=1}^{n} x_{i}')]),
+      para([formula('\\sqrt{a+b}', true)]),
+    ] } as any));
+    const found: any[] = [];
+    (function walk(n: any) { if (n.type === 'formula') found.push(n); for (const c of n.content ?? []) walk(c); })(res.content);
+    expect(found.map((f) => [f.attrs.latex, f.attrs.display])).toEqual([['\\sum_{i=1}^{n} x_{i}', false], ['\\sqrt{a+b}', true]]);
   });
 });

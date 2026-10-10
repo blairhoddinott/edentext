@@ -42,6 +42,18 @@ describe('LaTeX parse ↔ serialize', () => {
   it('keeps an unknown macro as readable text instead of dropping it', () => {
     expect(roundTrip('\\wibble')).toBe('\\text{wibble}');
   });
+
+  // Imported sources that each broke the parser once: the n-ary swallowing the enclosing
+  // \right, a literal ^ from typed-in code, a run's trailing space.
+  it('re-serializes messy imported sources unchanged', () => {
+    for (const src of [
+      '\\sigma ^{2}=\\int_{-pi}^{pi} [\\phi -{E\\left\\{\\phi \\right\\}]}^{2}pdf(\\phi )d\\phi ',
+      'res=1./sqrt(2*L).*sqrt(1-corr.\\^2)./corr',
+      '\\phi _{inf}=\\phi _{ref}+\\phi _{top}+\\phi _{atm}',
+      'C\\left(r\\right)=\\sigma ^{2}-S(r)/2',
+      '\\frac{1}{2*\\left(L-1\\right)}*\\left\\{\\sum_{r=0}^{L-2} \\frac{\\Gamma *\\left(L-\\frac{1}{2}\\right)}{\\Gamma *\\left(L-1\\right)}\\right\\}',
+    ]) expect(roundTrip(src), src).toBe(src);
+  });
 });
 
 describe('MathML', () => {
