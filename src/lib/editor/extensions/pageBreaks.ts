@@ -471,9 +471,9 @@ export function sinkSideFloat(view: EditorView, el: HTMLElement): void {
   const floats = Array.from((view.dom as HTMLElement).querySelectorAll<HTMLElement>(`[data-wrap="${el.dataset.wrap}"]`));
   const next = floats[floats.indexOf(el) + 1];
   const gap = next ? Math.min(want, Math.max(0, Math.floor(top(next) - top(el) - el.offsetHeight))) : want;
-  // The frame's own gap above it excludes text, the offset above that does not.
-  el.style.marginTop = `${gap + (Number(el.dataset.gapTop) || 0)}px`;
-  el.style.shapeOutside = `inset(${gap}px 0 0 0) margin-box`;
+  // Text runs beside the offset down to the frame's own gap above it.
+  el.style.marginTop = `${gap}px`;
+  el.style.shapeOutside = `inset(${Math.max(0, gap - (Number(el.dataset.gapTop) || 0))}px 0 0 0) margin-box`;
 }
 
 // Pagination moves the page grid under those frames, so every pass re-places them.

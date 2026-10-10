@@ -704,6 +704,11 @@
   .hf-zone :global([data-from-body]) {
     top: calc(var(--hf-body-y, 0px) + var(--page-y) - var(--hf-page-y, 0px));
   }
+  /* A frame's gap below it makes the zone no taller (measured: a footer rule with a
+     2.5mm gap cost a long report three pages against LibreOffice). */
+  .hf-zone :global([data-wrap]) {
+    margin-bottom: 0 !important;
+  }
 
   .hf-measure {
     position: absolute;

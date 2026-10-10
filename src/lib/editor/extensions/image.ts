@@ -132,15 +132,16 @@ export function frameMargins(wrap: WrapMode, offsetCm: unknown, boxWidthPx: numb
   // The gap is the file's own (fo:margin-*, distT/B/L/R) and nothing where it declares
   // none — probed: LibreOffice wraps flush against a frame whose graphic style leaves the
   // margin out. Beside a side float only the text's side counts; the other is its offset.
+  // The gap above never moves the frame off its offset (probed); sinkSideFloat keeps text out of it.
   const g = wrapGap(distCm);
-  const top = `${gapPx(g.top)}px`, bottom = `${gapPx(g.bottom)}px`;
+  const bottom = `${gapPx(g.bottom)}px`;
   if (wrap === 'topBottom') {
     const y = typeof offsetYCm === 'number' && offsetYCm > 0 ? gapPx(offsetYCm) : 0;
-    return `${y + gapPx(g.top)}px 0 ${bottom} ${near ?? '0'}`;
+    return `${y}px 0 ${bottom} ${near ?? '0'}`;
   }
-  if (wrap === 'left') return `${top} ${gapPx(g.right)}px ${bottom} ${near ?? '0'}`;
+  if (wrap === 'left') return `0 ${gapPx(g.right)}px ${bottom} ${near ?? '0'}`;
   const far = near == null ? '0' : `calc(${COLUMN_WIDTH_CSS} - ${near} - ${boxWidthPx}px)`;
-  return `${top} ${far} ${bottom} ${gapPx(g.left)}px`;
+  return `0 ${far} ${bottom} ${gapPx(g.left)}px`;
 }
 
 // CSS queues floats of one side behind each other, so a later frame would sit beside an
@@ -370,7 +371,7 @@ export function inlineVerticalAlign(vAlign: unknown, boxHeightPx: number, offset
 // The offset counts from the anchor paragraph's top. Where text or an earlier frame
 // precedes this one (the importers sink frames behind the text: a full-width float pushes
 // every following line under itself) that part is already covered, so the rest is measured.
-export function sinkToOffset(d: HTMLElement, y: unknown, gapTopPx = 0): number | null {
+export function sinkToOffset(d: HTMLElement, y: unknown): number | null {
   const p = d.parentElement;
   if (typeof y !== 'number' || y <= 0 || !p) return null;
   let gap = Math.round(cmToPx(y));
@@ -380,8 +381,7 @@ export function sinkToOffset(d: HTMLElement, y: unknown, gapTopPx = 0): number |
     const scale = box.width / p.offsetWidth || 1;
     gap = clamp(Math.round(cmToPx(y) - (d.getBoundingClientRect().top - box.top) / scale), 6, pageContentHeightPx());
   }
-  // The frame's own gap above it comes on top of the offset; the caller keeps the two apart.
-  d.style.marginTop = `${gap + gapTopPx}px`;
+  d.style.marginTop = `${gap}px`;
   return gap;
 }
 
@@ -937,7 +937,7 @@ class ImageView {
   // A side float's lines run beside the offset as Word keeps them (sinkSideFloat).
   private sinkToOffset(): void {
     const top = gapPx(wrapGap(this.node.attrs.wrapDist).top);
-    const gap = sinkToOffset(this.dom, this.node.attrs.wrapOffsetY, top);
+    const gap = sinkToOffset(this.dom, this.node.attrs.wrapOffsetY);
     const wrap = this.attrWrap();
     if (gap === null || (wrap !== 'left' && wrap !== 'right')) return;
     this.dom.dataset.sinkGap = String(gap);

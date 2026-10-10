@@ -10,7 +10,7 @@ import type { EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { placeFrameSoon, placeInColumn, placeTogether, freeDragX } from './pageBreaks';
-import { HANDLES, MIN_SIZE_PX, clamp, parsePx, frameMargins, wrapGap, parseWrapGap, BOX_WRAP_GAP, type WrapGap, unstackFloat, pageContentHeightPx, sinkToOffset, applyRunThrough, clearPagePlace, startFreeMove, droppedFrameAttrs, type WrapMode } from './image';
+import { HANDLES, MIN_SIZE_PX, clamp, parsePx, frameMargins, parseWrapGap, BOX_WRAP_GAP, type WrapGap, unstackFloat, pageContentHeightPx, sinkToOffset, applyRunThrough, clearPagePlace, startFreeMove, droppedFrameAttrs, type WrapMode } from './image';
 import { SHAPES, shapePath, linePaths, pathHeadPaths, arrowHeadPx, isShapeKind, isLineKind, outlineLayers, shadeColor, asShapePreset, asTextArea, type PathHeads, type ShapeKind, type DrawingMlPreset, type TextArea } from '../../utils/shapes';
 import type { ResolvedGeometry } from '../../utils/enhancedGeometry';
 import { cmToPx } from '../../storage/pageMargins';
@@ -1009,7 +1009,7 @@ class TextBoxView {
       d.style.clear = 'both';
       d.style.width = '100%';
       d.style.margin = frameMargins('topBottom', null, 0, a.wrapOffsetY, a.wrapDist);
-      sinkToOffset(d, a.wrapOffsetY, Math.round(cmToPx(wrapGap(a.wrapDist).top)));
+      sinkToOffset(d, a.wrapOffsetY);
       this.placeInBand(a);
     } else {
       // In the line: a box is a character. inline-block keeps ProseMirror's inline view
