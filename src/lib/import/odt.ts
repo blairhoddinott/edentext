@@ -1485,12 +1485,17 @@ const ODF_INDEX_KIND: Record<string, IndexKind | undefined> = {
 
 // A <text:bibliography-mark> → a citation. Its non-empty text: attributes other than the
 // identifier and the type are the source's fields, whatever the file happens to name.
+// LibreOffice's DOCX reader leaves a Word CITATION field's code as the identifier and its
+// result as the title: the tag is the source's name, and the result no field of it.
 function bibEntryFromMark(el: Element): Node | null {
-  const identifier = (el.getAttributeNS(NS.text, 'identifier') ?? '').trim();
+  const raw = (el.getAttributeNS(NS.text, 'identifier') ?? '').trim();
+  const code = /^CITATION\s+("[^"]+"|\S+)/i.exec(raw);
+  const identifier = code ? code[1].replace(/^"|"$/g, '').trim() : raw;
   if (!identifier) return null;
   const fields: Record<string, string> = {};
   for (const a of Array.from(el.attributes)) {
     if (a.namespaceURI !== NS.text || a.localName === 'identifier' || a.localName === 'bibliography-type') continue;
+    if (code && a.value.trim() === (el.textContent ?? '').trim()) continue;
     if (a.value.trim()) fields[a.localName] = a.value;
   }
   const type = el.getAttributeNS(NS.text, 'bibliography-type') ?? '';

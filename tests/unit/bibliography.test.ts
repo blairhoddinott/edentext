@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { Node as PMNode } from '@tiptap/pm/model';
+import { zipSync, strToU8 } from 'fflate';
 import { extensions } from '../../src/lib/editor/extensions';
+import { importOdt } from '../../src/lib/import/odt';
 import {
   bibliographyEntries, bibliographyRows, bibRowText, bibTypeFromDocx, citationText,
 } from '../../src/lib/editor/extensions/bibliographyEntry';
@@ -38,6 +40,14 @@ describe('bibliography', () => {
     expect(bibRowText({ identifier: 'X', type: 'misc', fields: { title: 'Nur ein Titel' } }))
       .toBe('X: Nur ein Titel');
     expect(bibRowText({ identifier: 'X', type: 'misc', fields: {} })).toBe('X');
+  });
+
+  it('reads a Word field code LibreOffice left as an ODF identifier as its tag', () => {
+    const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"';
+    const odt = zipSync({ 'content.xml': strToU8(`<office:document-content ${NS}><office:body><office:text><text:p>`
+      + '<text:bibliography-mark text:identifier=" CITATION Bam00 \\l 1031 " text:bibliography-type="article" text:title="[4]">[4]</text:bibliography-mark>'
+      + '</text:p></office:text></office:body></office:document-content>') });
+    expect((importOdt(odt).content as any).content[0].content[0].attrs).toMatchObject({ identifier: 'Bam00', fields: {} });
   });
 
   it('maps Word source types back, unknown ones to misc', () => {
