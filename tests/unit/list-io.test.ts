@@ -134,6 +134,8 @@ describe('a list item holding more than one block', () => {
     ['round-trips a second paragraph', [p('one'), p('two')], 'doc(bulletList(listItem(paragraph(text),paragraph(text))))'],
     ['keeps a paragraph that follows a nested list, in its place', [p('one'), list([p('sub')]), p('after')],
       'doc(bulletList(listItem(paragraph(text),bulletList(listItem(paragraph(text))),paragraph(text))))'],
+    ['keeps a second sub-list and the paragraph after it', [p('one'), list([p('sub')]), { type: 'orderedList', content: [{ type: 'listItem', content: [p('num')] }] }, p('after')],
+      'doc(bulletList(listItem(paragraph(text),bulletList(listItem(paragraph(text))),orderedList(listItem(paragraph(text))),paragraph(text))))'],
   ])('%s', async (_name, item, want) => {
     const odt = await buildOdt(doc([list(item)]));
     if (hasXmllint) expect(validateOdt(unzipSync(odt))).toEqual([]);

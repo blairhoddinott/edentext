@@ -3158,7 +3158,13 @@ function convertList(el: Element, ctx: Ctx, inheritedStyleName: string | null, d
         blocks.push(...flattenTable(child, ctx));
       }
     }
-    // listItem opens with a paragraph or a heading (not e.g. only a sub-list).
+    // listItem opens with a paragraph or a heading. One that opens with a sub-list draws
+    // no line of its own: it goes on the item before it, as a further sub-list there.
+    const prev = items[items.length - 1];
+    if (blocks.length && blocks[0].type !== 'paragraph' && blocks[0].type !== 'heading' && prev) {
+      prev.content!.push(...blocks);
+      continue;
+    }
     if (blocks[0]?.type !== 'paragraph' && blocks[0]?.type !== 'heading') blocks.unshift({ type: 'paragraph' });
     items.push({ type: 'listItem', content: blocks });
   }

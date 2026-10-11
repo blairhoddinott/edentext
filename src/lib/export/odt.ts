@@ -116,6 +116,11 @@ const IMG = '';
 // fo:break-before="page" paragraph style for it, and strips the sentinel. U+E005.
 const PGB = '';
 
+// Sentinel that is the whole first paragraph of a list item splitNestedLists makes for
+// each further sub-list of an item (odf-kit writes one per item); applyNestedListItems
+// drops that paragraph, which leaves the ODF form of a sub-list continuing its item. U+E028.
+const NLI = '\uE028';
+
 // Sentinel wrapping an empty line's font size (FSZ<size>FSZ), the sole text of a
 // top-level empty CUST_P/CUST_H; applyEmptyLineFontSizes turns it into a paragraph
 // style fo:font-size (odf-kit has no paragraph font-size option). U+E007.
@@ -426,6 +431,39 @@ function replacePageBreaks(doc: TiptapNode): TiptapNode {
       return child;
     }),
   };
+}
+
+// An item's sub-lists after its first each open an item of their own, from the blocks
+// before the next one on, behind an NLI paragraph (applyNestedListItems drops it).
+function splitNestedLists(node: TiptapNode): TiptapNode {
+  if (!node.content?.length) return node;
+  const isList = (b: TiptapNode) => b.type === 'bulletList' || b.type === 'orderedList';
+  if (node.type !== 'bulletList' && node.type !== 'orderedList') return { ...node, content: node.content.map(splitNestedLists) };
+  const items: TiptapNode[] = [];
+  for (const item of node.content) {
+    let cur: TiptapNode[] = [];
+    let lists = 0;
+    for (const b of item.content ?? []) {
+      if (isList(b) && lists++ > 0) {
+        items.push({ ...item, content: cur });
+        cur = [{ type: 'paragraph', content: [{ type: 'text', text: NLI }] }];
+      }
+      cur.push(isList(b) ? splitNestedLists(b) : b);
+    }
+    items.push({ ...item, content: cur });
+  }
+  return { ...node, content: items };
+}
+
+function applyNestedListItems(odtBytes: Uint8Array): Uint8Array {
+  const files = unzipSync(odtBytes);
+  const content = strFromU8(files['content.xml']);
+  if (!content.includes(NLI)) return odtBytes;
+  // The sub-list starts its own count, as in the editor: LibreOffice would carry the
+  // level's count on from the item's first sub-list.
+  files['content.xml'] = strToU8(content.replace(new RegExp(`<text:p\\b[^>]*>\\s*${NLI}\\s*</text:p>(\\s*<text:list\\b[^>]*>\\s*<text:list-item)(?![^>]*start-value)`, 'g'),
+    '$1 text:start-value="1"').replace(new RegExp(`<text:p\\b[^>]*>\\s*${NLI}\\s*</text:p>`, 'g'), ''));
+  return rezipOdt(files);
 }
 
 // odf-kit writes a list item's first paragraph and nothing else, so the item's further
@@ -5444,7 +5482,7 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
       zoneBlocks.push(marker(`${HFZ}S${id}${HFZ}`), ...((doc.content ?? []) as TiptapNode[]), marker(`${HFZ}E${id}${HFZ}`));
     }
   }
-  const withZones: TiptapNode = zoneBlocks.length ? { ...docJson, content: [...(docJson.content ?? []), ...zoneBlocks] } : docJson;
+  const withZones: TiptapNode = splitNestedLists(zoneBlocks.length ? { ...docJson, content: [...(docJson.content ?? []), ...zoneBlocks] } : docJson);
   const sentinels = replaceRuby(replaceBibEntries(replaceIndexEntries(replaceRevisions(replaceSequenceFields(replaceComments(replaceBookmarks(replaceFormulas(replacePlaceholderFields(replaceDateTimeFields(replaceImages(replaceTabs(replaceHardBreaks(replaceSectionBreaks(replaceNotes(replaceColumns(replaceTextBoxes(replacePageBreaks(replaceTableOfContents(replacePageFields(withZones, hf?.pageCount ?? 1), tocs)), textBoxes), columns), notes)))), images), dateFields), placeholderLabels), formulas), crossRefs), commentList), seqFields, seqAnchors), revisionList), indexMarks), bibMarks), rubies);
   const unmerged = markTextEffects(bakeListCharStyles(sentinels, styles), DEFAULT_FONT_SIZE_PT, styles);
   const raw = mergeListItemBlocks(unmerged);
@@ -5659,7 +5697,7 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   const withTableMargins = applyTableStyleNames(
     applyTableHeaderRows(applyTableProps(styledRows, tableMargins, contentWidthCm), tableMargins), tableStyleNames);
 
-  const cleaned = collapseRunWhitespace(withTableMargins);
+  const cleaned = collapseRunWhitespace(applyNestedListItems(withTableMargins));
   // Before applyInlineSentinels: it matches the bare style:type="char" a leader would hide.
   const withBreaks = applyInlineSentinels(applyTabLeaders(cleaned));
   const withImages = applyImages(withBreaks, images);
