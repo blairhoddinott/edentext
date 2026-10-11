@@ -1078,8 +1078,15 @@ try {
   await page.waitForTimeout(2000);
   const gridViews = await page.evaluate(() => [...document.querySelectorAll('.page-cell .tiptap')].map((v) => v.textContent));
   // Case-blind: a typed sentence start is capitalized.
+  // A failure names each cell that differs from the first and the text around where.
+  const gridDiff = gridViews.flatMap((t, i) => {
+    if (i && t === gridViews[0]) return [];
+    let at = 0;
+    while (at < t.length && t[at] === gridViews[0][at]) at++;
+    return [`cell ${i} at ${at}: ${JSON.stringify(t.slice(Math.max(0, at - 20), at + 20))}`];
+  });
   check(gridViews.length > 1 && gridViews.every((t) => t === gridViews[0]) && /caught up/i.test(gridViews[0]) && gridViews[0].includes('Q'),
-    'every page-grid cell shows the edits after a pause, and a click right after typing lands in the current text');
+    `every page-grid cell shows the edits after a pause, and a click right after typing lands in the current text${gridDiff.length > 1 || !/caught up/i.test(gridViews[0]) || !gridViews[0].includes('Q') ? ` (${gridViews.length} cells; ${gridDiff.join('; ')})` : ''}`);
 
   // Dark theme: every menu each ribbon tab opens, a text box selected so its contextual
   // tab shows too. A glyph or label barely apart from what it sits on is a colour some
