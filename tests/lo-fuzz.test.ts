@@ -182,10 +182,13 @@ function loOptions(canon: N, fmt: Fmt, opts: FuzzOptions, authored: boolean): N 
   }
   for (const s of canon.sections) {
     // Via DOCX the fold marks lose their name and come back as the plain lines they are
-    // drawn with, in the header: a header holding nothing else is none.
+    // drawn with, in the header's first paragraph: a header holding nothing else is none.
     if (fmt === 'docx' && !authored && opts.foldMarks) {
       for (const k of ['header', 'headerFirst', 'headerEven']) {
-        const kept = (s[k]?.content ?? []).filter((p: N) => !(p.content ?? []).every((c: N) => c.type === 'textBox'));
+        const first = s[k]?.content?.[0];
+        if (first?.content) first.content = first.content.filter((c: N) => c.type !== 'textBox');
+        if (first?.content && !first.content.length) delete first.content;
+        const kept = (s[k]?.content ?? []).filter((p: N, i: number) => i > 0 || p.content || p.attrs);
         if (s[k] && !kept.length) s[k] = null;
       }
       if (!s.header && !s.headerFirst && !s.headerEven) s.headerDist = null;
