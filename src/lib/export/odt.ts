@@ -1364,6 +1364,8 @@ type ParaStyle = {
   indentRight: number | null;
   // A page break before the item — list paragraphs only; LibreOffice ignores one in a cell.
   breakBefore: boolean;
+  // Keep with next, where the block says so itself — list paragraphs only, as above.
+  keepNext: boolean | null;
   // The block's language tags; ODF keeps them in the text properties, not the paragraph ones.
   lang: string | null;
   langAsian: string | null;
@@ -1379,7 +1381,7 @@ function paraStyleIsEmpty(s: ParaStyle): boolean {
   return s.align === null && s.spaceBefore === null && s.spaceAfter === null && s.lineHeight === null
     && s.background === null && s.borderTop === null && s.borderRight === null
     && s.borderBottom === null && s.borderLeft === null && s.dir === null
-    && s.indent === null && s.indentFirst === null && s.indentFirstChars === null && s.indentChars === null && s.indentRightChars === null && s.indentRight === null && !s.breakBefore
+    && s.indent === null && s.indentFirst === null && s.indentFirstChars === null && s.indentChars === null && s.indentRightChars === null && s.indentRight === null && !s.breakBefore && s.keepNext === null
     && s.lang === null && s.langAsian === null && !s.noSnap;
 }
 
@@ -1435,6 +1437,7 @@ function paraStyleFromAttrs(attrs: TiptapNode['attrs'], withIndents = true): Par
     indentRightChars: cm(attrs?.indentRightChars),
     indentRight: cm(attrs?.indentRight),
     breakBefore: false,
+    keepNext: null,
     lang: typeof attrs?.lang === 'string' && attrs.lang ? attrs.lang : null,
     langAsian: typeof attrs?.langAsian === 'string' && attrs.langAsian ? attrs.langAsian : null,
     noSnap: attrs?.snapToGrid === false,
@@ -1466,6 +1469,7 @@ function paraStyleProps(style: ParaStyle): string[] {
   if (style.indentRightChars != null) props.push(`loext:margin-right="${style.indentRightChars}ic"`);
   if (style.indentRight != null) props.push(`fo:margin-right="${style.indentRight}cm"`);
   if (style.breakBefore) props.push('fo:break-before="page"');
+  if (style.keepNext != null) props.push(`fo:keep-with-next="${style.keepNext ? 'always' : 'auto'}"`);
   if (style.background) props.push(`fo:background-color="${style.background}"`);
   // The canonical border attr ('<W>pt solid #RRGGBB') is itself a valid fo:border value.
   for (const [attr, side] of [
@@ -1510,7 +1514,10 @@ function collectListItemStyles(node: TiptapNode, result: ParaStyle[], extras: Li
     const paired = (b: TiptapNode | undefined) => pairMargins(paraStyleFromAttrs(b?.attrs, false),
       b?.type === 'heading' ? `Heading ${(b.attrs?.level as number) ?? 1}` : (b?.attrs?.styleName as string | undefined) ?? DEFAULT_STYLE);
     const firstList = (node.content ?? []).findIndex(c => c.type === 'bulletList' || c.type === 'orderedList');
-    extras.push(blocks.map(b => ({ style: paired(b),
+    // A list item's blocks break and keep like body ones (pageBreaks.ts walks into lists).
+    const flow = (b: TiptapNode) => ({ ...paired(b), breakBefore: b.attrs?.breakBefore === 'page',
+      keepNext: typeof b.attrs?.keepNext === 'boolean' ? b.attrs.keepNext : null });
+    extras.push(blocks.map(b => ({ style: flow(b),
       level: b.type === 'heading' ? (b.attrs?.level as number) ?? 1 : null,
       afterList: firstList >= 0 && node.content!.indexOf(b) > firstList })));
     // An opening heading is styled by applyListItemBlocks, which takes it out of the
@@ -1525,8 +1532,7 @@ function collectListItemStyles(node: TiptapNode, result: ParaStyle[], extras: Li
     // replacePageBreaks skips list paragraphs (its sentinel would corrupt the SEG
     // rebuild), so the item's own break rides its style instead — as LibreOffice
     // writes it (probed: it keeps fo:break-before on a list item's paragraph).
-    result.push({ ...paired(firstPara),
-      breakBefore: firstPara?.attrs?.breakBefore === 'page' });
+    result.push(firstPara ? flow(firstPara) : paired(firstPara));
     // Recurse into nested lists only (their listItems extend the DFS sequence).
     for (const child of node.content ?? []) {
       if (child.type === 'bulletList' || child.type === 'orderedList') {

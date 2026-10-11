@@ -139,6 +139,14 @@ describe('a list item holding more than one block', () => {
     if (hasXmllint) expect(validateOdt(unzipSync(odt))).toEqual([]);
     expect(shape(importOdt(odt).content)).toBe(want);
   });
+  // DOCX keeps them on the paragraph; ODF writes a list item's blocks through styles of their own.
+  it('keeps each block\'s page break and keep with next through ODF', async () => {
+    const h = { type: 'heading', attrs: { level: 1, breakBefore: 'page', keepNext: false }, content: [{ type: 'text', text: 'Chapter' }] };
+    const q = { type: 'paragraph', attrs: { keepNext: true }, content: [{ type: 'text', text: 'two' }] };
+    const flags = (d: N) => d.content[1].content[0].content.map((b: N) => [b.attrs?.breakBefore ?? null, b.attrs?.keepNext ?? null]);
+    const src = doc([p('before'), { type: 'orderedList', content: [{ type: 'listItem', content: [h, q] }] }]);
+    expect(flags(importOdt(await buildOdt(src)).content)).toEqual([['page', false], [null, true]]);
+  });
   it('writes the further blocks to DOCX too', async () => {
     expect(strFromU8(unzipSync(await buildDocx(doc([list([p('one'), p('two')])])))['word/document.xml'])).toContain('two');
   });
