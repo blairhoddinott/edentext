@@ -377,15 +377,19 @@ function applyFrameRotationAndWrap(el: Element, attrs: Record<string, unknown>, 
 
 // A paragraph mark that declares nothing keeps the style's font, but the runs may all
 // agree on another one — then that is the paragraph's font, strut included. Without it
-// the taller style strut governs every line and the block renders too high. A field's
-// text is a run too: it renders in the block's font, which it would otherwise change.
+// the taller style strut governs every line and the block renders too high. A field
+// outside the runs keeps the style's font (`natural`) as a mark of its own, which
+// raises only its line, as in both word processors.
 const FONTLESS_INLINE = new Set(['hardBreak', 'image', 'textBox', 'formula', 'indexEntry']);
-export function applyUniformRunFont(attrs: Record<string, unknown>, content: { type: string; marks?: { type: string; attrs?: Record<string, unknown> }[] }[]): void {
+type InlineJson = { type: string; marks?: { type: string; attrs?: Record<string, unknown> }[] };
+export function applyUniformRunFont(attrs: Record<string, unknown>, content: InlineJson[], natural: { fontSize?: string | null; fontFamily?: string | null } = {}): void {
   let family: string | null | undefined;
   let size: string | null | undefined;
   let runs = 0;
+  const fields: InlineJson[] = [];
   for (const n of content) {
     if (FONTLESS_INLINE.has(n.type)) continue;
+    if (n.type !== 'text') { fields.push(n); continue; }
     const ts = (n.marks ?? []).find((m) => m.type === 'textStyle')?.attrs ?? {};
     const f = (ts.fontFamily as string) ?? null;
     const s = (ts.fontSize as string) ?? null;
@@ -395,8 +399,21 @@ export function applyUniformRunFont(attrs: Record<string, unknown>, content: { t
     runs++;
   }
   if (!runs) return;
-  if (attrs.fontFamily == null && family) attrs.fontFamily = family;
-  if (attrs.fontSize == null && size) attrs.fontSize = size;
+  const hoist: Record<string, string> = {};
+  if (attrs.fontFamily == null && family) hoist.fontFamily = family;
+  if (attrs.fontSize == null && size) hoist.fontSize = size;
+  for (const [k, v] of Object.entries(hoist)) {
+    const keep = natural[k as keyof typeof natural];
+    // A field that cannot keep the style's font would change its look: no hoist then.
+    if (fields.length && !keep) continue;
+    attrs[k] = v;
+    for (const f of fields) {
+      const ts = (f.marks ??= []).find((m) => m.type === 'textStyle');
+      if (ts?.attrs?.[k] != null) continue;
+      if (ts) ts.attrs = { ...ts.attrs, [k]: keep };
+      else f.marks.push({ type: 'textStyle', attrs: { [k]: keep } });
+    }
+  }
 }
 
 // A top-and-bottom frame set below its paragraph's first line sinks behind the text: a
@@ -2147,7 +2164,7 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
     fontFamily: styleText && resolver.fontFamilyOf(styleText) === markFont ? attrs.fontFamily : undefined,
   };
   for (const [k, v] of Object.entries(baked)) if (v != null) delete attrs[k];
-  applyUniformRunFont(attrs, content);
+  applyUniformRunFont(attrs, content, { fontSize: `${markSizePt ?? defaults.fontSizePt}pt`, fontFamily: markFont ?? null });
   for (const [k, v] of Object.entries(baked)) if (v != null && attrs[k] == null) attrs[k] = v;
   sinkOffsetFrames(content, lengthToPt(attrs.fontSize as string | undefined) ?? defaults.fontSizePt);
 

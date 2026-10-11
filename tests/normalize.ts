@@ -211,6 +211,15 @@ export function stripFontHoist(node: any): any {
     const { fontSize, fontFamily, ...rest } = node.attrs;
     node.attrs = Object.keys(rest).length ? rest : undefined;
     if (!node.attrs) delete node.attrs;
+    // A field keeps the style's font against a hoist as a mark of its own (applyUniformRunFont).
+    for (const c of node.content) {
+      const ts = c.type !== 'text' && c.marks?.find((m: any) => m.type === 'textStyle');
+      if (!ts?.attrs) continue;
+      if (fontSize) delete ts.attrs.fontSize;
+      if (fontFamily) delete ts.attrs.fontFamily;
+      if (!Object.keys(ts.attrs).length) c.marks = c.marks.filter((m: any) => m !== ts);
+      if (!c.marks.length) delete c.marks;
+    }
   }
   for (const c of node.content ?? []) stripFontHoist(c);
   return node;
