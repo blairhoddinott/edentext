@@ -132,6 +132,7 @@ Drafting has no window of its own: the context menu and `Alt+I` open the chat wi
 `/draft ` filled in (`OPEN_AI_CHAT_EVENT`, `askAi`). Rewriting has none either: with a
 selection the chat shows the presets as chips, and they and the context menu's presets send
 the command at once (`send` in the event); translate and Rewrite… fill the field instead.
+After `/translate ` the `/` list offers the languages, filtered as typed; one sends at once.
 
 ## Providers
 

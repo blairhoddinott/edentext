@@ -1224,6 +1224,17 @@ try {
   check(rewritten === 'A slow fox.', `a rewrite from the menu's AI submenu runs in the chat and replaces the selection (${rewritten}${paneEnd ? `; pane: ${paneEnd}` : ''})`);
 
   await page.click('.tiptap');
+  await page.keyboard.press(`${MOD}+a`);
+  await page.click('.tiptap', { button: 'right' });
+  await page.hover('.cm-item[aria-haspopup]');
+  await page.locator('.cm-sub .cm-item', { hasText: 'Translate' }).click();
+  const offered = await page.locator('.ai-pane .menu button').allTextContents().catch(() => []);
+  await page.locator('.ai-pane .menu button', { hasText: 'Deutsch' }).click({ timeout: 5_000 }).catch(() => {});
+  const asked = await page.locator('.ai-pane .msg.user').last().textContent().catch(() => null);
+  check(offered.some((l) => l.includes('Deutsch')) && asked?.trim() === '/translate Deutsch',
+    `Translate from the menu lists the languages, and one sends at once (${offered.length} offered, sent ${JSON.stringify(asked)})`);
+
+  await page.click('.tiptap');
   await page.keyboard.press('Alt+i');
   const prefill = await page.locator('.ai-pane textarea').inputValue().catch(() => null);
   check(prefill === '/draft ', `Alt+I opens the chat with /draft (${JSON.stringify(prefill)})`);

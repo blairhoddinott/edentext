@@ -45,6 +45,7 @@
   import { COMMANDS, captureTarget, commandLabel, commandName, commandRequest, expandCustom, insertAtCursor, insertBelowTarget, parseCommand, replaceTarget, uiLanguage } from '../ai/commands';
   import { runTurn, startRequest, endRequest, type AiHost } from '../ai/tools';
   import { readSource, sourcesBlock, SOURCE_ACCEPT, type Source } from '../ai/sources';
+  import { LANGUAGES } from '../storage/documentLanguage';
   import Icon from './ribbon/Icon.svelte';
 
   // Copilot's chat pane: questions about the document with the document as context, and
@@ -156,6 +157,7 @@
     // An empty prefill only focuses the field, keeping a half-typed question.
     if (text) question = text;
     menuIndex = 0;
+    menuHidden = false;
     queueMicrotask(() => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
   });
 
@@ -363,10 +365,14 @@
     view.focus();
   }
 
-  // Typing `/` lists the commands, filtered by name or label; Esc hides the list.
+  // Typing `/` lists the commands, filtered by name or label, and `/translate ` the
+  // languages, one of which sends at once; Esc hides the list.
+  const TARGETS = [...new Set(LANGUAGES.map((l) => l.label))];
   let menuIndex = $state(0);
   let menuHidden = $state(false);
-  let matches = $derived.by(() => {
+  let matches = $derived.by((): { name: string; label: string; language?: boolean }[] => {
+    const lang = /^\/translate\s+([^\n]*)$/i.exec(question);
+    if (lang && !menuHidden) return TARGETS.filter((l) => l.toLowerCase().includes(lang[1].trim().toLowerCase())).map((l) => ({ name: l, label: '', language: true }));
     if (menuHidden || !/^\/\S*$/.test(question)) return [];
     const q = question.slice(1).toLowerCase();
     const all = [
@@ -378,7 +384,9 @@
   });
 
   function pick(i: number) {
-    question = `/${matches[i].name} `;
+    const c = matches[i];
+    if (c.language) { question = ''; return void send(`/translate ${c.name}`); }
+    question = `/${c.name} `;
     field?.focus();
   }
 
@@ -536,7 +544,7 @@
         <div class="menu" role="listbox" aria-label={t().ai.commandsTitle}>
           {#each matches as c, k (c.name)}
             <button role="option" aria-selected={k === menuIndex} class:on={k === menuIndex} onmousedown={(ev) => ev.preventDefault()} onclick={() => pick(k)}>
-              <span class="cmd">/{c.name}</span><span class="label">{c.label}</span>
+              <span class="cmd">{c.language ? '' : '/'}{c.name}</span><span class="label">{c.label}</span>
             </button>
           {/each}
         </div>
