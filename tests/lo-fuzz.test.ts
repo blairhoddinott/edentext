@@ -110,7 +110,8 @@ function loNoise(node: N, fmt: Fmt): N {
   // A drawing shape's text (any box but a plain frame) is LibreOffice's own, poorer than
   // a frame's: character styles turn direct, bookmarks and fields go, the language is
   // spelled out. Only its words compare; fuzz-roundtrip checks the rest through our reader.
-  if (fmt === 'odt' && node.type === 'textBox' && ((node.attrs?.shapeKind ?? 'textbox') !== 'textbox' || node.attrs?.shapePath)) {
+  // A preset's path is left out by normalize, so the preset names a shape too.
+  if (fmt === 'odt' && node.type === 'textBox' && ((node.attrs?.shapeKind ?? 'textbox') !== 'textbox' || node.attrs?.shapePath || node.attrs?.shapePreset)) {
     const words = (n: N): string => n.type === 'text' ? n.text : (n.content ?? []).map(words).join('');
     node.content = (node.content ?? []).map((b: N) => ({ type: 'paragraph', ...(words(b) ? { content: [{ type: 'text', text: words(b) }] } : {}) }));
   }
