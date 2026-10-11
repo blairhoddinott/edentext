@@ -150,7 +150,8 @@ function crossRef(r: Rng): N {
   const attrs: N = { name: pick(r, bmNames), format,
     text: format === 'page' ? '1' : format === 'direction' ? 'above'
       : format.startsWith('number') ? '1.2' : 'Lorem ipsum' };
-  if (format === 'number-all-superior' && maybe(r, 0.3)) attrs.sep = '-';
+  // No `sep`: Word's \d separator has no place in ODF, which joins the levels with the
+  // list's own (cross-ref-formats.test.ts holds it through DOCX).
   return { type: 'crossRef', attrs };
 }
 
