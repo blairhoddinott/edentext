@@ -147,9 +147,15 @@ describe('a heading and keep with next', () => {
     expect(keep(importOdt(await buildOdt(read)).content)).toBe(false);
   });
 
-  it('drops it where the ODT heading style has none', async () => {
+  it('drops it where the ODT heading style has none, and a heading added under that style keeps', async () => {
     const odt = patch(await buildOdt(doc), 'styles.xml', (x) => x.replace(/fo:keep-with-next="always"/g, ''));
-    expect(keep(importOdt(odt).content)).toBe(false);
+    const read = importOdt(odt);
+    expect(keep(read.content)).toBe(false);
+    // As a converted Word file has it: the heading style sits on the default one.
+    read.styles.paragraph['Heading 1'].parent = 'Standard';
+    const added: N = { ...read.content, content: [doc.content[0], ...(read.content as N).content] };
+    const back = importOdt(await buildOdt(added, undefined, undefined, undefined, undefined, undefined, read.styles)).content as N;
+    expect(back.content.slice(0, 2).map((h: N) => h.attrs.keepNext ?? null)).toEqual([null, false]);
   });
 });
 

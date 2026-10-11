@@ -2235,6 +2235,9 @@ function applyNamedStyles(styles: string, sheet: StyleSheet, used: Set<string>, 
     if (!used.has(style.name)) continue;
     const odfName = odfStyleName(style.name);
     const { para, text } = ownStyleAttrs(style, style.parent ? resolveStyle(sheet, style.parent, 'paragraph').para : {});
+    // A heading keeps with the next block in the editor unless it says otherwise itself
+    // (pageBreaks.ts), whatever style a file gave it — LibreOffice has to be told.
+    if (style.outlineLevel && style.outlineLevel <= 5) para['fo:keep-with-next'] = 'always';
     const existing = findAutoStyle(styles, odfName);
     if (existing) {
       let block = stripManagedProps(existing);
