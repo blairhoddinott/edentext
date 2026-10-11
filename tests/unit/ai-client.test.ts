@@ -163,8 +163,11 @@ describe('kill switch', () => {
     expect(aiConfig()).toBeNull();
     setAi({ model: 'm' });
     expect(aiConfig()?.model).toBe('m');
-    setAi({ enabled: false, endpoint: '', model: '' });
+    setAi({ endpoint: '', model: '' });
     expect(localStorage.getItem('edentext-ai')).toBeNull();
+    setAi({ enabled: false });
+    expect(JSON.parse(localStorage.getItem('edentext-ai')!).enabled).toBe(false);
+    setAi({ enabled: true });
   });
 });
 

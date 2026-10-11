@@ -78,6 +78,7 @@ describe('context menu items', () => {
   it('groups the AI actions in a submenu, greyed with a hint while the assistant is off', () => {
     const editor = makeEditor(para('Hello world'));
     const aiSub = () => buildContextMenu(editor).find((e): e is Extract<MenuEntry, { kind: 'sub' }> => e.kind === 'sub');
+    setAi({ enabled: false });
     expect(aiSub()!.disabled).toBe(true);
     expect(aiSub()!.title).toMatch(/Settings/);
 
@@ -88,7 +89,6 @@ describe('context menu items', () => {
     expect(item(aiSub()!.items, 'Open chat')!.disabled).toBeFalsy();
     editor.commands.setTextSelection({ from: 1, to: 6 });
     expect(item(aiSub()!.items, 'Shorten')!.disabled).toBe(false);
-    setAi({ enabled: false });
     editor.destroy();
   });
 });

@@ -8,7 +8,7 @@ directly with the key from Settings ▸ AI.
 ## Kill switch
 
 `storage/ai.svelte.ts` holds one app-wide key, `edentext-ai`, with `{enabled, provider,
-endpoint, apiKey, model, contextTokens, mode, side, commands}`. Off is the default. `aiEnabled()` gates every surface:
+endpoint, apiKey, model, contextTokens, mode, side, commands}`. On is the default, so the button is found; without an endpoint and model nothing is sent, and switching off is stored. `aiEnabled()` gates every surface:
 
 - the AI button at the right end of every ribbon tab (`aiPane`) and its command-search entry;
 - the context menu's AI submenu (body editor only), which stays, greyed with a hint

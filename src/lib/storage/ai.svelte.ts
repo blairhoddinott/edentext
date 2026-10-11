@@ -1,6 +1,6 @@
 // The AI assistant's settings: the kill switch and the provider the user brought.
-// App-wide, one JSON key, removed while everything is at its default (off and empty);
-// switching off keeps the provider so switching back on needs no retyping.
+// App-wide, one JSON key, removed while everything is at its default (on and empty), so a
+// switch-off is stored; switching off keeps the provider so switching back on needs no retyping.
 
 import { SvelteMap } from 'svelte/reactivity';
 
@@ -27,7 +27,7 @@ export const AI_COMMENT_EVENT = 'edentext-ai-comment';
 export const aiAnswering = new SvelteMap<string, string>();
 
 export const DEFAULT_CONTEXT_TOKENS = 32_000;
-const DEFAULTS: AiSettings = { enabled: false, provider: 'openai', endpoint: '', apiKey: '', model: '', contextTokens: DEFAULT_CONTEXT_TOKENS, mode: 'edit', side: 'right', commands: [] };
+const DEFAULTS: AiSettings = { enabled: true, provider: 'openai', endpoint: '', apiKey: '', model: '', contextTokens: DEFAULT_CONTEXT_TOKENS, mode: 'edit', side: 'right', commands: [] };
 
 /** The characters of document a request may carry: half the context, at about four a token. */
 export function docBudget(cfg: Pick<AiConfig, 'contextTokens'>): number {
@@ -40,7 +40,7 @@ const validCommands = (v: unknown): CustomCommand[] =>
 function load(): AiSettings {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    return raw && typeof raw === 'object' ? { ...DEFAULTS, ...raw, enabled: raw.enabled === true, mode: raw.mode === 'chat' ? 'chat' : 'edit', side: raw.side === 'left' ? 'left' : 'right', commands: validCommands(raw.commands) } : { ...DEFAULTS };
+    return raw && typeof raw === 'object' ? { ...DEFAULTS, ...raw, enabled: raw.enabled !== false, mode: raw.mode === 'chat' ? 'chat' : 'edit', side: raw.side === 'left' ? 'left' : 'right', commands: validCommands(raw.commands) } : { ...DEFAULTS };
   } catch {
     return { ...DEFAULTS };
   }
