@@ -679,7 +679,9 @@ type Leaf = {
   // A multi-column section fragment (columns.ts): pagination only pushes it when
   // the first block alone can't fit the remaining space (else columnsFlow.ts splits
   // the overflow at a block boundary).
-  columnsFragment?: { blockCount: number; firstBlockNeededPx: number };
+  // `spaceAbovePx`: the first block's space above, which a page break it makes keeps
+  // (as `kept` below) above the whole section, so both columns start below it.
+  columnsFragment?: { blockCount: number; firstBlockNeededPx: number; spaceAbovePx: number };
   // Footnote anchors inside this leaf (notes.ts), at their spacer-free offset from its
   // top: the note goes to the page its anchor lands on, and a leaf split across a
   // boundary carries the anchors below the split onto the next page with it.
@@ -1458,6 +1460,7 @@ export const PageBreaks = Extension.create({
               if (child.classList.contains('columns-node')) {
                 const count = Math.max(1, parseInt(child.dataset?.columns ?? '', 10) || 1);
                 const first = child.firstElementChild as HTMLElement | null;
+                const breaks = !inTableCell && first?.dataset?.pageBreakBefore === 'page';
                 let firstPx = 0;
                 if (first) {
                   for (const r of Array.from(first.getClientRects())) firstPx += r.height;
@@ -1469,9 +1472,12 @@ export const PageBreaks = Extension.create({
                   naturalTop: naturalTopOf(child),
                   naturalHeight: child.offsetHeight,
                   inTableCell,
+                  // A section's first block breaking the page breaks it before the section.
+                  forceBreakBefore: breaks,
                   columnsFragment: {
                     blockCount: child.children.length,
                     firstBlockNeededPx: Math.max(firstPx, 16),
+                    spaceAbovePx: breaks ? parseFloat(getComputedStyle(first!).getPropertyValue('--space-before')) || 0 : 0,
                   },
                 });
                 continue;
@@ -1683,6 +1689,8 @@ export const PageBreaks = Extension.create({
             const pageTopBlocks: { from: number; to: number }[] = [];
             // Top-level blocks a section's own side margins inset, keyed by doc position.
             const sectionInsets = new Map<number, { to: number; left: number; right: number }>();
+            // Columns sections whose page break keeps their first block's space above.
+            const sectionTops: { from: number; to: number; px: number }[] = [];
             // Parts of a block moved across to their own page's sides (placeSides).
             const sideShifts: { from: number; to: number; dx: number; inline: boolean; end?: boolean }[] = [];
             // Close/open bands for in-cell + between-rows table breaks. Keyed by the
@@ -1762,6 +1770,12 @@ export const PageBreaks = Extension.create({
               // outside the box the leaf is measured by, less the space below the block
               // before it, which LibreOffice still collapses with it (probed: 24 − 6pt → 18).
               const keeps = !!leaf.forceBreakBefore && spacingAtStart;
+              const sectionTop = keeps ? Math.max(0, (leaf.columnsFragment?.spaceAbovePx ?? 0) - (leaves[i - 1]?.spaceAfter ?? 0)) : 0;
+              if (sectionTop > 0.5) {
+                const from = docPosBeforeElement(leaf.el);
+                const node = from !== null ? editorView.state.doc.nodeAt(from) : null;
+                if (from !== null && node) sectionTops.push({ from, to: from + node.nodeSize, px: Math.round(sectionTop) });
+              }
               const kept = keeps && !leaf.inTableCell ? Math.max(0,
                 (parseFloat(getComputedStyle(leaf.el).marginTop) || 0) - (leaves[i - 1]?.spaceAfter ?? 0)) : 0;
               // A section's first page uses its "first" reaches, every other page its
@@ -2153,7 +2167,7 @@ export const PageBreaks = Extension.create({
             }
             return {
               anchorPages, maxEffectiveBottom, sectionStartPages, placements, collapsedTrailing,
-              pageTopBlocks, sectionInsets, sideShifts, tableBands, leavesDebug, placementsDebug, grid,
+              pageTopBlocks, sectionInsets, sectionTops, sideShifts, tableBands, leavesDebug, placementsDebug, grid,
             };
           }
 
@@ -2197,7 +2211,7 @@ export const PageBreaks = Extension.create({
           }
           const {
             maxEffectiveBottom, sectionStartPages, placements, collapsedTrailing,
-            pageTopBlocks, sectionInsets, sideShifts, tableBands, leavesDebug, placementsDebug,
+            pageTopBlocks, sectionInsets, sectionTops, sideShifts, tableBands, leavesDebug, placementsDebug,
           } = placed;
 
           // Stack each page's notes up from its content end, in anchor order. The top
@@ -2228,6 +2242,7 @@ export const PageBreaks = Extension.create({
             (collapsedTrailing ? `|c${collapsedTrailing.from}` : '') +
             pageTopBlocks.map((b) => `|t${b.from}`).join('') +
             Array.from(sectionInsets, ([f, s]) => `|i${f}:${s.left}:${s.right}`).join('') +
+            sectionTops.map((t) => `|o${t.from}:${t.px}`).join('') +
             sideShifts.map((s) => `|s${s.from}-${s.to}:${s.dx}`).join('') +
             // The notes ride the same guard: a frozen layout would leave every footnote
             // at the position, and on the page, it used to belong to.
@@ -2301,6 +2316,7 @@ export const PageBreaks = Extension.create({
                 style: `--sec-inset-left:${s.left}px;--sec-inset-right:${s.right}px`,
               }));
             }
+            for (const t of sectionTops) decoArray.push(blockDeco(t.from, t.to, { style: `padding-top:${t.px}px` }));
             for (const s of sideShifts) {
               const attrs = { class: 'pb-shift', style: `--pb-shift:${s.dx}px` };
               decoArray.push(s.inline ? Decoration.inline(s.from, s.to, attrs, { inclusiveEnd: !!s.end }) : blockDeco(s.from, s.to, attrs));

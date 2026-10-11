@@ -655,11 +655,16 @@
 }
 /* Its first block sits flush with the column top — the space above it is dropped there,
    as at a page top (probed: LibreOffice starts both columns level). Zeroing the property
-   the two spacing models read beats the block's own inline value, which a margin wouldn't. */
-.paper .tiptap .columns-node > :first-child {
+   the two spacing models read beats the block's own inline value, which a margin wouldn't.
+   One breaking the page keeps it, read there by pageBreaks.ts as the section's own. */
+.paper .tiptap .columns-node > :first-child:not([data-page-break-before='page']) {
   --space-before: 0 !important;
   margin-top: 0;
   padding-top: 0;
+}
+.paper .tiptap .columns-node > :first-child[data-page-break-before='page'] {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
 }
 .paper .tiptap .columns-node > :last-child {
   margin-bottom: 0;

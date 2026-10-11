@@ -67,6 +67,8 @@ type BlockKind = 'body' | 'list' | 'cell' | 'zone';
 type RelInfo = { target: string; external: boolean };
 type Ctx = {
   styles: DocxStyles;
+  // A page break ending a body run of blocks with nothing after it to move (convertBlocks).
+  breakCarry?: boolean;
   // The document's main language tag (mainOfPair).
   mainLang: string | null;
   // Word styleId → registry name, and the ids blocks actually reference.
@@ -319,7 +321,11 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     ctx.leftMarginCm = twipToCm(intAttr(fc(sect, 'pgMar'), W, 'left') ?? 1440);
     ctx.rightMarginCm = twipToCm(intAttr(fc(sect, 'pgMar'), W, 'right') ?? 1440);
     ctx.sectionCols = groupCols[gi];
+    // A page break ending the last section moves this one's first block, which keeps its
+    // space above there (measured in LibreOffice), unlike one moved within a section.
+    const carried = gi > 0 && ctx.breakCarry;
     const inner = convertBlocks(g.els, ctx, 'body');
+    if (carried && inner[0] && SECTION_CARRIERS.has(inner[0].type)) inner[0].attrs = { ...(inner[0].attrs ?? {}), breakBefore: 'page' };
     // A section's own w:type says how it begins: a page-starting break (nextPage/odd/even,
     // or the default) puts its first block on a new page; continuous/nextColumn flow on.
     if (gi > 0 && !colsOnly[gi]) {
@@ -890,6 +896,7 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
     }
   }
   flush();
+  if (kind === 'body') ctx.breakCarry = breakPending;
   // A floating table's frame rides the block that follows it, the paragraph LibreOffice
   // anchors its own frame to; where no block does, it takes a paragraph of its own.
   for (let i = floatBoxes.length - 1; i >= 0; i--) {

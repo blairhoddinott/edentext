@@ -353,7 +353,8 @@ export const ColumnsFlow = Extension.create({
               const top = topWithin(el);
               // Mid-move (pageBreaks hasn't repositioned it yet) — measure next pass.
               if (top < band.start - 0.5 || top >= band.end) continue;
-              available = band.end - top;
+              // Less the space above a page break keeps on the section (pageBreaks.ts).
+              available = band.end - top - (parseFloat(getComputedStyle(el).paddingTop) || 0);
             }
             const count = Math.max(1, node.attrs.count as number);
             const children = Array.from(el.children).filter(
@@ -516,7 +517,7 @@ export const ColumnsFlow = Extension.create({
             if (!el || !el.classList.contains('columns-node')) continue;
             const top = topWithin(el);
             const page = vm.grid.pageAt(top);
-            const available = bandAt(vm, top).end - top;
+            const available = bandAt(vm, top).end - top - (parseFloat(getComputedStyle(el).paddingTop) || 0);
             const count = Math.max(1, node.attrs.count as number);
             const children = Array.from(el.children).filter(
               (c) => !(c as HTMLElement).dataset?.pageBreakSpacer,
