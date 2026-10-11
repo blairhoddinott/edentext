@@ -2471,6 +2471,52 @@ function applyParagraphFlagsDocx(bytes: Uint8Array): Uint8Array {
   return zipSync(out);
 }
 
+// Post-pack pass: the docx package ends each section in an empty paragraph of its own,
+// a blank line in Word that LibreOffice folds into the paragraph before, which loses its
+// space below. The section mark goes onto that paragraph instead, where Word writes it;
+// an empty one keeps its marker, which the importers drop as just that.
+function applySectionMarksDocx(bytes: Uint8Array): Uint8Array {
+  const files = unzipSync(bytes);
+  const doc = files['word/document.xml'];
+  if (!doc) return bytes;
+  const xml = strFromU8(doc);
+  const marker = /<w:p><w:pPr>(<w:sectPr\b[\s\S]*?<\/w:sectPr>)<\/w:pPr><\/w:p>/g;
+  let out = '', last = 0;
+  for (let m = marker.exec(xml); m; m = marker.exec(xml)) {
+    const before = xml.slice(last, m.index);
+    const start = before.endsWith('</w:p>') ? paragraphStart(before) : -1;
+    const prev = start < 0 ? '' : before.slice(start);
+    // One ending in a line break keeps it too: LibreOffice drops a break ending a section.
+    if (!/<w:(r|hyperlink)\b/.test(prev) || /<w:br\b[^>]*\/><\/w:r>(?:<w:bookmarkEnd\b[^>]*\/>)*<\/w:p>$/.test(prev)) {
+      out += before + m[0]; last = m.index + m[0].length; continue;
+    }
+    const own = /^(<w:p\b[^>]*>)(<w:pPr>[\s\S]*?<\/w:pPr>)?/.exec(prev)!;
+    const pPr = own[2]
+      ? own[2].includes('<w:pPrChange') ? own[2].replace('<w:pPrChange', `${m[1]}<w:pPrChange`) : own[2].replace(/<\/w:pPr>$/, `${m[1]}</w:pPr>`)
+      : `<w:pPr>${m[1]}</w:pPr>`;
+    out += before.slice(0, start) + own[1] + pPr + prev.slice(own[0].length);
+    last = m.index + m[0].length;
+  }
+  if (!last) return bytes;
+  files['word/document.xml'] = strToU8(out + xml.slice(last));
+  const zipped: Record<string, [Uint8Array, { level: 6 }]> = {};
+  for (const [path, data] of Object.entries(files)) zipped[path] = [data, { level: 6 }];
+  return zipSync(zipped);
+}
+
+// Where the top-level paragraph `xml` ends with opens: its own w:p, past any nested in a
+// drawing's text.
+function paragraphStart(xml: string): number {
+  const tags = [...xml.matchAll(/<w:p(?=[\s>/])[^>]*?(\/?)>|<\/w:p>/g)];
+  let depth = 0;
+  for (let i = tags.length - 1; i >= 0; i--) {
+    const t = tags[i];
+    if (t[0] === '</w:p>') depth++;
+    else if (!t[1] && --depth === 0) return t.index!;
+  }
+  return -1;
+}
+
 // ---- paragraphs ------------------------------------------------------------
 function alignOf(attrs: TiptapNode['attrs']): (typeof AlignmentType)[keyof typeof AlignmentType] | undefined {
   switch (attrs?.textAlign) {
@@ -3583,7 +3629,7 @@ export async function buildDocx(
     ...(balanceSpaces ? ['balanceSingleByteDoubleByteWidth'] : []),
     ...(spacingAtPageStart ? [] : ['suppressSpBfAfterPgBrk']),
   ]);
-  const marked = applyEmbeddedFontsDocx(spaced, fonts);
+  const marked = applySectionMarksDocx(applyEmbeddedFontsDocx(spaced, fonts));
   if (isEmptyPageDecor(decor)) return patchPackedXml(orderDocxSettings(marked));
   const pt = (cm: number) => (cm / 2.54) * 72;
   return patchPackedXml(orderDocxSettings(applyPageDecorDocx(marked, decor,

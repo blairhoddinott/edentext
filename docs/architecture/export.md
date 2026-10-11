@@ -84,6 +84,11 @@ DOCX sections use explicit header/footer references, including empty parts, to p
 "Link to Previous" behavior from leaking a prior section's zones. Section page breaks, odd/even
 and first-page variants, mirror margins, right-to-left layout, footnote settings, and page-number
 format belong on the relevant section properties.
+The `docx` package ends a section in an empty paragraph holding its `w:sectPr`, which Word shows
+as a blank line and LibreOffice folds into the paragraph before, losing that paragraph's space
+below. `applySectionMarksDocx` moves the `w:sectPr` onto the preceding paragraph, where Word writes
+it, unless that paragraph is empty (the importers drop such a marker paragraph) or ends in a line
+break (LibreOffice drops a break ending a section).
 
 Named styles use Word-compatible identifiers and built-in factory slots. Do not create a second
 factory definition for a built-in style: readers may discard the inheritance chain. Numbering
