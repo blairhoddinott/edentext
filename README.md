@@ -22,6 +22,11 @@
   <a href="https://edentext.app"><strong>▶ Open EdenText</strong></a>
 </p>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
+  <img src="docs/hero-light.webp" alt="EdenText editing a two-column newsletter, with its features marked">
+</picture>
+
 ---
 
 EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Just one URL away, or completely offline as a slim browser app — it opens with under 2 MB of download, dictionaries and fonts follow as needed[^1]. The interface comes in English, German, Spanish, French, Portuguese, Russian, Ukrainian, Japanese and Chinese (simplified and traditional).
