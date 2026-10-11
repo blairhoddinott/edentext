@@ -54,9 +54,9 @@ jobs:
         run: |
           awk -v h="## [${GITHUB_REF_NAME#v}]" 'index($0, h) == 1 { p = 1; next } p && /^## \[/ { exit } p' CHANGELOG.md > notes.md
           if [ -s notes.md ]; then
-            gh release create "$GITHUB_REF_NAME" "edentext-$GITHUB_REF_NAME.zip" --notes-file notes.md
+            gh release create "$GITHUB_REF_NAME" "edentext-$GITHUB_REF_NAME.zip" --title "$GITHUB_REF_NAME" --notes-file notes.md
           else
-            gh release create "$GITHUB_REF_NAME" "edentext-$GITHUB_REF_NAME.zip" --generate-notes
+            gh release create "$GITHUB_REF_NAME" "edentext-$GITHUB_REF_NAME.zip" --title "$GITHUB_REF_NAME" --generate-notes
           fi
 
   # Unsigned desktop installers from the same dist/, one runner per platform,
