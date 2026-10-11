@@ -84,6 +84,14 @@ describe('an imported index', () => {
     expect(toc(importOdt(odt)).attrs.entries.map((e: any) => [e.text, e.level])).toEqual([['One', 1], ['One.a', 2], ['Two', 1]]);
   });
 
+  it('reads a DOCX row level from its indent where its style names none', () => {
+    const r = (ind: number, t: string) => `<w:p><w:pPr><w:ind w:left="${ind}"/></w:pPr><w:r><w:t>${t}</w:t></w:r></w:p>`;
+    const bytes = zipSync({ 'word/document.xml': strToU8(`<?xml version="1.0"?>
+<w:document xmlns:w="${W}"><w:body><w:sdt><w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/></w:docPartObj></w:sdtPr>
+  <w:sdtContent><w:p><w:r><w:t>Contents</w:t></w:r></w:p>${r(360, 'One')}${r(720, 'One.a')}${r(360, 'Two')}</w:sdtContent></w:sdt></w:body></w:document>`) });
+    expect(toc(importDocx(bytes)).attrs.entries.map((e: any) => [e.text, e.level])).toEqual([['One', 1], ['One.a', 2], ['Two', 1]]);
+  });
+
   it('generates an ODF index whose body holds nothing, as LibreOffice does on load', () => {
     const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"';
     const odt = (body: string) => zipSync({ 'content.xml': strToU8(`<?xml version="1.0"?><office:document-content ${NS}>

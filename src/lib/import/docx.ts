@@ -416,6 +416,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     fonts: extractDocxFonts(files),
     warnings: [...warnings],
   };
+  rankRowLevels(result.content as Node);
   pruneImportedMarkers(result as unknown as Parameters<typeof pruneImportedMarkers>[0]);
   return result;
 }
@@ -626,12 +627,30 @@ function cachedIndexEntry(p: Element, ctx: Ctx, kind: IndexKind, pages: boolean)
   const name = ctx.styleNames.get(id);
   const levelMatch = name ? INDEX_LEVEL_STYLES[kind]?.exec(name) : /(\d+)$/.exec(id);
   const level = Number(levelMatch?.[1]) || 1;
+  const indent = levelMatch ? null : intAttr(fc(fc(p, 'pPr'), 'ind'), W, 'left') ?? intAttr(fc(fc(p, 'pPr'), 'ind'), W, 'start') ?? 0;
   // An alphabetical row with no number is a letter row, which is no entry, or — in a
   // level's own style — a term heading its subentries, which lists no page (`pages: []`).
   if (kind === 'alphabetical' && pages && !nums.length) {
     return levelMatch ? { text: body, level: Math.min(MAX_HEADING_LEVEL, level), page: 1, pages: [] } : null;
   }
-  return { text: body, level: Math.min(MAX_HEADING_LEVEL, level), page: nums[0] ?? 1, ...(nums.length > 1 ? { pages: nums } : {}) };
+  const entry: TocEntry = { text: body, level: Math.min(MAX_HEADING_LEVEL, level), page: nums[0] ?? 1, ...(nums.length > 1 ? { pages: nums } : {}) };
+  if (indent != null) rowIndents.set(entry, indent);
+  return entry;
+}
+
+// Rows whose style names no level (a web export's own) take it from how far in they sit,
+// as they are drawn: the least indented is level 1. Run once an index has all its rows.
+const rowIndents = new WeakMap<TocEntry, number>();
+function rankRowLevels(node: Node): void {
+  if (node.type === 'tableOfContents' && Array.isArray(node.attrs?.entries)) {
+    const entries = node.attrs.entries as TocEntry[];
+    const indents = [...new Set(entries.map((e) => rowIndents.get(e)).filter((v): v is number => v != null))].sort((a, b) => a - b);
+    if (indents.length > 1) for (const e of entries) {
+      const at = rowIndents.get(e);
+      if (at != null) e.level = Math.min(MAX_HEADING_LEVEL, indents.indexOf(at) + 1);
+    }
+  }
+  for (const c of node.content ?? []) rankRowLevels(c);
 }
 
 // Word's own cursor bookkeeping, never a reference target.
