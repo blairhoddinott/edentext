@@ -167,8 +167,7 @@ function bareTables(doc: N, marked: Marked, fmt: Fmt): N {
 const loContent = (doc: N, fmt: Fmt, marked: Marked) => bareTables(loNoise(stripFontHoist(normalize(unhoist(structuredClone(doc)))), fmt), marked, fmt);
 
 // The canonical options as LibreOffice hands them back: a chapter field's cached name is
-// recomputed (and via DOCX, a STYLEREF field is not read at all); a watermark rides a
-// header band it floors at 0.499cm, so a section without a header of its own grows by it.
+// recomputed (and via DOCX, a STYLEREF field is not read at all).
 function loOptions(canon: N, fmt: Fmt, opts: FuzzOptions, authored: boolean): N {
   // Via DOCX a zone's runs come back in the look LibreOffice gives fields and headings,
   // so there a zone compares by its text and fields alone.
@@ -201,9 +200,6 @@ function loOptions(canon: N, fmt: Fmt, opts: FuzzOptions, authored: boolean): N 
       if (!s.header && !s.headerFirst && !s.headerEven) s.headerDist = null;
     }
     for (const k of ['header', 'footer', 'headerFirst', 'footerFirst', 'headerEven', 'footerEven']) zoneFix(s[k]);
-    if (authored && fmt === 'odt' && (opts.decor.watermark || opts.foldMarks) && !s.header && !s.headerFirst && !s.headerEven && s.margins) {
-      s.margins.top = Math.round((s.margins.top + 0.499) * 1000) / 1000;
-    }
   }
   const out = fmt === 'docx' && authored ? docWideOddEven(canon) : canon;
   // Odd/even is document-wide in DOCX, but a section with no zone at all has nothing to

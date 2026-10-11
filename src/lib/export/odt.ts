@@ -3370,15 +3370,19 @@ function applyWatermarkOdf(odtBytes: Uint8Array, wm: Watermark | null): Uint8Arr
 
 // Splice out-of-flow decor shapes into EVERY header zone of the master page — the
 // first-page and even-page variants show them too, so a zone left out would blank the
-// decor on those pages. A document with no header gets one that reserves no band of
-// its own (LibreOffice still floors the band at 0.499cm, as for its own watermark).
+// decor on those pages. A zone with no paragraph gets one that reserves no band: a
+// Header paragraph would be a line's height LibreOffice pushes the body down by.
 function injectIntoHeaderZones(styles: string, shapes: string): string {
-  const blank = `<style:header><text:p text:style-name="Header">${shapes}</text:p></style:header>`;
-  const out = styles.replace(/<style:header-style\s*\/>/g, '<style:header-style><style:header-footer-properties fo:min-height="0cm" fo:margin-bottom="0cm"/></style:header-style>');
+  const shapePara = `<text:p text:style-name="EdenDecorBand">${shapes}</text:p>`;
+  const blank = `<style:header>${shapePara}</style:header>`;
+  const band = '<style:header-style><style:header-footer-properties fo:min-height="0cm" fo:margin-bottom="0cm"/></style:header-style>';
+  const out = styles.replace(/<style:header-style\s*\/>/g, band)
+    .replace(/(<style:page-layout\b[^>]*>)((?:(?!<\/style:page-layout>)[\s\S])*?)(<style:footer-style|<\/style:page-layout>)/g,
+      (m, open, body, end) => (body.includes('<style:header-style') ? m : `${open}${body}${band}${end}`));
   // Every master page, the section masters included: the decor shows on their pages too.
   // Self-closing first, or a greedy attribute run eats the `/` and the open form swallows
   // an empty master page together with the next one's closing tag.
-  return out.replace(/<style:master-page\b[^>]*\/>|<style:master-page\b[^>]*>[\s\S]*?<\/style:master-page>/g, (master) => {
+  const masters = out.replace(/<style:master-page\b[^>]*\/>|<style:master-page\b[^>]*>[\s\S]*?<\/style:master-page>/g, (master) => {
     if (!/<style:header[\s/>]/.test(master)) {
       return master.endsWith('/>')
         ? master.replace(/\/>$/, () => `>${blank}</style:master-page>`)
@@ -3388,12 +3392,14 @@ function injectIntoHeaderZones(styles: string, shapes: string): string {
       (_m, selfSuffix: string | undefined, suffix: string | undefined, inner: string | undefined) => {
         const tag = `style:header${selfSuffix ?? suffix ?? ''}`;
         const para = inner == null ? null : /<text:p\b[^>]*?(\/?)>/.exec(inner);
-        if (inner == null || !para) return `<${tag}><text:p text:style-name="Header">${shapes}</text:p>${inner ?? ''}</${tag}>`;
+        if (inner == null || !para) return `<${tag}>${shapePara}${inner ?? ''}</${tag}>`;
         // Into the zone's first paragraph, wherever it sits: one of its own would add a line.
         const opened = para[1] ? `${para[0].slice(0, -2)}>${shapes}</text:p>` : `${para[0]}${shapes}`;
         return `<${tag}>${inner.slice(0, para.index)}${opened}${inner.slice(para.index + para[0].length)}</${tag}>`;
       });
   });
+  return !masters.includes('"EdenDecorBand"') || masters.includes('style:name="EdenDecorBand"') ? masters
+    : injectAutomaticStyles(masters, '<style:style style:name="EdenDecorBand" style:family="paragraph"><style:paragraph-properties fo:line-height="0.01cm" fo:margin-top="0cm" fo:margin-bottom="0cm"/><style:text-properties fo:font-size="1pt"/></style:style>');
 }
 
 // Fold + punch marks as named <draw:line>s in the master page's header — the one place
