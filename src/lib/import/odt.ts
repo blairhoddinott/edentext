@@ -1576,9 +1576,13 @@ function convertToc(el: Element, ctx: Ctx, indexKind: IndexKind): Node {
     const styles = templates.map((tpl) => citationStyleFromTemplate(
       Array.from(tpl.getElementsByTagNameNS(NS.text, 'index-entry-bibliography'))
         .map((f) => f.getAttributeNS(NS.text, 'bibliography-data-field') ?? '')));
+    // Every citation showing a bare [n] is a numbered style a Word file cached, which
+    // LibreOffice's DOCX reader passes on as text alone.
+    const marks = Array.from(el.ownerDocument.getElementsByTagNameNS(NS.text, 'bibliography-mark'));
+    const cachedNumbers = marks.length > 0 && marks.every((m) => /^\s*\[\d+\]\s*$/.test(m.textContent ?? ''));
     attrs.citationStyle = ctx.resolver.bibliographyNumbered() || source?.getAttributeNS(NS.text, 'numbered-entries') === 'true'
       ? 'numbered'
-      : styles.find((st) => st && st !== 'key') ?? 'key';
+      : styles.find((st) => st && st !== 'key') ?? (cachedNumbers ? 'numbered' : 'key');
   }
   const pages = attrs.pageNumbers !== false && indexKind !== 'bibliography';
   const entries: TocEntry[] = [];
@@ -2795,6 +2799,10 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             // travels with it; the element's text is what the citation showed.
             if (e.localName === 'bibliography-mark') {
               const entry = bibEntryFromMark(e);
+              // Space the producer kept inside the mark is the text's: the label the
+              // editor draws has none, so it would close up on the word before.
+              const lead = /^\s+/.exec(e.textContent ?? '')?.[0];
+              if (entry && lead) pushText(lead.replace(/\s+/g, ' '), props, linkHref);
               if (entry) { out.push(entry); continue; }
             }
             // Other text fields (title, …) store their evaluated value as element

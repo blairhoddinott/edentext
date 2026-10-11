@@ -44,10 +44,14 @@ describe('bibliography', () => {
 
   it('reads a Word field code LibreOffice left as an ODF identifier as its tag', () => {
     const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"';
-    const odt = zipSync({ 'content.xml': strToU8(`<office:document-content ${NS}><office:body><office:text><text:p>`
-      + '<text:bibliography-mark text:identifier=" CITATION Bam00 \\l 1031 " text:bibliography-type="article" text:title="[4]">[4]</text:bibliography-mark>'
-      + '</text:p></office:text></office:body></office:document-content>') });
-    expect((importOdt(odt).content as any).content[0].content[0].attrs).toMatchObject({ identifier: 'Bam00', fields: {} });
+    const odt = zipSync({ 'content.xml': strToU8(`<office:document-content ${NS}><office:body><office:text><text:p>see`
+      + '<text:bibliography-mark text:identifier=" CITATION Bam00 \\l 1031 " text:bibliography-type="article" text:title="[4]"> [4]</text:bibliography-mark>'
+      + '</text:p><text:bibliography text:name="B"><text:index-body/></text:bibliography></office:text></office:body></office:document-content>') });
+    const doc = importOdt(odt).content as any;
+    // The space before the cached [4] stays text; the cached numbers make the style numbered.
+    expect(doc.content[0].content.map((n: any) => n.text ?? n.type)).toEqual(['see ', 'bibliographyEntry']);
+    expect(doc.content[0].content[1].attrs).toMatchObject({ identifier: 'Bam00', fields: {} });
+    expect(doc.content[1].attrs.citationStyle).toBe('numbered');
   });
 
   it('maps Word source types back, unknown ones to misc', () => {
