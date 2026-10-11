@@ -54,3 +54,14 @@ describe('plainPastedSpaces', () => {
     expect(out.content.child(1).textContent).toBe('10\u00a0ms and more');
   });
 });
+
+describe('a pasted or browser-styled size', () => {
+  it('reads a px size as the pt the model and both formats count in', async () => {
+    const { DOMParser } = await import('@tiptap/pm/model');
+    const html = new window.DOMParser().parseFromString('<p><span style="font-size: 18.6667px">a</span><span style="font-size: 11pt">b</span></p>', 'text/html');
+    const doc = DOMParser.fromSchema(schema).parse(html.body);
+    const sizes: unknown[] = [];
+    doc.descendants((n) => { if (n.isText) sizes.push(n.marks.find((m) => m.type.name === 'textStyle')?.attrs.fontSize); });
+    expect(sizes).toEqual(['14pt', '11pt']);
+  });
+});

@@ -11,6 +11,7 @@ import { Link } from './extensions/link';
 import { Bookmark } from './extensions/bookmark';
 import { Comment } from './extensions/comment';
 import { TextStyle, FontSize } from '@tiptap/extension-text-style';
+
 import { FontFamily } from './extensions/fontFamily';
 import { FontWeight } from './extensions/fontWeight';
 import { FontColor } from './extensions/fontColor';
@@ -88,6 +89,11 @@ import { markupView } from '../storage/markup.svelte';
 import { loadDocProperties } from '../storage/docProperties';
 import { Insertion, Deletion, TrackChanges } from './extensions/trackChanges';
 
+const pxToPt = (size: string): string | null => {
+  const px = /^([\d.]+)px$/.exec(size)?.[1];
+  return px ? `${Math.round(Number(px) * 0.75 * 10) / 10}pt` : size || null;
+};
+
 const CELL_CONTENT = '(paragraph | heading | bulletList | orderedList)+';
 const LIST_ITEM_CONTENT = '(paragraph | heading) (paragraph | heading | bulletList | orderedList)*';
 
@@ -119,7 +125,14 @@ export const extensions = [
   Superscript.extend({ excludes: 'subscript superscript' }),
   TextStyle,
   FontFamily,
-  FontSize,
+  // The browser's own editing and a web page's paste style a size in px; the model, the
+  // size box and both formats count in pt.
+  FontSize.extend({
+    addGlobalAttributes() {
+      return (this.parent?.() ?? []).map((g) => ({ ...g, attributes: { fontSize: { ...g.attributes.fontSize,
+        parseHTML: (el: HTMLElement) => pxToPt(el.style.fontSize) } } }));
+    },
+  }),
   FontWeight,
   FontColor,
   // Letter case, raised/lowered runs and the line styles of underline/strikethrough.
