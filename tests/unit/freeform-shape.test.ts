@@ -216,7 +216,8 @@ describe('an ODF shape group', () => {
       + '<draw:g><draw:ellipse draw:style-name="gr1" svg:x="8cm" svg:y="3cm" svg:width="1cm" svg:height="1cm"><text:p/></draw:ellipse></draw:g>'
       + '</draw:g></text:p>', group));
     const [rect, ellipse] = shapes(r);
-    expect(rect.attrs).toMatchObject({ wrap: 'through', inFront: true, wrapOffset: 5, wrapOffsetY: 1, fillColor: '#FFD320' });
+    // A rectangle that does not grow with its text keeps its height (a thin bar as a rule).
+    expect(rect.attrs).toMatchObject({ wrap: 'through', inFront: true, wrapOffset: 5, wrapOffsetY: 1, fillColor: '#FFD320', fixedHeight: true });
     expect(ellipse.attrs).toMatchObject({ shapeKind: 'ellipse', wrap: 'through', inFront: true, wrapOffset: 8, wrapOffsetY: 3 });
     expect([...r.warnings]).toEqual([]);
   });

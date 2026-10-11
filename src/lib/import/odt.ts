@@ -744,6 +744,9 @@ function convertShape(el: Element, ctx: Ctx): Node | null {
   if (wCm != null) attrs.width = framePx(cmToPx(wCm));
   if (hCm != null) attrs.height = framePx(cmToPx(hCm));
   const gp = ctx.resolver.graphicProps(el.getAttributeNS(NS.draw, 'style-name'));
+  // A rectangle keeps its height unless it grows with its text: a rule drawn as a
+  // 0.5mm bar holds an empty paragraph it must not grow to.
+  if (el.localName === 'rect' && hCm != null && gp['draw:auto-grow-height'] !== 'true') attrs.fixedHeight = true;
   applyFrameRotationAndWrap(el, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm);
   boxWrapAlign(gp, attrs);
   shapeStyleAttrs(gp, attrs, true);
