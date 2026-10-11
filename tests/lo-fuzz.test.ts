@@ -44,6 +44,12 @@ function loNoise(node: N, fmt: Fmt): N {
     else if ((k === 'marginLeft' || k === 'marginRight') && typeof v === 'number') { if (Math.abs(v) < 0.05) delete a[k]; else a[k] = Math.round(v * 10) / 10; }
     else if ((k === 'bulletChar' || k === 'textVertical' || k === 'alt') && fmt === 'docx') delete a[k];
     else if (k === 'textPosition' && typeof v === 'number') a[k] = Math.round(v * 2) / 2;
+    // A frame's gap goes through twips (0.5cm back as 0.499); from DOCX a stroked shape's
+    // comes back less some of its line, by no rule a reader could invert.
+    else if (k === 'wrapDist' && typeof v === 'string') {
+      if (fmt === 'docx' && a.strokeColor) delete a[k];
+      else a[k] = v.split('/').map((x) => String(Math.round(Number(x) * 100) / 100)).join('/');
+    }
     // 24.2 stores a shape's line width in 1/100 mm and hands 2pt back as 2.02.
     else if (k === 'strokeWidthPt' && typeof v === 'number') a[k] = Math.round(v * 4) / 4;
     else if (k.startsWith('border') && typeof v === 'string') a[k] = v.replace(/^([\d.]+)pt/, (_m, w) => `${Math.round(Number(w) * 4) / 4}pt`);
