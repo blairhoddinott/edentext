@@ -69,6 +69,15 @@ try {
     await page.waitForTimeout(2000);
 
     for (const shot of built.shots) {
+      // An `ai` exchange is stored as the document's chat, under a provider that is set up
+      // but never asked, so the pane shows it instead of its setup hint.
+      await page.evaluate(async (ai) => {
+        const { saveAiChat } = await import('/src/lib/storage/aiChat.ts');
+        const entry = (role, text) => ({ role, text, tools: [], error: '' });
+        saveAiChat(ai && { entries: [entry('user', ai.question), entry('assistant', ai.answer)], history: [] });
+        if (ai) localStorage.setItem('edentext-ai', JSON.stringify({ enabled: true, provider: 'openai', endpoint: 'http://localhost:1/v1', model: 'showcase' }));
+        else localStorage.removeItem('edentext-ai');
+      }, shot.ai ?? null);
       await reloadWith({
         'edentext-theme': shot.theme ?? 'light',
         'edentext-zoom': String(shot.zoom ?? 100),
@@ -103,6 +112,7 @@ try {
         if (first) view.commands.focus(view.view.posAtDOM(first, 0) + 1, { scrollIntoView: false });
       }, { page: shot.page ?? 1, at: shot.at, caret: shot.caret });
       if (shot.tab) await page.click(`.ribbon-tab[data-tab="${shot.tab}"]`);
+      if (shot.ai) await page.click('.rb-ai button');
       await page.waitForTimeout(500);
       await page.screenshot({ path: join(OUT, `${shot.file}.png`) });
       console.log(`  ${shot.file}.png`);

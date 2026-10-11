@@ -19,6 +19,18 @@ const CHART = svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="560" he
 </svg>`);
 
 const AUTHOR = 'Nora Weiland';
+
+const AI_EXCHANGE = {
+  question: 'Does section 3.1 define every symbol it uses?',
+  answer: '<p>All but one. The first paragraph introduces the line boxes <em>l</em><sub>1</sub> … <em>l</em><sub><em>n</em></sub>, '
+    + 'their heights <em>h</em><sub><em>i</em></sub> and the text height <em>H</em>; the paragraph after the cost formula defines '
+    + '<em>w</em><sub><em>k</em></sub>, <em>o</em><sub><em>k</em></sub>, <em>s</em><sub><em>k</em></sub>, <em>f</em><sub><em>k</em></sub> '
+    + 'and the weights <em>α</em>, <em>β</em>, <em>γ</em>, <em>λ</em>.</p>'
+    + '<p>The gap is <strong><em>b</em><sub>0</sub></strong>: the first page holds the lines from <em>b</em><sub>0</sub> up to '
+    + '<em>b</em><sub>1</sub>, but only <em>b</em><sub>1</sub> … <em>b</em><sub><em>m</em></sub> are defined. Adding '
+    + '“with <em>b</em><sub>0</sub> = 0” after the break positions closes it.</p>'
+    + '<p>Shall I insert that as a tracked change?</p>',
+};
 const REVIEWER = 'Prof. Halvorsen';
 const BOOKMARK = (name: string) => ({ type: 'bookmark', attrs: { name } });
 const REF = (name: string, format: 'text' | 'page', text: string): N =>
@@ -188,8 +200,8 @@ export function build(review = false): Showcase {
     shots: review
       ? [{ file: 'thesis-review', at: 'Introduction', markup: true, tab: 'review' }]
       : [
-        { file: 'thesis', at: 'Method' },
-        { file: 'thesis-dark', at: 'Method', theme: 'dark' },
+        { file: 'thesis', at: 'Method', ai: AI_EXCHANGE },
+        { file: 'thesis-dark', at: 'Method', theme: 'dark', ai: AI_EXCHANGE },
         { file: 'thesis-contents', at: 'Contents', tab: 'references' },
         { file: 'thesis-overview', page: 1, zoom: 50, columns: 2, tab: 'view' },
       ],

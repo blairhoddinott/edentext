@@ -95,6 +95,8 @@ export type Shot = {
   columns?: number; markup?: boolean; spelling?: boolean;
   /** The ribbon tab to open, and where to put the caret (first match in view). */
   tab?: string; caret?: string;
+  /** A question and the assistant's HTML answer, shown in the open AI pane. */
+  ai?: { question: string; answer: string };
 };
 
 export type Showcase = {
