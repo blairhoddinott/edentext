@@ -800,8 +800,12 @@ export class StyleResolver {
     if (leftPage === rest) rest = twin;
     // A hand-over whose one page shows the very zones its successor runs (the left ones
     // on a left page) opens the section on that side; only other zones make a first page.
+    // Style names, a shape's stacking number (LibreOffice counts them across the file), a
+    // list's link to the one before and a page field's cached value say nothing about it.
     const sig = (el: Element | null) => (el
-      ? Array.from(el.childNodes, (n) => new XMLSerializer().serializeToString(n)).join('').replace(/ (?:text|style):style-name="[^"]*"/g, '')
+      ? Array.from(el.childNodes, (n) => new XMLSerializer().serializeToString(n)).join('')
+        .replace(/ (?:(?:text|style|draw):style-name|draw:text-style-name|draw:z-index|text:continue-numbering|text:continue-list|xml:id)="[^"]*"/g, '')
+        .replace(/(<text:(?:page-number|page-count|chapter)\b[^>]*>)[^<]*/g, '$1')
       : '');
     const sameAsRest = (local: string) => sig(zoneIn(mp, local))
       === sig((this.pageUsage(mp) === 'left' ? zoneIn(rest, `${local}-left`) : null) ?? zoneIn(rest, local));
