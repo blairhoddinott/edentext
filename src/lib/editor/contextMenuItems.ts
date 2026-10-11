@@ -7,7 +7,7 @@ import { OPEN_COMMENT_EVENT } from './extensions/comment';
 import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames } from './extensions/bookmark';
 import { OPEN_CROSS_REF_DIALOG_EVENT, hasRefTargets } from './extensions/crossReference';
 import { OPEN_THESAURUS_EVENT } from '../spell/thesaurus';
-import { aiEnabled, OPEN_AI_CHAT_EVENT, OPEN_AI_PROMPT_EVENT } from '../storage/ai.svelte';
+import { aiEnabled, OPEN_AI_CHAT_EVENT } from '../storage/ai.svelte';
 import { COMMANDS } from '../ai/commands';
 
 // The right-click menu's contents, the usual text menu mapped onto this editor. Pure
@@ -109,13 +109,14 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
   // Shown while the assistant is off too, greyed, so the way to turn it on is findable.
   if (editor.schema.marks.insertion) {
     const ai = t().ai;
-    const rewrite = (preset?: string) => () => window.dispatchEvent(new CustomEvent(OPEN_AI_PROMPT_EVENT, { detail: { preset } }));
-    const chat = (prefill: string) => () => window.dispatchEvent(new CustomEvent(OPEN_AI_CHAT_EVENT, { detail: { prefill } }));
+    const chat = (prefill: string, send = false) => () => window.dispatchEvent(new CustomEvent(OPEN_AI_CHAT_EVENT, { detail: { prefill, send } }));
     entries.push(
       { kind: 'sub', label: ai.group, disabled: !aiEnabled(), title: aiEnabled() ? undefined : ai.offHint, items: [
-        ...COMMANDS.filter((c) => c.preset).map((c): MenuEntry => ({ kind: 'item', label: ai.presets[c.preset!], disabled: !hasSelection, run: rewrite(c.preset) })),
+        // A preset runs in the chat at once; translate waits there for its language.
+        ...COMMANDS.filter((c) => c.preset).map((c): MenuEntry => ({ kind: 'item', label: ai.presets[c.preset!], disabled: !hasSelection,
+          run: c.preset === 'translate' ? chat('/translate ') : chat(`/${c.name}`, true) })),
         { kind: 'sep' },
-        { kind: 'item', label: ai.rewriteMenu, disabled: !hasSelection, run: rewrite() },
+        { kind: 'item', label: ai.rewriteMenu, disabled: !hasSelection, run: chat('/rewrite ') },
         { kind: 'item', label: ai.draftMenu, hint: shortcutHint('aiDraft'), run: chat('/draft ') },
         { kind: 'item', label: ai.openChat, run: chat('') },
       ] },

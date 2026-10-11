@@ -16,9 +16,7 @@ export type AiConfig = Omit<AiSettings, 'enabled'>;
 
 const KEY = 'edentext-ai';
 
-/** Opens the popover that rewrites the selection. */
-export const OPEN_AI_PROMPT_EVENT = 'edentext-ai-prompt';
-/** Opens the chat pane; detail `{ prefill }` fills its field, e.g. `/draft `. */
+/** Opens the chat pane; detail `{ prefill, send }` fills its field, e.g. `/draft `, or sends it. */
 export const OPEN_AI_CHAT_EVENT = 'edentext-ai-chat';
 /** A comment or reply named the assistant; detail `{ id }` is the thread to answer. */
 export const AI_COMMENT_EVENT = 'edentext-ai-comment';

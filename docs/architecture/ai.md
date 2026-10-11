@@ -13,7 +13,7 @@ endpoint, apiKey, model, contextTokens, mode, side, commands}`. On is the defaul
 - the AI button at the right end of every ribbon tab (`aiPane`) and its command-search entry;
 - the context menu's AI submenu (body editor only), which stays, greyed with a hint
   pointing to Settings ▸ AI;
-- `Alt+I`, the pane and the popover.
+- `Alt+I` and the pane.
 
 `App.svelte` aborts every request in flight when the switch goes off. The network is gated
 in the types as well: `ai/client.ts` is the only `fetch`, and it needs an `AiConfig`, which
@@ -31,7 +31,6 @@ Pages origin can read it, and the settings row says so.
 | `ai/tools.ts` | Tool schemas, `runTool`, the chat turn `runTurn`, prompts, and the abort registry |
 | `ai/commands.ts` | Slash commands (`parseCommand`, `commandRequest`) and the helpers that place a reply |
 | `components/AiPane.svelte` | Docked chat, right of the pages or left (`side` in `edentext-ai`, Settings ▸ AI; `order: -1` in the editor row). The history survives closing the pane and a reload (`storage/aiChat.ts`, doc-scoped `edentext-ai-chat`, written once a reply is complete); a new or opened document starts a new one |
-| `components/AiPrompt.svelte` | Popover for a quick rewrite of the selection, with a preview first |
 
 ## Document in, content out
 
@@ -130,8 +129,9 @@ has the tools in Edit mode; the chat shows what was typed. A built-in name wins,
 says so; the `/` list shows own commands after the built-ins, labelled by the prompt's first line.
 
 Drafting has no window of its own: the context menu and `Alt+I` open the chat with
-`/draft ` filled in (`OPEN_AI_CHAT_EVENT`, `askAi`). The popover only rewrites; the
-context menu's presets open it and start at once (`OPEN_AI_PROMPT_EVENT` with a `preset`).
+`/draft ` filled in (`OPEN_AI_CHAT_EVENT`, `askAi`). Rewriting has none either: with a
+selection the chat shows the presets as chips, and they and the context menu's presets send
+the command at once (`send` in the event); translate and Rewrite… fill the field instead.
 
 ## Providers
 

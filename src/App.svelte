@@ -75,7 +75,6 @@
   import ConnectorLayer from './lib/components/ConnectorLayer.svelte';
   import NavigatorPane from './lib/components/NavigatorPane.svelte';
   import AiPane, { askAi, resetAiChat } from './lib/components/AiPane.svelte';
-  import AiPrompt from './lib/components/AiPrompt.svelte';
   import { aiConfig, aiAnswering, aiEnabled, AI_COMMENT_EVENT, OPEN_AI_CHAT_EVENT } from './lib/storage/ai.svelte';
   import { aiErrorText, isAbort } from './lib/ai/client';
   import { abortAll as abortAiRequests, answerComment, mentionsAi, startRequest, endRequest, type AiHost } from './lib/ai/tools';
@@ -385,12 +384,12 @@
   $effect(() => { if (!aiEnabled()) abortAiRequests(); });
   // Not on mount: the chat kept with this document survives a reload.
   $effect(() => { if (documentEpoch) { abortAiRequests(); resetAiChat(); } });
-  function openAiChat(prefill: string) {
+  function openAiChat(prefill: string, send = false) {
     aiOpen = true;
-    askAi(prefill);
+    askAi(prefill, send);
   }
   $effect(() => {
-    const onChat = (e: Event) => openAiChat((e as CustomEvent<{ prefill: string }>).detail.prefill);
+    const onChat = (e: Event) => { const d = (e as CustomEvent<{ prefill: string; send?: boolean }>).detail; openAiChat(d.prefill, d.send); };
     window.addEventListener(OPEN_AI_CHAT_EVENT, onChat);
     return () => window.removeEventListener(OPEN_AI_CHAT_EVENT, onChat);
   });
@@ -1980,9 +1979,6 @@
     <ConnectorLayer {editor} {tick} />
   {/if}
   </div>
-  {#if aiEnabled()}
-    <AiPrompt {editor} />
-  {/if}
   {#if findOpen && editor}
     <div class="find-bar-anchor" style="top: {toolbarRegionH + 8}px;">
       <FindReplaceBar {editor} {tick} mode={findMode} focusNonce={findNonce} onClose={closeFind} />

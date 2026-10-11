@@ -1177,7 +1177,8 @@ try {
       : { content: '<p>A slow fox.</p>' };
     await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: sse(reply) });
   });
-  await page.evaluate(() => localStorage.clear());
+  // On by default; switched off and stored, as a user would.
+  await page.evaluate(() => { localStorage.clear(); localStorage.setItem('edentext-ai', JSON.stringify({ enabled: false })); });
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('.tiptap', { timeout: 15_000 });
   await page.click('.tiptap');
@@ -1187,8 +1188,8 @@ try {
   const offMenu = await page.$eval('.cm-item[aria-haspopup]', (e) => ({ disabled: e.getAttribute('aria-disabled'), hint: e.title, sub: !!document.querySelector('.cm-sub') }));
   await page.keyboard.press('Escape');
   await page.keyboard.press('Alt+i');
-  check(!(await page.$('[data-cmd="aiPane"]')) && offMenu.disabled === 'true' && /Settings/.test(offMenu.hint) && !offMenu.sub
-    && !(await page.evaluate(() => document.querySelector('.aip')?.matches(':popover-open'))) && aiRequests === 0,
+  check(!(await page.$('[data-cmd="aiPane"]')) && !(await page.$('.ai-pane')) && offMenu.disabled === 'true' && /Settings/.test(offMenu.hint) && !offMenu.sub
+    && aiRequests === 0,
   `with the assistant off, no AI button or window shows, the menu's AI entry is greyed with a hint, and nothing is sent (${JSON.stringify(offMenu)})`);
 
   await page.waitForFunction(() => (localStorage.getItem('edentext-doc') ?? '').includes('quick'), null, { timeout: 15_000 });
@@ -1217,10 +1218,10 @@ try {
   await page.click('.tiptap', { button: 'right' });
   await page.hover('.cm-item[aria-haspopup]');
   await page.locator('.cm-sub .cm-item', { hasText: 'Shorten' }).click();
-  await page.waitForFunction(() => (document.querySelector('.aip-preview')?.textContent ?? '').includes('A slow fox.'), null, { timeout: 10_000 }).catch(() => {});
-  await page.locator('.aip button', { hasText: 'Replace' }).click();
+  await page.locator('.ai-pane .act', { hasText: 'Replace' }).last().click({ timeout: 10_000 }).catch(() => {});
   const rewritten = await page.evaluate(() => document.querySelector('.tiptap')?.textContent);
-  check(rewritten === 'A slow fox.', `a rewrite from the menu's AI submenu replaces the selection (${rewritten})`);
+  const paneEnd = rewritten === 'A slow fox.' ? '' : await page.evaluate(() => document.querySelector('.ai-pane .messages')?.textContent?.replace(/\s+/g, ' ').slice(-200));
+  check(rewritten === 'A slow fox.', `a rewrite from the menu's AI submenu runs in the chat and replaces the selection (${rewritten}${paneEnd ? `; pane: ${paneEnd}` : ''})`);
 
   await page.click('.tiptap');
   await page.keyboard.press('Alt+i');

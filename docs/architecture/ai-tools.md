@@ -77,7 +77,7 @@ The assistant as a whole: `docs/architecture/ai.md`.
 - **Paragraph numbers** come from the turn's snapshot. Every transaction during the turn
   is appended to a `Mapping`, so a number still finds its paragraph after earlier edits.
   Inserted paragraphs only get a number in the next turn.
-- **Commands and the popover** insert like a paste. While recording is on, the change is
+- **Commands** insert like a paste. While recording is on, the change is
   tracked under the user's own name.
 
 ## Coverage

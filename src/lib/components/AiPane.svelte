@@ -15,9 +15,11 @@
   let entries = $state<Entry[]>(Array.isArray(stored?.entries) ? stored.entries : []);
   let history: ChatMessage[] = Array.isArray(stored?.history) ? stored.history : [];
   let prefill = $state<string | null>(null);
+  let sendPrefill = false;
 
-  /** Fills the chat field, as the pane opens or while it is open. */
-  export function askAi(text: string): void {
+  /** Fills the chat field, or sends `text` at once, as the pane opens or while it is open. */
+  export function askAi(text: string, send = false): void {
+    sendPrefill = send;
     prefill = text;
   }
 
@@ -31,6 +33,7 @@
 
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
+  import { untrack } from 'svelte';
   import { t } from '../i18n/i18n.svelte';
   import { aiConfig, aiSettings, docBudget, setAi } from '../storage/ai.svelte';
   import { showChanges, setShowChanges } from '../storage/markup.svelte';
@@ -97,6 +100,9 @@
   }
 
   const SUGGESTIONS = ['summarize', 'keyPoints', 'proofread'] as const;
+  // The rewrite presets for the selection; translate waits in the field for its language.
+  const PRESETS = COMMANDS.filter((c) => c.preset);
+  const runPreset = (c: Command) => (c.preset === 'translate' ? askAi('/translate ') : void send(`/${c.name}`));
 
   // Keeps the newest message in view while it streams.
   $effect(() => {
@@ -141,11 +147,14 @@
   }
 
   $effect(() => {
-    if (prefill === null || !field) return;
+    // A command sent from the menu while a turn runs waits for it to end.
+    if (prefill === null || !field || (sendPrefill && busy)) return;
     const el = field;
-    // An empty prefill only focuses the field, keeping a half-typed question.
-    if (prefill) question = prefill;
+    const text = prefill;
     prefill = null;
+    if (sendPrefill) return void untrack(() => send(text));
+    // An empty prefill only focuses the field, keeping a half-typed question.
+    if (text) question = text;
     menuIndex = 0;
     queueMicrotask(() => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
   });
@@ -540,6 +549,11 @@
               <Icon name="close" size={12} />
             </button>
           </div>
+          <div class="chips-row presets">
+            {#each PRESETS as c (c.name)}
+              <button class="chip" disabled={busy} onclick={() => runPreset(c)}>{t().ai.presets[c.preset!]}</button>
+            {/each}
+          </div>
         {/if}
         {#if attached.length || attachError}
           <div class="chips-row">
@@ -743,6 +757,7 @@
   .row .send { margin-left: auto; }
   .chips-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   .chips-row .error { font-size: 0.72rem; }
+  .presets .chip { padding: 3px 9px; font-size: 0.75rem; }
   .files { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; white-space: normal; }
   .file { display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; opacity: 0.8; }
   .ai-pane.dragging::after { content: ''; position: absolute; inset: 4px; border: 2px dashed var(--w-accent); border-radius: 10px; background: var(--w-accent-soft); pointer-events: none; }
