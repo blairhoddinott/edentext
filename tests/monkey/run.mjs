@@ -117,6 +117,9 @@ const consoleErrors = [];
 page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
 
 const ed = (fn, arg) => page.evaluate(fn, arg);
+// ProseMirror reads a caret the browser moved from the next selectionchange; a key sent
+// before that acts on the old caret, which no typist is fast enough to do.
+const press = async (key) => { await page.keyboard.press(key); await ed(() => new Promise(requestAnimationFrame)); };
 const focused = async () => {
   const err = await ed(() => { try { document.querySelector('.tiptap-host .tiptap').editor.commands.focus(); return null; } catch (e) { return String(e); } });
   await page.waitForFunction(() => document.activeElement === document.querySelector('.tiptap-host .tiptap'), null, { timeout: 2000 }).catch(() => {});
@@ -255,7 +258,7 @@ async function editZone(r, zone) {
       const op = { page: p + 1, ...drawHfOp(r) };
       ops.push(op);
       if (op.type) await page.keyboard.type(op.type);
-      else if (op.key) await page.keyboard.press(op.key);
+      else if (op.key) await press(op.key);
       else if (op.field !== undefined) await clickish(page.locator('.hf-bar-btn').nth(op.field));
       else {
         const res = await hfCmd(op);
@@ -472,7 +475,7 @@ try {
           const err = await focused();
           if (err) broken = `focus threw: ${err}`;
           else if (op.type) await page.keyboard.type(op.type);
-          else await page.keyboard.press(op.key);
+          else await press(op.key);
         } else {
           const res = await runCmd(op);
           if (res.threw) broken = `${op.cmd} threw: ${res.threw}`;
