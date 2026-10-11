@@ -909,7 +909,10 @@ try {
   check(squiggle, 'the grammar check flags a wrong sentence in the browser');
 
   // A paragraph in its own language: the picker writes a real lang attribute, which is
-  // what the hyphenation and the browser's own spell check read.
+  // what the hyphenation and the browser's own spell check read. The sentence above keeps
+  // its DOM node and highlight for a frame, so it must be gone before a wait can trust one.
+  await page.evaluate(() => document.querySelector('.tiptap').editor.commands.setContent('<p></p>'));
+  await page.waitForFunction(() => !CSS.highlights.get('grammar-error')?.size, null, { timeout: 30_000 });
   await page.evaluate(() => document.querySelector('.tiptap').editor.commands.setContent(
     '<p>He go to the store.</p><p>Er geht zum Laden zum Laden.</p>'));
   await page.waitForFunction(() => CSS.highlights.get('grammar-error')?.size > 0,
