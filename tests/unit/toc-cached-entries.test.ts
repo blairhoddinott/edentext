@@ -74,6 +74,16 @@ describe('an imported index', () => {
       { text: '[1] A. Author, Title.', level: 1, page: 1 }, { text: '[2] B. Author, Other.', level: 1, page: 1 }]);
   });
 
+  it('reads a row level from its indent where its style names none', () => {
+    const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"';
+    const auto = (n: string, cm: number) => `<style:style style:name="${n}" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:margin-left="${cm}cm"/></style:style>`;
+    const row = (n: string, t: string) => `<text:p text:style-name="${n}">${t}</text:p>`;
+    const odt = zipSync({ 'content.xml': strToU8(`<?xml version="1.0"?><office:document-content ${NS}>
+      <office:automatic-styles>${auto('P4', 0.635)}${auto('P5', 1.27)}</office:automatic-styles>
+      <office:body><office:text><text:table-of-content text:name="T"><text:index-body>${row('P4', 'One')}${row('P5', 'One.a')}${row('P4', 'Two')}</text:index-body></text:table-of-content></office:text></office:body></office:document-content>`) });
+    expect(toc(importOdt(odt)).attrs.entries.map((e: any) => [e.text, e.level])).toEqual([['One', 1], ['One.a', 2], ['Two', 1]]);
+  });
+
   it('generates an ODF index whose body holds nothing, as LibreOffice does on load', () => {
     const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"';
     const odt = (body: string) => zipSync({ 'content.xml': strToU8(`<?xml version="1.0"?><office:document-content ${NS}>

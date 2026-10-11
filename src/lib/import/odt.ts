@@ -1587,6 +1587,12 @@ function convertToc(el: Element, ctx: Ctx, indexKind: IndexKind): Node {
   const pages = attrs.pageNumbers !== false && indexKind !== 'bibliography';
   const entries: TocEntry[] = [];
   const indexBody = el.getElementsByTagNameNS(NS.text, 'index-body')[0];
+  // Rows whose styles name no level (a converted file's own) take it from how far in they
+  // sit, as they are drawn: the least indented is level 1.
+  const indentOf = (style: string) => lengthToCm(ctx.resolver.paraProps(style)['fo:margin-left']) ?? 0;
+  const indentRanks = new Map([...new Set(Array.from(indexBody?.children ?? [])
+    .filter((p) => p.localName === 'p').map((p) => indentOf(p.getAttributeNS(NS.text, 'style-name') ?? '')))]
+    .sort((a, b) => a - b).map((cm, i) => [cm, Math.min(MAX_HEADING_LEVEL, i + 1)]));
   for (const p of Array.from(indexBody?.children ?? [])) {
     // A bibliography converted from a Word table holds one source per row.
     if (p.namespaceURI === NS.table && p.localName === 'table') {
@@ -1602,7 +1608,8 @@ function convertToc(el: Element, ctx: Ctx, indexKind: IndexKind): Node {
     const style = p.getAttributeNS(NS.text, 'style-name') ?? '';
     const levelOf = (name: string | null) => /(?:_20_| )(\d+)$/.exec(name ?? '');
     const m = levelOf(style) ?? levelOf(ctx.resolver.namedAncestor(style));
-    const level = m ? Math.min(MAX_HEADING_LEVEL, Math.max(1, parseInt(m[1], 10))) : 1;
+    const level = m ? Math.min(MAX_HEADING_LEVEL, Math.max(1, parseInt(m[1], 10)))
+      : indentRanks.get(indentOf(style)) ?? 1;
     const { text, page } = tocEntryTextAndPage(p, pages);
     const nums = page.split(/[,;]/).map((n) => parseInt(n, 10)).filter((n) => n > 0);
     if (!text) continue;
