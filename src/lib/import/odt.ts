@@ -377,13 +377,15 @@ function applyFrameRotationAndWrap(el: Element, attrs: Record<string, unknown>, 
 
 // A paragraph mark that declares nothing keeps the style's font, but the runs may all
 // agree on another one — then that is the paragraph's font, strut included. Without it
-// the taller style strut governs every line and the block renders too high.
+// the taller style strut governs every line and the block renders too high. A field's
+// text is a run too: it renders in the block's font, which it would otherwise change.
+const FONTLESS_INLINE = new Set(['hardBreak', 'image', 'textBox', 'formula', 'indexEntry']);
 export function applyUniformRunFont(attrs: Record<string, unknown>, content: { type: string; marks?: { type: string; attrs?: Record<string, unknown> }[] }[]): void {
   let family: string | null | undefined;
   let size: string | null | undefined;
   let runs = 0;
   for (const n of content) {
-    if (n.type !== 'text') continue;
+    if (FONTLESS_INLINE.has(n.type)) continue;
     const ts = (n.marks ?? []).find((m) => m.type === 'textStyle')?.attrs ?? {};
     const f = (ts.fontFamily as string) ?? null;
     const s = (ts.fontSize as string) ?? null;
