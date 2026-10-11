@@ -29,7 +29,7 @@
 
 ---
 
-EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Just one URL away, or completely offline as a slim browser app — it opens with under 2 MB of download, dictionaries and fonts follow as needed[^1]. The interface comes in English, German, Spanish, French, Portuguese, Russian, Ukrainian, Japanese and Chinese (simplified and traditional).
+EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Just one URL away, or completely offline as a slim browser app — it opens with under 2 MB of download for most languages, dictionaries and fonts follow as needed[^1]. The interface comes in English, German, Spanish, French, Portuguese, Russian, Ukrainian, Japanese and Chinese (simplified and traditional).
 
 > [!NOTE]
 > EdenText is young, in **beta** and actively developed — more features are on
@@ -185,7 +185,8 @@ own licenses — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 *EdenText is an independent project, not affiliated with Microsoft or The
 Document Foundation. `.docx` and `.odt` are supported for interoperability.*
 
-[^1]: Over the wire, compressed: ~0.6 MB of app code, the rest the spell checker with
-    the dictionary for the browser's language and the fonts a page shows. Everything else
-    is fetched and kept for offline use once it is needed; all fonts, dictionaries and
-    thesauri together are ~15 MB, or ~23 MB with the English grammar check.
+[^1]: Over the wire, compressed: ~0.7 MB of app code, the rest the spell checker with
+    the dictionary for the browser's language and the fonts a page shows; the Greek and
+    Ukrainian dictionaries add ~2.5 and ~1.5 MB. Everything else is fetched and kept for
+    offline use once it is needed; all fonts, dictionaries and thesauri together are
+    ~18 MB, or ~26 MB with the English grammar check.
