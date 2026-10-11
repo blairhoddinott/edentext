@@ -115,11 +115,14 @@ function loNoise(node: N, fmt: Fmt): N {
   if (node.type === 'textBox') for (const p of node.content ?? []) for (const k of Object.keys(p.attrs ?? {})) if (k === 'backgroundColor' || k.startsWith('border')) delete p.attrs[k];
   // A drawing shape's text (any box but a plain frame) is LibreOffice's own, poorer than
   // a frame's: character styles turn direct, bookmarks and fields go, the language is
-  // spelled out. Only its words compare; fuzz-roundtrip checks the rest through our reader.
-  // A preset's path is left out by normalize, so the preset names a shape too.
+  // spelled out, a ruby is its base text, a tracked deletion is carried out and trailing
+  // empty paragraphs go but one. Only its words compare; fuzz-roundtrip checks the rest
+  // through our reader. A preset's path is left out by normalize, so it names a shape too.
   if (fmt === 'odt' && node.type === 'textBox' && ((node.attrs?.shapeKind ?? 'textbox') !== 'textbox' || node.attrs?.shapePath || node.attrs?.shapePreset)) {
-    const words = (n: N): string => n.type === 'text' ? n.text : (n.content ?? []).map(words).join('');
+    const words = (n: N): string => n.type === 'text' ? (n.marks?.some((m: N) => m.type === 'deletion') ? '' : n.text)
+      : n.type === 'ruby' ? n.attrs.base : (n.content ?? []).map(words).join('');
     node.content = (node.content ?? []).map((b: N) => ({ type: 'paragraph', ...(words(b) ? { content: [{ type: 'text', text: words(b) }] } : {}) }));
+    while (node.content.length > 1 && !node.content[node.content.length - 1].content) node.content.pop();
   }
   if (node.content) {
     // Its DOCX reader drops an index mark; beside a ruby it moves one and flattens the
