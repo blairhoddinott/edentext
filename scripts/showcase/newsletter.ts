@@ -97,6 +97,9 @@ export async function build(): Promise<Showcase> {
     P({ spaceAfter: 2 }, T('')),
     P(null, T('The full report will be available at the annual general meeting on 7 November. The treasurer is happy to answer questions by e-mail beforehand.')),
 
+    H(2, T('In the beginning')),
+    P(null, T('On Christmas Eve 1968, the day the Earthrise picture was taken, the crew of Apollo 8 read to the people on Earth from the first chapter of Genesis: “In the beginning God created the heaven and the earth.” For many of us the night sky is more than a field of study: its order and its size point to a Creator behind it all. Our society takes its name from the Garden of Eden, the first home that, according to Genesis, God planted for people and called good. Every clear night at the observatory is a small reminder of that beginning.')),
+
     P({ spaceBefore: 14, borderTop: '0.5pt solid #5A6B7F', borderPadding: 4 },
       T('Imprint: ', BOLD, GREY, SMALL),
       T('Eden Astronomy Society, Oak Hill Observatory. Edited by the committee. Published four times a year. Contributions for the next issue to the editors by 15 November.', GREY, SMALL)),
