@@ -298,7 +298,9 @@ function framePair(r: Rng): N {
     return { type: 'image', attrs: a };
   };
   const flip = maybe(r, 0.5);
-  return { type: 'paragraph', content: [img(flip ? 'right' : 'left'), img(flip ? 'left' : 'right')] };
+  // One set below the first line sinks behind the other on import (sinkOffsetFrames).
+  const pair = [img(flip ? 'right' : 'left'), img(flip ? 'left' : 'right')];
+  return { type: 'paragraph', content: pair.sort((a, b) => (a.attrs.wrapOffsetY ?? 0) - (b.attrs.wrapOffsetY ?? 0)) };
 }
 
 // Adjacent equal-attr sections merge on export (a columnsFlow page split looks the
