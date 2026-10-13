@@ -298,25 +298,35 @@ describe('section markers', () => {
   });
 });
 
-describe('comment ranges inside a run wrapper', () => {
+describe('comment ranges inside a wrapper', () => {
   const comments = `<?xml version="1.0"?><w:comments xmlns:w="${W_NS}">`
     + [1, 2].map((id) => `<w:comment w:id="${id}" w:author="A"><w:p><w:r><w:t>c${id}</w:t></w:r></w:p></w:comment>`).join('')
     + '</w:comments>';
   const run = (t: string) => `<w:r><w:t>${t}</w:t></w:r>`;
-  const wrap = (tag: string, inner: string) => `<w:${tag} w:id="9" w:author="A">${inner}</w:${tag}>`;
-  const commentOn = (blocks: N[]) => {
-    const out: Record<string, string> = {};
-    for (const n of blocks.flatMap((b: N) => b.content ?? [])) {
+  const wrap = (tag: string, inner: string) => `<w:${tag} w:id="9" w:author="A">${inner}</w:${tag.split(' ')[0]}>`;
+  const commentOn = (nodes: N[], out: Record<string, string> = {}) => {
+    for (const n of nodes) {
       const id = n.marks?.find((m: N) => m.type === 'comment')?.attrs.id ?? '';
       for (const ch of n.text ?? '') out[ch] = id;
+      commentOn(n.content ?? [], out);
     }
     return out;
   };
-  it.each(['ins', 'del', 'hyperlink', 'smartTag'])('a range opening or closing inside w:%s still brackets its text', (tag) => {
-    const body = `<w:p>${run('a')}${wrap(tag, `${run('b')}<w:commentRangeStart w:id="1"/>${run('c')}`)}`
-      + `${wrap(tag, `${run('d')}<w:commentRangeEnd w:id="1"/>${run('e')}`)}</w:p>`
-      + `<w:p><w:commentRangeStart w:id="2"/>${run('f')}<w:commentRangeEnd w:id="2"/>${run('g')}</w:p>`;
-    const got = commentOn(blocksOf(body, { files: { 'word/comments.xml': comments } }));
-    expect(got).toEqual({ a: '', b: '', c: 'w1', d: 'w1', e: '', f: 'w2', g: '' });
+  const later = `<w:p><w:commentRangeStart w:id="2"/>${run('f')}<w:commentRangeEnd w:id="2"/>${run('g')}</w:p>`;
+  const got = (body: string) => commentOn(blocksOf(body + later, { files: { 'word/comments.xml': comments } }));
+  // A field collapsed to one node drops b..e; the ranges inside it still open and close.
+  it.each([
+    ['ins'], ['del'], ['moveFrom'], ['moveTo'], ['hyperlink'], ['smartTag'], ['fldSimple w:instr=" AUTHOR "'],
+    ['fldSimple w:instr=" SEQ Figure "', { a: '', x: 'w1', f: 'w2', g: '' }],
+  ])('a range opening or closing inside w:%s still brackets its text', (tag, want = { a: '', b: '', c: 'w1', x: 'w1', d: 'w1', e: '', f: 'w2', g: '' }) => {
+    const body = `<w:p>${run('a')}${wrap(tag, `${run('b')}<w:commentRangeStart w:id="1"/>${run('c')}`)}${run('x')}`
+      + `${wrap(tag, `${run('d')}<w:commentRangeEnd w:id="1"/>${run('e')}`)}</w:p>`;
+    expect(got(body)).toEqual(want);
+  });
+  it('a range opening and closing beside table rows and cells brackets the cells between', () => {
+    const cell = (t: string) => `<w:tc><w:p>${run(t)}</w:p></w:tc>`;
+    const body = `<w:p>${run('a')}</w:p><w:tbl><w:tr>${cell('b')}<w:commentRangeStart w:id="1"/>${cell('c')}</w:tr>`
+      + `<w:tr>${cell('d')}</w:tr><w:commentRangeEnd w:id="1"/><w:tr>${cell('e')}</w:tr></w:tbl>`;
+    expect(got(body)).toEqual({ a: '', b: '', c: 'w1', d: 'w1', e: '', f: 'w2', g: '' });
   });
 });

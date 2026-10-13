@@ -246,8 +246,28 @@ function parseXml(xml: string): Document {
     if (content) while (content.firstChild) parent.insertBefore(content.firstChild, sdt);
     parent.removeChild(sdt);
   }
+  // A range marker beside a table's rows or cells moves into the cell paragraph next to it,
+  // where the paragraph walk reads it: the walk over rows and cells passes it by.
+  const moved = new Set<Element>();
+  for (const m of [...RANGE_MARKERS].flatMap((n) => Array.from(doc.getElementsByTagNameNS(W, n)))) {
+    const parent = m.parentNode as Element | null;
+    if (parent?.namespaceURI !== W || (parent.localName !== 'tbl' && parent.localName !== 'tr')) continue;
+    let next = m.nextElementSibling;
+    while (next && next.localName !== 'tr' && next.localName !== 'tc') next = next.nextElementSibling;
+    let prev = m.previousElementSibling;
+    while (prev && prev.localName !== 'tr' && prev.localName !== 'tc') prev = prev.previousElementSibling;
+    const nextP = next?.getElementsByTagNameNS(W, 'p')[0];
+    const prevPs = prev?.getElementsByTagNameNS(W, 'p');
+    if (nextP) {
+      let at = nextP.firstElementChild;
+      while (at && (at.localName === 'pPr' || moved.has(at))) at = at.nextElementSibling;
+      nextP.insertBefore(m, at);
+    } else if (prevPs?.length) prevPs[prevPs.length - 1].appendChild(m);
+    moved.add(m);
+  }
   return doc;
 }
+const RANGE_MARKERS = new Set(['bookmarkStart', 'bookmarkEnd', 'commentRangeStart', 'commentRangeEnd']);
 
 // '#RRGGBB' from a Word color (6-hex without #, or named). null for auto/empty.
 function hexColor(v: string | null | undefined): string | undefined {
@@ -701,6 +721,12 @@ function trackComment(el: Element, ctx: Ctx): boolean {
   return el.localName === 'commentReference';
 }
 
+// The range markers inside content the import collapses or skips: its text is gone, the
+// ranges it opens or closes are not, or a missed end would run to the document end.
+function trackRanges(el: Element, ctx: Ctx): void {
+  for (const m of Array.from(el.getElementsByTagNameNS(W, '*'))) if (!trackBookmark(m, ctx)) trackComment(m, ctx);
+}
+
 // A mark can hold one comment, so overlapping ranges collapse to the outermost.
 function openCommentMark(ctx: Ctx): Mark | null {
   const attrs = ctx.openComments.values().next().value;
@@ -763,6 +789,7 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
         const index = /\bBIBLIOGRAPHY\b/.test(simple) ? 'bibliography' : 'alphabetical';
         out.push({ type: 'tableOfContents', attrs: { entries: null, title: '', index,
           ...(index === 'bibliography' ? { citationStyle: ctx.citationStyle } : {}) } });
+        trackRanges(el, ctx);
         continue;
       }
       const { emit, closedAt } = scanTocField(el, tocState);
@@ -792,6 +819,7 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
       if (startedInToc || emit) {
         const into = kind === 'body' ? field.into : null;
         const row = closedAt >= 0 ? splitRunsAt(el, closedAt, true) : el;
+        trackRanges(row, ctx);
         const entry = into ? cachedIndexEntry(row, ctx, into.kind, into.pages) : null;
         if (entry) {
           into!.entries.push(entry);
@@ -849,6 +877,7 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
           if (text) field.into.entries.push({ text, level: 1, page: 1 });
         }
       }
+      trackRanges(el, ctx);
       continue;
     } else if (el.localName === 'tbl') {
       // A page break ending the paragraph above, or Word's own spelling of one: the first
@@ -889,6 +918,7 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
             ...(levelStyles ? { levelStyles } : {}),
           } });
         }
+        trackRanges(el, ctx);
       } else {
         const content = fc(el, 'sdtContent');
         if (content) out.push(...convertBlocks(Array.from(content.children), ctx, kind, boldByDefault));
@@ -1970,19 +2000,16 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     return marks;
   };
 
-  // The runs of a wrapper (revision, smart tag). A comment or bookmark range can open or
-  // close beside them, and a missed end would leave it open for the rest of the document.
+  // A wrapper (revision, smart tag, link, simple field) holds a paragraph's own content,
+  // range markers included: a missed end would leave its range open to the document end.
   const handleRuns = (el: Element, linkHref?: string) => {
-    for (const c of Array.from(el.children)) {
-      if (c.namespaceURI !== W || trackBookmark(c, ctx) || trackComment(c, ctx)) continue;
-      if (c.localName === 'r') handleRun(c, linkHref);
-    }
+    for (const c of inlineChildren(el)) handleInline(c, linkHref);
   };
 
-  // A recorded revision (w:ins/w:del). Its runs keep their formatting and take the
-  // mark; a deletion's text sits in w:delText, which handleRun reads as ordinary text.
+  // A recorded revision (w:ins/w:del, a move's two ends w:moveFrom/w:moveTo). Its runs keep
+  // their formatting and take the mark; deleted text sits in w:delText, read as ordinary text.
   const handleRevision = (el: Element, linkHref?: string) => {
-    const kind = el.localName === 'del' ? 'deletion' : 'insertion';
+    const kind = el.localName === 'del' || el.localName === 'moveFrom' ? 'deletion' : 'insertion';
     const attrs = {
       id: el.getAttributeNS(W, 'id') ?? '',
       author: el.getAttributeNS(W, 'author') ?? '',
@@ -2117,18 +2144,53 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     }
   };
 
-  for (const el of inlineChildren(p)) {
+  // A simple field the editor models as one node, else null: its shown value is body text.
+  const fieldNode = (el: Element): Node | null => {
+    const instr = el.getAttributeNS(W, 'instr') ?? '';
+    const first = fcAll(el, 'r')[0];
+    const zf = ctx.zone && zoneField(instr, first ? runMarks(first) : [], el.textContent ?? '');
+    if (zf) return zf;
+    const xref = crossRefFromInstr(instr, ctx);
+    if (xref) {
+      const first = fcAll(el, 'r')[0];
+      const m = first ? runMarks(first) : [];
+      if (m.length) xref.marks = m;
+      return { ...xref, attrs: { ...xref.attrs, text: el.textContent ?? '' } };
+    }
+    const mark = indexEntryFromInstr(instr);
+    if (mark) return mark;
+    const cite = citationFromInstr(instr, ctx);
+    if (cite) return { ...cite, attrs: { ...cite.attrs, text: el.textContent ?? '' } };
+    const seq = seqFieldFromInstr(instr);
+    if (seq) {
+      const first = fcAll(el, 'r')[0];
+      const m = first ? runMarks(first) : [];
+      if (m.length) seq.marks = m;
+      return { ...seq, attrs: { ...seq.attrs, number: seqNumberOf(el.textContent ?? '') } };
+    }
+    const field = dateTimeFieldFromInstr(instr);
+    if (field) {
+      const first = fcAll(el, 'r')[0];
+      const m = first ? runMarks(first) : [];
+      if (m.length) field.marks = m;
+      return field;
+    }
+    return null;
+  };
+
+  const handleInline = (el: Element, linkHref?: string) => {
     // Math is its own namespace and sits beside the w:r runs, so it has to be picked
     // up before the w:-only guard below drops it.
     if (el.namespaceURI === OMML_NS && (el.localName === 'oMath' || el.localName === 'oMathPara')) {
       const formula = formulaNode(el, ctx);
       if (formula) out.push(formula);
-      continue;
+      trackRanges(el, ctx);
+      return;
     }
-    if (el.namespaceURI !== W) continue;
-    if (trackBookmark(el, ctx) || trackComment(el, ctx)) continue;
+    if (el.namespaceURI !== W) return;
+    if (trackBookmark(el, ctx) || trackComment(el, ctx)) return;
     switch (el.localName) {
-      case 'r': handleRun(el); break;
+      case 'r': handleRun(el, linkHref); break;
       case 'sdt': {
         // Only a placeholder-tagged control gets here (inlineChildren unwraps the rest).
         const content = fc(el, 'sdtContent');
@@ -2140,6 +2202,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
         const m = first ? stripPlaceholderGray(runMarks(first)) : [];
         if (m.length) field.marks = m;
         out.push(field);
+        if (content) trackRanges(content, ctx);
         break;
       }
       case 'hyperlink': {
@@ -2149,59 +2212,27 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
         let href = rid ? ctx.rels.get(rid)?.target : anchor ? `#${anchor}` : undefined;
         // A scheme the editor would never open (javascript:) stops here, not at render time.
         if (!isAllowedUri(href)) href = undefined;
-        // A revision wraps its runs inside the link element, so walk both shapes.
-        for (const child of Array.from(el.children)) {
-          if (trackBookmark(child, ctx) || trackComment(child, ctx)) continue;
-          if (child.localName === 'r') handleRun(child, href);
-          else if (child.localName === 'ins' || child.localName === 'del') handleRevision(child, href);
-        }
+        handleRuns(el, href);
         break;
       }
       case 'fldSimple': {
-        const instr = el.getAttributeNS(W, 'instr') ?? '';
-        const first = fcAll(el, 'r')[0];
-        const zf = ctx.zone && zoneField(instr, first ? runMarks(first) : [], el.textContent ?? '');
-        if (zf) { out.push(zf); break; }
-        const xref = crossRefFromInstr(instr, ctx);
-        if (xref) {
-          const first = fcAll(el, 'r')[0];
-          const m = first ? runMarks(first) : [];
-          if (m.length) xref.marks = m;
-          out.push({ ...xref, attrs: { ...xref.attrs, text: el.textContent ?? '' } });
-          break;
-        }
-        const mark = indexEntryFromInstr(instr);
-        if (mark) { out.push(mark); break; }
-        const cite = citationFromInstr(instr, ctx);
-        if (cite) { out.push({ ...cite, attrs: { ...cite.attrs, text: el.textContent ?? '' } }); break; }
-        const seq = seqFieldFromInstr(instr);
-        if (seq) {
-          const first = fcAll(el, 'r')[0];
-          const m = first ? runMarks(first) : [];
-          if (m.length) seq.marks = m;
-          out.push({ ...seq, attrs: { ...seq.attrs, number: seqNumberOf(el.textContent ?? '') } });
-          break;
-        }
-        const field = dateTimeFieldFromInstr(instr);
-        if (field) {
-          const first = fcAll(el, 'r')[0];
-          const m = first ? runMarks(first) : [];
-          if (m.length) field.marks = m;
-          out.push(field);
-          break;
-        }
-        for (const r of fcAll(el, 'r')) handleRun(r); // body: keep the shown value
+        // A field collapsed to one node drops its runs, never the ranges opened or closed in them.
+        const node = fieldNode(el);
+        if (node) { out.push(node); trackRanges(el, ctx); } else handleRuns(el, linkHref);
         break;
       }
       case 'ins':
       case 'del':
-        handleRevision(el);
+      case 'moveFrom':
+      case 'moveTo':
+        handleRevision(el, linkHref);
         break;
       case 'smartTag':
-        handleRuns(el);
+        handleRuns(el, linkHref);
         break;
     }
-  }
+  };
+  for (const el of inlineChildren(p)) handleInline(el);
   return mergeAdjacentText(out);
 }
 
@@ -3447,6 +3478,7 @@ function buildTable(tbl: Element, ctx: Ctx): Node | null {
       if (vMerge && vMerge !== 'restart') {
         const origin = pending[col];
         if (origin) origin.attrs!.rowspan = ((origin.attrs!.rowspan as number) || 1) + 1;
+        trackRanges(tc, ctx);
         col += colspan;
         continue; // covered cell — dropped, span folded into its origin
       }

@@ -68,6 +68,14 @@ is the list's indent, and a table's `w:tblW w:type="pct"` its width as a share o
 section's text width — the grid is only the columns' weights there, and reading it as a
 width collapses a full-width table to a few millimetres.
 
+A DOCX **range marker** (bookmark, comment range) reaches `trackBookmark`/`trackComment`
+wherever it sits: a wrapper (revision, move, smart tag, link, simple field) is walked like the
+paragraph (`handleInline`), content collapsed to one node or skipped hands its markers on
+(`trackRanges`), and one beside table rows or cells moves into the bordering cell paragraph
+(`parseXml`). A missed end leaves its range open to the document end; a comment there hides
+every later one, as overlapping ranges collapse to the outermost. LibreOffice writes ODF's
+`office:annotation-end` beside a deletion, never into the change registry.
+
 An ODF list with `text:continue-numbering="true"` continues the **latest top-level list of
 its style**, `text:continue-list` the one with that `xml:id`; both import as `start`. The
 DOCX export lets such a list share the previous list's `w:num`, so the style name survives.
