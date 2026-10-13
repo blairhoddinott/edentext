@@ -1165,7 +1165,12 @@ export const PageBreaks = Extension.create({
           // block to the next page instead, which is what Word/LibreOffice do.
           if (k < minLines) return null;
 
-          const naturalLineTop = toNatural(lines[k].top);
+          // The carried line's glyphs land on the page start. A spacing above single
+          // half-leads them down by the block's lift (editor.css), which LibreOffice puts
+          // below the line instead — without it the rest of the block rides that high.
+          const cs = getComputedStyle(el);
+          const lift = cs.position === 'relative' ? Math.max(0, -parseFloat(cs.top) || 0) : 0;
+          const naturalLineTop = toNatural(lines[k].top) - lift;
           // Binary search runs in viewport space (coordsAtPos returns scaled
           // viewport coords just like Range.getClientRects()), so the target
           // stays unscaled-free here.
@@ -1201,8 +1206,14 @@ export const PageBreaks = Extension.create({
           return { naturalLineTop, docPos: lo };
         }
 
+        // The larger-of spacing model draws the space above as a margin (editor.css): it lies
+        // outside the box and collapses with the space below the block before it.
+        const spaceAboveIsMargin = () =>
+          editorView.dom.closest('.paper')?.getAttribute('data-spacing-model') === 'max';
+
         function collectLeaves(contentHeight: number, scaleFactor: number): Leaf[] {
           const dom = editorView.dom;
+          const marginModel = spaceAboveIsMargin();
           const leaves: Leaf[] = [];
           // cumulativeSpacerHeight accumulates spacer offsetHeights (unscaled
           // layout px), matching the offsetHeight-based naturalHeight.
@@ -1521,6 +1532,10 @@ export const PageBreaks = Extension.create({
                 const dropped = spaceAbove > 0.5 && !inTableCell
                   && parseFloat(cs.paddingTop) < 0.5 && parseFloat(cs.marginTop) < 0.5
                   ? spaceAbove : 0;
+                // A dropped margin moved the box itself up, by what the space below the block
+                // before did not already cover; a dropped padding only made the box shorter.
+                const droppedAbove = marginModel && dropped
+                  ? Math.max(0, dropped - (leaves[leaves.length - 1]?.spaceAfter ?? 0)) : 0;
                 // editor.css draws the block up by half its extra leading (`top`); a bottom
                 // padding or border holds the last line's leading inside the block.
                 const lift = cs.position === 'relative' ? -parseFloat(cs.top) || 0 : 0;
@@ -1529,8 +1544,8 @@ export const PageBreaks = Extension.create({
                 leaves.push({
                   el: child,
                   kind: isAtomic ? 'atomic' : 'splittable',
-                  naturalTop: naturalTopOf(child, cs),
-                  naturalHeight: Math.max(child.offsetHeight, floatBottom) - intraSpacerHeight + dropped,
+                  naturalTop: naturalTopOf(child, cs) + droppedAbove,
+                  naturalHeight: Math.max(child.offsetHeight, floatBottom) - intraSpacerHeight + (marginModel ? 0 : dropped),
                   spaceAfter: inTableCell ? 0 : parseFloat(cs.marginBottom) || 0,
                   spaceAbove,
                   hang,
@@ -1546,7 +1561,7 @@ export const PageBreaks = Extension.create({
                   refs: refsWithin(child),
                 });
                 cumulativeSpacerHeight += intraSpacerHeight;
-                cumulativeDropped += dropped;
+                cumulativeDropped += marginModel ? droppedAbove : dropped;
                 continue;
               }
               if (CONTAINER_TAGS.has(tag)) {
@@ -1633,6 +1648,7 @@ export const PageBreaks = Extension.create({
           // ones has margins of its own and mirrors nothing.
           // The document's "spacing at the start of a page" switch (spacingModel.ts).
           const spacingAtStart = csRoot.getPropertyValue('--pb-space-at-page-start').trim() !== '0';
+          const marginModel = spaceAboveIsMargin();
           // Where each section restarts numbering ('x' = it counts on), section 0 the
           // document's own start: the side a page is on follows its number, not its sheet.
           const numStarts = csRoot.getPropertyValue('--pb-section-numstart').split(',')
@@ -2062,7 +2078,19 @@ export const PageBreaks = Extension.create({
                   pageTopBlocks.push({ from, to: from + node.nodeSize });
                   // The block is that much shorter from here on; the leaves below it were
                   // measured with the space still in place.
-                  droppedShift += leaf.spaceAbove ?? 0;
+                  if (!marginModel) droppedShift += leaf.spaceAbove ?? 0;
+                  else {
+                    // A margin is outside the box: dropping it lifts the box, so the push
+                    // that brought the box top to the page start reaches that much further.
+                    const rise = Math.max(0, (leaf.spaceAbove ?? 0) - (leaves[i - 1]?.spaceAfter ?? 0));
+                    const push = breaks.find((b) => b.reason !== 'line-split');
+                    if (push) push.height += rise;
+                    else if (rise > 0.5) {
+                      const { docPos, row } = leafSpacer(leaf);
+                      breaks.push({ height: rise, docPos, row, bandOpenY: null, reason: 'page-top-margin', naturalY: 0 });
+                    }
+                    droppedShift += rise;
+                  }
                 }
               }
 

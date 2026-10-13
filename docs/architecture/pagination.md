@@ -49,6 +49,12 @@ own spacer never measures as sitting at the page top, since `effectiveTop` exclu
 the mark follows from the break it got. The value itself rides `--space-before`
 (`storage/spacingModel.ts`); in the larger-of model a kept space is a margin outside the
 leaf box, so the push tests subtract it (`kept`). Which breaks keep it is decided on import.
+A dropped margin moves the box itself up — by what the space below the block before did not
+already cover — so the push that brought the box to the page start grows by that rise; a dropped
+padding only shortens the box. A line split lands the carried line's glyph top at the page start
+less the block's lift (`editor.css`): the half leading a spacing above single puts above the glyphs.
+Measured on a 46-page DOCX with 1.5 spacing and 10pt above: page tops 1.4–3.8mm into the top
+margin before, within 0.4mm of the reference PDF after (fixture `21-spacing-split`, 72 → 12).
 
 **A pass must not read its own last answer.** Dropping that space shortens the block, which moves
 everything below it, which changes what sits at the *next* page top — so measuring the decorated

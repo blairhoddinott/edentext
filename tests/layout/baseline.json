@@ -756,6 +756,34 @@
     "No headings yet — add an H1/H2/H3 to bui"
    ]
   },
+  "tests/corpus/21-spacing-split.docx": {
+   "pages": 7,
+   "lines": 318,
+   "ms": 200,
+   "starts": [
+    "Section 1",
+    "Lorem ipsum dolor sit amet, consectetur ",
+    "Section 11",
+    "aliqua. Ut enim ad minim veniam, quis no",
+    "Section 21",
+    "Section 26",
+    "aliqua. Ut enim ad minim veniam, quis no"
+   ]
+  },
+  "tests/corpus/21-spacing-split.odt": {
+   "pages": 7,
+   "lines": 318,
+   "ms": 100,
+   "starts": [
+    "Section 1",
+    "Lorem ipsum dolor sit amet, consectetur ",
+    "Section 11",
+    "aliqua. Ut enim ad minim veniam, quis no",
+    "Section 21",
+    "Section 26",
+    "aliqua. Ut enim ad minim veniam, quis no"
+   ]
+  },
   "tests/corpus/word/01-flow.docx": {
    "pages": 2,
    "lines": 120,

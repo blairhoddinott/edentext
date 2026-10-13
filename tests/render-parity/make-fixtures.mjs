@@ -447,6 +447,17 @@ await write('20-index-footer.docx', [
   },
 ], undefined, { features: { updateFields: true } });
 
+// 21. Spacing above single with space above: a paragraph split across a page break
+// carries lines that must start at the next page's text area, and one moved whole
+// loses its space above there — neither may ride up into the top margin.
+await write('21-spacing-split.docx', [{
+  properties: { page },
+  children: Array.from({ length: 30 }, (_, i) => [
+    para(`Section ${i + 1}`, { run: { bold: true }, p: { spacing: { before: 200, line: 240 }, keepNext: true } }),
+    para(new Array(1 + (i % 3)).fill(LOREM).join(' '), { p: { spacing: { before: 200, line: 360 } } }),
+  ]).flat(),
+}]);
+
 // ODT twins, written by LibreOffice itself — the dominant ODT producer, so they carry
 // its own conventions (percentage font sizes, Text Body, list styles) and exercise the
 // foreign-document path our own exporter never produces.
