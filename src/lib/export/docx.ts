@@ -2584,10 +2584,10 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
   if (!opts.numbering) {
     const left = leftCm(attrs, pt);
     // An explicit 0 is kept: it overrides the named style's indent.
-    if (left > 0 || attrs.indent === 0) indent.left = cmToTwip(left);
+    if (left !== 0 || attrs.indent === 0) indent.left = cmToTwip(left);
     else if (opts.indentLeftTwip) indent.left = opts.indentLeftTwip;
     const right = rightCm(attrs, pt);
-    if (right > 0) indent.right = cmToTwip(right);
+    if (right !== 0) indent.right = cmToTwip(right);
     // Word splits the first-line indent into two exclusive attributes by sign.
     const first = firstLineCm(attrs, pt);
     if (first < 0) indent.hanging = cmToTwip(-first);

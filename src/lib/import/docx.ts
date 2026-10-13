@@ -1514,11 +1514,11 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
     for (const key of ['spaceBefore', 'spaceAfter', 'lineHeight']) if (attrs[key] === def[key]) delete attrs[key];
   }
   applyContextualSpacing(el, ppr, ctx, styleId, attrs);
-  // A direct left indent at or below 0 still overrides the style's own one.
+  // A direct left indent of 0 still overrides the style's own one.
   const ind = kind !== 'list' && !baked ? fc(ppr, 'ind') : null;
   const directLeft = ind && !intAttr(ind, W, 'leftChars') ? intAttr(ind, W, 'left') ?? intAttr(ind, W, 'start') : null;
   if (directLeft != null && attrs.indent == null && (ctx.styles.styleIndentTwip(styleId) ?? 0) > 0) {
-    attrs.indent = Math.max(0, round2(twipToCm(directLeft)));
+    attrs.indent = round2(twipToCm(directLeft));
   }
   // The editor has no rule node, so Word's horizontal line becomes its paragraph's own
   // bottom rule — a real w:pBdr keeps precedence, only one line can be drawn.
@@ -1753,12 +1753,14 @@ function blockAttrs(ppr: Element | null, kind: BlockKind, headingLevel: number |
     const hangingChars = ind ? intAttr(ind, W, 'hangingChars') : null;
     const leftChars = ind ? intAttr(ind, W, 'leftChars') ?? intAttr(ind, W, 'startChars') : null;
     const left = ind ? intAttr(ind, W, 'left') ?? intAttr(ind, W, 'start') : null;
+    // Out into the margin, as a page-wide picture's paragraph is set; a cell keeps its
+    // text inside its padding (probed: LibreOffice wraps such a line at the cell's width).
     if (leftChars || hangingChars) attrs.indentChars = ((leftChars ?? 0) + (hangingChars ?? 0)) / 100;
-    else if (left != null) { const cm = round2(twipToCm(left)); if (cm > LIST_INDENT_EPS_CM) attrs.indent = cm; }
+    else if (left != null) { const cm = round2(twipToCm(left)); if (cm > LIST_INDENT_EPS_CM || (kind !== 'cell' && cm < -LIST_INDENT_EPS_CM)) attrs.indent = cm; }
     const right = ind ? intAttr(ind, W, 'right') ?? intAttr(ind, W, 'end') : null;
     const rightChars = ind ? intAttr(ind, W, 'rightChars') ?? intAttr(ind, W, 'endChars') : null;
     if (rightChars) attrs.indentRightChars = rightChars / 100;
-    else if (right != null) { const cm = round2(twipToCm(right)); if (cm > LIST_INDENT_EPS_CM) attrs.indentRight = cm; }
+    else if (right != null) { const cm = round2(twipToCm(right)); if (cm > LIST_INDENT_EPS_CM || (kind !== 'cell' && cm < -LIST_INDENT_EPS_CM)) attrs.indentRight = cm; }
     // w:hanging outdents the first line, w:firstLine indents it; they are exclusive.
     const hanging = ind ? intAttr(ind, W, 'hanging') : null;
     const firstLine = ind ? intAttr(ind, W, 'firstLine') : null;

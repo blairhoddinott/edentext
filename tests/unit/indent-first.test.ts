@@ -20,6 +20,8 @@ const doc: N = {
     P('hanging', { indent: 2.5, indentFirst: -2.5 }),
     P('first line in', { indentFirst: 1.25 }),
     P('narrowed', { indent: 1, indentRight: 3 }),
+    // Out into both margins, as a page-wide picture's paragraph does.
+    P('bleeding', { indent: -2.54, indentRight: -2.54 }),
   ],
 };
 
@@ -41,6 +43,7 @@ describe('first-line indent', () => {
     expect(firstOf(back, 2)).toBe(1.25);
     expect(rightOf(back, 3)).toBe(3);
     expect(rightOf(back, 0)).toBe(null);
+    expect([back.content[4].attrs?.indent, rightOf(back, 4)]).toEqual([-2.54, -2.54]);
   });
 
   it('round-trips through DOCX', async () => {
@@ -56,6 +59,7 @@ describe('first-line indent', () => {
     expect(firstOf(back, 2)).toBe(1.25);
     expect(rightOf(back, 3)).toBe(3);
     expect(rightOf(back, 0)).toBe(null);
+    expect([back.content[4].attrs?.indent, rightOf(back, 4)]).toEqual([-2.54, -2.54]);
   });
 });
 

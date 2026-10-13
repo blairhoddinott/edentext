@@ -64,6 +64,8 @@ mirrored layout; distinguish it from a first-page hand-over. Naming the current 
 opens a new section only where that restarts something — a hand-over to a successor, or a
 `page-usage` side demand — which is how a book reopens Chapter Intro for every chapter.
 
+A negative left or right indent sets a paragraph out into the margin (a page-wide picture's) and is kept, except in a table cell, where LibreOffice keeps the text inside the cell (probed: the line wraps at the cell's width).
+
 Header/footer body reach is the rendered zone height plus applicable gap, respecting dynamic
 spacing, wrapped content, and internal paragraph spacing. A trailing zone margin does not add
 to the reach. Both importers convert a zone with the body's block converter under a `'zone'`
