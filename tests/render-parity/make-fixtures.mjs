@@ -453,7 +453,7 @@ await write('20-index-footer.docx', [
 await write('21-spacing-split.docx', [{
   properties: { page },
   children: Array.from({ length: 30 }, (_, i) => [
-    para(`Section ${i + 1}`, { run: { bold: true }, p: { spacing: { before: 200, line: 240 }, keepNext: true } }),
+    para(`Section ${i + 1}`, { run: { bold: true }, p: { spacing: { before: 200 }, keepNext: true } }),
     para(new Array(1 + (i % 3)).fill(LOREM).join(' '), { p: { spacing: { before: 200, line: 360 } } }),
   ]).flat(),
 }]);
