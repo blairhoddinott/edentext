@@ -1970,6 +1970,15 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     return marks;
   };
 
+  // The runs of a wrapper (revision, smart tag). A comment or bookmark range can open or
+  // close beside them, and a missed end would leave it open for the rest of the document.
+  const handleRuns = (el: Element, linkHref?: string) => {
+    for (const c of Array.from(el.children)) {
+      if (c.namespaceURI !== W || trackBookmark(c, ctx) || trackComment(c, ctx)) continue;
+      if (c.localName === 'r') handleRun(c, linkHref);
+    }
+  };
+
   // A recorded revision (w:ins/w:del). Its runs keep their formatting and take the
   // mark; a deletion's text sits in w:delText, which handleRun reads as ordinary text.
   const handleRevision = (el: Element, linkHref?: string) => {
@@ -1980,7 +1989,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
       date: el.getAttributeNS(W, 'date') ?? '',
     };
     const before = out.length;
-    for (const r of fcAll(el, 'r')) handleRun(r, linkHref);
+    handleRuns(el, linkHref);
     // The zone schema records no revisions.
     if (!ctx.zone) {
       for (let i = before; i < out.length; i++) {
@@ -2142,6 +2151,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
         if (!isAllowedUri(href)) href = undefined;
         // A revision wraps its runs inside the link element, so walk both shapes.
         for (const child of Array.from(el.children)) {
+          if (trackBookmark(child, ctx) || trackComment(child, ctx)) continue;
           if (child.localName === 'r') handleRun(child, href);
           else if (child.localName === 'ins' || child.localName === 'del') handleRevision(child, href);
         }
@@ -2188,7 +2198,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
         handleRevision(el);
         break;
       case 'smartTag':
-        for (const r of fcAll(el, 'r')) handleRun(r);
+        handleRuns(el);
         break;
     }
   }
