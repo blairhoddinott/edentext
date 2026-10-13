@@ -1955,6 +1955,9 @@ export const PageBreaks = Extension.create({
                 // on the page keeps it and the gap is dropped at the page bottom, the way
                 // space above is at a page top (probed: 2cm below a line 8mm short of it).
               } else if (effectiveBottom - (leaf.hang ?? 0) > contentEnd) {
+                // Nothing above it on this page: moving it on would leave the page empty, so
+                // it stays and overflows, as in LibreOffice — e.g. below a page-tall footer.
+                const pageOpener = effectiveTop - (parseFloat(getComputedStyle(leaf.el).marginTop) || 0) <= contentStart + 0.5;
                 if (leaf.kind === 'atomic') {
                   const cf = leaf.columnsFragment;
                   if (cf && cf.blockCount > 1 && cf.firstBlockNeededPx + COLUMNS_FIT_MARGIN_PX <= contentEnd - effectiveTop) {
@@ -1966,6 +1969,8 @@ export const PageBreaks = Extension.create({
                     // than the page slot): pushing just moves the problem one page
                     // down forever — the flow line-splits the paragraph instead.
                     noPushReason = 'columns-line-split-pending';
+                  } else if (pageOpener && !cf) {
+                    noPushReason = 'page-opener-no-push';
                   } else if (leaf.naturalHeight <= CONTENT_HEIGHT || cf) {
                     // A columns fragment may be pushed even when taller than a page:
                     // the flow splits it again once it sits at the next page top.
@@ -2014,7 +2019,9 @@ export const PageBreaks = Extension.create({
                     targetPage++;
                   }
                   if (breaks.length === 0) {
-                    if (leaf.naturalHeight <= CONTENT_HEIGHT) {
+                    if (pageOpener) {
+                      noPushReason = 'page-opener-no-push';
+                    } else if (leaf.naturalHeight <= CONTENT_HEIGHT) {
                       const target = pageContentStart(page + 1, topRest, grid);
                       breaks.push({
                         height: target - effectiveTop,
