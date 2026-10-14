@@ -48,6 +48,13 @@ describe('block decorations across a doc change', () => {
     expect(remap(before, tr)).toEqual([[0, 5], [5, 10]]);
   });
 
+  it('keeps them when every block had its attrs changed at once', () => {
+    const tr = state().tr;
+    const before = insets(tr.doc);
+    tr.setNodeMarkup(0, schema.nodes.paragraph, {}).setNodeMarkup(5, schema.nodes.paragraph, {});
+    expect(remap(before, tr)).toEqual([[0, 5], [5, 10]]);
+  });
+
   it('covers both halves of a split block', () => {
     const tr = state().tr;
     const before = insets(tr.doc);

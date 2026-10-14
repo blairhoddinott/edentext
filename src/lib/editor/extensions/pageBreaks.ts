@@ -720,8 +720,12 @@ export function repairDecos(before: DecorationSet, mapped: DecorationSet, tr: Tr
   for (const d of before.find(undefined, undefined, isBlockDeco)) {
     // A bound inside a deleted range means the block was replaced (an open), not restyled:
     // re-cut, its height would land on whatever blocks now fill the range.
+    // Neighbours restyled in the same transaction delete both sides of every bound, so a
+    // block whose content survived at its mapped place was restyled all the same.
     const inside = (p: number) => tr.mapping.mapResult(p, -1).deleted && tr.mapping.mapResult(p, 1).deleted;
-    if (inside(d.from) || inside(d.to)) continue;
+    const old = tr.before.nodeAt(d.from);
+    const kept = !!old && !!tr.doc.nodeAt(tr.mapping.map(d.from, -1))?.content.eq(old.content);
+    if (!kept && (inside(d.from) || inside(d.to))) continue;
     const to = tr.mapping.map(d.to, 1);
     for (let pos = tr.mapping.map(d.from, -1); pos < to;) {
       const node = tr.doc.nodeAt(pos);
