@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import '@tiptap/extension-text-style';
 import { asianLang, isAsianTag, westLang } from '../../storage/documentLanguage';
 
@@ -45,6 +46,9 @@ const blockAttr = {
 const slot = (tag: string | null) =>
   tag === null ? { lang: null, langAsian: null } : isAsianTag(tag) ? { langAsian: tag } : { lang: tag };
 
+const differs = (attrs: Record<string, unknown>, want: Record<string, string | null | undefined>) =>
+  Object.entries(want).some(([k, v]) => (attrs[k] ?? null) !== v);
+
 export const Language = Extension.create({
   name: 'language',
 
@@ -63,11 +67,37 @@ export const Language = Extension.create({
 
   addCommands() {
     return {
-      setBlockLanguage: (tag) => ({ commands }) =>
-        this.options.types.map((type) => commands.updateAttributes(type, slot(tag))).some((r) => r),
+      // Only a block or run whose language differs is rewritten: the document's language
+      // clears every override, and a block rewritten for nothing is redrawn and undoable.
+      setBlockLanguage: (tag) => ({ tr, state, dispatch }) => {
+        const want = slot(tag);
+        const types = this.options.types;
+        const { from, to, empty, $from } = state.selection;
+        const blocks: [PMNode, number][] = [];
+        if (empty) {
+          for (let d = $from.depth; d > 0; d--) {
+            if (types.includes($from.node(d).type.name)) { blocks.push([$from.node(d), $from.before(d)]); break; }
+          }
+        } else {
+          state.doc.nodesBetween(from, to, (n, pos) => { if (types.includes(n.type.name)) blocks.push([n, pos]); });
+        }
+        if (dispatch) {
+          for (const [n, pos] of blocks) if (differs(n.attrs, want)) tr.setNodeMarkup(pos, undefined, { ...n.attrs, ...want });
+        }
+        return blocks.length > 0;
+      },
 
-      setRunLanguage: (tag) => ({ chain }) =>
-        chain().setMark('textStyle', slot(tag)).removeEmptyTextStyle().run(),
+      setRunLanguage: (tag) => ({ state, chain }) => {
+        const want = slot(tag);
+        const { from, to, empty } = state.selection;
+        let change = empty;
+        if (!empty) {
+          state.doc.nodesBetween(from, to, (n) => {
+            if (n.isText) change ||= differs(n.marks.find((m) => m.type.name === 'textStyle')?.attrs ?? {}, want);
+          });
+        }
+        return change ? chain().setMark('textStyle', want).removeEmptyTextStyle().run() : true;
+      },
     };
   },
 });

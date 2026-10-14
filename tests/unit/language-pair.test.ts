@@ -40,6 +40,16 @@ describe('language pair in the editor', () => {
     expect(runAttrs(ed)).toBeUndefined();
   });
 
+  it('clears the overrides and leaves text without any untouched', () => {
+    const ed = makeEditor('<p lang="de-DE">eins</p><p>zwei <span lang="fr-FR">trois</span></p><p>vier</p>');
+    const clear = () => ed.chain().selectAll().setBlockLanguage(null).setRunLanguage(null).run();
+    clear();
+    expect(ed.getHTML()).toBe('<p>eins</p><p>zwei trois</p><p>vier</p>');
+    const doc = ed.state.doc;
+    clear();
+    expect(ed.state.doc).toBe(doc);
+  });
+
   it('renders the western tag as lang, the asian one only alone', () => {
     const ed = makeEditor({ type: 'doc', content: [{ type: 'paragraph', content: [
       { type: 'text', text: 'a', marks: [{ type: 'textStyle', attrs: { lang: 'en-GB', langAsian: 'ja-JP' } }] },
