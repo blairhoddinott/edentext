@@ -29,10 +29,15 @@ const TEXT = {
 };
 // macOS needs a menu for its standard shortcuts; elsewhere the ribbon has every command and
 // Chromium handles the editing keys itself. Labels: menu in TEXT, % for the app name.
-function setMenu() {
-  if (process.platform !== 'darwin') return Menu.setApplicationMenu(null);
+function labels() {
   const [about, hide, hideOthers, showAll, quit, edit, undo, redo, cut, copy, paste, selectAll, window, minimize, zoom, close] =
     text().menu.map((l) => l.replace('%', app.name));
+  return { about, hide, hideOthers, showAll, quit, edit, undo, redo, cut, copy, paste, selectAll, window, minimize, zoom, close };
+}
+
+function setMenu() {
+  if (process.platform !== 'darwin') return Menu.setApplicationMenu(null);
+  const { about, hide, hideOthers, showAll, quit, edit, undo, redo, cut, copy, paste, selectAll, window, minimize, zoom, close } = labels();
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: app.name, submenu: [
       { role: 'about', label: about }, { type: 'separator' },
@@ -81,7 +86,7 @@ function createWindow() {
   const win = new BrowserWindow({ width: 1280, height: 900, title: 'EdenText' });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith(`${ORIGIN}/`)) return { action: 'allow' };
-    if (/^https?:/.test(url)) void shell.openExternal(url);
+    if (/^(https?|mailto|tel):/.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   // A file dropped outside the editor would otherwise replace the app.
@@ -93,9 +98,26 @@ function createWindow() {
     const choice = dialog.showMessageBoxSync(win, { type: 'question', message: text().discard, buttons: text().discardButtons, defaultId: 1, cancelId: 1 });
     if (choice === 0) e.preventDefault();
   });
+  // A browser's menu for fields and selected text, spelling suggestions first; the
+  // editor opens its own and suppresses this one.
+  win.webContents.on('context-menu', (_e, p) => {
+    if (!p.isEditable && !p.selectionText) return;
+    const { cut, copy, paste, selectAll } = labels();
+    const spelling = p.dictionarySuggestions.map((w) => ({ label: w, click: () => win.webContents.replaceMisspelling(w) }));
+    Menu.buildFromTemplate([
+      ...spelling, ...(spelling.length ? [{ type: 'separator' }] : []),
+      { role: 'cut', label: cut, enabled: p.editFlags.canCut }, { role: 'copy', label: copy, enabled: p.editFlags.canCopy },
+      { role: 'paste', label: paste, enabled: p.editFlags.canPaste }, { role: 'selectAll', label: selectAll },
+    ]).popup({ window: win });
+  });
   void win.loadURL(`${ORIGIN}/index.html`);
   win.webContents.once('did-finish-load', () => checkForUpdate(win).catch(() => {}));
 }
+
+// A second process on the same profile loses its localStorage writes, so a second launch
+// opens a window here instead: a new document, as a new browser tab would be.
+if (!app.requestSingleInstanceLock()) app.exit(0);
+app.on('second-instance', () => { if (app.isReady()) createWindow(); });
 
 app.whenReady().then(() => {
   setMenu();
