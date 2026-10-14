@@ -65,7 +65,8 @@
   }
 </script>
 
-<div class="head" use:popover>
+<div class="popover" use:popover>
+<div class="head">
   <button class="card" onclick={onSelect}>
     <div class="meta">
       <b>{c.author || author}</b>
@@ -91,6 +92,7 @@
     <button onclick={() => { menu = false; editor?.chain().focus().removeComment(c.id).run(); }}>{t().common.remove}</button>
   </div>
 {/if}
+</div>
 <button class="card" onclick={onSelect}>
   <div class="quote">{c.quote}</div>
 </button>
@@ -145,6 +147,8 @@
   .ai-working { display: flex; align-items: center; gap: 6px; color: var(--color-text-muted); }
   .spinner { width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* Head and menu form one popover, so a press on a menu row is not an outside click. */
+  .popover { display: contents; }
   .head { display: flex; align-items: flex-start; gap: 4px; }
   .head .card { flex: 1; min-width: 0; }
 
