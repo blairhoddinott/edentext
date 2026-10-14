@@ -1,0 +1,93 @@
+<script lang="ts" module>
+  // window.prompt() as a modal: Electron does not implement prompt(), so every text the
+  // app asks for goes through askText(). Resolves to null on cancel, as prompt() does.
+  let request = $state<{ label: string; value: string; done: (text: string | null) => void } | null>(null);
+
+  export function askText(label: string, value = ''): Promise<string | null> {
+    request?.done(null);
+    return new Promise((done) => (request = { label, value, done }));
+  }
+</script>
+
+<script lang="ts">
+  import { t } from '../i18n/i18n.svelte';
+
+  let dialogEl = $state<HTMLDialogElement | null>(null);
+  let inputEl = $state<HTMLInputElement | null>(null);
+
+  $effect(() => {
+    const el = dialogEl;
+    if (!el) return;
+    if (request && !el.open) {
+      el.showModal();
+      queueMicrotask(() => inputEl?.select());
+    } else if (!request && el.open) el.close();
+  });
+
+  function finish(text: string | null) {
+    const r = request;
+    request = null;
+    r?.done(text);
+  }
+</script>
+
+<dialog
+  bind:this={dialogEl}
+  onclose={() => finish(null)}
+  onclick={(e) => e.target === dialogEl && finish(null)}
+  aria-label={request?.label}
+>
+  {#if request}
+    <div class="body">
+      <label>
+        <span>{request.label}</span>
+        <input bind:this={inputEl} bind:value={request.value} onkeydown={(e) => e.key === 'Enter' && finish(request!.value)} />
+      </label>
+      <div class="actions">
+        <button onclick={() => finish(null)}>{t().common.cancel}</button>
+        <button class="primary" onclick={() => finish(request!.value)}>{t().common.ok}</button>
+      </div>
+    </div>
+  {/if}
+</dialog>
+
+<style>
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 360px;
+    padding: 18px 20px 16px;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+  }
+
+  label { display: flex; flex-direction: column; gap: 6px; }
+
+  input {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 4px 6px;
+    font: inherit;
+  }
+
+  .actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+
+  .actions button {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 5px 14px;
+    font: inherit;
+    cursor: pointer;
+  }
+  .actions button:hover { background: var(--color-btn-hover); }
+  .actions .primary {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: #fff;
+  }
+</style>

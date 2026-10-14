@@ -70,6 +70,7 @@
   import ResumeCard from './lib/components/ResumeCard.svelte';
   import { volatile } from './lib/storage/docScope';
   import PasswordDialog from './lib/components/PasswordDialog.svelte';
+  import PromptDialog, { askText } from './lib/components/PromptDialog.svelte';
   import CommentsPane from './lib/components/CommentsPane.svelte';
   import RevisionsPane from './lib/components/RevisionsPane.svelte';
   import ConnectorLayer from './lib/components/ConnectorLayer.svelte';
@@ -1116,10 +1117,10 @@
 
   // Word's New Comment: the selected text is annotated and the pane opens on it. A
   // prompt rather than a dialog — the pane is where a comment is really written.
-  function addComment() {
+  async function addComment() {
     if (!editor || editor.state.selection.empty) return;
-    const text = prompt(t().comments.prompt, '');
-    if (text === null) return;
+    const text = await askText(t().comments.prompt);
+    if (text === null || !editor) return;
     const had = new Set(comments(editor.state.doc).map((c) => c.id));
     editor.chain().focus().addComment({ author: docProps.author.trim(), text: text.trim() }).run();
     // A comment nobody can see is worse than none: the new one brings its kind back.
@@ -2066,6 +2067,7 @@
     onAutoCorrect={() => (autoCorrectOpen = true)}
   />
   <ResumeCard show={!volatile && tick >= 0 && !!editor && !isDocNonEmpty()} onShowAll={() => (browserDocsOpen = true)} />
+  <PromptDialog />
   <DocPropertiesDialog bind:open={docPropsOpen} props={docProps} onApply={(p) => { docProps = p; saveDocProperties(p); }} />
   <PasswordDialog
     bind:open={passwordSetOpen}

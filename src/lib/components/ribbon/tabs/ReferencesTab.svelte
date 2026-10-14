@@ -12,6 +12,7 @@
   import { shortcutHint } from '../../../editor/shortcuts';
   import { HEADING_LEVELS } from '../../../styles/headings';
   import { CITATION_STYLES, isCitationStyle, type CitationStyle } from '../../../utils/citationStyle';
+  import { askText } from '../../PromptDialog.svelte';
 
   let { editor, tick, hfActive = null, onNoteOptions, onHeadingNumbering }: {
     editor: Editor | null;
@@ -47,10 +48,10 @@
 
   // The selected text is the term unless the reader gives another — the same prompt
   // both word processors open, which fills itself from the selection.
-  function markIndexEntry() {
+  async function markIndexEntry() {
     if (!editor) return;
     const { from, to } = editor.state.selection;
-    const term = prompt(t().ribbon.indexEntryPrompt, editor.state.doc.textBetween(from, to, ' '));
+    const term = await askText(t().ribbon.indexEntryPrompt, editor.state.doc.textBetween(from, to, ' '));
     if (term?.trim()) editor.chain().focus().setTextSelection(to).insertIndexEntry(term).run();
   }
 
