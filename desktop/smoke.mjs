@@ -2,14 +2,19 @@
 // the app:// origin, the native save picker, and external links staying outside.
 import { _electron as electron } from 'playwright-core';
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 // APP=<packaged binary> checks a built app instead of this checkout. playwright-core
 // sits in the root node_modules and cannot find this electron itself.
+// An own profile: a running EdenText holds the single-instance lock of the default one.
+const profile = `--user-data-dir=${mkdtempSync(path.join(tmpdir(), 'edentext-smoke-'))}`;
 const app = await electron.launch(
   process.env.APP
-    ? { executablePath: process.env.APP }
-    : { executablePath: createRequire(import.meta.url)('electron'), args: ['.'], cwd: import.meta.dirname },
+    ? { executablePath: process.env.APP, args: [profile] }
+    : { executablePath: createRequire(import.meta.url)('electron'), args: ['.', profile], cwd: import.meta.dirname },
 );
 const errors = [];
 try {

@@ -13,7 +13,7 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 
 const DOTX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.template';
 
-type Kind = 'odt' | 'docx' | 'ott' | 'dotx';
+type Kind = 'odt' | 'docx' | 'ott' | 'dotx' | 'pdf';
 
 // One picker type per format, and the format is settled before the bytes are built: the
 // download route cannot read a changed name back from the browser's dialog, and Chrome's
@@ -23,6 +23,7 @@ const FORMATS: Record<Kind, { mime: string; type: { description: string; accept:
   docx: { mime: DOCX_MIME, type: { description: 'Word Document', accept: { [DOCX_MIME]: ['.docx'] } } },
   ott: { mime: OTT_MIME, type: { description: 'OpenDocument Text Template', accept: { [OTT_MIME]: ['.ott'] } } },
   dotx: { mime: DOTX_MIME, type: { description: 'Word Template', accept: { [DOTX_MIME]: ['.dotx'] } } },
+  pdf: { mime: 'application/pdf', type: { description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } } },
 };
 
 // The open picker also accepts templates; opening one never binds it as the file.

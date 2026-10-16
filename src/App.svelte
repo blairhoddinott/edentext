@@ -1406,12 +1406,12 @@
 
   // Vector PDF via the browser's print dialog: crisp, tiny, fonts embedded. Tables
   // break natively; header/footer become CSS @page boxes (basic text + page numbers).
-  function handlePrintPdf() {
+  async function handlePrintPdf() {
     if (!editor) return;
     exportMenuOpen = false;
     try {
       const json = editor.getJSON() as TiptapNode;
-      printPdf({
+      await printPdf({
         json,
         fileName: suggestedFilename(json),
         margins: pageMargins,
@@ -1430,6 +1430,7 @@
         markupAttrs: markupAttrs(),
       });
     } catch (err) {
+      if ((err as Error)?.name === 'AbortError') return;
       console.error('[pdf] Print failed:', err);
       reportLoadFailure(t().dialogs.couldNotPrintPdf, err);
     }

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
+import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -119,6 +120,23 @@ ipcMain.handle('desktop:write', async (_e, file, bytes) => {
   await rename(tmp, file);
 });
 
+// Vector PDF without the print dialog: the page's print HTML, served on the app origin so
+// its fonts and pictures resolve, rendered in a hidden window. Size and margins are @page's.
+const printPages = new Map();
+ipcMain.handle('desktop:print-pdf', async (_e, html) => {
+  const id = randomUUID();
+  printPages.set(id, html);
+  const win = new BrowserWindow({ show: false });
+  try {
+    await win.loadURL(`${ORIGIN}/__print/${id}`);
+    await win.webContents.executeJavaScript('document.fonts.ready.then(() => true)');
+    return new Uint8Array(await win.webContents.printToPDF({ preferCSSPageSize: true, printBackground: true }));
+  } finally {
+    printPages.delete(id);
+    win.destroy();
+  }
+});
+
 function createWindow(file) {
   const win = new BrowserWindow({
     width: 1280,
@@ -182,6 +200,8 @@ app.on('open-file', (e, file) => {
 app.whenReady().then(() => {
   setMenu();
   protocol.handle('app', (req) => {
+    const print = /^\/__print\/([\w-]+)$/.exec(new URL(req.url).pathname);
+    if (print) return new Response(printPages.get(print[1]) ?? '', { headers: { 'content-type': 'text/html; charset=utf-8' } });
     const file = path.join(ROOT, decodeURIComponent(new URL(req.url).pathname));
     if (!file.startsWith(ROOT)) return new Response('', { status: 403 });
     return net.fetch(pathToFileURL(file).toString());

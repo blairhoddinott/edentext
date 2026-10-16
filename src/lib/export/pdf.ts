@@ -16,6 +16,8 @@ import { defaultBulletChar } from '../utils/bulletListTypes';
 import { styleSheet } from '../styles/sheet.svelte';
 import { outlineLabel } from '../styles/outlineNumbering';
 import { deriveFilename } from '../storage/documentName';
+import { desktopPrintToPdf } from '../storage/desktopFiles';
+import { saveDocument } from './saveFile';
 import { BAR_STRIP_CM, commentListHtml, markReviewBlocks, printedComments, reviewPrintCss, type CommentLabels, type PrintedComment } from './reviewPrint';
 
 const DEFAULT_COMMENT_LABELS: CommentLabels = { heading: 'Comments', onPage: (n) => `Page ${n}` };
@@ -802,9 +804,8 @@ ${review ? reviewPrintCss() : ''}
 `;
 }
 
-// Build the document in a hidden iframe and invoke the browser's print → "Save as
-// PDF", which produces crisp vector text with the fonts embedded.
-export function printPdf(opts: PrintPdfOptions): void {
+// The print page as one HTML string, for the browser's print dialog or Electron's printToPDF.
+function printHtml(opts: PrintPdfOptions): { html: string; title: string } {
   const o: PrintPdfOptions = {
     json: opts.json,
     fileName: opts.fileName,
@@ -833,6 +834,25 @@ export function printPdf(opts: PrintPdfOptions): void {
   const review = markup && markReviewBlocks(host);
   const list = comments.length ? commentListHtml(comments, o.commentLabels ?? DEFAULT_COMMENT_LABELS) : '';
 
+  const html =
+    `<!doctype html><html data-theme="light"><head><meta charset="utf-8"><title>${title}</title>` +
+    `<style>${globalCss}\n${editorCss}\n${printCss(o, review)}</style></head>` +
+    `<body><div class="paper"${o.markupAttrs ?? ''}><div class="tiptap">${host.innerHTML}</div>${list}</div></body></html>`;
+  return { html, title };
+}
+
+// The desktop app renders the print page to a PDF file directly; a browser can only
+// open its print dialog, where "Save as PDF" gives crisp vector text with fonts embedded.
+export async function printPdf(opts: PrintPdfOptions): Promise<void> {
+  const { html, title } = printHtml(opts);
+  if (desktopPrintToPdf) {
+    const bytes = await desktopPrintToPdf(html);
+    const sink = (window as { __edentextPdfSink?: (bytes: ArrayBuffer) => void }).__edentextPdfSink;
+    if (sink) sink(bytes.slice().buffer);
+    else await saveDocument(bytes, title + '.pdf', 'pdf');
+    return;
+  }
+
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
   iframe.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;';
@@ -840,11 +860,7 @@ export function printPdf(opts: PrintPdfOptions): void {
 
   const idoc = iframe.contentDocument!;
   idoc.open();
-  idoc.write(
-    `<!doctype html><html data-theme="light"><head><meta charset="utf-8"><title>${title}</title>` +
-    `<style>${globalCss}\n${editorCss}\n${printCss(o, review)}</style></head>` +
-    `<body><div class="paper"${o.markupAttrs ?? ''}><div class="tiptap">${host.innerHTML}</div>${list}</div></body></html>`,
-  );
+  idoc.write(html);
   idoc.close();
 
   const cleanup = () => iframe.remove();

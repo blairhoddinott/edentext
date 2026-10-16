@@ -6,6 +6,7 @@ type Bridge = {
   takeOpenedFile(): Promise<string | null>;
   readFile(path: string): Promise<{ bytes: Uint8Array; modified: number }>;
   writeFile(path: string, bytes: Uint8Array): Promise<void>;
+  printToPdf(html: string): Promise<Uint8Array>;
 };
 
 const bridge = (globalThis as { edentextDesktop?: Bridge }).edentextDesktop;
@@ -48,3 +49,6 @@ export async function takeOpenedFile(): Promise<FileSystemFileHandle | null> {
   const path = await bridge?.takeOpenedFile();
   return path ? pathHandle(path) : null;
 }
+
+// The print page rendered to PDF by the desktop app, without a print dialog; absent in a browser.
+export const desktopPrintToPdf = bridge?.printToPdf;
