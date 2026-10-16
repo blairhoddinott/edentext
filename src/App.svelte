@@ -412,6 +412,11 @@
     return base === 'document' ? t().app.untitled : base;
   });
 
+  // The window or tab names its document, as a word processor's title bar does.
+  $effect(() => {
+    document.title = `${documentName.trim() || namePlaceholder} – EdenText`;
+  });
+
   function suggestedFilename(json: TiptapNode): string {
     const n = documentName.trim();
     return n ? `${sanitizeNameForFile(n)}.odt` : deriveFilename(json);
