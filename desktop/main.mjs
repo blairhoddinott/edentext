@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog, Menu, net, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -82,8 +83,53 @@ async function checkForUpdate(win) {
   if (response === 2) writeFileSync(skippedFile(), latest);
 }
 
-function createWindow() {
-  const win = new BrowserWindow({ width: 1280, height: 900, title: 'EdenText' });
+// Documents the system opened with the app (double-click, Open With). The page may read
+// and write these paths and no others; the list outlives the launch for the recent list.
+const DOC = /\.(odt|ott|docx|dotx)$/i;
+const grantedFile = () => path.join(app.getPath('userData'), 'opened-files.json');
+let granted = null;
+function isGranted(file) {
+  granted ??= (() => { try { return JSON.parse(readFileSync(grantedFile(), 'utf8')); } catch { return []; } })();
+  return granted.includes(file);
+}
+function grant(file) {
+  if (isGranted(file)) return;
+  granted = [file, ...granted].slice(0, 100);
+  writeFileSync(grantedFile(), JSON.stringify(granted));
+}
+const docArgs = (argv, cwd) => argv.slice(1).filter((a) => DOC.test(a) && !a.startsWith('-')).map((a) => path.resolve(cwd, a));
+// The file each window was opened for, until its page takes it.
+const pending = new Map();
+
+ipcMain.handle('desktop:take-file', (e) => {
+  const file = pending.get(e.sender.id) ?? null;
+  pending.delete(e.sender.id);
+  return file;
+});
+ipcMain.handle('desktop:read', async (_e, file) => {
+  if (!isGranted(file)) throw new Error('EACCES: not a document opened with the app');
+  const [bytes, info] = await Promise.all([readFile(file), stat(file)]);
+  return { bytes: new Uint8Array(bytes), modified: Math.floor(info.mtimeMs) };
+});
+// Through a temporary file, so a failed write never leaves half a document behind.
+ipcMain.handle('desktop:write', async (_e, file, bytes) => {
+  if (!isGranted(file)) throw new Error('EACCES: not a document opened with the app');
+  const tmp = `${file}.edentext-${process.pid}.tmp`;
+  await writeFile(tmp, bytes);
+  await rename(tmp, file);
+});
+
+function createWindow(file) {
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 900,
+    title: 'EdenText',
+    webPreferences: { preload: fileURLToPath(new URL('preload.cjs', import.meta.url)) },
+  });
+  if (file) {
+    grant(file);
+    pending.set(win.webContents.id, file);
+  }
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith(`${ORIGIN}/`)) return { action: 'allow' };
     if (/^(https?|mailto|tel):/.test(url)) void shell.openExternal(url);
@@ -117,7 +163,21 @@ function createWindow() {
 // A second process on the same profile loses its localStorage writes, so a second launch
 // opens a window here instead: a new document, as a new browser tab would be.
 if (!app.requestSingleInstanceLock()) app.exit(0);
-app.on('second-instance', () => { if (app.isReady()) createWindow(); });
+app.on('second-instance', (_e, argv, cwd) => {
+  if (!app.isReady()) return;
+  const files = docArgs(argv, cwd);
+  if (files.length) files.forEach(createWindow);
+  else createWindow();
+});
+
+// Windows and Linux pass a document as an argument, macOS as open-file, often before
+// the app is ready.
+let launchFile = docArgs(process.argv, process.cwd())[0];
+app.on('open-file', (e, file) => {
+  e.preventDefault();
+  if (app.isReady()) createWindow(file);
+  else launchFile = file;
+});
 
 app.whenReady().then(() => {
   setMenu();
@@ -126,7 +186,7 @@ app.whenReady().then(() => {
     if (!file.startsWith(ROOT)) return new Response('', { status: 403 });
     return net.fetch(pathToFileURL(file).toString());
   });
-  createWindow();
+  createWindow(launchFile);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

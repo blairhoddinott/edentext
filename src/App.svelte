@@ -12,6 +12,7 @@
   import type { TiptapNode } from 'odf-kit';
   import { exportPdf, printPdf, printRaster } from './lib/export/pdf';
   import { supportsFsAccess, saveDocument, openOdt, allowWrite } from './lib/export/saveFile';
+  import { takeOpenedFile } from './lib/storage/desktopFiles';
   import { loadRecentFiles, rememberRecentFile, readRecentFile, forgetRecentFile, forgetRecentFiles, pruneRecentFiles, getHandle, type RecentFile } from './lib/storage/recentFiles';
   import { isProtected, decryptPackage, WRONG_PASSWORD } from './lib/crypto/protect';
   import { convertUnsupportedImages } from './lib/import/imageFormats';
@@ -1168,16 +1169,23 @@
   // A document double-clicked in the OS reaches the installed app through launchQueue
   // (the manifest's `file_handlers`). It fires once at startup, so it waits for the
   // editor; the handle comes with write permission, so a later Save writes that file.
+  // The desktop app hands its document over by path instead.
   $effect(() => {
-    const queue = (window as WithLaunchQueue).launchQueue;
-    if (!editor || !queue) return;
-    queue.setConsumer(async ({ files }) => {
-      const handle = files?.[0];
-      if (!handle) return;
+    if (!editor) return;
+    (window as WithLaunchQueue).launchQueue?.setConsumer(({ files }) => void openLaunched(files?.[0]));
+    void takeOpenedFile().then(openLaunched);
+  });
+
+  async function openLaunched(handle: FileSystemFileHandle | null | undefined) {
+    if (!handle) return;
+    try {
       const file = await handle.getFile();
       await applyImport(new Uint8Array(await file.arrayBuffer()), handle, file.name);
-    });
-  });
+    } catch (err) {
+      console.error('[open] Failed to open file:', err);
+      alert(t().dialogs.couldNotOpen);
+    }
+  }
 
   async function handleOpen() {
     if (!editor) return;

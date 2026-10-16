@@ -1,5 +1,6 @@
 import { openDb, idbRequest } from './idb';
 import { volatile } from './docScope';
+import { pathHandle, pathOf } from './desktopFiles';
 
 // The files this browser can reopen, most recent first. Name and time go in
 // localStorage so the menu draws synchronously; the FileSystemFileHandle that reopens
@@ -77,7 +78,9 @@ export async function pruneRecentFiles(): Promise<RecentFile[]> {
 async function findByHandle(list: RecentFile[], handle: FileSystemFileHandle): Promise<RecentFile | undefined> {
   for (const f of list) {
     const known = await getHandle(f.id);
-    if (known && (await known.isSameEntry(handle))) return f;
+    if (!known) continue;
+    // A real handle throws when compared with a path handle.
+    if (pathOf(known) || pathOf(handle) ? pathOf(known) === pathOf(handle) : await known.isSameEntry(handle)) return f;
   }
   return undefined;
 }
@@ -86,7 +89,9 @@ async function putHandle(id: string, handle: FileSystemFileHandle): Promise<void
   if (typeof indexedDB === 'undefined') return;
   try {
     const db = await openDb(DB_NAME, STORE);
-    await idbRequest(db, STORE, 'readwrite', (s) => s.put(handle, id));
+    // A path handle is stored as its path; it is not structured-cloneable.
+    const path = pathOf(handle);
+    await idbRequest(db, STORE, 'readwrite', (s) => s.put(path ? { path } : handle, id));
     db.close();
   } catch { /* no handle stored: the entry is then a name only */ }
 }
@@ -95,8 +100,9 @@ export async function getHandle(id: string): Promise<FileSystemFileHandle | null
   if (typeof indexedDB === 'undefined') return null;
   try {
     const db = await openDb(DB_NAME, STORE);
-    const handle = await idbRequest<FileSystemFileHandle | undefined>(db, STORE, 'readonly', (s) => s.get(id));
+    const handle = await idbRequest<FileSystemFileHandle | { path: string } | undefined>(db, STORE, 'readonly', (s) => s.get(id));
     db.close();
+    if (handle && 'path' in handle) return pathHandle(handle.path);
     return handle ?? null;
   } catch {
     return null;

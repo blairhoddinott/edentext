@@ -5,7 +5,14 @@ module.exports = {
   appId: 'io.github.stffnb.edentext',
   productName: 'EdenText',
   extraMetadata: { name: 'edentext', version: root.version, description: root.description, author: root.author, homepage: root.homepage, license: root.license },
-  files: ['main.mjs', 'package.json'],
+  files: ['main.mjs', 'preload.cjs', 'package.json'],
+  // Rank Alternate: macOS offers the app under Open With without taking the default.
+  fileAssociations: [
+    { ext: 'odt', name: 'OpenDocument Text', mimeType: 'application/vnd.oasis.opendocument.text', role: 'Editor', rank: 'Alternate' },
+    { ext: 'ott', name: 'OpenDocument Text Template', mimeType: 'application/vnd.oasis.opendocument.text-template', role: 'Editor', rank: 'Alternate' },
+    { ext: 'docx', name: 'Word Document', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', role: 'Editor', rank: 'Alternate' },
+    { ext: 'dotx', name: 'Word Template', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.template', role: 'Editor', rank: 'Alternate' },
+  ],
   extraResources: [{ from: '../dist', to: 'app' }],
   // The white tile is a macOS convention; Windows and Linux icons stand free.
   icon: '../public/icon-512.png',
