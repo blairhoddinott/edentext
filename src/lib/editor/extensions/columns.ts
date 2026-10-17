@@ -30,6 +30,80 @@ declare module '@tiptap/core' {
 // pageBreaks.ts and columnsFlow.ts MUST share this or split/push/join cycles forever.
 export const COLUMNS_FIT_MARGIN_PX = 32;
 
+// Below this many lines of leftover room, a boundary block splits at the block
+// boundary instead of pulling a line or two over (not worth a paragraph split).
+export const MIN_TAIL_LINES = 2;
+export const DEFAULT_LINE_PX = 19;
+
+export type LineRect = { left: number; right: number; top: number; height: number };
+
+// The first rect of each rendered line, in document order — column 1's lines
+// before column 2's. A rect joins the line it overlaps by half the taller of the
+// two, so a raised run (a verse number, a superscript) is no line of its own.
+export function groupLines(rects: LineRect[]): LineRect[] {
+  const lines: LineRect[] = [];
+  let band: { top: number; bottom: number } | null = null;
+  for (const r of rects) {
+    const bottom = r.top + r.height;
+    if (band) {
+      const overlap = Math.min(band.bottom, bottom) - Math.max(band.top, r.top);
+      if (overlap >= Math.max(band.bottom - band.top, r.height) / 2) continue;
+    }
+    band = { top: r.top, bottom };
+    lines.push(r);
+  }
+  return lines;
+}
+
+// The rendered lines of `el`, in viewport coordinates.
+export function lineRects(el: Element): LineRect[] {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const rects: LineRect[] = [];
+  let textNode: globalThis.Node | null;
+  while ((textNode = walker.nextNode())) {
+    if (!textNode.textContent) continue;
+    const range = document.createRange();
+    range.selectNodeContents(textNode);
+    for (const r of Array.from(range.getClientRects())) {
+      if (r.width > 0 && r.height > 0) {
+        rects.push({ left: r.left, right: r.right, top: r.top, height: r.height });
+      }
+    }
+  }
+  return groupLines(rects);
+}
+
+// Median top-to-top line advance (viewport px); 0 when there are too few lines.
+export function lineAdvance(lines: { top: number }[]): number {
+  const gaps: number[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const g = lines[i].top - lines[i - 1].top;
+    if (g > 2) gaps.push(g);
+  }
+  gaps.sort((a, b) => a - b);
+  return gaps.length ? gaps[gaps.length >> 1] : 0;
+}
+
+// What of a section's first block must fit the room left on a page for the section to
+// start there: two lines of a paragraph or the first row of a table the flow can cut,
+// else its share of the columns. pageBreaks.ts and columnsFlow.ts must agree on it.
+export function headFitPx(el: Element, count: number, scale: number): number {
+  let whole = 0;
+  for (const r of Array.from(el.getClientRects())) whole += r.height;
+  whole = whole / scale / count;
+  if (el.tagName === 'P') {
+    const lines = lineRects(el);
+    if (lines.length > MIN_TAIL_LINES) {
+      return Math.min(whole, MIN_TAIL_LINES * ((lineAdvance(lines) || DEFAULT_LINE_PX * scale) / scale));
+    }
+  }
+  const rows = el.querySelectorAll<HTMLTableRowElement>(':scope > table > tbody > tr');
+  if (rows.length > 1 && Array.from(rows[0].cells).every((c) => c.rowSpan <= 1)) {
+    return Math.min(whole, rows[0].getBoundingClientRect().height / scale);
+  }
+  return whole;
+}
+
 export function clampColumnCount(n: number): number {
   return Math.min(MAX_COLUMN_COUNT, Math.max(2, Math.round(n)));
 }

@@ -8,7 +8,10 @@ import { TableMap } from '@tiptap/pm/tables';
 import {
   readVerticalMargins, bandAt, FORCE_PAGE_RECALC, isSplitPane, blockDeco, isBlockDeco, repairDecos,
 } from './pageBreaks';
-import { sameColumnsAttrs, COLUMNS_FIT_MARGIN_PX } from './columns';
+import {
+  sameColumnsAttrs, COLUMNS_FIT_MARGIN_PX, MIN_TAIL_LINES, DEFAULT_LINE_PX, headFitPx, lineRects, lineAdvance,
+  type LineRect,
+} from './columns';
 import { tabStopsKey } from './tabStops';
 
 // Cross-page column flow: keeps a columns chain's fragmentation in sync with the
@@ -25,14 +28,10 @@ const SAFETY_PX = 16;
 // margins), or a join whose real height exceeds the estimate re-splits forever.
 const HYSTERESIS_PX = 40;
 const MIN_BLOCK_PX = 16;
-const DEFAULT_LINE_PX = 19;
 // Height slack on the open last fragment: a freshly typed line must still fit
 // column 1 before the next pass grows the decoration, or every line flashes into
 // column 2 for one frame.
 const OPEN_HEIGHT_SLACK_PX = 40;
-// Below this many lines of leftover room, a boundary block splits at the block
-// boundary instead of pulling a line or two over (not worth a paragraph split).
-const MIN_TAIL_LINES = 2;
 // Pass budget per external change: a pass fixes what it can judge, the next measures
 // the geometry it changed; bounded against estimate-driven oscillation. The op budget
 // within a pass pages a whole section in one go — a split per page.
@@ -40,7 +39,6 @@ const MAX_FLOW_PASSES = 48;
 const MAX_FLOW_OPS = 64;
 
 type Fragment = { pos: number; node: PMNode };
-export type LineRect = { left: number; right: number; top: number; height: number };
 
 // Live per-fragment view of the flow's decisions, for the dev Debug dump.
 export type ColumnsFlowDebug = {
@@ -104,42 +102,6 @@ function contentHeightPx(children: Element[], scale: number): number {
   return end.length ? end[end.length - 1] : 0;
 }
 
-// The first rect of each rendered line, in document order — column 1's lines
-// before column 2's. A rect joins the line it overlaps by half the taller of the
-// two, so a raised run (a verse number, a superscript) is no line of its own.
-export function groupLines(rects: LineRect[]): LineRect[] {
-  const lines: LineRect[] = [];
-  let band: { top: number; bottom: number } | null = null;
-  for (const r of rects) {
-    const bottom = r.top + r.height;
-    if (band) {
-      const overlap = Math.min(band.bottom, bottom) - Math.max(band.top, r.top);
-      if (overlap >= Math.max(band.bottom - band.top, r.height) / 2) continue;
-    }
-    band = { top: r.top, bottom };
-    lines.push(r);
-  }
-  return lines;
-}
-
-// The rendered lines of `el`, in viewport coordinates.
-function lineRects(el: Element): LineRect[] {
-  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  const rects: LineRect[] = [];
-  let textNode: Node | null;
-  while ((textNode = walker.nextNode())) {
-    if (!textNode.textContent) continue;
-    const range = document.createRange();
-    range.selectNodeContents(textNode);
-    for (const r of Array.from(range.getClientRects())) {
-      if (r.width > 0 && r.height > 0) {
-        rects.push({ left: r.left, right: r.right, top: r.top, height: r.height });
-      }
-    }
-  }
-  return groupLines(rects);
-}
-
 // How many of `lines` a flow budget buys, measured top to top: a line carrying a
 // raised run is taller than the rest, so one median advance for all of them is
 // well short. `advance` stands in where the tops reset at a column break.
@@ -151,17 +113,6 @@ export function linesWithin(lines: LineRect[], budgetPx: number, advance: number
     if (used > budgetPx) return n - 1;
   }
   return lines.length;
-}
-
-// Median top-to-top line advance (viewport px); 0 when there are too few lines.
-function lineAdvance(lines: { top: number }[]): number {
-  const gaps: number[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const g = lines[i].top - lines[i - 1].top;
-    if (g > 2) gaps.push(g);
-  }
-  gaps.sort((a, b) => a - b);
-  return gaps.length ? gaps[gaps.length >> 1] : 0;
 }
 
 // The rendered rows of a table block (its TableView wrapper), or null when they do not
@@ -290,11 +241,15 @@ export const ColumnsFlow = Extension.create({
         // True when nothing but empty paragraphs follows the fragment — the chain
         // is "open" at the document end and fills sequentially while typing.
         function openAtDocEnd(frag: Fragment): boolean {
-          const after = frag.pos + frag.node.nodeSize;
+          let after = frag.pos + frag.node.nodeSize;
           let open = true;
           editorView.state.doc.forEach((n, off) => {
             if (off < after) return;
-            if (n.type.name === 'columns') return; // continuation, judged via its own end
+            // Its chain's continuation is judged via its own end; another section is content.
+            if (off === after && n.type.name === 'columns' && sameColumnsAttrs(n, frag.node)) {
+              after += n.nodeSize;
+              return;
+            }
             if (!(n.type.name === 'paragraph' && n.content.size === 0)) open = false;
           });
           return open;
@@ -490,9 +445,9 @@ export const ColumnsFlow = Extension.create({
             if (overflows) {
               // Overflow. Same first-block fit test (incl. margin) as pageBreaks'
               // push decision — the two must agree, or split/push/join cycle.
-              const first = Math.max(blockHeightPx(children[0], scale) / count, MIN_BLOCK_PX);
+              const first = Math.max(headFitPx(children[0], count, scale), MIN_BLOCK_PX);
               if (first + COLUMNS_FIT_MARGIN_PX > available) {
-                // First block alone doesn't fit. Mid-page, pageBreaks pushes the
+                // Not even the first block's head fits. Mid-page, pageBreaks pushes the
                 // fragment; at a page top pushing can't help — split the paragraph
                 // or table at a line or row boundary instead.
                 if (
@@ -503,10 +458,9 @@ export const ColumnsFlow = Extension.create({
                 }
                 continue;
               }
-              if (node.childCount < 2) continue;
               let k = 0;
               for (let j = 0; j < children.length - 1; j++) {
-                if (spans.end[j] / count > available - SAFETY_PX && j > 0) break;
+                if (spans.end[j] / count > available - SAFETY_PX) break;
                 k = j + 1;
               }
               // Leftover room after k whole blocks: fill it with the boundary
@@ -515,6 +469,7 @@ export const ColumnsFlow = Extension.create({
                 done(false);
                 continue;
               }
+              if (k === 0) continue;
               let boundary = pos + 1;
               for (let j = 0; j < k; j++) boundary += node.child(j).nodeSize;
               const typesAfter = [{ type: node.type, attrs: node.attrs }];
@@ -652,7 +607,7 @@ export const ColumnsFlow = Extension.create({
               hasNext,
               openAtDocEnd: openAtDocEnd(frags[i]),
               decorated: /column-fill:\s*auto/.test(el.style.cssText),
-              firstBlockNeedPx: Math.round(children[0] ? Math.max(blockHeightPx(children[0], scale) / count, MIN_BLOCK_PX) : 0),
+              firstBlockNeedPx: Math.round(children[0] ? Math.max(headFitPx(children[0], count, scale), MIN_BLOCK_PX) : 0),
               overflow: usedPerColumn > available + 1,
               join,
             });

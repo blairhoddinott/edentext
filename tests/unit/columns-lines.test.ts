@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { groupLines, linesWithin, rowsWithin, type LineRect } from '../../src/lib/editor/extensions/columnsFlow';
+import { linesWithin, rowsWithin } from '../../src/lib/editor/extensions/columnsFlow';
+import { groupLines, type LineRect } from '../../src/lib/editor/extensions/columns';
 
 const HEIGHT = 24;
 const ADVANCE = 22.1;

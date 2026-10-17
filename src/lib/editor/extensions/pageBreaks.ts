@@ -3,7 +3,7 @@ import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state';
 import { ReplaceStep } from '@tiptap/pm/transform';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
-import { COLUMNS_FIT_MARGIN_PX } from './columns';
+import { COLUMNS_FIT_MARGIN_PX, headFitPx } from './columns';
 import { isLeftPage, printedPageNumber } from '../../storage/pageNumbering';
 import { RESYNC_NOTES, setNoteAnchorPages } from './notes';
 
@@ -681,7 +681,7 @@ type Leaf = {
   // the overflow at a block boundary).
   // `spaceAbovePx`: the first block's space above, which a page break it makes keeps
   // (as `kept` below) above the whole section, so both columns start below it.
-  columnsFragment?: { blockCount: number; firstBlockNeededPx: number; spaceAbovePx: number };
+  columnsFragment?: { firstBlockNeededPx: number; spaceAbovePx: number };
   // Footnote anchors inside this leaf (notes.ts), at their spacer-free offset from its
   // top: the note goes to the page its anchor lands on, and a leaf split across a
   // boundary carries the anchors below the split onto the next page with it.
@@ -1490,11 +1490,7 @@ export const PageBreaks = Extension.create({
                 const count = Math.max(1, parseInt(child.dataset?.columns ?? '', 10) || 1);
                 const first = child.firstElementChild as HTMLElement | null;
                 const breaks = !inTableCell && first?.dataset?.pageBreakBefore === 'page';
-                let firstPx = 0;
-                if (first) {
-                  for (const r of Array.from(first.getClientRects())) firstPx += r.height;
-                  firstPx = firstPx / scaleFactor / count;
-                }
+                const firstPx = first ? headFitPx(first, count, scaleFactor) : 0;
                 leaves.push({
                   el: child,
                   kind: 'atomic',
@@ -1504,7 +1500,6 @@ export const PageBreaks = Extension.create({
                   // A section's first block breaking the page breaks it before the section.
                   forceBreakBefore: breaks,
                   columnsFragment: {
-                    blockCount: child.children.length,
                     firstBlockNeededPx: Math.max(firstPx, 16),
                     spaceAbovePx: breaks ? parseFloat(getComputedStyle(first!).getPropertyValue('--space-before')) || 0 : 0,
                   },
@@ -1980,9 +1975,9 @@ export const PageBreaks = Extension.create({
                 const pageOpener = effectiveTop - (parseFloat(getComputedStyle(leaf.el).marginTop) || 0) <= contentStart + 0.5;
                 if (leaf.kind === 'atomic') {
                   const cf = leaf.columnsFragment;
-                  if (cf && cf.blockCount > 1 && cf.firstBlockNeededPx + COLUMNS_FIT_MARGIN_PX <= contentEnd - effectiveTop) {
-                    // columnsFlow.ts will split the fragment so a prefix fills this
-                    // page; pushing it whole here would fight that.
+                  if (cf && cf.firstBlockNeededPx + COLUMNS_FIT_MARGIN_PX <= contentEnd - effectiveTop) {
+                    // columnsFlow.ts will split the fragment, between blocks or inside the
+                    // first, so a prefix fills this page; pushing it whole would fight that.
                     noPushReason = 'columns-await-flow';
                   } else if (cf && effectiveTop <= contentStart + 0.5) {
                     // Already at a page top and still too tall (a paragraph taller
