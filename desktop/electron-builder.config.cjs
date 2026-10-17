@@ -21,5 +21,11 @@ module.exports = {
   mac: { icon: 'icon.png', target: { target: 'dmg', arch: ['arm64', 'x64'] }, category: 'public.app-category.productivity' },
   win: { target: 'nsis' },
   nsis: { artifactName: '${productName}-Setup-${version}.${ext}' },
-  linux: { target: ['AppImage', 'deb'], category: 'Office', maintainer: root.author },
+  // The tar.gz feeds the Flathub manifest, which installs the desktop entry and metainfo from it.
+  linux: {
+    target: ['AppImage', 'deb', { target: 'tar.gz', arch: ['x64', 'arm64'] }],
+    category: 'Office',
+    maintainer: root.author,
+    extraFiles: [{ from: 'flatpak', to: '.', filter: ['*.desktop', '*.metainfo.xml'] }],
+  },
 };

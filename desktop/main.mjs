@@ -61,13 +61,14 @@ function text() {
 }
 
 // Points at a newer release instead of installing it: an unsigned macOS app cannot
-// update itself. Offline or rate-limited, the app simply starts without asking.
+// update itself. Offline or rate-limited, the app simply starts without asking;
+// under Flatpak, Flathub delivers the updates.
 const RELEASES = 'https://github.com/stffnb/edentext/releases/latest';
 // The one release the user chose to skip; the next one asks again.
 const skippedFile = () => path.join(app.getPath('userData'), 'skipped-version');
 const skipped = () => { try { return readFileSync(skippedFile(), 'utf8'); } catch { return ''; } };
 async function checkForUpdate(win) {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged || process.env.FLATPAK_ID) return;
   const res = await net.fetch('https://api.github.com/repos/stffnb/edentext/releases/latest');
   if (!res.ok) return;
   const latest = String((await res.json()).tag_name ?? '').replace(/^v/, '');

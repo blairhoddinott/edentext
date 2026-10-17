@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The release workflow fills in @VERSION@ and @DATE@ before packing. -->
+<component type="desktop-application">
+  <id>io.github.stffnb.edentext</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+  <name>EdenText</name>
+  <summary>Word processor for OpenDocument and Word documents</summary>
+  <developer id="io.github.stffnb">
+    <name>Steffen Becker</name>
+  </developer>
+  <description>
+    <p>EdenText is a word processor for everything from quick notes to full-length books. It opens and saves OpenDocument (.odt) and Word (.docx) documents, and everything runs locally: no account, no server, your documents never leave your computer.</p>
+    <ul>
+      <li>Styles, headings, lists, tables, images, text boxes and columns</li>
+      <li>Footnotes, endnotes, tables of contents and formulas</li>
+      <li>Track changes, comments and spell checking</li>
+      <li>Export to PDF and password-protected documents</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.stffnb.edentext.desktop</launchable>
+  <url type="homepage">https://edentext.app</url>
+  <url type="bugtracker">https://github.com/stffnb/edentext/issues</url>
+  <url type="vcs-browser">https://github.com/stffnb/edentext</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/stffnb/edentext/main/docs/showcase/hero.png</image>
+      <caption>A two-column newsletter</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/stffnb/edentext/main/docs/showcase/book-spread.png</image>
+      <caption>A book in two-page view</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/stffnb/edentext/main/docs/showcase/thesis-review.png</image>
+      <caption>Tracked changes and comments</caption>
+    </screenshot>
+  </screenshots>
+  <provides>
+    <mediatype>application/vnd.oasis.opendocument.text</mediatype>
+    <mediatype>application/vnd.oasis.opendocument.text-template</mediatype>
+    <mediatype>application/vnd.openxmlformats-officedocument.wordprocessingml.document</mediatype>
+    <mediatype>application/vnd.openxmlformats-officedocument.wordprocessingml.template</mediatype>
+  </provides>
+  <categories>
+    <category>Office</category>
+    <category>WordProcessor</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VERSION@" date="@DATE@">
+      <url type="details">https://github.com/stffnb/edentext/releases/tag/v@VERSION@</url>
+    </release>
+  </releases>
+</component>

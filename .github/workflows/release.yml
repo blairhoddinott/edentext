@@ -80,6 +80,9 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: desktop
+      # Flathub reads the version and date from the metainfo in the tar.gz.
+      - if: runner.os == 'Linux'
+        run: sed -i "s/@VERSION@/${GITHUB_REF_NAME#v}/g; s/@DATE@/$(date -u +%F)/g" desktop/flatpak/*.metainfo.xml
       - run: npm run dist
         working-directory: desktop
         env:
@@ -101,4 +104,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           shopt -s nullglob
-          gh release upload "$GITHUB_REF_NAME" desktop/release/*.{dmg,exe,AppImage,zsync,deb}
+          gh release upload "$GITHUB_REF_NAME" desktop/release/*.{dmg,exe,AppImage,zsync,deb,tar.gz}

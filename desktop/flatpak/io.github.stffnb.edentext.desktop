@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=EdenText
+Comment=Word processor for OpenDocument and Word documents
+Exec=edentext %F
+Icon=io.github.stffnb.edentext
+Terminal=false
+Categories=Office;WordProcessor;
+MimeType=application/vnd.oasis.opendocument.text;application/vnd.oasis.opendocument.text-template;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.openxmlformats-officedocument.wordprocessingml.template;
+StartupWMClass=EdenText
