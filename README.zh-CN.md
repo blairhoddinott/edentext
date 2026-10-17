@@ -33,18 +33,17 @@
 
 ---
 
-EdenText 是一款基于网页、功能强大的文字处理软件，从随手笔记到整本书籍都能胜任。无需服务器，无需账号——所有处理都在本地完成，文档绝不会离开你的电脑。打开网址即可使用，也可以作为轻量的浏览器应用完全离线运行——对大多数语言而言，首次打开下载量不到 2 MB，词典和字体按需加载[^1]。界面提供英语、德语、西班牙语、法语、葡萄牙语、希腊语、俄语、乌克兰语、日语和中文（简体与繁体）。
+EdenText 是一款基于网页、功能强大的文字处理软件，从随手笔记到整本书籍都能胜任。无需服务器，无需账号——所有处理都在本地完成，文档绝不会离开你的电脑。打开网址即可使用，也可以安装成应用离线使用。大多数语言首次打开只需下载不到 2 MB，词典和字体按需加载[^1]。界面提供英语、德语、西班牙语、法语、葡萄牙语、希腊语、俄语、乌克兰语、日语和中文（简体与繁体）。
 
 > [!NOTE]
-> EdenText 尚处于早期 **测试版（beta）** 阶段，正在积极开发，更多功能即将推出。
-> 每次提交都会运行完整的测试套件和 LibreOffice 往返转换检查，但仍可能偶尔出现
-> 问题，请为重要文档保留备份。浏览器中的副本还会保留当前文档的最近三个版本，
-> 万一文档无法加载，可从中恢复。
+> EdenText 目前还是 **beta** 版，仍在持续开发中。测试和往返转换检查
+> 会验证各项功能，但现阶段仍不能排除 bug，重要文档请自行备份。另外，浏览器会
+> 保留当前文档最近的三个版本，万一文档打不开，可以从中恢复。
 >
 > **发现了问题，或者文档显示不正确？** 欢迎
-> [提交 issue](https://github.com/stffnb/edentext/issues)——每一份报告都很有帮助。
-> 尤其欢迎那些在 EdenText 中显示得与 Word、LibreOffice 或 WPS Office 不同的文档：
-> 附上文件（或精简后的副本），它就会成为一个测试用例。
+> [提 issue](https://github.com/stffnb/edentext/issues)，每条反馈都很有帮助。
+> 尤其欢迎在 EdenText 里显示得和 Word、LibreOffice 或 WPS Office 不一样的文档：
+> 附上文件（或删减后的副本），它就会变成一个测试用例。
 
 <a href="https://edentext.app"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
@@ -69,14 +68,14 @@ EdenText 是一款基于网页、功能强大的文字处理软件，从随手�
   的形式编辑文档。可以关闭；请求直接发送给服务商，不经过任何 EdenText 服务器
 - **隐私优先**——文档绝不会离开你的电脑，所有处理均在本地完成；可作为可安装的应用
   离线使用。网站会统计匿名访问量（GoatCounter，托管于欧盟，不使用 Cookie）；编辑器
-  本身不发送任何内容，除非你开启 AI 助手，此时内容会发送给你选择的服务商。文档会
-  自动保存在浏览器中；"最近使用的文档"可以在下次启动时丢弃已关闭的文档，或完全不在那里
-  保存；隐私窗口关闭后不会留下任何痕迹
+  本身不发送任何内容，只有开启 AI 助手后，才会把请求发给你选择的服务商。文档会自动
+  保存在浏览器中；在“最近使用的文档”里可以设置已关闭的文档在下次启动时删除，或者干脆
+  不保存。隐私窗口关闭后不会留下任何痕迹
 - **支持所有现代浏览器**——在 Chrome 和 Edge 中，"保存"会写回打开的文件；在 Brave 中
-  启用 `brave://flags/#file-system-access-api` 后同样如此；其他情况下每次保存都是一次
-  下载，因此请在浏览器设置中开启"下载前询问每个文件的保存位置"，以便选择保存位置
+  启用 `brave://flags/#file-system-access-api` 后同样如此；其他浏览器每次保存都是一次
+  下载，想自己选保存位置的话，在浏览器设置里打开“下载前询问每个文件的保存位置”
 
-浏览器导致 EdenText 无法与 Word 或 LibreOffice 完全一致的地方，请参见
+因浏览器限制而无法与 Word 或 LibreOffice 完全一致的地方，见
 [已知限制](CHANGELOG.md#known-limitations)（英文）。
 
 ## 展示
@@ -129,9 +128,9 @@ cd desktop && npm install && npm start   # 基于同一构建的桌面应用
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-也可以自己托管这些文件：每个发行版都附带构建好的 `edentext-<tag>.zip`，
-`npm run build` 也会在 `dist/` 中生成同样的目录——将任意 Web 服务器指向它即可，
-或者使用 `docker build -t edentext .` 在本地构建镜像。
+不用 Docker 也行：每个发行版都附带构建好的 `edentext-<tag>.zip`（`npm run build`
+会在 `dist/` 中生成同样的内容），用任意 Web 服务器托管这个目录即可。也可以用
+`docker build -t edentext .` 在本地构建镜像。
 
 ## 架构
 
@@ -151,7 +150,7 @@ flowchart TD
 EdenText 完全在浏览器中运行：`App.svelte` 围绕 TipTap 文档模型及其编辑器扩展构建界面。
 样式和排版将该模型转换为可编辑的页面；存储层保存本地状态和恢复副本。导入和导出
 在同一模型与 ODT、DOCX 之间进行转换，浏览器文件 API 负责保存或下载生成的文件。
-格式和排版的不变量请参见[架构指南](docs/architecture/)（英文）。
+格式和排版的细节见[架构文档](docs/architecture/)（英文）。
 
 ## 参与贡献
 
@@ -169,7 +168,7 @@ EdenText 完全在浏览器中运行：`App.svelte` 围绕 TipTap 文档模型�
 
 Copyright © 2026 Steffen Becker · 德国制造
 
-[AGPL-3.0](LICENSE)。对于 AGPL 不适用的场景，可获取[商业许可证](LICENSE.commercial.md)。
+[AGPL-3.0](LICENSE)。如果 AGPL 不适合你的用途，可以选择[商业许可证](LICENSE.commercial.md)。
 随附的字体和语言数据保留各自的许可证——参见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
 
 *EdenText 是一个独立项目，与 Microsoft 或 The Document Foundation 无关。支持 `.docx`

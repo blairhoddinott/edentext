@@ -33,14 +33,13 @@
 
 ---
 
-EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Just one URL away, or completely offline as a slim browser app — it opens with under 2 MB of download for most languages, dictionaries and fonts follow as needed[^1]. The interface comes in English, German, Spanish, French, Portuguese, Greek, Russian, Ukrainian, Japanese and Chinese (simplified and traditional).
+EdenText is a web-based, powerful word processor for everything from quick notes to full-length books. No server, no account — processing runs locally and your documents never leave your computer. Open the link, or install it as an app and work offline. For most languages the first download is under 2 MB; dictionaries and fonts load as needed[^1]. The interface comes in English, German, Spanish, French, Portuguese, Greek, Russian, Ukrainian, Japanese and Chinese (simplified and traditional).
 
 > [!NOTE]
-> EdenText is young, in **beta** and actively developed — more features are on
-> the way. It is tested — the full suite plus LibreOffice round-trip checks run
-> on every commit — but expect occasional bugs, and keep backups of documents
-> you care about. The browser copy also keeps the last three versions of the open
-> document, and offers them if it ever fails to load one.
+> EdenText is still in **beta** and actively developed. Tests and round-trip
+> checks verify that it works; even so, bugs can't be ruled out at this stage, so
+> keep backups of documents you care about. The browser also keeps the last three
+> versions of the open document, in case it ever fails to load.
 >
 > **Found a bug, or a document that doesn't look right?** Please
 > [open an issue](https://github.com/stffnb/edentext/issues) — every report helps.
@@ -78,9 +77,9 @@ EdenText is a web-based, powerful word processor for everything from quick notes
   processing runs locally; works offline as an installable app. The site counts
   anonymous visits (GoatCounter, EU-hosted, no cookies); the editor sends nothing,
   unless you switch on the AI assistant, which sends to the provider you chose.
-  Documents are autosaved in the browser; Recent documents can drop closed ones
-  at the next start or not save them there at all, and a private window leaves
-  nothing behind once it is closed
+  Documents are autosaved in the browser; Recent documents can be set to delete
+  closed ones at the next start or not keep them at all, and a private window
+  leaves nothing behind once it is closed
 - **Any current browser** — in Chrome and Edge, Save writes back to the opened
   file, and so does Brave once `brave://flags/#file-system-access-api` is
   enabled; otherwise each save is a download, so turn on "Always ask where to

@@ -7,7 +7,7 @@
 </h1>
 
 <p align="center">
-  <strong>Un traitement de texte puissant, à portée d’URL.</strong><br>
+  <strong>Traitement de texte complet, directement dans le navigateur</strong><br>
   Gratuit · Open source · Private by Design
 </p>
 
@@ -33,21 +33,20 @@
 
 ---
 
-EdenText est un traitement de texte puissant qui s’utilise dans le navigateur, de la note rapide au livre entier. Ni serveur ni compte : tout est traité en local et vos documents ne quittent jamais votre ordinateur. Il suffit d’ouvrir une URL – ou de l’utiliser entièrement hors ligne comme application de navigateur légère : pour la plupart des langues, moins de 2 Mo suffisent au premier lancement, les dictionnaires et les polices suivent au besoin[^1]. L’interface est disponible en anglais, allemand, espagnol, français, portugais, grec, russe, ukrainien, japonais et chinois (simplifié et traditionnel).
+EdenText est un traitement de texte puissant qui s’utilise dans le navigateur, de la note rapide au livre entier. Ni serveur ni compte : tout est traité en local et vos documents ne quittent jamais votre ordinateur. Il suffit d’ouvrir le lien, ou d’installer EdenText comme application pour l’utiliser hors ligne. Pour la plupart des langues, le premier téléchargement fait moins de 2 Mo ; les dictionnaires et les polices sont chargés au besoin[^1]. L’interface est disponible en anglais, allemand, espagnol, français, portugais, grec, russe, ukrainien, japonais et chinois (simplifié et traditionnel).
 
 > [!NOTE]
-> EdenText est jeune, en **bêta** et activement développé – d’autres fonctionnalités
-> arrivent. Il est testé – la suite complète et des vérifications d’aller-retour avec
-> LibreOffice tournent à chaque commit –, mais attendez-vous à quelques bugs et gardez
-> des sauvegardes des documents qui comptent pour vous. La copie dans le navigateur
-> conserve en outre les trois dernières versions du document ouvert et vous les propose
-> si jamais il ne se charge plus.
+> EdenText est encore en **bêta** et en développement actif. Des tests et des
+> vérifications d’aller-retour en vérifient le fonctionnement. Des bugs restent néanmoins
+> possibles à ce stade : gardez des sauvegardes de vos documents importants. Le navigateur
+> conserve aussi les trois dernières versions du document ouvert, au cas où il ne se
+> chargerait plus.
 >
-> **Vous avez trouvé un bug, ou un document ne s’affiche pas correctement ?** Merci
-> d’[ouvrir une issue](https://github.com/stffnb/edentext/issues) – chaque signalement aide.
-> Les documents qu’EdenText affiche autrement que Word, LibreOffice ou WPS Office sont
-> particulièrement bienvenus : joignez le fichier (ou une copie allégée) et il deviendra
-> un cas de test.
+> **Un bug, ou un document qui s’affiche mal ?** Merci
+> d’[ouvrir une issue](https://github.com/stffnb/edentext/issues), chaque signalement compte.
+> Les documents qui s’affichent autrement dans EdenText que dans Word, LibreOffice ou WPS
+> Office nous intéressent particulièrement : joignez le fichier (ou une copie allégée) et
+> il deviendra un cas de test.
 
 <a href="https://edentext.app"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
@@ -73,29 +72,29 @@ EdenText est un traitement de texte puissant qui s’utilise dans le navigateur,
   espagnol, français, portugais, grec, russe et ukrainien), synonymes (toutes ces langues
   sauf le grec), correction grammaticale (anglais)
 - **Assistant IA facultatif** – avec le fournisseur de votre choix ou un modèle local ; il
-  répond aux questions sur le document et le modifie sous forme de modifications suivies.
-  Il peut être désactivé ; les requêtes vont directement au fournisseur, sans passer par
+  répond aux questions sur le document et le modifie avec suivi des modifications. Il
+  peut être désactivé ; les requêtes vont directement au fournisseur, sans passer par
   un serveur EdenText
 - **Private by Design** – vos documents ne quittent jamais votre
   ordinateur, tout est traité en local ; fonctionne hors ligne comme application
   installable. Le site compte les visites de façon anonyme (GoatCounter, hébergé dans
-  l’UE, sans cookies) ; l’éditeur n’envoie rien, sauf si vous activez l’assistant IA, qui
-  envoie alors au fournisseur choisi. Les documents sont enregistrés automatiquement dans
-  le navigateur ; « Documents récents » peut oublier les documents fermés au démarrage
-  suivant, ou ne pas les y enregistrer du tout, et une fenêtre de navigation privée ne
-  laisse aucune trace une fois fermée
+  l’UE, sans cookies) ; l’éditeur lui-même n’envoie rien, sauf au fournisseur choisi si
+  l’assistant IA est activé. Les documents sont enregistrés automatiquement dans le
+  navigateur ; dans « Documents récents », on peut choisir de supprimer les documents
+  fermés au démarrage suivant ou de ne pas les enregistrer du tout. Une fenêtre de
+  navigation privée ne laisse aucune trace une fois fermée
 - **Tous les navigateurs actuels** – dans Chrome et Edge, « Enregistrer » écrit dans le
   fichier ouvert, et Brave aussi une fois `brave://flags/#file-system-access-api` activé ;
-  sinon, chaque enregistrement est un téléchargement : activez alors dans les paramètres du
-  navigateur « Demander dans quel dossier enregistrer chaque fichier avant de le
-  télécharger » pour choisir l’emplacement
+  sinon, chaque enregistrement est un téléchargement. Pour choisir l’emplacement, il
+  suffit d’indiquer dans les paramètres du navigateur qu’il doit demander où enregistrer
+  chaque fichier
 
 Les cas où le navigateur empêche EdenText de reproduire exactement Word ou LibreOffice sont
 décrits dans [Known limitations](CHANGELOG.md#known-limitations) (en anglais).
 
 ## Galerie
 
-Les documents derrière ces images se trouvent dans [`docs/showcase/`](docs/showcase/) en
+Les documents de ces images se trouvent dans [`docs/showcase/`](docs/showcase/) en
 `.odt` et `.docx`, prêts à être ouverts dans EdenText, LibreOffice ou Word. Ils sont générés
 par `scripts/showcase/run.mjs` ; les photos viennent de la NASA et le livre est de Lewis
 Carroll, tous deux dans le domaine public.
@@ -144,10 +143,10 @@ Une image de conteneur est publiée pour chaque version (amd64 et arm64) :
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-Ou servez les fichiers vous-même : chaque version comprend un `edentext-<tag>.zip` de
-l’application construite, et `npm run build` produit le même dossier dans `dist/` – il
-suffit d’y faire pointer n’importe quel serveur web, ou de construire l’image en local avec
-`docker build -t edentext .`.
+Sans Docker, c’est aussi possible : chaque version contient un `edentext-<tag>.zip` avec
+l’application prête à l’emploi (`npm run build` produit la même chose dans `dist/`).
+N’importe quel serveur web peut servir ce dossier. L’image peut aussi être construite en
+local avec `docker build -t edentext .`.
 
 ## Architecture
 
@@ -169,14 +168,14 @@ autour du modèle de document TipTap et de ses extensions. Les styles et la mise
 transforment ce modèle en pages modifiables ; le stockage conserve l’état local et les
 copies de récupération. L’import et l’export traduisent ce même modèle en ODT et DOCX, et
 les API de fichiers du navigateur enregistrent ou téléchargent les fichiers obtenus. Les
-invariants de format et de mise en page sont décrits dans les
-[guides d’architecture](docs/architecture/) (en anglais).
+détails sur les formats et la mise en page se trouvent dans la
+[documentation d’architecture](docs/architecture/) (en anglais).
 
 ## Contribuer
 
 Les contributions sont les bienvenues – voir [CONTRIBUTING.md](CONTRIBUTING.md) (en
-anglais). Une fusion nécessite un [CLA](CLA.md) signé, vérifié automatiquement à chaque
-pull request.
+anglais). Pour qu’une pull request soit fusionnée, il faut avoir signé le [CLA](CLA.md) ; c’est
+vérifié automatiquement.
 
 ### Remerciements
 
@@ -190,8 +189,8 @@ bugs, leurs tests et leurs retours :
 
 Copyright © 2026 Steffen Becker · Fabriqué en Allemagne
 
-[AGPL-3.0](LICENSE). Une [licence commerciale](LICENSE.commercial.md) est disponible pour
-les usages auxquels l’AGPL ne convient pas. Les polices et données linguistiques fournies
+[AGPL-3.0](LICENSE). Si l’AGPL ne convient pas, une
+[licence commerciale](LICENSE.commercial.md) est disponible. Les polices et données linguistiques fournies
 conservent leurs propres licences – voir [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 *EdenText est un projet indépendant, sans lien avec Microsoft ni avec The Document

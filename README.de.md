@@ -7,7 +7,7 @@
 </h1>
 
 <p align="center">
-  <strong>Leistungsstarke Textverarbeitung – nur einen Link entfernt.</strong><br>
+  <strong>Vollwertige Textverarbeitung direkt im Browser</strong><br>
   Kostenlos · Open Source · Private by Design
 </p>
 
@@ -33,21 +33,20 @@
 
 ---
 
-EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von der schnellen Notiz bis zum ganzen Buch. Kein Server, kein Konto: Alles wird lokal verarbeitet, Ihre Dokumente verlassen nie Ihren Computer. Einfach den Link öffnen oder EdenText als schlanke Browser-App ganz offline nutzen – für die meisten Sprachen genügen zum Start unter 2 MB Download, Wörterbücher und Schriften kommen bei Bedarf nach[^1]. Die Oberfläche gibt es auf Englisch, Deutsch, Spanisch, Französisch, Portugiesisch, Griechisch, Russisch, Ukrainisch, Japanisch und Chinesisch (vereinfacht und traditionell).
+EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von der schnellen Notiz bis zum ganzen Buch. Kein Server, kein Konto: Alles wird lokal verarbeitet, die Dokumente verlassen nie den eigenen Rechner. Einfach den Link öffnen oder EdenText als App installieren und offline nutzen. Der erste Download ist für die meisten Sprachen kleiner als 2 MB, Wörterbücher und Schriften werden erst bei Bedarf geladen[^1]. Die Oberfläche gibt es auf Englisch, Deutsch, Spanisch, Französisch, Portugiesisch, Griechisch, Russisch, Ukrainisch, Japanisch und Chinesisch (vereinfacht und traditionell).
 
 > [!NOTE]
-> EdenText ist jung, in der **Beta** und wird aktiv weiterentwickelt – weitere
-> Funktionen sind unterwegs. Getestet wird gründlich – bei jedem Commit laufen die
-> komplette Testsuite und Round-Trip-Prüfungen mit LibreOffice –, mit gelegentlichen
-> Fehlern ist trotzdem zu rechnen; behalten Sie von wichtigen Dokumenten Sicherungskopien.
-> Die Kopie im Browser bewahrt außerdem die letzten drei Fassungen des geöffneten
-> Dokuments auf und bietet sie an, falls es sich einmal nicht laden lässt.
+> EdenText ist noch in der **Beta** und wird laufend weiterentwickelt. Tests und
+> Round-Trip-Prüfungen verifizieren die Funktionalität. Nichtsdestotrotz sind Bugs in der
+> aktuellen Phase nicht ausgeschlossen. Von wichtigen Dokumenten daher bitte
+> Sicherungskopien behalten. Im Browser hebt EdenText außerdem die letzten drei Fassungen
+> des geöffneten Dokuments auf, falls es sich einmal nicht laden lässt.
 >
-> **Einen Fehler gefunden, oder sieht ein Dokument nicht richtig aus?** Bitte
-> [melden Sie es als Issue](https://github.com/stffnb/edentext/issues) – jede Meldung hilft.
-> Besonders willkommen sind Dokumente, die EdenText anders darstellt als Word, LibreOffice
-> oder WPS Office: Hängen Sie die Datei (oder eine abgespeckte Kopie) an, dann wird daraus
-> ein Testfall.
+> **Einen Fehler gefunden, oder sieht ein Dokument falsch aus?** Bitte
+> [ein Issue erstellen](https://github.com/stffnb/edentext/issues), jede Meldung hilft.
+> Besonders willkommen sind Dokumente, die in EdenText anders aussehen als in Word,
+> LibreOffice oder WPS Office. Mit der Datei (oder einer gekürzten Kopie) im Anhang wird
+> daraus ein Testfall.
 
 <a href="https://edentext.app"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
@@ -61,8 +60,8 @@ EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von
   und Kapitel, die auf einer rechten Seite beginnen
 - **Öffnet und speichert `.odt` und `.docx`**, exportiert PDF; Vorlagen (`.ott`/`.dotx`)
   und eine Galerie mit Briefvorlagen nach DIN 5008; passwortgeschützte Dateien in beiden Formaten
-- **Kompatibel mit Word und LibreOffice** – Dokumente behalten in allen drei Programmen
-  ihr Layout, abgesichert durch automatisierte Round-Trip- und Layouttests
+- **Kompatibel mit Word und LibreOffice** – Dokumente sehen in allen drei Programmen gleich
+  aus; das prüfen automatisierte Round-Trip- und Layouttests
 - **Formatvorlagen** – Absatz-, Zeichen-, Tabellen- und Listenvorlagen mit Vererbung,
   Kapitelnummerierung
 - **Tabellen** mit Tabellenvorlagen, Sortierung und Formeln wie in einer Tabellenkalkulation
@@ -70,37 +69,36 @@ EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von
   Zitate und Literaturverzeichnis, Stichwortverzeichnis, Formeln (LaTeX)
 - **Überarbeiten** – Änderungsverfolgung und Kommentar-Threads in Sprechblasen am Rand,
   druckbare Markierungen, Rechtschreibprüfung (Englisch, Deutsch, Spanisch, Französisch,
-  Portugiesisch, Griechisch, Russisch und Ukrainisch), Synonyme (alle davon außer
-  Griechisch), Grammatikprüfung (Englisch)
-- **Optionaler KI-Assistent** – mit dem Anbieter Ihrer Wahl oder einem lokalen Modell;
-  beantwortet Fragen zum Dokument und bearbeitet es als nachverfolgte Änderungen. Lässt
-  sich abschalten; Anfragen gehen direkt an den Anbieter, ohne Umweg über einen EdenText-Server
-- **Private by Design** – Ihre Dokumente verlassen nie Ihren Computer, alles wird
-  lokal verarbeitet; als installierbare App auch offline nutzbar. Die Website zählt anonyme
-  Besuche (GoatCounter, in der EU gehostet, ohne Cookies); der Editor selbst sendet nichts –
-  es sei denn, Sie schalten den KI-Assistenten ein, der dann an den gewählten Anbieter
-  sendet. Dokumente werden automatisch im Browser gesichert; „Zuletzt benutzte Dokumente“
-  kann geschlossene Dokumente beim nächsten Start verwerfen oder gar nicht erst dort
-  speichern, und ein privates Fenster hinterlässt nach dem Schließen keine Spuren
+  Portugiesisch, Griechisch, Russisch und Ukrainisch), Synonyme (dieselben Sprachen
+  ohne Griechisch), Grammatikprüfung (Englisch)
+- **Optionaler KI-Assistent** – mit einem frei wählbaren Anbieter oder einem lokalen Modell;
+  beantwortet Fragen zum Dokument und bearbeitet es mit Änderungsverfolgung. Lässt sich
+  abschalten; Anfragen gehen direkt an den Anbieter, ohne Umweg über einen EdenText-Server
+- **Private by Design** – Dokumente verlassen nie den Rechner, alles läuft lokal; als
+  installierte App auch offline. Die Website zählt anonyme Besuche (GoatCounter, in der EU
+  gehostet, ohne Cookies). Der Editor selbst sendet nichts, außer bei eingeschaltetem
+  KI-Assistenten an den gewählten Anbieter. Dokumente werden automatisch im Browser
+  gesichert; unter „Zuletzt benutzte Dokumente“ lässt sich einstellen, dass geschlossene
+  Dokumente beim nächsten Start gelöscht oder gar nicht erst gespeichert werden. Ein
+  privates Fenster hinterlässt nach dem Schließen keine Spuren
 - **Jeder aktuelle Browser** – in Chrome und Edge schreibt „Speichern“ zurück in die
   geöffnete Datei, in Brave ebenso, sobald `brave://flags/#file-system-access-api`
-  aktiviert ist; sonst ist jedes Speichern ein Download – schalten Sie dann in den
-  Browsereinstellungen „Vor dem Download fragen, wo eine Datei gespeichert werden soll“
-  ein, um den Speicherort selbst zu wählen
+  aktiviert ist. Sonst ist jedes Speichern ein Download; wer den Speicherort selbst wählen
+  will, stellt in den Browsereinstellungen ein, dass vor jedem Download nachgefragt wird
 
-Wo der Browser verhindert, dass EdenText exakt wie Word oder LibreOffice aussieht, steht
+Wo EdenText wegen des Browsers nicht exakt wie Word oder LibreOffice aussehen kann, steht
 unter [Known limitations](CHANGELOG.md#known-limitations) (englisch).
 
 ## Galerie
 
-Die Dokumente hinter diesen Bildern liegen als `.odt` und `.docx` in [`docs/showcase/`](docs/showcase/)
+Die Dokumente zu diesen Bildern liegen als `.odt` und `.docx` in [`docs/showcase/`](docs/showcase/)
 und lassen sich direkt in EdenText, LibreOffice oder Word öffnen. Erzeugt werden sie von
 `scripts/showcase/run.mjs`; die Fotos stammen von der NASA, das Buch von Lewis Carroll –
 beides gemeinfrei.
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Änderungsverfolgung und Kommentare" width="100%"></a><br><b>Überarbeiten</b> – Änderungsverfolgung, Kommentar-Threads am Rand, ein Entwurf-Wasserzeichen</td>
+<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Änderungsverfolgung und Kommentare" width="100%"></a><br><b>Überarbeiten</b> – Änderungsverfolgung, Kommentar-Threads am Rand, Wasserzeichen „Entwurf“</td>
 <td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="Ein Buch als Doppelseite" width="100%"></a><br><b>Buch</b> – A5, gespiegelte Ränder, Kapitel beginnen rechts, lebende Kolumnentitel; nach der Titelei beginnt die Zählung neu, deshalb trägt Seite 11 die Seitenzahl 9</td>
 </tr>
 <tr>
@@ -111,11 +109,11 @@ beides gemeinfrei.
 
 ## Desktop-App
 
-Jedes Release enthält außerdem unsignierte Desktop-Installer, gebaut mit Electron:
+Zu jedem Release gibt es außerdem unsignierte Desktop-Installer (Electron):
 
 - **macOS** – `EdenText-<version>-arm64.dmg` (Apple Silicon) oder `EdenText-<version>.dmg` (Intel).
-  Ziehen Sie die App in den Ordner „Programme“. Da sie nicht signiert ist, öffnen Sie sie
-  beim ersten Mal per Rechtsklick → Öffnen oder führen `xattr -d com.apple.quarantine /Applications/EdenText.app` aus.
+  Die App in den Ordner „Programme“ ziehen. Weil sie nicht signiert ist, beim ersten Mal per
+  Rechtsklick → Öffnen starten oder `xattr -d com.apple.quarantine /Applications/EdenText.app` ausführen.
 - **Windows** – `EdenText-Setup-<version>.exe`. SmartScreen warnt vor einem unbekannten
   Herausgeber: Weitere Informationen → Trotzdem ausführen.
 - **Linux** – `EdenText-<version>.AppImage` (`chmod +x`, dann starten) oder das `.deb`
@@ -142,10 +140,9 @@ Zu jedem Release erscheint ein Container-Image (amd64 und arm64):
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-Oder liefern Sie die Dateien selbst aus: Jedes Release enthält ein `edentext-<tag>.zip`
-mit der gebauten App, und `npm run build` erzeugt denselben Ordner in `dist/` – darauf
-lässt sich jeder Webserver richten. Alternativ bauen Sie das Image lokal mit
-`docker build -t edentext .`.
+Es geht auch ohne Docker: Jedes Release enthält ein `edentext-<tag>.zip` mit der fertigen
+App (`npm run build` erzeugt dasselbe in `dist/`). Den Ordner kann jeder Webserver
+ausliefern. Das Image lässt sich auch lokal bauen: `docker build -t edentext .`.
 
 ## Architektur
 
@@ -167,7 +164,7 @@ TipTap-Dokumentmodell und seine Editor-Erweiterungen zusammen. Formatvorlagen un
 machen aus diesem Modell bearbeitbare Seiten; die Speicherschicht hält den lokalen Zustand
 und die Wiederherstellungskopien. Import und Export übersetzen dasselbe Modell nach ODT und
 DOCX, die Datei-APIs des Browsers speichern die Ergebnisse oder laden sie herunter. Die
-Invarianten von Formaten und Layout beschreiben die [Architektur-Leitfäden](docs/architecture/) (englisch).
+Details zu Formaten und Layout stehen in der [Architektur-Dokumentation](docs/architecture/) (englisch).
 
 ## Mitmachen
 
@@ -185,7 +182,7 @@ Danke an alle, die mit Ideen, Fehlerberichten, Tests und Rückmeldungen geholfen
 
 Copyright © 2026 Steffen Becker · Made in Germany
 
-[AGPL-3.0](LICENSE). Für Einsätze, zu denen die AGPL nicht passt, gibt es eine
+[AGPL-3.0](LICENSE). Wo die AGPL nicht passt, gibt es eine
 [kommerzielle Lizenz](LICENSE.commercial.md). Mitgelieferte Schriften und Sprachdaten
 behalten ihre eigenen Lizenzen – siehe [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
@@ -195,8 +192,8 @@ Foundation verbunden. `.docx` und `.odt` werden aus Gründen der Interoperabilit
 *Dies ist eine Übersetzung der englischen [README](README.md); maßgeblich ist die englische Fassung.*
 
 [^1]: Komprimiert übertragen: ~0,7 MB App-Code, der Rest ist die Rechtschreibprüfung mit
-    dem Wörterbuch für die Sprache des Browsers und die Schriften, die eine Seite anzeigt;
-    das griechische und das ukrainische Wörterbuch kommen mit ~2,5 bzw. ~1,5 MB hinzu.
-    Alles andere wird erst bei Bedarf geladen und für die Offline-Nutzung behalten; alle
+    dem Wörterbuch für die Sprache des Browsers und die Schriften der angezeigten Seite.
+    Das griechische Wörterbuch bringt ~2,5 MB zusätzlich mit, das ukrainische ~1,5 MB.
+    Alles andere wird erst bei Bedarf geladen und danach für die Offline-Nutzung gespeichert; alle
     Schriften, Wörterbücher und Thesauri zusammen sind ~18 MB groß, mit der englischen
     Grammatikprüfung ~26 MB.

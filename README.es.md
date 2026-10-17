@@ -7,7 +7,7 @@
 </h1>
 
 <p align="center">
-  <strong>Un potente procesador de textos, a una URL de distancia.</strong><br>
+  <strong>Procesador de textos completo, directamente en el navegador</strong><br>
   Gratuito · Código abierto · Privacidad desde el diseño
 </p>
 
@@ -33,19 +33,18 @@
 
 ---
 
-EdenText es un potente procesador de textos que funciona en el navegador y sirve para todo: desde notas rápidas hasta libros completos. Sin servidor ni cuenta: todo se procesa en local y tus documentos nunca salen de tu equipo. Basta con abrir una URL, o puedes usarlo totalmente sin conexión como una app ligera del navegador: en la mayoría de los idiomas arranca con menos de 2 MB de descarga, y los diccionarios y las fuentes llegan cuando hacen falta[^1]. La interfaz está disponible en inglés, alemán, español, francés, portugués, griego, ruso, ucraniano, japonés y chino (simplificado y tradicional).
+EdenText es un potente procesador de textos que funciona en el navegador y sirve para todo: desde notas rápidas hasta libros completos. Sin servidor ni cuenta: todo se procesa en local y tus documentos nunca salen de tu equipo. Basta con abrir el enlace, o instalar EdenText como app y usarlo sin conexión. En la mayoría de los idiomas, la primera descarga ocupa menos de 2 MB; los diccionarios y las fuentes se cargan cuando hacen falta[^1]. La interfaz está disponible en inglés, alemán, español, francés, portugués, griego, ruso, ucraniano, japonés y chino (simplificado y tradicional).
 
 > [!NOTE]
-> EdenText es joven, está en **beta** y en desarrollo activo; hay más funciones en
-> camino. Está probado (la suite completa y las comprobaciones de ida y vuelta con
-> LibreOffice se ejecutan en cada commit), pero puede haber algún error ocasional, así
-> que guarda copias de seguridad de los documentos que te importen. Además, la copia del
-> navegador conserva las tres últimas versiones del documento abierto y te las ofrece si
-> alguna vez no se puede cargar.
+> EdenText todavía está en **beta** y en pleno desarrollo. Las pruebas y las
+> comprobaciones de ida y vuelta verifican su funcionamiento. Aun así, en esta fase no se
+> pueden descartar errores, así que guarda copias de los documentos importantes. Además, el navegador
+> conserva las tres últimas versiones del documento abierto por si alguna vez no se
+> puede cargar.
 >
 > **¿Encontraste un error, o un documento no se ve como debería?**
-> [Abre una issue](https://github.com/stffnb/edentext/issues): cada informe ayuda. Son
-> especialmente bienvenidos los documentos que EdenText muestra de forma distinta a Word,
+> [Abre un issue](https://github.com/stffnb/edentext/issues), cada aviso ayuda. Nos
+> interesan sobre todo los documentos que se ven distintos en EdenText que en Word,
 > LibreOffice o WPS Office: adjunta el archivo (o una copia reducida) y se convertirá en
 > un caso de prueba.
 
@@ -70,26 +69,25 @@ EdenText es un potente procesador de textos que funciona en el navegador y sirve
   citas y bibliografía, índice alfabético, fórmulas (LaTeX)
 - **Herramientas de revisión** — control de cambios e hilos de comentarios en globos al
   margen, marcas imprimibles, corrector ortográfico (inglés, alemán, español, francés,
-  portugués, griego, ruso y ucraniano), sinónimos (todos ellos menos el griego), corrector
+  portugués, griego, ruso y ucraniano), sinónimos (los mismos idiomas salvo el griego), corrector
   gramatical (inglés)
 - **Asistente de IA opcional** — con tu propio proveedor o un modelo local; responde
-  preguntas sobre el documento y lo edita como cambios controlados. Se puede desactivar;
+  preguntas sobre el documento y lo edita con control de cambios. Se puede desactivar;
   las solicitudes van directamente al proveedor, sin pasar por ningún servidor de EdenText
 - **Privacidad desde el diseño** — tus documentos nunca salen de tu equipo y todo se
   procesa en local; funciona sin conexión como app instalable. El sitio web cuenta las
   visitas de forma anónima (GoatCounter, alojado en la UE, sin cookies); el editor no
-  envía nada, salvo que actives el asistente de IA, que envía al proveedor que hayas
-  elegido. Los documentos se guardan automáticamente en el navegador; «Documentos
-  recientes» puede descartar los que se cerraron al siguiente inicio o no guardarlos ahí
-  en absoluto, y una ventana privada no deja rastro al cerrarla
+  envía nada, salvo al proveedor elegido si activas el asistente de IA. Los documentos se
+  guardan automáticamente en el navegador; en «Documentos recientes» se puede elegir que
+  los documentos cerrados se borren en el siguiente inicio o que no se guarden. Una
+  ventana privada no deja rastro al cerrarla
 - **Cualquier navegador actual** — en Chrome y Edge, «Guardar» escribe en el archivo
   abierto, y en Brave también una vez activado `brave://flags/#file-system-access-api`;
-  en los demás casos cada guardado es una descarga, así que activa en los ajustes del
-  navegador «Preguntar dónde se guardará cada archivo antes de descargarlo» para elegir
-  la ubicación
+  en los demás casos cada guardado es una descarga. Para elegir la ubicación, activa en
+  los ajustes del navegador que pregunte dónde guardar cada descarga
 
-Los puntos en los que el navegador impide que EdenText se vea exactamente como Word o
-LibreOffice se describen en [Known limitations](CHANGELOG.md#known-limitations) (en inglés).
+Dónde el navegador impide que EdenText se vea exactamente como Word o LibreOffice se
+explica en [Known limitations](CHANGELOG.md#known-limitations) (en inglés).
 
 ## Galería
 
@@ -142,9 +140,9 @@ Con cada versión se publica una imagen de contenedor (amd64 y arm64):
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-O sirve los archivos por tu cuenta: cada versión incluye un `edentext-<tag>.zip` con la
-app compilada, y `npm run build` genera la misma carpeta en `dist/`; apunta a ella
-cualquier servidor web, o crea la imagen en local con `docker build -t edentext .`.
+También funciona sin Docker: cada versión incluye un `edentext-<tag>.zip` con la app ya
+compilada (`npm run build` genera lo mismo en `dist/`). Cualquier servidor web puede
+servir esa carpeta. La imagen también se puede crear en local con `docker build -t edentext .`.
 
 ## Arquitectura
 
@@ -165,8 +163,8 @@ EdenText funciona por completo en el navegador: `App.svelte` compone la interfaz
 al modelo de documento de TipTap y sus extensiones. Los estilos y la maquetación convierten
 ese modelo en páginas editables; el almacenamiento guarda el estado local y las copias de
 recuperación. La importación y la exportación traducen ese mismo modelo a ODT y DOCX, y las
-API de archivos del navegador guardan o descargan los archivos resultantes. Las invariantes
-de formato y maquetación se describen en las [guías de arquitectura](docs/architecture/) (en inglés).
+API de archivos del navegador guardan o descargan los archivos resultantes. Los detalles
+sobre formatos y maquetación están en la [documentación de arquitectura](docs/architecture/) (en inglés).
 
 ## Contribuir
 
@@ -186,8 +184,7 @@ comentarios:
 
 Copyright © 2026 Steffen Becker · Hecho en Alemania
 
-[AGPL-3.0](LICENSE). Hay una [licencia comercial](LICENSE.commercial.md) para los casos de
-uso a los que no se ajusta la AGPL. Las fuentes y los datos lingüísticos incluidos conservan
+[AGPL-3.0](LICENSE). Si la AGPL no encaja, hay una [licencia comercial](LICENSE.commercial.md). Las fuentes y los datos lingüísticos incluidos conservan
 sus propias licencias: consulta [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 *EdenText es un proyecto independiente, sin relación con Microsoft ni con The Document
