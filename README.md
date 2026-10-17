@@ -7,7 +7,7 @@
 </h1>
 
 <p align="center">
-  <strong>Powerful word processor — just one URL away.</strong><br>
+  <strong>Full-featured word processor, right in the browser</strong><br>
   Free · Open Source · Private by Design
 </p>
 
@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <b>English</b> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.zh-CN.md">简体中文</a>
+  <b>English</b> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
