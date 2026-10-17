@@ -39,6 +39,8 @@ export default defineConfig({
   // harper.js/binary resolves its wasm through new URL('…', import.meta.url); the
   // dep optimizer rewrites that and loses the asset.
   optimizeDeps: { exclude: ['harper.js'] },
+  // flatpak-builder output is a whole rootfs with symlink loops (var/run → /run).
+  server: { watch: { ignored: ['**/desktop/flatpak/**'] } },
   // Test-only config; never enters the production bundle (vitest is dev-only).
   // jsdom supplies a global DOMParser, so the export/import specs need no setup.
   test: {
