@@ -1118,7 +1118,7 @@ export const PageBreaks = Extension.create({
           overflowDistance: number,
           scale: number,
           minLines: number,
-        ): { naturalLineTop: number; docPos: number } | null {
+        ): { naturalLineTop: number; docPos: number; hyphen: boolean } | null {
           const lines = getLineRects(el);
           if (lines.length === 0) return null;
           const elRect = el.getBoundingClientRect();
@@ -1145,13 +1145,18 @@ export const PageBreaks = Extension.create({
             return (viewportY - elRect.top) / scale - dropped;
           }
 
+          // A spacing above single half-leads each line's glyphs down by the block's lift
+          // (editor.css), so a line box starts that far above its glyphs.
+          const cs = getComputedStyle(el);
+          const lift = cs.position === 'relative' ? Math.max(0, -parseFloat(cs.top) || 0) : 0;
+
           // Line-box bottom in natural coords. getClientRects reports glyph bottoms,
           // which sit a hair above the layout line-box, missing sub-pixel overflows. Use
-          // the next line's top (and offsetHeight for the last line) as the boundary.
+          // the next line's box top (and offsetHeight for the last line) as the boundary.
           const intraSpacerTotal = intraSpacers.reduce((s, sp) => s + sp.height, 0);
           const leafNaturalHeight = el.offsetHeight - intraSpacerTotal;
           function lineBoxBottomNatural(i: number): number {
-            if (i + 1 < lines.length) return toNatural(lines[i + 1].top);
+            if (i + 1 < lines.length) return toNatural(lines[i + 1].top) - lift;
             return leafNaturalHeight;
           }
 
@@ -1169,11 +1174,8 @@ export const PageBreaks = Extension.create({
           // block to the next page instead, which is what Word/LibreOffice do.
           if (k < minLines) return null;
 
-          // The carried line's glyphs land on the page start. A spacing above single
-          // half-leads them down by the block's lift (editor.css), which LibreOffice puts
+          // The carried line's box top lands on the page start; LibreOffice puts the lift
           // below the line instead — without it the rest of the block rides that high.
-          const cs = getComputedStyle(el);
-          const lift = cs.position === 'relative' ? Math.max(0, -parseFloat(cs.top) || 0) : 0;
           const naturalLineTop = toNatural(lines[k].top) - lift;
           // Binary search runs in viewport space (coordsAtPos returns scaled
           // viewport coords just like Range.getClientRects()), so the target
@@ -1207,7 +1209,19 @@ export const PageBreaks = Extension.create({
               lo = mid + 1;
             }
           }
-          return { naturalLineTop, docPos: lo };
+          // Chromium reports the first letters after an automatic hyphen on the line above,
+          // which lands the split inside the word ("pract|ice"). A hit test at the line's
+          // edges finds its true start; the earlier edge wins, a right-to-left line's first.
+          const y = (lines[k].top + lines[k].bottom) / 2;
+          const hit = Math.min(
+            editorView.posAtCoords({ left: elRect.left + 1, top: y })?.pos ?? Infinity,
+            editorView.posAtCoords({ left: elRect.right - 1, top: y })?.pos ?? Infinity,
+          );
+          if (hit > startPos && hit < lo && !/\s/.test(editorView.state.doc.textBetween(hit, lo, ' ', ' '))) lo = hit;
+          // The spacer ends the line by force, so the hyphen the automatic break drew
+          // has to be drawn again (`pb-hyphen`, editor.css).
+          const hyphen = cs.hyphens === 'auto' && /^\p{L}{2}$/u.test(editorView.state.doc.textBetween(lo - 1, lo + 1));
+          return { naturalLineTop, docPos: lo, hyphen };
         }
 
         // The larger-of spacing model draws the space above as a margin (editor.css): it lies
@@ -1700,6 +1714,7 @@ export const PageBreaks = Extension.create({
               docPos: number;
               height: number;
               row: RowSpacer | null;
+              hyphen?: boolean;
             }[] = [];
             // Node-decoration range collapsing the trailing empty paragraph after a
             // document-final columns chain when it sits past the page content area.
@@ -1835,6 +1850,7 @@ export const PageBreaks = Extension.create({
               const breaks: {
                 height: number;
                 docPos: number | null;
+                hyphen?: boolean;
                 row: RowSpacer | null;
                 bandOpenY: number | null;
                 reason: string;
@@ -2013,6 +2029,7 @@ export const PageBreaks = Extension.create({
                     breaks.push({
                       height: h,
                       docPos: split.docPos,
+                      hyphen: split.hyphen,
                       row: null,
                       bandOpenY: target,
                       reason: 'line-split',
@@ -2154,7 +2171,7 @@ export const PageBreaks = Extension.create({
                   // band stays rowBreak only if every break at this key is one.
                   else if (!rowBreak) existing.rowBreak = false;
                 }
-                placements.push({ docPos: br.docPos, height: h, row: br.row });
+                placements.push({ docPos: br.docPos, height: h, row: br.row, hyphen: br.hyphen });
                 placementsDebug.push({
                   leafIndex: i,
                   docPos: br.docPos,
@@ -2277,7 +2294,7 @@ export const PageBreaks = Extension.create({
           // previous pass. Most keystrokes don't change pagination, and re-dispatching
           // recreates the spacer DOM nodes (no `key` on the widgets) for no gain.
           const placementsKey =
-            placements.map((p) => `${p.docPos}:${p.height}:${p.row ? `${p.row.columns}${p.row.close}${p.row.open}${p.row.header?.height ?? ''}` : 'b'}`).join('|') +
+            placements.map((p) => `${p.docPos}:${p.height}:${p.row ? `${p.row.columns}${p.row.close}${p.row.open}${p.row.header?.height ?? ''}` : p.hyphen ? 'h' : 'b'}`).join('|') +
             (collapsedTrailing ? `|c${collapsedTrailing.from}` : '') +
             pageTopBlocks.map((b) => `|t${b.from}`).join('') +
             Array.from(sectionInsets, ([f, s]) => `|i${f}:${s.left}:${s.right}`).join('') +
@@ -2356,6 +2373,7 @@ export const PageBreaks = Extension.create({
               }));
             }
             for (const t of sectionTops) decoArray.push(blockDeco(t.from, t.to, { style: `padding-top:${t.px}px` }));
+            for (const p of placements) if (p.hyphen) decoArray.push(Decoration.inline(p.docPos - 1, p.docPos, { class: 'pb-hyphen' }));
             for (const s of sideShifts) {
               const attrs = { class: 'pb-shift', style: `--pb-shift:${s.dx}px` };
               decoArray.push(s.inline ? Decoration.inline(s.from, s.to, attrs, { inclusiveEnd: !!s.end }) : blockDeco(s.from, s.to, attrs));

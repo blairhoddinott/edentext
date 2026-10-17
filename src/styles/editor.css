@@ -132,6 +132,12 @@
   overflow: hidden;
 }
 
+/* A page break inside an automatically hyphenated word ends the line by force, which
+   drops the hyphen the break drew (pageBreaks.ts). */
+.paper .tiptap .pb-hyphen::after {
+  content: '-';
+}
+
 /* Table page-break spacer: a borderless, empty <tr>/<td> that bridges the page
    gap so the following rows start on the next page (a table can't hold a block
    spacer between its rows). Keeps default table-row/cell display. */
