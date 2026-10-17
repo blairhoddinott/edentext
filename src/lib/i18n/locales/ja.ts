@@ -775,6 +775,8 @@ const ja: Messages = {
     insertCrossRef: '相互参照…',
     newComment: 'コメント…',
     clearFormatting: '書式のクリア',
+    continueNumbering: '番号を継続',
+    restartNumbering: '番号を振り直す',
   },
   about: {
     label: 'EdenText について',

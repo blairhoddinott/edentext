@@ -787,6 +787,8 @@ const en = {
     insertCrossRef: 'Cross-reference…',
     newComment: 'Comment…',
     clearFormatting: 'Clear Formatting',
+    continueNumbering: 'Continue Numbering',
+    restartNumbering: 'Restart Numbering',
   },
   about: {
     label: 'About EdenText',

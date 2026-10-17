@@ -774,6 +774,8 @@ const es: Messages = {
     insertCrossRef: 'Referencia cruzada…',
     newComment: 'Comentario…',
     clearFormatting: 'Quitar el formato',
+    continueNumbering: 'Continuar numeración',
+    restartNumbering: 'Reiniciar numeración',
   },
   about: {
     label: 'Acerca de EdenText',

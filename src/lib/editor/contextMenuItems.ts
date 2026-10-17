@@ -7,6 +7,7 @@ import { OPEN_COMMENT_EVENT } from './extensions/comment';
 import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames } from './extensions/bookmark';
 import { OPEN_CROSS_REF_DIALOG_EVENT, hasRefTargets } from './extensions/crossReference';
 import { OPEN_THESAURUS_EVENT } from '../spell/thesaurus';
+import { outerOrderedListAt } from './extensions/listStyle';
 import { aiEnabled, OPEN_AI_CHAT_EVENT } from '../storage/ai.svelte';
 import { COMMANDS } from '../ai/commands';
 
@@ -104,6 +105,19 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
     { kind: 'item', label: m.pasteWithoutFormatting, hint: withShortcut('Ctrl+Shift+V'), run: () => void readClipboard(editor, true) },
     { kind: 'sep' },
   );
+
+  // An ordered list counts on from the one before it, or restarts at 1.
+  const list = outerOrderedListAt(editor.state);
+  if (list) {
+    const { pos, node, canContinue } = list;
+    const setNumbering = (continueNumbering: boolean) => () => editor.chain().focus()
+      .command(({ tr }) => { tr.setNodeMarkup(pos, undefined, { ...node.attrs, continueNumbering, start: 1 }); return true; }).run();
+    entries.push(
+      { kind: 'item', label: m.continueNumbering, disabled: !canContinue || !!node.attrs.continueNumbering, run: setNumbering(true) },
+      { kind: 'item', label: m.restartNumbering, disabled: !node.attrs.continueNumbering && node.attrs.start === 1, run: setNumbering(false) },
+      { kind: 'sep' },
+    );
+  }
 
   // The body only: a header or footer has no tracked changes for the assistant's edits.
   // Shown while the assistant is off too, greyed, so the way to turn it on is findable.

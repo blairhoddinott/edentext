@@ -778,6 +778,8 @@ const fr: Messages = {
     insertCrossRef: 'Renvoi…',
     newComment: 'Commentaire…',
     clearFormatting: 'Effacer le formatage',
+    continueNumbering: 'Continuer la numérotation',
+    restartNumbering: 'Recommencer la numérotation',
   },
   about: {
     label: 'À propos d’EdenText',

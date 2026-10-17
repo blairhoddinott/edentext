@@ -58,3 +58,5 @@ copy handler builds the clipboard payload; paste reads `navigator.clipboard` and
 back to an alert where the browser blocks it. The menu clamps itself into the viewport
 via transforms, measured from layout offsets so the correction can't feed back into the
 next measurement.
+In an ordered list it adds Continue/Restart Numbering on the outermost list (`outerOrderedListAt`,
+`listStyle.ts`): `continueNumbering` counts on from the ordered list before it in the same parent.

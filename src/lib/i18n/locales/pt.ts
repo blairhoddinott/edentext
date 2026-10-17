@@ -772,6 +772,8 @@ const pt: Messages = {
     insertCrossRef: 'Referência…',
     newComment: 'Comentário…',
     clearFormatting: 'Limpar formatação',
+    continueNumbering: 'Continuar numeração',
+    restartNumbering: 'Reiniciar numeração',
   },
   about: {
     label: 'Sobre EdenText',

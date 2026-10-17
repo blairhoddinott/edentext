@@ -774,6 +774,8 @@ const zhHant: Messages = {
     insertCrossRef: '交互參照…',
     newComment: '註解…',
     clearFormatting: '清除格式',
+    continueNumbering: '繼續編號',
+    restartNumbering: '重新開始編號',
   },
   about: {
     label: '關於 EdenText',

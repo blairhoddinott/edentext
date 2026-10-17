@@ -788,6 +788,8 @@ const uk: Messages = {
     insertCrossRef: 'Перехресне посилання…',
     newComment: 'Коментар…',
     clearFormatting: 'Очистити форматування',
+    continueNumbering: 'Продовжити нумерацію',
+    restartNumbering: 'Почати нумерацію заново',
   },
   about: {
     label: 'Про EdenText',

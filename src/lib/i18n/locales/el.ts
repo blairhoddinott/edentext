@@ -788,6 +788,8 @@ const el: Messages = {
     insertCrossRef: "Παραπομπή…",
     newComment: "Σχόλιο…",
     clearFormatting: "Απαλοιφή μορφοποίησης",
+    continueNumbering: "Συνέχιση αρίθμησης",
+    restartNumbering: "Επανεκκίνηση αρίθμησης",
   },
   about: {
     label: "Πληροφορίες για το EdenText",

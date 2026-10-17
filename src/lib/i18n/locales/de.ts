@@ -779,6 +779,8 @@ const de: Messages = {
     insertCrossRef: 'Querverweis…',
     newComment: 'Kommentar…',
     clearFormatting: 'Direkte Formatierung löschen',
+    continueNumbering: 'Nummerierung fortsetzen',
+    restartNumbering: 'Nummerierung neu beginnen',
   },
   about: {
     label: 'Über EdenText',

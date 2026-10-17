@@ -788,6 +788,8 @@ const ru: Messages = {
     insertCrossRef: 'Перекрёстная ссылка…',
     newComment: 'Примечание…',
     clearFormatting: 'Очистить форматирование',
+    continueNumbering: 'Продолжить нумерацию',
+    restartNumbering: 'Начать нумерацию заново',
   },
   about: {
     label: 'О программе EdenText',

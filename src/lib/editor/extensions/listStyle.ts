@@ -233,6 +233,24 @@ export function listStarts(doc: ProseMirrorNode, sheet: StyleSheet): { fixes: { 
   return { fixes, implicit };
 }
 
+/**
+ * The outermost list at the caret when ordered, for Continue/Restart Numbering: whether it
+ * counts on, and whether an ordered list before it in the same parent could be counted on.
+ */
+export function outerOrderedListAt(state: EditorState): { pos: number; node: ProseMirrorNode; canContinue: boolean } | null {
+  const { $from } = state.selection;
+  for (let d = 1; d <= $from.depth; d++) {
+    const node = $from.node(d);
+    if (!isListNode(node)) continue;
+    if (node.type.name !== 'orderedList') return null;
+    const parent = $from.node(d - 1);
+    let canContinue = false;
+    for (let i = 0; i < $from.index(d - 1); i++) if (parent.child(i).type.name === 'orderedList') canContinue = true;
+    return { pos: $from.before(d), node, canContinue };
+  }
+  return null;
+}
+
 // The named style governing the cursor's list (the outermost list's), for the
 // dropdowns' active state; null = none or not in a list.
 export function listStyleNameAt(state: EditorState): string | null {

@@ -773,6 +773,8 @@ const zhHans: Messages = {
     insertCrossRef: '交叉引用…',
     newComment: '批注…',
     clearFormatting: '清除格式',
+    continueNumbering: '继续编号',
+    restartNumbering: '重新开始编号',
   },
   about: {
     label: '关于 EdenText',
