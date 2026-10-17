@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import type { Transaction } from '@tiptap/pm/state';
+import type { EditorState, Transaction } from '@tiptap/pm/state';
 import { canJoin, canSplit } from '@tiptap/pm/transform';
 import { DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
@@ -9,7 +9,7 @@ import {
   readVerticalMargins, bandAt, FORCE_PAGE_RECALC, isSplitPane, blockDeco, isBlockDeco, repairDecos,
 } from './pageBreaks';
 import {
-  sameColumnsAttrs, COLUMNS_FIT_MARGIN_PX, MIN_TAIL_LINES, DEFAULT_LINE_PX, headFitPx, lineRects, lineAdvance,
+  sameColumnsAttrs, columnsChain, COLUMNS_FIT_MARGIN_PX, MIN_TAIL_LINES, DEFAULT_LINE_PX, headFitPx, lineRects, lineAdvance,
   type LineRect,
 } from './columns';
 import { tabStopsKey } from './tabStops';
@@ -156,6 +156,22 @@ function isJoinedPair(prev: PMNode | undefined, next: PMNode): boolean {
     (next.type.name === 'paragraph' || next.type.name === 'table');
 }
 
+// The end of the section the caret writes in when only empty paragraphs follow it, else
+// -1. That one fills column by column, so typing does not reshuffle its columns; every
+// other section balances them, as both word processors draw the saved file.
+function writingEnd(state: EditorState): number {
+  const $head = state.doc.resolve(state.selection.head);
+  if ($head.depth < 1 || $head.node(1).type.name !== 'columns') return -1;
+  const chain = columnsChain(state, $head.before(1));
+  const last = chain[chain.length - 1];
+  const end = last.pos + last.node.nodeSize;
+  let open = true;
+  state.doc.forEach((n, off) => {
+    if (off >= end && !(n.type.name === 'paragraph' && n.content.size === 0)) open = false;
+  });
+  return open ? end : -1;
+}
+
 export const ColumnsFlow = Extension.create({
   name: 'columnsFlow',
 
@@ -238,8 +254,7 @@ export const ColumnsFlow = Extension.create({
             sameColumnsAttrs(frags[i].node, next.node);
         }
 
-        // True when nothing but empty paragraphs follows the fragment — the chain
-        // is "open" at the document end and fills sequentially while typing.
+        // True when nothing but empty paragraphs follows the fragment's chain (debug dump).
         function openAtDocEnd(frag: Fragment): boolean {
           let after = frag.pos + frag.node.nodeSize;
           let open = true;
@@ -536,7 +551,7 @@ export const ColumnsFlow = Extension.create({
             let height: number;
             if (hasNextInChain(frags, i)) {
               height = available;
-            } else if (openAtDocEnd(frags[i])) {
+            } else if (pos + node.nodeSize === writingEnd(editorView.state)) {
               // Full single-flow content height: while it's below the page slot,
               // everything pours into column 1 (column 2 only once page 1 is full).
               const contentH = contentHeightPx(children, scale);
@@ -635,7 +650,11 @@ export const ColumnsFlow = Extension.create({
 
         return {
           update(_view, prevState) {
-            if (flowKey.getState(prevState) !== flowKey.getState(editorView.state)) {
+            // The caret entering or leaving an open section switches its fill too.
+            if (
+              flowKey.getState(prevState) !== flowKey.getState(editorView.state) ||
+              writingEnd(prevState) !== writingEnd(editorView.state)
+            ) {
               passes = 0; // fresh budget per external change
               // ponytail: the positions go stale as other fragments move, so a boundary
               // can stay split until the next external change; map them through the

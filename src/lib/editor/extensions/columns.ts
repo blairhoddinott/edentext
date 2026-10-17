@@ -154,26 +154,6 @@ export function columnsChain(state: EditorState, pos: number): Fragment[] {
 
 const WRAPPABLE = new Set(['paragraph', 'heading', 'bulletList', 'orderedList', 'table']);
 
-// Top-level blocks of [start, end) as columns content: wrappable blocks collected
-// as-is, existing columns fragments absorbed (their content joins the run);
-// null when the range holds anything else (text box, TOC).
-function collectWrappable(state: EditorState, start: number, end: number): { blocks: PMNode[]; from: number; to: number } | null {
-  const blocks: PMNode[] = [];
-  let ok = true;
-  let from = -1;
-  let to = -1;
-  state.doc.nodesBetween(start, end, (n, pos, parent) => {
-    if (parent?.type.name !== 'doc') return false;
-    if (from < 0) from = pos;
-    to = pos + n.nodeSize;
-    if (WRAPPABLE.has(n.type.name)) blocks.push(n);
-    else if (n.type.name === 'columns') blocks.push(...childArray(n));
-    else ok = false;
-    return false;
-  });
-  return ok && blocks.length ? { blocks: mergeJoinedBlocks(blocks), from, to } : null;
-}
-
 // Pagination breaks a columns fragment as a whole, so a manual page break inside one is
 // honoured by nothing — the blocks lose theirs on the way in.
 function withoutPageBreaks(blocks: PMNode[]): PMNode[] {
@@ -225,6 +205,80 @@ function applyToWholeDoc(state: EditorState, tr: Transaction, attrs: ColumnsAttr
   for (const r of [...runs].reverse()) {
     tr.replaceWith(r.from, r.to, type.create(attrs, withoutPageBreaks(mergeJoinedBlocks(r.blocks))));
   }
+  return true;
+}
+
+// The selected blocks take `attrs` (null: one column) and every other block of the
+// sections the selection touches keeps its own, so a section splits around the selection;
+// runs of equal columns are regrouped. Fails on a box or index taking columns.
+function applyToSelection(state: EditorState, tr: Transaction, attrs: ColumnsAttrs | null): boolean {
+  const { from: selFrom, to: selTo, $from, $to } = state.selection;
+  const chainOf = (pos: number) => (state.doc.nodeAt(pos)?.type.name === 'columns' ? columnsChain(state, pos) : null);
+  // The sections touching the selected blocks, so equal runs regroup into one.
+  const before = state.doc.resolve($from.before(1)).nodeBefore;
+  const after = state.doc.resolve($to.after(1)).nodeAfter;
+  const startChain = chainOf(before?.type.name === 'columns' ? $from.before(1) - before.nodeSize : $from.before(1));
+  const endChain = chainOf(after?.type.name === 'columns' ? $to.after(1) : $to.before(1));
+  const start = startChain ? startChain[0].pos : $from.before(1);
+  const tail = endChain?.[endChain.length - 1];
+  const end = tail ? tail.pos + tail.node.nodeSize : $to.after(1);
+  type Item = { node: PMNode; attrs: ColumnsAttrs | null; sel: boolean };
+  const items: Item[] = [];
+  const add = (node: PMNode, pos: number, own: ColumnsAttrs | null) => {
+    const sel = pos < selTo && pos + node.nodeSize > selFrom;
+    const prev = items[items.length - 1];
+    // A paragraph or table columnsFlow cut at a page boundary is one block again.
+    if (own && prev?.attrs && node.attrs.joinPrev && prev.node.type === node.type) {
+      prev.node = mergeJoinedBlocks([prev.node, node])[0];
+      prev.sel ||= sel;
+    } else {
+      items.push({ node, attrs: own, sel });
+    }
+  };
+  state.doc.nodesBetween(start, end, (n, pos, parent) => {
+    if (parent?.type.name !== 'doc') return false;
+    if (n.type.name === 'columns') n.forEach((c, off) => add(c, pos + 1 + off, n.attrs as ColumnsAttrs));
+    else add(n, pos, null);
+    return false;
+  });
+  const same = (a: ColumnsAttrs | null, b: ColumnsAttrs | null) =>
+    a && b ? a.count === b.count && a.gapCm === b.gapCm : a === b;
+  let changed = false;
+  for (const it of items) {
+    if (!it.sel) continue;
+    if (!WRAPPABLE.has(it.node.type.name)) {
+      if (attrs) return false;
+      continue;
+    }
+    changed ||= !same(attrs, it.attrs);
+    it.attrs = attrs;
+  }
+  if (!changed) return false;
+  const out: PMNode[] = [];
+  let at = start;
+  let first = -1;
+  let last = -1;
+  for (let k = 0; k < items.length; ) {
+    const a = items[k].attrs;
+    let m = k + 1;
+    while (a && m < items.length && same(a, items[m].attrs)) m++;
+    const run = items.slice(k, m);
+    if (a) at++;
+    for (const it of run) {
+      if (it.sel && first < 0) first = at;
+      if (it.sel) last = at + it.node.nodeSize;
+      at += it.node.nodeSize;
+    }
+    if (a) {
+      at++;
+      out.push(state.schema.nodes.columns.create(a, withoutPageBreaks(run.map((it) => it.node))));
+    } else {
+      out.push(items[k].node);
+    }
+    k = m;
+  }
+  tr.replaceWith(start, end, out);
+  tr.setSelection(TextSelection.between(tr.doc.resolve(first + 1), tr.doc.resolve(last - 1)));
   return true;
 }
 
@@ -310,15 +364,23 @@ export const Columns = Node.create({
 
   addCommands() {
     return {
-      // Inside a section: 1 unwraps the whole chain, 2/3 update its count. Outside:
-      // with a selection, 2/3 wrap the covered top-level blocks (fails on boxes
-      // and indexes); with a bare cursor, the whole document gets columns.
+      // A selection: its blocks get the columns, splitting a section it lies in (1
+      // takes them out). A bare cursor in a section: 1 unwraps its whole chain, 2/3
+      // update its count; elsewhere the whole document gets columns.
       setColumns:
         (count: number) =>
         ({ state, dispatch }) => {
-          const type = state.schema.nodes.columns;
-          if (!type) return false;
+          if (!state.schema.nodes.columns) return false;
           const found = findColumns(state);
+          const { $from, $to, empty } = state.selection;
+          if (!empty) {
+            if ($from.depth < 1 || $to.depth < 1) return false;
+            const gapCm = (found?.node.attrs.gapCm as number | undefined) ?? DEFAULT_COLUMN_GAP_CM;
+            const tr = state.tr;
+            if (!applyToSelection(state, tr, count <= 1 ? null : { count: clampColumnCount(count), gapCm })) return false;
+            if (dispatch) dispatch(tr.scrollIntoView());
+            return true;
+          }
           if (found) {
             const chain = columnsChain(state, found.pos);
             if (dispatch) {
@@ -338,22 +400,10 @@ export const Columns = Node.create({
           }
           if (count <= 1) return false;
           const attrs: ColumnsAttrs = { count: clampColumnCount(count), gapCm: DEFAULT_COLUMN_GAP_CM };
-          const { $from, $to, empty } = state.selection;
-          if (empty) {
-            const tr = state.tr;
-            if (!applyToWholeDoc(state, tr, attrs)) return false;
-            if (dispatch) {
-              tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min($from.pos, tr.doc.content.size))));
-              dispatch(tr.scrollIntoView());
-            }
-            return true;
-          }
-          if ($from.depth < 1 || $to.depth < 1) return false;
-          const covered = collectWrappable(state, $from.before(1), $to.after(1));
-          if (!covered) return false;
+          const tr = state.tr;
+          if (!applyToWholeDoc(state, tr, attrs)) return false;
           if (dispatch) {
-            const tr = state.tr.replaceWith(covered.from, covered.to, type.create(attrs, withoutPageBreaks(covered.blocks)));
-            tr.setSelection(TextSelection.near(tr.doc.resolve(covered.from + 1)));
+            tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min($from.pos, tr.doc.content.size))));
             dispatch(tr.scrollIntoView());
           }
           return true;

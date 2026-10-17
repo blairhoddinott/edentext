@@ -311,7 +311,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'set_columns',
-    description: 'Sets paragraphs from…to in 1 to 3 columns; inside a section with columns it changes the whole section; 1 removes them.',
+    description: 'Sets paragraphs from…to in 1 to 3 columns, splitting a section with other columns around them; 1 removes them.',
     parameters: { type: 'object', properties: { from: num('First paragraph'), to: num('Last paragraph'), count: num('Number of columns, 1–3') }, required: ['from', 'count'] },
   },
   {

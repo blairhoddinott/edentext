@@ -529,7 +529,8 @@ try {
     `a two-column section over ${flow.fragments} pages settles in ${flow.passes} passes`);
 
   // A section below another starts mid-page with its first paragraph's lines, and the one
-  // above, followed by more than empty paragraphs, balances its columns.
+  // above, followed by more than empty paragraphs, balances its columns; so does the last
+  // one while the caret is not in it.
   const prose = (n) => block(words(Array.from({ length: n }, () => LOREM.join(' ')).join(' ')));
   await page.evaluate((d) => localStorage.setItem('edentext-doc', JSON.stringify(d)), { type: 'doc', content: [
     { type: 'columns', attrs: { count: 3 }, content: [prose(26)] }, block(),
@@ -539,11 +540,12 @@ try {
   await page.waitForSelector('.tiptap');
   await settle(page, true);
   const stacked = await page.evaluate(() => {
-    const [first, second] = document.querySelectorAll('.tiptap-host .tiptap > .columns-node');
-    return { columns: first.firstElementChild.getClientRects().length, top: Math.round(second.offsetTop) };
+    const all = document.querySelectorAll('.tiptap-host .tiptap > .columns-node');
+    return { columns: all[0].firstElementChild.getClientRects().length, top: Math.round(all[1].offsetTop),
+      balanced: !/column-fill:\s*auto/.test(all[all.length - 1].style.cssText) };
   });
-  check(stacked.columns === 3 && stacked.top < 1123,
-    `a section below another starts on its page (${stacked.top}px) and the one above fills ${stacked.columns} columns`);
+  check(stacked.columns === 3 && stacked.top < 1123 && stacked.balanced,
+    `a section below another starts on its page (${stacked.top}px), the one above fills ${stacked.columns} columns, the last balances (${stacked.balanced})`);
 
   // A section narrower than the sheet insets its blocks to their own page's left edge with
   // a node decoration, which the mapping drops when a style change replaces the node: the

@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { Editor } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
+import { extensions } from '../../src/lib/editor/extensions';
 import { linesWithin, rowsWithin } from '../../src/lib/editor/extensions/columnsFlow';
 import { groupLines, type LineRect } from '../../src/lib/editor/extensions/columns';
 
@@ -72,5 +75,44 @@ describe('rowsWithin', () => {
     expect(rowsWithin([30, 30, 30, 30, 30], 50, 100, 2)).toBe(4);
     // A row taller than a column still takes an empty one.
     expect(rowsWithin([150, 30], 0, 100, 2)).toBe(2);
+  });
+});
+
+describe('setColumns', () => {
+  // "2[a b] c": a two-column section holding a and b, then c in one column.
+  const shape = (doc: PMNode) => {
+    const out: string[] = [];
+    doc.forEach((n) => {
+      if (n.type.name !== 'columns') { if (n.textContent) out.push(n.textContent); return; }
+      const inner: string[] = [];
+      n.forEach((c) => inner.push(c.textContent));
+      out.push(`${n.attrs.count}[${inner.join(' ')}]`);
+    });
+    return out.join(' ');
+  };
+  const run = (html: string, select: string, count: number) => {
+    const editor = new Editor({ element: document.createElement('div'), extensions, content: html });
+    let from = 0;
+    let to = 0;
+    editor.state.doc.descendants((n, pos) => {
+      if (n.isText && select.includes(n.text!)) { from ||= pos; to = pos + n.nodeSize; }
+    });
+    const ok = editor.chain().setTextSelection({ from, to }).setColumns(count).run();
+    const out = ok ? shape(editor.state.doc) : 'refused';
+    editor.destroy();
+    return out;
+  };
+  const section = '<div data-columns="2"><p>a</p><p>b</p><p>c</p></div>';
+
+  it.each([
+    ['takes a selection inside a section out of it', section, 'b', 1, '2[a] b 2[c]'],
+    ['gives a selection inside a section its own count', section, 'b', 3, '2[a] 3[b] 2[c]'],
+    ['takes a whole section out', section, 'a b c', 1, 'a b c'],
+    ['puts a selection between plain paragraphs in columns', '<p>a</p><p>b</p><p>c</p>', 'b', 2, 'a 2[b] c'],
+    ['joins a paragraph back into the sections around it',
+      '<div data-columns="2"><p>a</p></div><p>b</p><div data-columns="2"><p>c</p></div>', 'b', 2, '2[a b c]'],
+    ['changes nothing that has no columns to remove', '<p>a</p><p>b</p>', 'b', 1, 'refused'],
+  ])('%s', (_, html, select, count, want) => {
+    expect(run(html, select, count)).toBe(want);
   });
 });
