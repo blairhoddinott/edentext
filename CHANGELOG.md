@@ -2,6 +2,42 @@
 
 <!-- Newest release first. New entries go here: ## [x.y.z] — YYYY-MM-DD -->
 
+## [0.10.0] — 2026-10-17
+
+EdenText 0.10.0 extends table support: tables can be nested in table cells, placed beside the text
+of a text box and set in multi-column sections, where column changes now apply to the selected
+paragraphs only. The desktop app opens documents from the file manager and saves back into them,
+writes vector PDFs without the print dialog and is packaged for Flathub. Page breaks follow
+LibreOffice more closely, and comments survive inside tracked changes in DOCX files.
+
+### Added
+- **Nested tables**: a table cell holds a table, and a table inserted in a list splits the list,
+  which continues its numbering after it
+- **Tables in text boxes** beside the box's text, and **tables in multi-column sections**, cut
+  between rows at a page boundary
+- **Columns for the selected paragraphs**: a column change with a selection splits the section
+  around it; the last section balances its columns as the saved file shows
+- **Continue and Restart Numbering** in the context menu of an ordered list
+- **The window title names the open document**
+- **The desktop app opens documents from the system** (odt, ott, docx, dotx) in a window of their
+  own and saves back into them; vector PDF saves directly, without the print dialog
+- **Flatpak packaging**: the Linux release ships a `tar.gz` for the Flathub package, whose updates
+  come from Flathub
+- README in Portuguese, Greek, Japanese and Traditional Chinese
+
+### Fixed
+- A page holds the lines LibreOffice fits and splits a hyphenated word at its hyphen; a block at a
+  page top stays out of the top margin, and a block that opens a page is never pushed to the next
+- A columns section below another starts on the same page
+- DOCX comment ranges and other markers inside tracked changes, moves, links and fields are kept
+- A negative paragraph indent survives import and export
+- A language change rewrites only the blocks and runs it changes
+- Comment menu actions run instead of closing the menu; New comment and Index entry ask in a
+  dialog of their own, which also works in the desktop app
+- The desktop app passes mail and phone links to the system, offers cut, copy, paste and spelling
+  suggestions in fields, and a second launch opens a window in the running app
+
+
 ## [0.9.0] — 2026-10-11
 
 EdenText 0.9.0 introduces an optional AI assistant. It works with the user's own provider (OpenAI,
