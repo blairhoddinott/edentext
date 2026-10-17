@@ -37,15 +37,19 @@ a table nested in it, as export bakes that bold onto the cell's own runs only.
 
 - **Import:** both importers convert a table in a cell instead of flattening it, measured
   against the cell's text width (`ctx.cellWidthCm`: the span's share of the grid less the
-  cell's side margins). A text box holds its text or one table, so a table beside text
-  there still flattens, with the `boxTables` warning.
+  cell's side margins). A table beside text in a text box is measured the same way, against
+  the box's text width (`boxTextWidthCm`, `textBox.ts`). LibreOffice writes one in a drawing
+  shape as `loext:table`, read as the `table:table` it stands for (`asOdfTable`).
 - **ODF export:** odf-kit's cell builder holds no table, so `replaceNestedTables` leaves a
   `NTB P{i}` marker paragraph in the cell and stages the table at top level between
   `NTB S{i}`/`E{i}` markers, with the cell's width as `odtWidthCm`. There it rides every
   ordinal table pass (`Table{n}` styles, row heights, cell blocks, formulas) in the order
-  odf-kit emits it; `applyNestedTables` moves it back, innermost first.
+  odf-kit emits it; `applyNestedTables` moves it back, innermost first. A table beside text
+  in a box only takes the box's width there; `replaceTextBoxes` stages the box's blocks.
 - **DOCX export:** `cellBlocksToDocx` writes the table into the `w:tc`, measured against the
   cell, and ends the cell with a paragraph, without which Word reports the file damaged.
+  A box's `w:txbxContent` is hand-written, so its table is staged at the body's end between
+  `TBT S{i}`/`E{i}` markers (`docBoxTables`) and `applyTextBoxesDocx` moves it into the box.
 
 Neither format keeps a table in a list item. As in both word processors, **Insert Table in
 a list cuts the list** behind the caret's text up to the outermost list (`splitListAt`,

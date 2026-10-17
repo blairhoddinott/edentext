@@ -18,7 +18,7 @@ import type {
 } from 'docx';
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
 import { isSvgDataUrl, svgToPngDataUrl } from '../import/imageFormats';
-import { TEXTBOX_PADDING_CM, type TextVAlign } from '../editor/extensions/textBox';
+import { TEXTBOX_PADDING_CM, boxTextWidthCm, type TextVAlign } from '../editor/extensions/textBox';
 import { cropOf, wrapGap, wrapGapAttr, type Crop, type WrapGap } from '../editor/extensions/image';
 import { SHAPES, boxHeads, isShapeKind, isLineKind, drawingMlPath, asShapePreset, asTextArea, type PathHeads, type ShapeKind, type DrawingMlPreset, type TextArea } from '../utils/shapes';
 import { cellFormatCode, isCellFormat } from '../utils/cellFormat';
@@ -239,6 +239,9 @@ let docNoteIds = new Map<string, { id: number; kind: NoteKind; label: string | n
 // module-level collector like docNoteIds: a box sits in a run, and the run builder is
 // reached from every paragraph path there is.
 let docTextBoxes: TextBoxDocx[] = [];
+// A box's tables: tableToDocx needs the package's numbering and styles, so each is
+// staged at the body's end and applyTextBoxesDocx moves its XML into the box.
+let docBoxTables: { node: TiptapNode; widthCm: number }[] = [];
 
 // Comments, numbered in document order before the runs are built — Word's ids are
 // integers and word/comments.xml has to exist before the Document is constructed.
@@ -290,6 +293,8 @@ function collectComments(node: TiptapNode): void {
 // export/odt.ts): the docx library can't emit DrawingML shapes, so buildDocx swaps
 // the marker for a hand-built <w:drawing><wps:wsp> in a zip post-processing pass.
 const TBX = '';
+// Brackets a box's staged table (S/E), whose place in the box is a `boxTable` block.
+const TBT = '';
 // Wraps the index of a numbering definition minted for a box's list; the ids only
 // become known once the packed numbering.xml is in hand.
 const TXBX_NUM = '';
@@ -1173,7 +1178,8 @@ function textBoxDocxDescriptor(node: TiptapNode): TextBoxDocx {
     paddingCm: typeof a.paddingCm === 'number' && a.paddingCm >= 0 ? a.paddingCm : TEXTBOX_PADDING_CM,
     paddingTopCm: typeof a.paddingTopCm === 'number' && a.paddingTopCm >= 0 ? a.paddingTopCm : null,
     paddingBottomCm: typeof a.paddingBottomCm === 'number' && a.paddingBottomCm >= 0 ? a.paddingBottomCm : null,
-    content: node.content ?? [],
+    content: (node.content ?? []).map((c) => c.type !== 'table' ? c
+      : { type: 'boxTable', attrs: { index: docBoxTables.push({ node: c, widthCm: boxTextWidthCm(a) }) - 1 } }),
   };
 }
 
@@ -1255,6 +1261,8 @@ type TxbxParts = {
   nextRid: () => string;
   // w:bookmarkStart ids minted for box content — offset clear of the package's own.
   nextBookmarkId: () => number;
+  // The staged tables' XML, by docBoxTables index.
+  tables: Map<number, string>;
 };
 
 // One picture inside a box, as an as-char <wp:inline> drawing.
@@ -1520,8 +1528,10 @@ function txbxContentXml(blocks: TiptapNode[], parts: TxbxParts): string {
   for (const b of blocks) {
     if (b.type === 'paragraph' || b.type === 'heading') out += txbxParagraphXml(b, parts);
     else if (b.type === 'bulletList' || b.type === 'orderedList') out += txbxListXml(b, 0, parts);
+    else if (b.type === 'boxTable') out += parts.tables.get(Number(b.attrs?.index)) ?? '';
   }
-  return out || '<w:p/>';
+  // A table may not end the box, as it may not end a cell.
+  return !out || blocks[blocks.length - 1]?.type === 'boxTable' ? `${out}<w:p/>` : out;
 }
 
 // The full <w:drawing> for one text box. Namespaces are declared inline on the
@@ -1657,6 +1667,15 @@ function applyTextBoxesDocx(bytes: Uint8Array, boxes: TextBoxDocx[]): Uint8Array
   // Media and numbering are named package-wide; relationships are each part's own.
   const media: TxbxParts['media'] = [];
   const nums: TxbxParts['nums'] = [];
+  // The staged box tables leave the body. A box in a header or footer takes them too,
+  // though a picture or link in one keeps a relationship id of the body's part.
+  const tables = new Map<number, string>();
+  const bodyPath = 'word/document.xml';
+  if (files[bodyPath] && strFromU8(files[bodyPath]).includes(TBT)) {
+    const para = (mark: string) => `<w:p\\b(?:(?!</w:p>)[\\s\\S])*?${TBT}${mark}${TBT}(?:(?!</w:p>)[\\s\\S])*?</w:p>`;
+    files[bodyPath] = strToU8(strFromU8(files[bodyPath]).replace(new RegExp(`${para('S(\\d+)')}([\\s\\S]*?)${para('E\\1')}`, 'g'),
+      (_m, i: string, inner: string) => { tables.set(Number(i), inner); return ''; }));
+  }
 
   for (const part of textParts(files)) {
     let xml = strFromU8(files[part]);
@@ -1665,7 +1684,7 @@ function applyTextBoxesDocx(bytes: Uint8Array, boxes: TextBoxDocx[]): Uint8Array
     const rels = files[relsPath] ? strFromU8(files[relsPath]) : EMPTY_RELS;
     let nextRid = maxIdIn(rels, /Id="rId(\d+)"/g);
     const from = media.length;
-    const parts: TxbxParts = { media, nums, links: [], nextRid: () => `rId${++nextRid}`, nextBookmarkId: () => ++nextBm };
+    const parts: TxbxParts = { media, nums, links: [], nextRid: () => `rId${++nextRid}`, nextBookmarkId: () => ++nextBm, tables };
 
     // Only the marker run is rebuilt — the paragraph around it keeps its own properties
     // and whatever text stands beside the box. Tempered so a match can't span two runs.
@@ -3396,6 +3415,7 @@ export async function buildDocx(
   docNoteIds = new Map();
   docNoteBookmarks = new Map();
   docTextBoxes = [];
+  docBoxTables = [];
   docComments = [];
   docCommentIds = new Map();
   docCommentReplies = new Map();
@@ -3540,6 +3560,10 @@ export async function buildDocx(
   const groupZones = groups.map((g, i) => (groups.findIndex((x) => x.section === g.section) === i
     ? { headers: mkHeaders(g.section), footers: mkFooters(g.section) } : { headers: undefined, footers: undefined }));
   // Styles the zones name count as used, as the body's do.
+  // A box's tables go after the body's last block, for applyTextBoxesDocx to move.
+  const marker = (text: string) => new Paragraph({ children: [new TextRun({ text })] });
+  docBoxTables.forEach(({ node, widthCm }, i) => groups[groups.length - 1]?.children.push(
+    marker(`${TBT}S${i}${TBT}`), tableToDocx(node, widthCm, num), marker(`${TBT}E${i}${TBT}`)));
   const withZones: TiptapNode = { ...docJson, content: [...(docJson.content ?? []),
     ...hfSets.flatMap((set) => HF_ZONE_KEYS.flatMap((k) => (set[k]?.content ?? []) as TiptapNode[]))] };
   const doc = new Document({

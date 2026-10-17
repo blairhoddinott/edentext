@@ -1391,7 +1391,6 @@ const ja: Messages = {
     structureRepaired: '文書構造に合わない内容があったため調整しました',
     noDictionary: (tag: string) => `スペルチェックの言語「${tag}」には同梱の辞書がないため、スペルチェックをオフにしました`,
     textBoxFlattened: '他のテキスト ボックス内のテキスト ボックスをテキストに変換しました',
-    boxTables: 'テキスト ボックス内で文字列と並ぶ表を段落に変換しました',
     chartsReplaced: 'グラフなどの描画オブジェクトをプレースホルダーに置き換えました',
     imagesPlaceholder: 'ブラウザーで表示できない形式 (WMF、EMF など) の画像をプレースホルダーに置き換えました',
     imagesRemoved: 'ブラウザーで表示できない形式 (WMF、EMF など) の画像を削除しました',

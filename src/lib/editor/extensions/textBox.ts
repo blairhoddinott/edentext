@@ -42,6 +42,12 @@ const ELLIPSE_INSET_RATIO = (1 - 1 / Math.SQRT2) / 2;
 
 const DEFAULT_WIDTH_PX = 280;
 const DEFAULT_HEIGHT_PX = 96;
+
+// The width a box's text runs in (cm): what a table in it is measured against.
+export function boxTextWidthCm(attrs: Record<string, unknown> | undefined): number {
+  const w = typeof attrs?.width === 'number' && attrs.width > 0 ? attrs.width : DEFAULT_WIDTH_PX;
+  return Math.max(0.5, (w * 2.54) / 96 - 2 * (typeof attrs?.paddingCm === 'number' ? attrs.paddingCm : TEXTBOX_PADDING_CM));
+}
 // A fresh line is flat: both word processors drop one across the text, not down it.
 const DEFAULT_LINE_HEIGHT_PX = 0;
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -120,7 +126,7 @@ function nestsBox(node: PMNode, inBox = false): boolean {
     // A frame holding a table is a floating table, not a frame the file has to nest in:
     // a drawing in one of its cells is anchored in ordinary table text, and both
     // exporters write it as one.
-    const floatingTable = isBox && child.firstChild?.type.name === 'table';
+    const floatingTable = isBox && child.childCount === 1 && child.firstChild?.type.name === 'table';
     if (isBox && inBox) bad = true;
     else if (nestsBox(child, !floatingTable && (inBox || isBox))) bad = true;
   });
@@ -171,10 +177,9 @@ export const TextBox = Node.create({
   // or a list item through their paragraphs. A box inside a box is barred by a plugin.
   group: 'inline',
   inline: true,
-  // Either blocks or one table: a frame holding nothing but a table is how both word
-  // processors keep a floating table (Word's w:tblpPr), and the alternation is what
-  // bars a table beside text in a box, which neither format's writer has a place for.
-  content: '(paragraph | heading | bulletList | orderedList)+ | table',
+  // Blocks and tables, as both formats' text boxes hold them. A frame holding nothing but
+  // one table is how both word processors keep a floating table (Word's w:tblpPr).
+  content: '(paragraph | heading | bulletList | orderedList | table)+',
   isolating: true,
   defining: true,
   draggable: true,

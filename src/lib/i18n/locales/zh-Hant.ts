@@ -1388,7 +1388,6 @@ const zhHant: Messages = {
     structureRepaired: '部分內容不符合文件結構，已作調整',
     noDictionary: (tag: string) => `拼字檢查語言「${tag}」沒有隨附字典——已關閉拼字檢查`,
     textBoxFlattened: '巢狀於其他文字方塊中的文字方塊已被攤平',
-    boxTables: '文字方塊中與文字並列的表格已攤平為段落',
     chartsReplaced: '圖表和其他繪圖已替換為預留位置',
     imagesPlaceholder: '瀏覽器無法顯示之格式（如 WMF、EMF）的圖片已替換為預留位置',
     imagesRemoved: '瀏覽器無法顯示之格式（如 WMF、EMF）的圖片已被移除',

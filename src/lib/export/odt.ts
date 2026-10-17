@@ -30,7 +30,7 @@ import { HEADER_SHADE } from '../editor/extensions/tableHeaderRow';
 import { isEmphasis } from '../editor/extensions/textEffects';
 import { BORDER_SIDES, parseBorderAttr } from '../editor/extensions/tableCellBorders';
 import { parseCellPadding, DEFAULT_CELL_PADDING, type CellPadding } from '../editor/extensions/tableCellPadding';
-import { TEXTBOX_PADDING_CM, type TextVAlign } from '../editor/extensions/textBox';
+import { TEXTBOX_PADDING_CM, boxTextWidthCm, type TextVAlign } from '../editor/extensions/textBox';
 import { cropOf, wrapGap, wrapGapAttr, type Crop, type WrapGap } from '../editor/extensions/image';
 import { imageSizeCm } from '../import/imageFormats';
 import { numberLocale, parseCellNumber, toWriterFormula, type CellRef, type NumberLocale } from '../utils/tableFormula';
@@ -1230,9 +1230,20 @@ function replaceNestedTables(doc: TiptapNode, contentWidthCm: number): TiptapNod
     }) }));
     return { ...node, content: rows };
   };
+  // A table beside text in a box measures against the box's text width; a box of one
+  // table alone is a floating frame the table fills.
+  const inBox = (node: TiptapNode): TiptapNode => {
+    const widthCm = boxTextWidthCm(node.attrs);
+    return { ...node, content: (node.content ?? []).map(c => {
+      if (c.type !== 'table') return walk(c, widthCm);
+      const t = table(c, widthCm);
+      return { ...t, attrs: { ...t.attrs, odtWidthCm: widthCm } };
+    }) };
+  };
   const walk = (node: TiptapNode, widthCm: number): TiptapNode =>
     node.type === 'table' ? table(node, widthCm)
-      : node.content?.length ? { ...node, content: node.content.map(c => walk(c, widthCm)) } : node;
+      : node.type === 'textBox' && (node.content ?? []).some(c => c.type !== 'table') ? inBox(node)
+        : node.content?.length ? { ...node, content: node.content.map(c => walk(c, widthCm)) } : node;
   const out = walk(doc, contentWidthCm);
   if (!staged.length) return out;
   const body = out.content ?? [];

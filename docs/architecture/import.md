@@ -128,8 +128,8 @@ and placeholders have focused mappings in their architecture documents.
 
 Page-anchored frames are out of flow and require page-relative positioning. Floating frames
 without free-position support collapse to the nearest supported wrap mode. Charts become static
-SVG images because the editor has no chart model. Unknown hyperlinks and a table beside text
-in a text box flatten only with warnings.
+SVG images because the editor has no chart model. Unknown hyperlinks flatten only with
+warnings.
 
 ## Verification
 

@@ -14,7 +14,7 @@ import { markerFormatFromText, pruneImportedMarkers } from '../editor/extensions
 import { MAX_LIST_LEVELS, type ListLevelStyle, type ListStyle } from '../styles/listStyles';
 import { HEADER_SHADE } from '../editor/extensions/tableHeaderRow';
 import { cropOf, fitInlineImage, framePx, stackRank, wrapGap, wrapGapAttr, type WrapGap } from '../editor/extensions/image';
-import { TEXTBOX_PADDING_CM } from '../editor/extensions/textBox';
+import { TEXTBOX_PADDING_CM, boxTextWidthCm } from '../editor/extensions/textBox';
 import { formatTabStops } from '../editor/extensions/tabStops';
 import type { CapsMode, LineStyle } from '../editor/extensions/textEffects';
 import { builtinTableStyles, parseTableLook, resolveTableCell, tableLookAttr } from '../styles/tableStyles';
@@ -923,10 +923,6 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
           const t = convertTable(el, ctx);
           if (t) out.push(t);
         } finally { ctx.contentWidthCm = outerCm; }
-      } else {
-        // A text box holds either its text or one table, never both.
-        ctx.warnings.add(WARN.boxTables);
-        out.push(...flattenTable(el, ctx));
       }
     } else if (el.localName === 'sdt') {
       breakPending = false;
@@ -3115,7 +3111,7 @@ function convertWpsShape(wsp: Element, root: Element, isAnchor: boolean, ctx: Ct
   // Only a:spAutoFit grows the shape with its text; without it the box keeps its extent
   // and clips what overflows, in Word as in LibreOffice (probed).
   if (txbxContent && attrs.height && !nsChild(bodyPr, A, 'spAutoFit')) attrs.fixedHeight = true;
-  const blocks = txbxContent ? boxBlocks(txbxContent, ctx) : [];
+  const blocks = txbxContent ? boxBlocks(txbxContent, ctx, attrs) : [];
   return { type: 'textBox', attrs, content: blocks.length ? blocks : [{ type: 'paragraph' }] };
 }
 
@@ -3199,7 +3195,7 @@ function convertPict(pict: Element, ctx: Ctx): Node | null {
   const swm = /^([\d.]+)\s*(pt)?$/.exec(shape.getAttribute('strokeweight') ?? '');
   setShapeStyleAttrs(attrs, fill, stroke, swm ? parseFloat(swm[1]) : null);
 
-  const blocks = txbxContent ? boxBlocks(txbxContent, ctx) : [];
+  const blocks = txbxContent ? boxBlocks(txbxContent, ctx, attrs) : [];
   return { type: 'textBox', attrs, content: blocks.length ? blocks : [{ type: 'paragraph' }] };
 }
 
@@ -3661,16 +3657,11 @@ function tableMargins(tbl: Element, weights: number[] | null, ctx: Ctx, leftPadC
   return { ...(Math.abs(l) >= 0.005 ? { marginLeft: l } : {}), ...(Math.abs(r) >= 0.005 ? { marginRight: r } : {}) };
 }
 
-function flattenTable(tbl: Element, ctx: Ctx): Node[] {
-  const out: Node[] = [];
-  for (const tr of fcAll(tbl, 'tr')) for (const tc of fcAll(tr, 'tc')) out.push(...convertBlocks(Array.from(tc.children), ctx, 'cell'));
-  return out;
-}
-
-// A text box's blocks: no cell around them any more, whatever the box sits in.
-function boxBlocks(content: Element, ctx: Ctx): Node[] {
+// A text box's blocks: no cell around them any more, whatever the box sits in. A table
+// in the box is measured against the box's text width, as one in a cell is.
+function boxBlocks(content: Element, ctx: Ctx, attrs: Record<string, unknown>): Node[] {
   const outerCell = ctx.cellWidthCm;
-  ctx.cellWidthCm = undefined;
+  ctx.cellWidthCm = boxTextWidthCm(attrs);
   try { return unnestBoxes(convertBlocks(Array.from(content.children), ctx, 'cell'), ctx); } finally { ctx.cellWidthCm = outerCell; }
 }
 

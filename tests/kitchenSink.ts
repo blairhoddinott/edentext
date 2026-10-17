@@ -154,6 +154,7 @@ export function kitchenSinkDoc(): N {
     p([{ type: 'textBox', attrs: { width: 240, height: 96, fillColor: '#FFE0A0', strokeColor: '#0070C0', strokeWidthPt: 2 }, content: [
       p([t('Ein Rahmen mit Liste und Bild:')]),
       { type: 'bulletList', content: [li(p([t('Punkt im Rahmen')]))] },
+      nestedTable(p([t('Tabelle im Rahmen')])),
       p([{ type: 'image', attrs: { src: PNG, width: 48, height: 24 } }]),
     ] }]),
     p([{ type: 'textBox', attrs: { width: 192, height: 96, shapeKind: 'roundRect', fillColor: '#DDEEFF', wrap: 'right', wrapOffset: 1.5 }, content: [

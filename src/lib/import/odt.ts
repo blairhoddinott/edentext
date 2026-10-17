@@ -55,7 +55,7 @@ import type { EmbeddedFont } from '../fonts/embeddedFonts';
 import { cellPaddingAttr, DEFAULT_CELL_PADDING, type CellPadding } from '../editor/extensions/tableCellPadding';
 import { fromWriterFormula } from '../utils/tableFormula';
 import { cellFormatFromSpec, type CellFormat, type FormatKind } from '../utils/cellFormat';
-import { TEXTBOX_PADDING_CM } from '../editor/extensions/textBox';
+import { TEXTBOX_PADDING_CM, boxTextWidthCm } from '../editor/extensions/textBox';
 
 // Warnings are the English catalog text; localizeImportMessage maps them at display time.
 const WARN = en.importWarn;
@@ -559,14 +559,15 @@ function shapeStyleAttrs(gp: PropMap, attrs: Record<string, unknown>, defaultSol
 }
 
 // The block content of a text box / shape: one table where the frame holds nothing
-// else, otherwise its text:* children via the cell path (which flattens whatever the
-// box schema can't hold), at least one paragraph.
-function textBoxContent(children: Element[], ctx: Ctx, widthCm: number | null): Node[] {
+// else, otherwise its text:* children and tables via the cell path, at least one paragraph.
+function textBoxContent(children: Element[], ctx: Ctx, widthCm: number | null, attrs: Record<string, unknown>): Node[] {
   const textChildren = children.filter(c => c.namespaceURI === NS.text);
   // A frame holding nothing but a table is a floating table — how LibreOffice keeps
   // Word's own (w:tblpPr) and the one table the box's schema takes. Its margins are
   // measured against the frame it fills, not the page's text.
-  const tables = children.filter(c => c.namespaceURI === NS.table && c.localName === 'table');
+  const blocks = children.map(c => c.namespaceURI === (NS.loext as string) && c.localName === 'table' ? asOdfTable(c) : c)
+    .filter(c => c.namespaceURI === NS.text || (c.namespaceURI === NS.table && c.localName === 'table'));
+  const tables = blocks.filter(c => c.namespaceURI === NS.table);
   if (tables.length === 1 && textChildren.every(c => !c.textContent?.trim())) {
     const outerCm = ctx.contentWidthCm;
     if (widthCm) ctx.contentWidthCm = widthCm;
@@ -574,12 +575,24 @@ function textBoxContent(children: Element[], ctx: Ctx, widthCm: number | null): 
     try { table = convertTable(tables[0], ctx); } finally { ctx.contentWidthCm = outerCm; }
     if (table) return [table];
   }
-  // No cell around the box's blocks any more, whatever the box sits in.
+  // No cell around the box's blocks any more, whatever the box sits in: a table beside
+  // the text is measured against the box's text width, as one in a cell is.
   const outerCell = ctx.cellWidthCm;
-  ctx.cellWidthCm = undefined;
-  let blocks: Node[];
-  try { blocks = unnestBoxes(convertBlocks(textChildren, ctx, 'cell'), ctx); } finally { ctx.cellWidthCm = outerCell; }
-  return blocks.length ? blocks : [{ type: 'paragraph' }];
+  ctx.cellWidthCm = boxTextWidthCm(attrs);
+  let out: Node[];
+  try { out = unnestBoxes(convertBlocks(blocks, ctx, 'cell'), ctx); } finally { ctx.cellWidthCm = outerCell; }
+  return out.length ? out : [{ type: 'paragraph' }];
+}
+
+// LibreOffice writes a table in a drawing shape's text as loext:table, its columns, rows
+// and cells loext: too (attributes table:); read as the table:table it stands for.
+function asOdfTable(el: Element): Element {
+  const out = el.ownerDocument.createElementNS(NS.table, `table:${el.localName}`);
+  for (const a of Array.from(el.attributes)) out.setAttributeNS(a.namespaceURI, a.name, a.value);
+  for (const c of Array.from(el.childNodes)) {
+    out.appendChild(c instanceof Element && c.namespaceURI === (NS.loext as string) ? asOdfTable(c) : c.cloneNode(true));
+  }
+  return out;
 }
 
 // A box inside a box has nowhere to go — both word processors refuse one and the editor
@@ -629,7 +642,7 @@ function convertTextBoxFrame(frame: Element, textBoxEl: Element, ctx: Ctx): Node
   if (attrs.fillColor === null && !(parseFloat(gp['draw:opacity'] ?? '100') < 100)
     && ctx.resolver.hasCommonGraphicStyle(frame.getAttributeNS(NS.draw, 'style-name'))) delete attrs.fillColor;
   boxTextFlow(frame, ctx, attrs);
-  return { type: 'textBox', attrs, content: textBoxContent(Array.from(textBoxEl.children), ctx, wCm) };
+  return { type: 'textBox', attrs, content: textBoxContent(Array.from(textBoxEl.children), ctx, wCm, attrs) };
 }
 
 // A <draw:frame> holding a formula object → a formula node. The MathML lives either
@@ -758,7 +771,7 @@ function convertShape(el: Element, ctx: Ctx): Node | null {
   shapeStyleAttrs(gp, attrs, true);
   if (path) outlineHeads(gp, attrs);
   boxTextFlow(el, ctx, attrs);
-  return { type: 'textBox', attrs, content: textBoxContent(Array.from(el.children), ctx, wCm) };
+  return { type: 'textBox', attrs, content: textBoxContent(Array.from(el.children), ctx, wCm, attrs) };
 }
 
 // A `<draw:enhanced-geometry>` no preset matches, read as its own outline: its
@@ -1465,10 +1478,6 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
           if (flow) table.attrs = { ...(table.attrs ?? {}), ...flow };
           out.push(table);
         }
-      } else {
-        // A text box holds either its text or one table, never both.
-        ctx.warnings.add(WARN.boxTables);
-        out.push(...flattenTable(el, ctx));
       }
     } else if (el.namespaceURI === NS.draw) {
       const conv = convertDrawElement(el, ctx);
@@ -3761,26 +3770,4 @@ function keepContinuation(out: Node[], list: Node): Node {
   const end = prev ? (Number(prev.attrs?.start) || 1) + labelledItems(prev) - 1 : 0;
   if (end + 1 !== list.attrs.start) delete list.attrs.continueNumbering;
   return list;
-}
-
-// Salvage a nested table's text: its cells' blocks, in reading order. Walks
-// direct rows only — deeper tables recurse through convertBlocks again.
-function flattenTable(el: Element, ctx: Ctx): Node[] {
-  const out: Node[] = [];
-  const walkRows = (parent: Element) => {
-    for (const child of Array.from(parent.children)) {
-      if (child.namespaceURI !== NS.table) continue;
-      if (child.localName === 'table-row') {
-        for (const cellEl of Array.from(child.children)) {
-          if (cellEl.namespaceURI === NS.table && cellEl.localName === 'table-cell') {
-            out.push(...convertBlocks(Array.from(cellEl.children), ctx, 'cell'));
-          }
-        }
-      } else if (child.localName === 'table-header-rows' || child.localName === 'table-rows') {
-        walkRows(child);
-      }
-    }
-  };
-  walkRows(el);
-  return out;
 }

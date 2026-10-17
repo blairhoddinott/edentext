@@ -1406,7 +1406,6 @@ const en = {
     structureRepaired: 'Some content did not fit the document structure and was adjusted',
     noDictionary: (tag: string) => `Spell-check language "${tag}" has no bundled dictionary — spell check was turned off`,
     textBoxFlattened: 'Text boxes nested in other text boxes were flattened',
-    boxTables: 'Tables beside text in a text box were flattened to paragraphs',
     chartsReplaced: 'Charts and other drawings were replaced by a placeholder',
     imagesPlaceholder: 'Images in a format the browser can’t display (e.g. WMF, EMF) were replaced by a placeholder',
     imagesRemoved: 'Images in a format the browser can’t display (e.g. WMF, EMF) were removed',
