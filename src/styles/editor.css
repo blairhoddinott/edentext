@@ -675,6 +675,11 @@
 .paper .tiptap .columns-node > :last-child {
   margin-bottom: 0;
 }
+/* A table breaks between its columns at a row boundary only: columnsFlow measures whole
+   rows when it cuts one at a page boundary. */
+.paper .tiptap .columns-node tr {
+  break-inside: avoid;
+}
 /* Inside the section the space above is a margin and the space below padding: every
    engine truncates a margin at a column break but keeps padding, so each column starts
    level (probed: LibreOffice does) and the two spacings still add up. */
@@ -1062,8 +1067,10 @@
   padding-top: var(--space-before);
 }
 /* A frame the text runs through reaches past its row, as in LibreOffice; flow-root still
-   keeps the wrapper off a float beside it. */
-.paper .tiptap .tableWrapper:has(td [data-wrap='through'], th [data-wrap='through']) {
+   keeps the wrapper off a float beside it. In a columns section a scroll container would
+   be one unbreakable box, so the table could not run on into the next column. */
+.paper .tiptap .tableWrapper:has(td [data-wrap='through'], th [data-wrap='through']),
+.paper .tiptap .columns-node > .tableWrapper {
   overflow: visible;
   display: flow-root;
 }

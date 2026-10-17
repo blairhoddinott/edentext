@@ -1411,7 +1411,7 @@ const en = {
     imagesRemoved: 'Images in a format the browser can’t display (e.g. WMF, EMF) were removed',
     formulasSkipped: 'Some formulas could not be read and were skipped',
     columnsReduced: 'Sections with more than 3 columns were reduced to 3 columns',
-    movedOutOfColumns: 'Tables and text boxes inside a multi-column layout were moved out of the columns',
+    movedOutOfColumns: 'Text boxes inside a multi-column layout were moved out of the columns',
     hiddenText: 'Hidden text was removed',
     missingFonts: (fonts: string) => `These fonts aren't installed and were shown with a substitute: ${fonts}`,
   },

@@ -78,11 +78,11 @@ export function columnsChain(state: EditorState, pos: number): Fragment[] {
   return all.slice(lo, hi + 1);
 }
 
-const WRAPPABLE = new Set(['paragraph', 'heading', 'bulletList', 'orderedList']);
+const WRAPPABLE = new Set(['paragraph', 'heading', 'bulletList', 'orderedList', 'table']);
 
 // Top-level blocks of [start, end) as columns content: wrappable blocks collected
 // as-is, existing columns fragments absorbed (their content joins the run);
-// null when the range holds anything else (table, text box, TOC).
+// null when the range holds anything else (text box, TOC).
 function collectWrappable(state: EditorState, start: number, end: number): { blocks: PMNode[]; from: number; to: number } | null {
   const blocks: PMNode[] = [];
   let ok = true;
@@ -112,17 +112,14 @@ function childArray(n: PMNode): PMNode[] {
   return out;
 }
 
-// Re-merge paragraphs split by columnsFlow's page-boundary line split (the second
+// Re-merge paragraphs and tables split by columnsFlow at a page boundary (the second
 // part carries joinPrev). Used wherever fragment content leaves the chain context:
 // unwrap, absorb-into-a-new-section; export does the same on the JSON level.
 export function mergeJoinedBlocks(blocks: PMNode[]): PMNode[] {
   const out: PMNode[] = [];
   for (const b of blocks) {
     const prev = out[out.length - 1];
-    if (
-      b.type.name === 'paragraph' && b.attrs.joinPrev &&
-      prev?.type.name === 'paragraph'
-    ) {
+    if (b.attrs.joinPrev && (b.type.name === 'paragraph' || b.type.name === 'table') && prev?.type === b.type) {
       out[out.length - 1] = prev.type.create(prev.attrs, prev.content.append(b.content));
     } else {
       out.push(b);
@@ -132,7 +129,7 @@ export function mergeJoinedBlocks(blocks: PMNode[]): PMNode[] {
 }
 
 // With no selection, columns apply to the whole document. Wrappable runs
-// (absorbing existing sections) become one section each; tables/boxes/TOCs stay
+// (absorbing existing sections) become one section each; boxes/TOCs stay
 // between them. Replacements run bottom-up so earlier positions stay valid.
 function applyToWholeDoc(state: EditorState, tr: Transaction, attrs: ColumnsAttrs): boolean {
   const type = state.schema.nodes.columns;
@@ -162,7 +159,7 @@ export const Columns = Node.create({
   // Own group (not `block`): only the doc admits it, so it can't nest in table
   // cells, list items, text boxes, or other columns sections.
   group: 'columns',
-  content: '(paragraph | heading | bulletList | orderedList)+',
+  content: '(paragraph | heading | bulletList | orderedList | table)+',
   // Not isolating/selectable: the section must feel like flowing text, not an
   // object — selection, Backspace, and joins cross fragment boundaries freely
   // (a join merges fragments; columnsFlow re-splits as needed).
@@ -173,11 +170,11 @@ export const Columns = Node.create({
   addGlobalAttributes() {
     return [
       {
-        types: ['paragraph'],
+        types: ['paragraph', 'table'],
         attributes: {
-          // Layout-internal: marks the second part of a paragraph that columnsFlow
+          // Layout-internal: marks the second part of a paragraph or table that columnsFlow
           // split at a page boundary. Never rendered/parsed; export and unwrap
-          // merge a joinPrev paragraph back into its predecessor.
+          // merge it back into its predecessor.
           joinPrev: {
             default: false,
             rendered: false,
@@ -240,8 +237,8 @@ export const Columns = Node.create({
   addCommands() {
     return {
       // Inside a section: 1 unwraps the whole chain, 2/3 update its count. Outside:
-      // with a selection, 2/3 wrap the covered top-level blocks (fails on tables
-      // etc.); with a bare cursor, the whole document gets columns.
+      // with a selection, 2/3 wrap the covered top-level blocks (fails on boxes
+      // and indexes); with a bare cursor, the whole document gets columns.
       setColumns:
         (count: number) =>
         ({ state, dispatch }) => {

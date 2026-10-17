@@ -231,7 +231,7 @@ export const extensions = [
   // resize plugins, and ResizableTableRow supply the drag handling instead. Table
   // (unlike TableKit) doesn't auto-add children, so ResizableTableRow is listed here.
   // No table in a note (whose inline content would take it wrapped in a text box); a cell
-  // may nest one. In a list it goes between the list's two parts, as in both word
+  // and a columns section may hold one. In a list it goes between the list's two parts, as in both word
   // processors: neither format keeps one in a list item, and the second part counts on.
   Table.extend({
     addCommands() {
@@ -241,7 +241,18 @@ export const extensions = [
         const { $from } = props.state.selection;
         let item = 0;
         for (let d = $from.depth; d > 0 && !item; d--) if ($from.node(d).type.name === 'listItem') item = d;
-        if (!item) return parent.insertTable?.(options)(props) ?? false;
+        if (!item) {
+          if (!parent.insertTable?.(options)(props)) return false;
+          // A table ending a columns section keeps a paragraph after it: the caret would
+          // have nowhere to go there, as at the document end (trailingNode.ts).
+          const { $from: $in } = props.tr.selection;
+          for (let d = $in.depth; d > 1; d--) {
+            if ($in.node(d).type.name !== 'table' || $in.node(d - 1).type.name !== 'columns') continue;
+            if ($in.index(d - 1) === $in.node(d - 1).childCount - 1) props.tr.insert($in.after(d), props.state.schema.nodes.paragraph.create());
+            break;
+          }
+          return true;
+        }
         const { tr, state } = props;
         const at = splitListAt(tr, $from, item);
         if (at == null) return false;

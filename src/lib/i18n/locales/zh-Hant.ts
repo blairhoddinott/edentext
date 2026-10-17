@@ -1393,7 +1393,7 @@ const zhHant: Messages = {
     imagesRemoved: '瀏覽器無法顯示之格式（如 WMF、EMF）的圖片已被移除',
     formulasSkipped: '有些方程式無法讀取，已略過',
     columnsReduced: '超過 3 欄的節已減為 3 欄',
-    movedOutOfColumns: '多欄版面中的表格和文字方塊已移出欄',
+    movedOutOfColumns: '多欄版面中的文字方塊已移出欄',
     hiddenText: '隱藏文字已被移除',
     missingFonts: (fonts: string) => `下列字型未安裝，已以替代字型顯示：${fonts}`,
   },

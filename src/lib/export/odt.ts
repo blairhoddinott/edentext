@@ -1240,10 +1240,21 @@ function replaceNestedTables(doc: TiptapNode, contentWidthCm: number): TiptapNod
       return { ...t, attrs: { ...t.attrs, odtWidthCm: widthCm } };
     }) };
   };
+  // A table in a columns section fills one column.
+  const inColumns = (node: TiptapNode, pageCm: number): TiptapNode => {
+    const { count, gapCm } = columnsDescriptor(node);
+    const widthCm = (pageCm - gapCm * (count - 1)) / count;
+    return { ...node, content: (node.content ?? []).map(c => {
+      if (c.type !== 'table') return walk(c, widthCm);
+      const t = table(c, widthCm);
+      return { ...t, attrs: { ...t.attrs, odtWidthCm: widthCm } };
+    }) };
+  };
   const walk = (node: TiptapNode, widthCm: number): TiptapNode =>
     node.type === 'table' ? table(node, widthCm)
       : node.type === 'textBox' && (node.content ?? []).some(c => c.type !== 'table') ? inBox(node)
-        : node.content?.length ? { ...node, content: node.content.map(c => walk(c, widthCm)) } : node;
+        : node.type === 'columns' ? inColumns(node, widthCm)
+          : node.content?.length ? { ...node, content: node.content.map(c => walk(c, widthCm)) } : node;
   const out = walk(doc, contentWidthCm);
   if (!staged.length) return out;
   const body = out.content ?? [];
@@ -1339,14 +1350,14 @@ function columnsDescriptor(node: TiptapNode): ColumnsExport {
   return { count, gapCm: Math.round(clamped * 1000) / 1000 };
 }
 
-// Re-merge paragraphs split by columnsFlow at a page boundary (the second part
-// carries the layout-internal joinPrev attr) — the file must hold ONE paragraph.
+// Re-merge paragraphs and tables split by columnsFlow at a page boundary (the second
+// part carries the layout-internal joinPrev attr) — the file must hold ONE of each.
 // Also used by the DOCX exporter.
 export function mergeJoinedParagraphsJson(blocks: TiptapNode[]): TiptapNode[] {
   const out: TiptapNode[] = [];
   for (const b of blocks) {
     const prev = out[out.length - 1];
-    if (b.type === 'paragraph' && b.attrs?.joinPrev && prev?.type === 'paragraph') {
+    if (b.attrs?.joinPrev && (b.type === 'paragraph' || b.type === 'table') && prev?.type === b.type) {
       out[out.length - 1] = { ...prev, content: [...(prev.content ?? []), ...(b.content ?? [])] };
     } else {
       out.push(b);

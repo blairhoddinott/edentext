@@ -511,10 +511,15 @@ function tocRowTab(el: Element, ctx: Ctx): { leader?: string; tabPosCm?: number 
   if (!stop) return {};
   // A stop at the text width (or the column's, in columns) is where a row's number lands
   // anyway, so it names no position of its own — the ODF side suppresses it the same way.
-  const cols = ctx.sectionCols;
-  const columnCm = cols ? (ctx.contentWidthCm - cols.gapCm * (cols.count - 1)) / cols.count : ctx.contentWidthCm;
+  const columnCm = columnWidthCm(ctx);
   const own = stop.pos > 0 && Math.abs(stop.pos - ctx.contentWidthCm) > 0.05 && Math.abs(stop.pos - columnCm) > 0.05;
   return { ...(stop.leader ? { leader: stop.leader } : {}), ...(own ? { tabPosCm: stop.pos } : {}) };
+}
+
+// The width of one column of the section being read: the text width outside columns.
+function columnWidthCm(ctx: Ctx): number {
+  const cols = ctx.sectionCols;
+  return cols ? (ctx.contentWidthCm - cols.gapCm * (cols.count - 1)) / cols.count : ctx.contentWidthCm;
 }
 
 // A TOC is a `TOC` field spanning several paragraphs, each entry a nested PAGEREF field,
@@ -912,7 +917,11 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
       if (kind === 'body' || kind === 'zone') {
         const floated = floatingTableBox(el, ctx);
         if (floated) { floatBoxes.push({ box: floated, at: out.length }); continue; }
-        const t = convertTable(el, ctx);
+        // A table in a columns section fills its column, so it is measured against one.
+        const outerCm = ctx.contentWidthCm;
+        if (kind === 'body') ctx.contentWidthCm = columnWidthCm(ctx);
+        let t: Node | null;
+        try { t = convertTable(el, ctx); } finally { ctx.contentWidthCm = outerCm; }
         if (t && pageBreak) applyBreakBefore(t);
         if (t) out.push(t);
       } else if (ctx.cellWidthCm != null) {
@@ -3857,7 +3866,7 @@ function sectPrColumns(sectPr: Element | null, ctx: Ctx): { count: number; gapCm
 }
 
 // Block types a columns node can contain (mirrors import/odt.ts).
-const COLUMNS_ALLOWED = new Set(['paragraph', 'heading', 'bulletList', 'orderedList']);
+const COLUMNS_ALLOWED = new Set(['paragraph', 'heading', 'bulletList', 'orderedList', 'table']);
 
 // Wrap a multi-column section's converted blocks into columns nodes: maximal runs of
 // allowed types become one node each; anything else is emitted between them.

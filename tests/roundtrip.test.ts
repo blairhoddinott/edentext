@@ -58,6 +58,7 @@ const boxesIn = (n: N, out: N[] = []): N[] => {
   return out;
 };
 const COLS = (attrs: N, ...content: N[]): N => ({ type: 'columns', attrs, content });
+const TABLE = (attrs: N | null, ...rows: N[]): N => ({ type: 'table', ...(attrs ? { attrs } : {}), content: rows });
 
 const margins = { top: 3, bottom: 2, left: 2.5, right: 1.5 };
 
@@ -968,11 +969,11 @@ describe('Leg 2: foreign (LibreOffice/Word-style) .odt → importOdt', () => {
     const f = importOdt(foreign);
     const c = f.content.content!;
 
-    check('page-cols: shape columns/table/columns', c.map((n: N) => n.type).join(',') === 'columns,table,columns', c.map((n: N) => n.type));
+    check('page-cols: one section', c.map((n: N) => n.type).join(',') === 'columns', c.map((n: N) => n.type));
     check('page-cols: count 3, gap 0.1965in → 0.5cm', c[0].attrs?.count === 3 && c[0].attrs?.gapCm === 0.5, c[0].attrs);
-    check('page-cols: 1-col section content joins the run',
-      c[2].content!.map((n: N) => n.content?.[0]?.text).join(',') === 'second,in section', c[2].content);
-    check('page-cols: table move-out warned', f.warnings.some(w => w.includes('moved out of the columns')), f.warnings);
+    check('page-cols: the table and a 1-col section join the run',
+      c[0].content!.map((n: N) => n.type === 'table' ? 'table' : n.content?.[0]?.text).join(',') === 'first,table,second,in section', c[0].content);
+    check('page-cols: no move-out warning', !f.warnings.some(w => w.includes('moved out of the columns')), f.warnings);
   });
 });
 
@@ -1365,7 +1366,7 @@ describe('Leg 8: multi-column sections (ODT)', () => {
       cols.map((n: N) => n.content?.length));
   });
 
-  it('re-merges a page-boundary line-split paragraph (joinPrev) on export', async () => {
+  it('re-merges a page-boundary split paragraph and table (joinPrev) on export', async () => {
     const split: N = {
       type: 'doc',
       content: [
@@ -1376,6 +1377,10 @@ describe('Leg 8: multi-column sections (ODT)', () => {
         COLS({ count: 2, gapCm: 0.5 },
           P({ joinPrev: true }, T('second half of it.')),
           P(null, T('intact tail.')),
+          TABLE(null, ROW(CELL(null, P(null, T('row one'))))),
+        ),
+        COLS({ count: 2, gapCm: 0.5 },
+          TABLE({ joinPrev: true }, ROW(CELL(null, P(null, T('row two'))))),
         ),
         P(null, T('after')),
       ],
@@ -1386,10 +1391,12 @@ describe('Leg 8: multi-column sections (ODT)', () => {
       /first half of the long paragraph second half of it\./.test(xml.replace(/<[^>]+>/g, '')), null);
     check('one section, three paragraphs inside',
       (xml.match(/<text:section /g) ?? []).length === 1, null);
+    check('split table exported as ONE table:table', (xml.match(/<table:table /g) ?? []).length === 1, null);
 
     const res = importOdt(bytes);
     const col = (res.content.content ?? []).find((n: N) => n.type === 'columns');
-    check('reimports as one section with three paragraphs', col?.content?.length === 3, col?.content?.length);
+    check('reimports as one section with three paragraphs and the table', col?.content?.length === 4, col?.content?.length);
+    check('merged table holds both rows', col?.content?.[3]?.content?.length === 2, col?.content?.[3]);
     const texts = (col?.content ?? []).map((p: N) => (p.content ?? []).map((t: N) => t.text).join(''));
     check('merged paragraph text intact',
       texts[1] === 'first half of the long paragraph second half of it.', texts);
@@ -1397,7 +1404,7 @@ describe('Leg 8: multi-column sections (ODT)', () => {
 });
 
 describe('Leg 9: foreign multi-column sections → importOdt', () => {
-  it('derives the gap from column indents, moves tables out, clamps counts, splices style-less sections', () => {
+  it('derives the gap from column indents, keeps tables in, clamps counts, splices style-less sections', () => {
     const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
  <office:automatic-styles>
@@ -1449,19 +1456,17 @@ describe('Leg 9: foreign multi-column sections → importOdt', () => {
     const f = importOdt(foreign);
     const c = f.content.content!;
     const cols = c.filter((n: N) => n.type === 'columns');
-    check('4 columns nodes (S1, S2 split around the table, S3)', cols.length === 4, c.map((n: N) => n.type));
+    check('3 columns nodes (S1, S2, S3)', cols.length === 3, c.map((n: N) => n.type));
 
     const s1 = cols[0];
     check('S1: gap derived from column indents (0.25+0.25)', s1?.attrs?.count === 2 && s1?.attrs?.gapCm === 0.5, s1?.attrs);
     check('S1: both paragraphs inside', s1?.content?.length === 2 && s1?.content?.[0]?.content?.[0]?.text === 'lo col one', s1?.content);
 
-    const s2idx = c.findIndex((n: N) => n.type === 'columns' && n.content?.[0]?.content?.[0]?.text === 'before table');
-    check('S2: table moved out between two columns nodes',
-      c[s2idx]?.attrs?.gapCm === 1 && c[s2idx + 1]?.type === 'table' &&
-      c[s2idx + 2]?.type === 'columns' && c[s2idx + 2]?.content?.[0]?.content?.[0]?.text === 'after table',
-      c.slice(s2idx, s2idx + 3).map((n: N) => n.type));
-    check('S2: move-out warning reported',
-      f.warnings.includes('Tables and text boxes inside a multi-column layout were moved out of the columns'), f.warnings);
+    const s2 = cols[1];
+    check('S2: the table stays in its section',
+      s2?.attrs?.gapCm === 1 && JSON.stringify(s2?.content?.map((n: N) => n.type)) === '["paragraph","table","paragraph"]',
+      s2?.content?.map((n: N) => n.type));
+    check('S2: no move-out warning', !f.warnings.some((w: string) => /moved out of the columns/.test(w)), f.warnings);
 
     const s3 = cols[cols.length - 1];
     check('S3: count clamped to 3', s3?.attrs?.count === 3 && s3?.attrs?.gapCm === 0.3, s3?.attrs);

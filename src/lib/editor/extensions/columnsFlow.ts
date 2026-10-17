@@ -4,6 +4,7 @@ import type { Transaction } from '@tiptap/pm/state';
 import { canJoin, canSplit } from '@tiptap/pm/transform';
 import { DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
+import { TableMap } from '@tiptap/pm/tables';
 import {
   readVerticalMargins, bandAt, FORCE_PAGE_RECALC, isSplitPane, blockDeco, isBlockDeco, repairDecos,
 } from './pageBreaks';
@@ -163,6 +164,47 @@ function lineAdvance(lines: { top: number }[]): number {
   return gaps.length ? gaps[gaps.length >> 1] : 0;
 }
 
+// The rendered rows of a table block (its TableView wrapper), or null when they do not
+// line up with the node's rows.
+function tableRows(blockEl: Element, table: PMNode): HTMLElement[] | null {
+  const body = blockEl.querySelector(':scope > table > tbody');
+  const rows = body ? Array.from(body.children).filter((r) => r.tagName === 'TR') as HTMLElement[] : [];
+  return rows.length === table.childCount ? rows : null;
+}
+
+function rowHeights(rows: HTMLElement[], scale: number): number[] {
+  return rows.map((r) => r.getBoundingClientRect().height / scale);
+}
+
+// How many rows fill `count` columns of `columnPx`, the first from flow offset `startPx`:
+// a row is never cut between two columns, so one that does not fit opens the next.
+export function rowsWithin(heights: number[], startPx: number, columnPx: number, count: number): number {
+  let col = Math.floor(startPx / columnPx);
+  let at = startPx - col * columnPx;
+  let n = 0;
+  for (const h of heights) {
+    if (at > 0 && at + h > columnPx + 0.5) { col++; at = 0; }
+    if (col >= count) break;
+    at += h;
+    n++;
+  }
+  return n;
+}
+
+// Whether a table may be cut above row `r`: no cell of the rows above reaches into it.
+function rowBoundaryFree(map: TableMap, r: number): boolean {
+  for (let c = 0; c < map.width; c++) {
+    if (map.map[r * map.width + c] === map.map[(r - 1) * map.width + c]) return false;
+  }
+  return true;
+}
+
+// Two adjacent blocks that a page-boundary split made of one: the second carries joinPrev.
+function isJoinedPair(prev: PMNode | undefined, next: PMNode): boolean {
+  return !!next.attrs.joinPrev && prev?.type === next.type &&
+    (next.type.name === 'paragraph' || next.type.name === 'table');
+}
+
 export const ColumnsFlow = Extension.create({
   name: 'columnsFlow',
 
@@ -303,6 +345,77 @@ export const ColumnsFlow = Extension.create({
           return true;
         }
 
+        // Cut the table at `blockIndex` after the rows that fill the columns from flow offset
+        // `startPx`, at a boundary no row span crosses; the second part is marked joinPrev
+        // like a paragraph's. `force` keeps at least one row for a table taller than the page.
+        function splitTableInBlock(
+          frag: Fragment, children: Element[], blockIndex: number, startPx: number,
+          columnPx: number, count: number, scale: number, force: boolean,
+        ): boolean {
+          const block = frag.node.child(blockIndex);
+          const rows = children[blockIndex] && tableRows(children[blockIndex], block);
+          if (!rows || rows.length < 2) return false;
+          const fit = rowsWithin(rowHeights(rows, scale), startPx, columnPx, count);
+          const map = TableMap.get(block);
+          let r = Math.min(fit, rows.length - 1);
+          while (r > 0 && !rowBoundaryFree(map, r)) r--;
+          if (r === 0 && force) {
+            r = 1;
+            while (r < rows.length && !rowBoundaryFree(map, r)) r++;
+            if (r >= rows.length) return false;
+          }
+          if (r === 0) return false;
+          let pos = frag.pos + 1;
+          for (let j = 0; j < blockIndex; j++) pos += frag.node.child(j).nodeSize;
+          pos += 1;
+          for (let j = 0; j < r; j++) pos += block.child(j).nodeSize;
+          const typesAfter = [
+            { type: frag.node.type, attrs: frag.node.attrs },
+            { type: block.type, attrs: { ...block.attrs, joinPrev: true } },
+          ];
+          // canSplit refuses any split inside an isolating table; both halves keep rows here.
+          const tr = editorView.state.tr;
+          try {
+            tr.split(pos, 2, typesAfter);
+          } catch {
+            return false;
+          }
+          dispatchFlow(tr);
+          return true;
+        }
+
+        // Split the block at `blockIndex`, which starts at flow offset `startPx`, where the
+        // page's columns of `available` px run out.
+        function splitBlock(
+          frag: Fragment, children: Element[], blockIndex: number, startPx: number,
+          available: number, count: number, scale: number, force: boolean,
+        ): boolean {
+          return frag.node.child(blockIndex).type.name === 'table'
+            ? splitTableInBlock(frag, children, blockIndex, startPx, available, count, scale, force)
+            : splitParagraphInBlock(frag, children, blockIndex, count * (available - SAFETY_PX) - startPx, scale, force);
+        }
+
+        // What a continuation's head needs of the room left to be pulled back: a joinPrev
+        // head one more line or row, a multi-line paragraph ~two line rows and a table its
+        // first row (the overflow split hands the excess back), any other block its share.
+        function headNeed(node: PMNode, next: Fragment, nextFirst: Element, count: number, scale: number) {
+          const headBlock = next.node.child(0);
+          const headIsJoinPrev = isJoinedPair(node.child(node.childCount - 1), headBlock);
+          if (headBlock.type.name === 'table') {
+            const first = tableRows(nextFirst, headBlock)?.[0];
+            const row = first ? first.getBoundingClientRect().height / scale : blockHeightPx(nextFirst, scale) / count;
+            return { headIsJoinPrev, need: Math.max(row, MIN_BLOCK_PX) };
+          }
+          const headLines = headBlock.type.name === 'paragraph' ? lineRects(nextFirst) : [];
+          const headAdvance = (lineAdvance(headLines) || DEFAULT_LINE_PX * scale) / scale;
+          const need = headIsJoinPrev
+            ? Math.max(headAdvance, MIN_BLOCK_PX)
+            : headLines.length >= 2
+              ? Math.max(MIN_TAIL_LINES * headAdvance, MIN_BLOCK_PX)
+              : Math.max(blockHeightPx(nextFirst, scale) / count, MIN_BLOCK_PX);
+          return { headIsJoinPrev, need };
+        }
+
         // One reflow pass: fix each out-of-sync boundary (merge a stray joinPrev part,
         // split an overflowing fragment, or pull a continuation back) and dispatch.
         // Convergence comes from re-running until quiescent.
@@ -325,14 +438,13 @@ export const ColumnsFlow = Extension.create({
             if (ops && !continued && i !== fixedAt) break;
             const { pos, node } = frags[i];
 
-            // A joinPrev paragraph inside a fragment (left over after a fragment
-            // join) merges into its predecessor right away.
+            // A joinPrev paragraph or table inside a fragment (left over after a
+            // fragment join) merges into its predecessor right away.
             let childPos = pos + 1;
             for (let j = 0; j < node.childCount; j++) {
               const child = node.child(j);
               if (
-                j > 0 && child.type.name === 'paragraph' && child.attrs.joinPrev &&
-                node.child(j - 1).type.name === 'paragraph' &&
+                j > 0 && isJoinedPair(node.child(j - 1), child) &&
                 canJoin(editorView.state.doc, childPos)
               ) {
                 dispatchFlow(editorView.state.tr.join(childPos));
@@ -368,18 +480,24 @@ export const ColumnsFlow = Extension.create({
 
             // The estimate averages the flow over the columns, but each column ends on
             // a whole line, so a fragment measuring exactly its slot still spills once
-            // the decoration pins the height — split with the budget's own headroom.
-            if (usedPerColumn > available - SAFETY_PX) {
+            // the decoration pins the height — split with the budget's own headroom. A
+            // table's rows are whole boxes, so one ending the fragment is placed exactly.
+            const last = node.childCount - 1;
+            const lastRows = node.child(last).type.name === 'table' ? tableRows(children[last], node.child(last)) : null;
+            const overflows = lastRows
+              ? rowsWithin(rowHeights(lastRows, scale), spans.start[last], available, count) < lastRows.length
+              : usedPerColumn > available - SAFETY_PX;
+            if (overflows) {
               // Overflow. Same first-block fit test (incl. margin) as pageBreaks'
               // push decision — the two must agree, or split/push/join cycle.
               const first = Math.max(blockHeightPx(children[0], scale) / count, MIN_BLOCK_PX);
               if (first + COLUMNS_FIT_MARGIN_PX > available) {
                 // First block alone doesn't fit. Mid-page, pageBreaks pushes the
                 // fragment; at a page top pushing can't help — split the paragraph
-                // at a line boundary instead (a mid-paragraph page break).
+                // or table at a line or row boundary instead.
                 if (
                   available >= band.height - 1 &&
-                  splitParagraphInBlock(frags[i], children, 0, count * (available - SAFETY_PX), scale, true)
+                  splitBlock(frags[i], children, 0, 0, available, count, scale, true)
                 ) {
                   done(false);
                 }
@@ -392,9 +510,8 @@ export const ColumnsFlow = Extension.create({
                 k = j + 1;
               }
               // Leftover room after k whole blocks: fill it with the boundary
-              // block's first lines (line split) rather than leaving it empty.
-              const tailBudget = count * (available - SAFETY_PX) - spans.start[k];
-              if (k < node.childCount && splitParagraphInBlock(frags[i], children, k, tailBudget, scale, false)) {
+              // block's first lines or rows rather than leaving it empty.
+              if (k < node.childCount && splitBlock(frags[i], children, k, spans.start[k], available, count, scale, false)) {
                 done(false);
                 continue;
               }
@@ -417,20 +534,7 @@ export const ColumnsFlow = Extension.create({
               if (!nextFirst) continue;
               const joinPos = pos + node.nodeSize;
               if (splitAt.has(joinPos)) continue; // this budget split here; see splitAt
-              const headBlock = next.node.child(0);
-              const headIsJoinPrev =
-                headBlock.type.name === 'paragraph' && headBlock.attrs.joinPrev &&
-                node.child(node.childCount - 1).type.name === 'paragraph';
-              // A joinPrev head needs only one more line row; a multi-line head can be
-              // pulled PARTIALLY (the overflow split hands the excess back), so ~two
-              // line rows justify the pull — any other block needs its full share.
-              const headLines = headBlock.type.name === 'paragraph' ? lineRects(nextFirst) : [];
-              const headAdvance = (lineAdvance(headLines) || DEFAULT_LINE_PX * scale) / scale;
-              const need = headIsJoinPrev
-                ? Math.max(headAdvance, MIN_BLOCK_PX)
-                : headLines.length >= 2
-                  ? Math.max(MIN_TAIL_LINES * headAdvance, MIN_BLOCK_PX)
-                  : Math.max(blockHeightPx(nextFirst, scale) / count, MIN_BLOCK_PX);
+              const { headIsJoinPrev, need } = headNeed(node, next, nextFirst, count, scale);
               if (usedPerColumn + need <= available - HYSTERESIS_PX && canJoin(editorView.state.doc, joinPos)) {
                 // Depth 2 rejoins the split paragraph in the same step.
                 const tr = editorView.state.tr;
@@ -531,17 +635,7 @@ export const ColumnsFlow = Extension.create({
               const nextEl = editorView.nodeDOM(next.pos) as HTMLElement | null;
               const nextFirst = nextEl?.firstElementChild;
               if (nextFirst) {
-                const headBlock = next.node.child(0);
-                const headIsJoinPrev =
-                  headBlock.type.name === 'paragraph' && headBlock.attrs.joinPrev &&
-                  node.child(node.childCount - 1).type.name === 'paragraph';
-                const headLines = headBlock.type.name === 'paragraph' ? lineRects(nextFirst) : [];
-                const headAdvance = (lineAdvance(headLines) || DEFAULT_LINE_PX * scale) / scale;
-                const needPx = headIsJoinPrev
-                  ? Math.max(headAdvance, MIN_BLOCK_PX)
-                  : headLines.length >= 2
-                    ? Math.max(MIN_TAIL_LINES * headAdvance, MIN_BLOCK_PX)
-                    : Math.max(blockHeightPx(nextFirst, scale) / count, MIN_BLOCK_PX);
+                const { headIsJoinPrev, need: needPx } = headNeed(node, next, nextFirst, count, scale);
                 const roomPx = available - HYSTERESIS_PX - usedPerColumn;
                 join = { needPx: Math.round(needPx), headIsJoinPrev, roomPx: Math.round(roomPx), wouldJoin: usedPerColumn + needPx <= available - HYSTERESIS_PX };
               }

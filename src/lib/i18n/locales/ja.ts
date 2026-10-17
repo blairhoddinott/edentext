@@ -1396,7 +1396,7 @@ const ja: Messages = {
     imagesRemoved: 'ブラウザーで表示できない形式 (WMF、EMF など) の画像を削除しました',
     formulasSkipped: '一部の数式を読み込めなかったため省略しました',
     columnsReduced: '4 段以上のセクションを 3 段にしました',
-    movedOutOfColumns: '段組み内の表とテキスト ボックスを段の外に移動しました',
+    movedOutOfColumns: '段組み内のテキスト ボックスを段の外に移動しました',
     hiddenText: '隠し文字を削除しました',
     missingFonts: (fonts: string) => `次のフォントはインストールされていないため、代替フォントで表示しています: ${fonts}`,
   },

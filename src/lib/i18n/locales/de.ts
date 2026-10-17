@@ -1400,7 +1400,7 @@ const de: Messages = {
     imagesRemoved: 'Bilder in einem Format, das der Browser nicht anzeigen kann (z. B. WMF, EMF), wurden entfernt',
     formulasSkipped: 'Einige Formeln konnten nicht gelesen werden und wurden übersprungen',
     columnsReduced: 'Abschnitte mit mehr als 3 Spalten wurden auf 3 Spalten reduziert',
-    movedOutOfColumns: 'Tabellen und Textfelder in einem mehrspaltigen Layout wurden aus den Spalten herausgenommen',
+    movedOutOfColumns: 'Textfelder in einem mehrspaltigen Layout wurden aus den Spalten herausgenommen',
     hiddenText: 'Verborgener Text wurde entfernt',
     missingFonts: (fonts) => `Diese Schriftarten sind nicht installiert und wurden durch Ersatzschriften dargestellt: ${fonts}`,
   },

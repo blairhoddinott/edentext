@@ -171,6 +171,8 @@ type Ctx = {
   docContentWidthCm: number;
   // Text width (cm) of the cell being converted: what a table nested in it measures against.
   cellWidthCm?: number;
+  // The columns of the section being walked: a table there fills one column.
+  sectionCols?: { count: number; gapCm: number } | null;
   // The section's left page margin: a frame placed against the page is kept against the
   // text column, as the DOCX importer keeps it.
   leftMarginCm: number;
@@ -1096,13 +1098,15 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
   const geo = resolver.pageGeometry(first) ?? resolver.pageGeometry();
   const contentWidthCm = contentWidthOf(geo);
   const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), listEnds: new Map(), warnings, seqRefNames: sequenceRefNames(body), files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, leftMarginCm: geo?.margins.left ?? 0, pageRtl: geo?.rtl ?? false, breakDropsSpace: odfBreakDropsSpace(files), masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
+  // Whole-document columns declared on the page layout instead of a
+  // text:section: the body's wrappable runs are wrapped the way a section's would be.
+  const pageCols = resolver.pageColumns();
+  ctx.sectionCols = pageCols;
   let blocks = convertBlocks(Array.from(body.children), ctx, 'body');
+  ctx.sectionCols = null;
   if (blocks.length === 0) blocks.push({ type: 'paragraph' });
   pairAlignedFrames(blocks, Math.floor(cmToPx(contentWidthCm)));
 
-  // Whole-document columns declared on the page layout instead of a
-  // text:section: wrap the body's wrappable runs the way a section would be.
-  const pageCols = resolver.pageColumns();
   if (pageCols) {
     const wrapped: Node[] = [];
     pushColumnRuns(blocks, pageCols, wrapped, ctx);
@@ -1365,7 +1369,7 @@ function parseXml(xml: string): Document {
 // ---- block conversion -----------------------------------------------------------
 
 // Block types a columns section (columns.ts) can contain.
-const COLUMNS_ALLOWED = new Set(['paragraph', 'heading', 'bulletList', 'orderedList']);
+const COLUMNS_ALLOWED = new Set(['paragraph', 'heading', 'bulletList', 'orderedList', 'table']);
 
 // Wrap a multi-column region's converted blocks into columns nodes: maximal runs of
 // allowed types become one node each; anything else is emitted between the runs at
@@ -1446,8 +1450,11 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
           for (const part of list ? liftListTables(list, true) : []) out.push(part.type === 'table' ? part : keepContinuation(out, part));
         }
       } else if (el.localName === 'section') {
-        const inner = convertBlocks(Array.from(el.children), ctx, kind, boldByDefault);
         const cols = ctx.resolver.sectionColumns(el.getAttributeNS(NS.text, 'style-name'));
+        const outerCols = ctx.sectionCols;
+        if (kind === 'body' && cols) ctx.sectionCols = cols;
+        let inner: Node[];
+        try { inner = convertBlocks(Array.from(el.children), ctx, kind, boldByDefault); } finally { ctx.sectionCols = outerCols; }
         if (kind === 'body' && cols) pushColumnRuns(inner, cols, out, ctx);
         else out.push(...inner);
       } else if (ODF_INDEX_KIND[el.localName] && kind === 'body') {
@@ -1473,7 +1480,12 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
         // Before the conversion: a section the table opens may have a text width of its
         // own, which is what its columns are measured against.
         const flow = tableSectionFlow(el, ctx);
-        const table = convertTable(el, ctx);
+        // A table in a columns section fills its column, so it is measured against one.
+        const cols = kind === 'body' ? ctx.sectionCols : null;
+        const outerCm = ctx.contentWidthCm;
+        if (cols) ctx.contentWidthCm = (outerCm - cols.gapCm * (cols.count - 1)) / cols.count;
+        let table: Node | null;
+        try { table = convertTable(el, ctx); } finally { ctx.contentWidthCm = outerCm; }
         if (table) {
           if (flow) table.attrs = { ...(table.attrs ?? {}), ...flow };
           out.push(table);

@@ -3086,7 +3086,9 @@ function bodyGroups(content: TiptapNode[], num: Numbering, widthCm: (section: nu
     groups.push({
       section,
       columns: { count: cols.count, gapCm: cols.gapCm },
-      children: blocksToDocx(mergeJoinedParagraphsJson(cols.blocks), num, widthCm(section)),
+      // A table in the section fills one column.
+      children: blocksToDocx(mergeJoinedParagraphsJson(cols.blocks), num,
+        (widthCm(section) - cols.gapCm * (cols.count - 1)) / cols.count),
     });
     cols = null;
   };

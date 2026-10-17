@@ -1399,7 +1399,7 @@ const fr: Messages = {
     imagesRemoved: 'Les images dans un format que le navigateur ne peut pas afficher (p. ex. WMF, EMF) ont été supprimées',
     formulasSkipped: 'Certaines formules n’ont pas pu être lues et ont été ignorées',
     columnsReduced: 'Les sections de plus de 3 colonnes ont été réduites à 3 colonnes',
-    movedOutOfColumns: 'Les tableaux et zones de texte d’une mise en page à plusieurs colonnes ont été sortis des colonnes',
+    movedOutOfColumns: 'Les zones de texte d’une mise en page à plusieurs colonnes ont été sorties des colonnes',
     hiddenText: 'Le texte masqué a été supprimé',
     missingFonts: (fonts) => `Ces polices ne sont pas installées et ont été affichées avec une police de remplacement : ${fonts}`,
   },

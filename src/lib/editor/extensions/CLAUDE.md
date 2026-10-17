@@ -61,7 +61,8 @@ unloaded) and supplies the custom table view + drag plugins instead.
 
 **What a command refuses, and why** (found by `tests/monkey/`): no note in a text box and no
 text box in a note (neither format holds one there); no table in a note (ProseMirror would
-wrap one in a text box to fit its inline content) or a columns section; a table inserted in
+wrap one in a text box to fit its inline content); a table ending a columns section keeps a
+paragraph after it, as at the document end; a table inserted in
 a list cuts the list instead (`splitListAt`, see `docs/architecture/tables.md`), and a cell
 may nest one (`CELL_CONTENT`); a selection stops at the notes' boundary (`clampToSide`); the notes
 plugin's repairs ride the history event they follow. An anchor that lands where a note

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupLines, linesWithin, type LineRect } from '../../src/lib/editor/extensions/columnsFlow';
+import { groupLines, linesWithin, rowsWithin, type LineRect } from '../../src/lib/editor/extensions/columnsFlow';
 
 const HEIGHT = 24;
 const ADVANCE = 22.1;
@@ -60,5 +60,16 @@ describe('linesWithin', () => {
     const tenLines = lines[10].top - lines[0].top + 1;
     const zoomed = lines.map((l) => ({ ...l, top: l.top * 1.5 }));
     expect(linesWithin(zoomed, tenLines, ADVANCE, 1.5)).toBe(10);
+  });
+});
+
+describe('rowsWithin', () => {
+  it('opens the next column for a row that does not fit, and stops after the last', () => {
+    // Two columns of 100: 30+30+30 fill the first (10 wasted), the fourth row opens the second.
+    expect(rowsWithin([30, 30, 30, 30, 30, 30, 30], 0, 100, 2)).toBe(6);
+    // Starting 50 into the flow, one row fits the first column and three the second.
+    expect(rowsWithin([30, 30, 30, 30, 30], 50, 100, 2)).toBe(4);
+    // A row taller than a column still takes an empty one.
+    expect(rowsWithin([150, 30], 0, 100, 2)).toBe(2);
   });
 });

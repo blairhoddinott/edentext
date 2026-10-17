@@ -1392,7 +1392,7 @@ const zhHans: Messages = {
     imagesRemoved: '浏览器无法显示的格式（如 WMF、EMF）的图片已被移除',
     formulasSkipped: '有些公式无法读取，已跳过',
     columnsReduced: '超过 3 栏的节已减为 3 栏',
-    movedOutOfColumns: '多栏布局中的表格和文本框已移出分栏',
+    movedOutOfColumns: '多栏布局中的文本框已移出分栏',
     hiddenText: '隐藏文字已被移除',
     missingFonts: (fonts: string) => `以下字体未安装，已用替代字体显示：${fonts}`,
   },

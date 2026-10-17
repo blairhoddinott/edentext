@@ -215,7 +215,7 @@ describe('DOCX export → import round trip', () => {
     expect(table.attrs.tableLook).toBe('lastRow headerRow');
   });
 
-  it('re-merges a page-boundary line-split paragraph (joinPrev) on export', async () => {
+  it('re-merges a page-boundary split paragraph and table (joinPrev) on export', async () => {
     const split = {
       type: 'doc',
       content: [
@@ -223,6 +223,10 @@ describe('DOCX export → import round trip', () => {
         { type: 'columns', attrs: { count: 2, gapCm: 0.5 }, content: [
           { type: 'paragraph', attrs: { joinPrev: true }, content: [text('second half.')] },
           para('tail'),
+          { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [para('row one')] }] }] },
+        ] },
+        { type: 'columns', attrs: { count: 2, gapCm: 0.5 }, content: [
+          { type: 'table', attrs: { joinPrev: true }, content: [{ type: 'tableRow', content: [{ type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [para('row two')] }] }] },
         ] },
       ],
     } as any;
@@ -230,7 +234,8 @@ describe('DOCX export → import round trip', () => {
     const res = importDocx(bytes).content as N;
     const cols = walk(res, 'columns');
     expect(cols.length).toBe(1);
-    expect(cols[0].content!.length).toBe(2);
+    expect(cols[0].content!.map((n) => n.type)).toEqual(['paragraph', 'paragraph', 'table']);
+    expect(walk(cols[0], 'tableRow').length).toBe(2);
     expect(walk(cols[0].content![0], 'text').map((t) => t.text).join('')).toBe('first half second half.');
   });
 
@@ -958,7 +963,7 @@ describe('DOCX import of foreign multi-column sections', () => {
     expect(walk(cols[0], 'text').map((t) => t.text)).toEqual(['all of it', 'flows in columns']);
   });
 
-  it('splits a columned section around a table with a warning', () => {
+  it('keeps a table inside its columned section', () => {
     const documentXml = `<?xml version="1.0"?><w:document ${W}><w:body>
       <w:p><w:r><w:t>before table</w:t></w:r></w:p>
       <w:tbl><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid>
@@ -969,8 +974,9 @@ describe('DOCX import of foreign multi-column sections', () => {
     </w:body></w:document>`;
     const result = importDocx(zipSync({ 'word/document.xml': strToU8(documentXml) }));
     const doc = result.content as N;
-    expect(doc.content!.map((n) => n.type)).toEqual(['columns', 'table', 'columns']);
-    expect(result.warnings).toContain('Tables and text boxes inside a multi-column layout were moved out of the columns');
+    expect(doc.content!.map((n) => n.type)).toEqual(['columns']);
+    expect(doc.content![0].content!.map((n) => n.type)).toEqual(['paragraph', 'table', 'paragraph']);
+    expect(result.warnings.some((w) => /moved out of the columns/.test(w))).toBe(false);
   });
 });
 

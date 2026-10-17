@@ -1395,7 +1395,7 @@ const es: Messages = {
     imagesRemoved: 'Se han eliminado las imágenes en un formato que el navegador no puede mostrar (p. ej., WMF, EMF)',
     formulasSkipped: 'Algunas fórmulas no se han podido leer y se han omitido',
     columnsReduced: 'Las secciones con más de 3 columnas se han reducido a 3 columnas',
-    movedOutOfColumns: 'Las tablas y los cuadros de texto de un diseño de varias columnas se han sacado de las columnas',
+    movedOutOfColumns: 'Los cuadros de texto de un diseño de varias columnas se han sacado de las columnas',
     hiddenText: 'Se ha eliminado el texto oculto',
     missingFonts: (fonts) => `Estas fuentes no están instaladas y se han mostrado con un sustituto: ${fonts}`,
   },

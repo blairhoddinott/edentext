@@ -1394,7 +1394,7 @@ const pt: Messages = {
     imagesRemoved: 'As imagens num formato que o navegador não consegue apresentar (p. ex., WMF, EMF) foram removidas',
     formulasSkipped: 'Não foi possível ler algumas fórmulas, que foram ignoradas',
     columnsReduced: 'As secções com mais de 3 colunas foram reduzidas a 3 colunas',
-    movedOutOfColumns: 'As tabelas e caixas de texto num esquema de várias colunas foram retiradas das colunas',
+    movedOutOfColumns: 'As caixas de texto num esquema de várias colunas foram retiradas das colunas',
     hiddenText: 'O texto oculto foi removido',
     missingFonts: (fonts) => `Estes tipos de letra não estão instalados e foram apresentados com um tipo de letra alternativo: ${fonts}`,
   },

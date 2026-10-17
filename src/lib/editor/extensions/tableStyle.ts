@@ -68,10 +68,15 @@ function paintTable(tr: Transaction, tablePos: number, style: TableStyleDef | nu
 
 // Every table carrying a style name, with its position, nested ones included. Tables sit
 // at block level, so the walk stops at textblocks.
-function styledTables(doc: PMNode): { pos: number; node: PMNode }[] {
-  const out: { pos: number; node: PMNode }[] = [];
-  doc.descendants((node, pos) => {
-    if (node.type.name === 'table' && node.attrs.tableStyle) out.push({ pos, node });
+// `split`: one part of a table columnsFlow cut at a page boundary (joinPrev). Its cells
+// keep the paint of the whole table, which re-banding one part would shift.
+function styledTables(doc: PMNode): { pos: number; node: PMNode; split: boolean }[] {
+  const out: { pos: number; node: PMNode; split: boolean }[] = [];
+  doc.descendants((node, pos, parent, index) => {
+    if (node.type.name === 'table' && node.attrs.tableStyle) {
+      const next = parent && index + 1 < parent.childCount ? parent.child(index + 1) : null;
+      out.push({ pos, node, split: !!node.attrs.joinPrev || (next?.type === node.type && !!next.attrs.joinPrev) });
+    }
     return node.isBlock && !node.isTextblock;
   });
   return out;
@@ -225,7 +230,8 @@ export const TableStyle = Extension.create<TableStyleOptions>({
 
           const tr = newState.tr;
           let changed = false;
-          for (const { pos, node } of stale) {
+          for (const { pos, node, split } of stale) {
+            if (split) continue;
             const style = styles()[node.attrs.tableStyle as string];
             // setNodeMarkup keeps node sizes, so the collected positions stay valid.
             if (style) changed = paintTable(tr, pos, style) || changed;

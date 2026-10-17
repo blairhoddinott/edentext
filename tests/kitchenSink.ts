@@ -204,6 +204,11 @@ export function kitchenSinkDoc(): N {
     h(1, 'Layout'),
     { type: 'columns', attrs: { count: 2, gapCm: 1 }, content: [
       p([t('Erste Spalte mit etwas Text, der umbricht.')]),
+      // Its margin is measured against the column, not the page's text width.
+      { type: 'table', attrs: { marginLeft: 0.5 }, content: [
+        { type: 'tableRow', content: [cell(p([t('Spalte')])), cell(p([t('Tabelle')]))] },
+        { type: 'tableRow', content: [cell(p([t('zweite')])), cell(p([t('Zeile')]))] },
+      ] },
       p([t('Und noch ein Absatz im Spaltensatz.')]),
     ] },
     p([t('Nach einem Seitenumbruch.')], { breakBefore: 'page' }),
