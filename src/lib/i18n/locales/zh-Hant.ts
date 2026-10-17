@@ -779,7 +779,7 @@ const zhHant: Messages = {
   },
   about: {
     label: '關於 EdenText',
-    tagline: '強大的文書處理器——只需一個網址。',
+    tagline: '功能強大的文書處理軟體——開啟網址即可使用。',
     points: ['免費 · 開放原始碼 · 生來重視隱私'],
     version: (v: string) => `版本 ${v}`,
     viewOnGitHub: '在 GitHub 上檢視',

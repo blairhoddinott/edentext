@@ -777,7 +777,7 @@ const pt: Messages = {
   },
   about: {
     label: 'Sobre EdenText',
-    tagline: 'Um poderoso processador de texto, acessível num URL.',
+    tagline: 'Processador de texto completo, diretamente no navegador',
     points: ['Gratuito · Código aberto · Privado por design'],
     version: (v) => `Versão ${v}`,
     viewOnGitHub: 'Ver no GitHub',

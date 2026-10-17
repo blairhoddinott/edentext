@@ -792,7 +792,7 @@ const en = {
   },
   about: {
     label: 'About EdenText',
-    tagline: 'Powerful word processor — just one URL away.',
+    tagline: 'Full-featured word processor, right in the browser',
     points: ['Free · Open Source · Private by Design'],
     version: (v: string) => `Version ${v}`,
     viewOnGitHub: 'View on GitHub',

@@ -784,7 +784,7 @@ const de: Messages = {
   },
   about: {
     label: 'Über EdenText',
-    tagline: 'Textverarbeitung — nur eine URL entfernt.',
+    tagline: 'Vollwertige Textverarbeitung direkt im Browser',
     points: ['Free · Open Source · Private by Design'],
     version: (v) => `Version ${v}`,
     viewOnGitHub: 'Auf GitHub ansehen',

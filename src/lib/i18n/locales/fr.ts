@@ -783,7 +783,7 @@ const fr: Messages = {
   },
   about: {
     label: 'À propos d’EdenText',
-    tagline: 'Un puissant traitement de texte, accessible en une URL.',
+    tagline: 'Traitement de texte complet, directement dans le navigateur',
     points: ['Libre · Open source · Privé par conception'],
     version: (v) => `Version ${v}`,
     viewOnGitHub: 'Voir sur GitHub',

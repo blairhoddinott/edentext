@@ -780,7 +780,7 @@ const ja: Messages = {
   },
   about: {
     label: 'EdenText について',
-    tagline: '高機能なワープロ — URL ひとつですぐに使えます。',
+    tagline: '本格的なワープロをブラウザで',
     points: ['無料 · オープンソース · プライバシー重視の設計'],
     version: (v: string) => `バージョン ${v}`,
     viewOnGitHub: 'GitHub で見る',

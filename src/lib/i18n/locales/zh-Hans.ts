@@ -778,7 +778,7 @@ const zhHans: Messages = {
   },
   about: {
     label: '关于 EdenText',
-    tagline: '强大的文字处理器——只需一个网址。',
+    tagline: '功能强大的文字处理软件——打开网址即可使用。',
     points: ['免费 · 开源 · 生而注重隐私'],
     version: (v: string) => `版本 ${v}`,
     viewOnGitHub: '在 GitHub 上查看',
