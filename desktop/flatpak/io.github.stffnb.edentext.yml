@@ -23,8 +23,8 @@ modules:
       # zypak-wrapper provides Chromium's sandbox; a setuid helper cannot work in Flatpak.
       - rm /app/edentext/chrome-sandbox
       - install -Dm755 edentext.sh /app/bin/edentext
-      - install -Dm644 edentext/io.github.stffnb.edentext.desktop -t /app/share/applications
-      - install -Dm644 edentext/io.github.stffnb.edentext.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 edentext/flatpak/io.github.stffnb.edentext.desktop -t /app/share/applications
+      - install -Dm644 edentext/flatpak/io.github.stffnb.edentext.metainfo.xml -t /app/share/metainfo
       - install -Dm644 edentext/resources/app/icon-512.png /app/share/icons/hicolor/512x512/apps/io.github.stffnb.edentext.png
     sources:
       - type: archive

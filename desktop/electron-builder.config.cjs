@@ -26,6 +26,6 @@ module.exports = {
     target: ['AppImage', 'deb', { target: 'tar.gz', arch: ['x64', 'arm64'] }],
     category: 'Office',
     maintainer: root.author,
-    extraFiles: [{ from: 'flatpak', to: '.', filter: ['*.desktop', '*.metainfo.xml'] }],
+    extraFiles: [{ from: 'flatpak', to: 'flatpak', filter: ['*.desktop', '*.metainfo.xml'] }],
   },
 };
