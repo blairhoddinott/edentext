@@ -1393,7 +1393,7 @@ const de: Messages = {
     structureRepaired: 'Einige Inhalte passten nicht in die Dokumentstruktur und wurden angepasst',
     noDictionary: (tag) => `Für die Rechtschreibsprache „${tag}" ist kein Wörterbuch enthalten — die Rechtschreibprüfung wurde deaktiviert`,
     textBoxFlattened: 'In andere Textfelder verschachtelte Textfelder wurden aufgelöst',
-    nestedTables: 'Verschachtelte Tabellen wurden in Absätze umgewandelt',
+    boxTables: 'Tabellen neben Text in einem Textfeld wurden in Absätze umgewandelt',
     chartsReplaced: 'Diagramme und andere Zeichnungen wurden durch einen Platzhalter ersetzt',
     imagesPlaceholder: 'Bilder in einem Format, das der Browser nicht anzeigen kann (z. B. WMF, EMF), wurden durch einen Platzhalter ersetzt',
     imagesRemoved: 'Bilder in einem Format, das der Browser nicht anzeigen kann (z. B. WMF, EMF), wurden entfernt',

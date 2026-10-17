@@ -230,6 +230,11 @@ const RBY = '\uE021';
 // rewrites it to <text:placeholder>. U+E022.
 const PLH = '\uE022';
 
+// Sentinel for a table nested in a cell: NTB P{i} NTB is the marker paragraph where it
+// sits, its table is hoisted to top level between NTB S{i}/E{i} marker paragraphs, rides
+// every table pass there, and applyNestedTables moves it back into the cell. U+E029.
+const NTB = '\uE029';
+
 // Sentinels for recorded revisions (trackChanges.ts): TCI{i}TCI brackets an insertion's
 // runs, TCD{i}TCD stands where a deletion's text was cut out. applyRevisions rewrites
 // both and builds the <text:tracked-changes> registry. U+E01B/U+E01C.
@@ -441,7 +446,8 @@ function splitNestedLists(node: TiptapNode): TiptapNode {
   if (node.type !== 'bulletList' && node.type !== 'orderedList') return { ...node, content: node.content.map(splitNestedLists) };
   const items: TiptapNode[] = [];
   for (const item of node.content) {
-    let cur: TiptapNode[] = [];
+    // An item of sub-lists only is that ODF form itself, counting its level on (NLI NLI).
+    let cur: TiptapNode[] = isList(item.content?.[0] ?? { type: '' }) ? [{ type: 'paragraph', content: [{ type: 'text', text: NLI + NLI }] }] : [];
     let lists = 0;
     for (const b of item.content ?? []) {
       if (isList(b) && lists++ > 0) {
@@ -460,8 +466,8 @@ function applyNestedListItems(odtBytes: Uint8Array): Uint8Array {
   const content = strFromU8(files['content.xml']);
   if (!content.includes(NLI)) return odtBytes;
   // The sub-list starts its own count, as in the editor: LibreOffice would carry the
-  // level's count on from the item's first sub-list.
-  files['content.xml'] = strToU8(content.replace(new RegExp(`<text:p\\b[^>]*>\\s*${NLI}\\s*</text:p>(\\s*<text:list\\b[^>]*>\\s*<text:list-item)(?![^>]*start-value)`, 'g'),
+  // level's count on from the item's first sub-list — which an item without a label does.
+  files['content.xml'] = strToU8(content.replace(new RegExp(`<text:p\\b[^>]*>\\s*${NLI}${NLI}\\s*</text:p>`, 'g'), '').replace(new RegExp(`<text:p\\b[^>]*>\\s*${NLI}\\s*</text:p>(\\s*<text:list\\b[^>]*>\\s*<text:list-item)(?![^>]*start-value)`, 'g'),
     '$1 text:start-value="1"').replace(new RegExp(`<text:p\\b[^>]*>\\s*${NLI}\\s*</text:p>`, 'g'), ''));
   return rezipOdt(files);
 }
@@ -1188,6 +1194,73 @@ function replaceTextBoxes(doc: TiptapNode, boxes: TextBoxExport[]): TiptapNode {
   return { ...out, content: [...body.slice(0, cut), ...staged, ...body.slice(cut)] };
 }
 
+// odf-kit's cell builder holds no table, so a nested one is staged at top level like a
+// text box. It keeps the width of the cell it sits in (odtWidthCm), which its column
+// widths and margins are measured against.
+function replaceNestedTables(doc: TiptapNode, contentWidthCm: number): TiptapNode {
+  const staged: TiptapNode[] = [];
+  let count = 0;
+  const marker = (text: string): TiptapNode => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+  const table = (node: TiptapNode, widthCm: number): TiptapNode => {
+    const props = tablePropsOf(node, widthCm);
+    const inner = widthCm - (props ? props.ml + props.mr : 0);
+    const firstRow = (node.content ?? []).find(r => r.type === 'tableRow');
+    const spans = (firstRow?.content ?? []).map(c => (c.attrs?.colspan as number) || 1);
+    const gridCols = Math.max(1, spans.reduce((a, b) => a + b, 0));
+    const colsCm = tableColumnWidthsCm(node, inner)?.map(parseFloat);
+    const tablePad = parseCellPadding(node.attrs?.cellPadding) ?? DEFAULT_CELL_PADDING;
+    const rows = (node.content ?? []).map(row => ({ ...row, content: (row.content ?? []).map(cell => {
+      // A cell's colwidth weights its own columns; their share of the first row's is its width.
+      const colspan = (cell.attrs?.colspan as number) || 1;
+      const cw = cell.attrs?.colwidth as (number | null)[] | null | undefined;
+      const firstCw = (firstRow?.content ?? []).flatMap(c => (c.attrs?.colwidth as (number | null)[] | null) ?? []);
+      const share = colsCm && cw?.length === colspan && cw.every(w => w) && firstCw.length === gridCols && firstCw.every(w => w)
+        ? cw.reduce<number>((a, b) => a + (b ?? 0), 0) / firstCw.reduce<number>((a, b) => a + (b ?? 0), 0)
+        : colspan / gridCols;
+      const pad = parseCellPadding(cell.attrs?.cellPadding) ?? tablePad;
+      const cellCm = Math.max(0.5, inner * share - pad[1] - pad[3]);
+      return { ...cell, content: (cell.content ?? []).map(child => {
+        if (child.type !== 'table') return walk(child, cellCm);
+        const i = count++;
+        const nested = table(child, cellCm);
+        const { breakBefore: _b, sectionIndex: _s, ...attrs } = nested.attrs ?? {};
+        staged.push(marker(`${NTB}S${i}${NTB}`), { ...nested, attrs: { ...attrs, odtWidthCm: cellCm } }, marker(`${NTB}E${i}${NTB}`));
+        return marker(`${NTB}P${i}${NTB}`);
+      }) };
+    }) }));
+    return { ...node, content: rows };
+  };
+  const walk = (node: TiptapNode, widthCm: number): TiptapNode =>
+    node.type === 'table' ? table(node, widthCm)
+      : node.content?.length ? { ...node, content: node.content.map(c => walk(c, widthCm)) } : node;
+  const out = walk(doc, contentWidthCm);
+  if (!staged.length) return out;
+  const body = out.content ?? [];
+  const cut = body.length && body[body.length - 1].type === 'noteSection' ? body.length - 1 : body.length;
+  return { ...out, content: [...body.slice(0, cut), ...staged, ...body.slice(cut)] };
+}
+
+// Cut each staged nested table out and set it where its marker paragraph stands; a
+// table nested deeper sits inside another staged one, so the markers resolve in rounds.
+function applyNestedTables(odtBytes: Uint8Array): Uint8Array {
+  const files = unzipSync(odtBytes);
+  const contentBytes = files['content.xml'];
+  if (!contentBytes) return odtBytes;
+  let content = strFromU8(contentBytes);
+  if (!content.includes(NTB)) return odtBytes;
+  const inners = new Map<string, string>();
+  content = content.replace(
+    new RegExp(`<text:p\\b[^>]*>${NTB}S(\\d+)${NTB}</text:p>([\\s\\S]*?)<text:p\\b[^>]*>${NTB}E\\1${NTB}</text:p>`, 'g'),
+    (_m, i: string, inner: string) => { inners.set(i, inner); return ''; },
+  );
+  const marker = new RegExp(`<text:p\\b[^>]*>\\s*(?:<text:span\\b[^>]*>)?${NTB}P(\\d+)${NTB}(?:</text:span>)?\\s*</text:p>`, 'g');
+  for (let round = 0; round <= inners.size && content.includes(NTB); round++) {
+    content = content.replace(marker, (_m, i: string) => inners.get(i) ?? '');
+  }
+  files['content.xml'] = strToU8(content);
+  return rezipOdt(files);
+}
+
 // One footnote/endnote, collected by replaceNotes and emitted by applyNotes.
 type NoteExport = { id: string; kind: 'footnote' | 'endnote'; citation: string; label: string | null; styleName: string | null };
 
@@ -1527,10 +1600,10 @@ function paraStyleProps(style: ParaStyle): string[] {
 // Per-cell block descriptors, built in exportTable and consumed in document order by
 // applyCellBlocks to rebuild real <text:h>/<text:p>/<text:list> from the SEG-segmented
 // <text:p> odf-kit emits. Each paragraph/heading/list item is one segment, in DFS order.
-type CellListItem = { style: ParaStyle; nested: CellListBlock | null };
+type CellListItem = { style: ParaStyle; nested: CellListBlock | null; labelless?: boolean };
 // listStyleType is the ordered list's raw attr (null = depth default / inherited
 // multilevel chain); bulletChar the bullet list's marker attr (null = default cycle).
-type CellListBlock = { kind: 'list'; ordered: boolean; start: number | null; listStyleType: string | null; bulletChar: string | null; items: CellListItem[] };
+type CellListBlock = { kind: 'list'; ordered: boolean; start: number | null; continues: boolean; listStyleType: string | null; bulletChar: string | null; items: CellListItem[] };
 type CellBlock =
   | { kind: 'paragraph'; style: ParaStyle }
   | { kind: 'heading'; level: number; style: ParaStyle }
@@ -1539,7 +1612,7 @@ type CellBlock =
 type TableProps = { ml: number; mr: number; mt: number; mb: number; keepRows: boolean; repeatHeader: boolean;
   // A table can open a section and break the page in front of it like a paragraph:
   // fo:break-before on its own style, style:master-page-name for the section it opens.
-  breakBefore: boolean; sectionIndex: number | null };
+  breakBefore: boolean; sectionIndex: number | null; widthCm: number };
 
 // Collect the alignment + paragraph spacing of each listItem's first paragraph, and in
 // `extras` the same for its further blocks, in DFS order — matching the order odf-kit
@@ -1678,7 +1751,7 @@ function expandCellPadding(odtBytes: Uint8Array): Uint8Array {
 // A dragged table edge → the style's fo:margin-left/-right + style:width (with odf-kit's
 // table:align="margins" the table fills what's left); keep-rows → may-break-between-rows.
 // odf-kit names table styles Table1, Table2, … in document order, as the descriptors are.
-function applyTableProps(odtBytes: Uint8Array, margins: (TableProps | null)[], contentWidthCm: number): Uint8Array {
+function applyTableProps(odtBytes: Uint8Array, margins: (TableProps | null)[]): Uint8Array {
   if (margins.every(m => m === null)) return odtBytes;
 
   const files = unzipSync(odtBytes);
@@ -1688,7 +1761,7 @@ function applyTableProps(odtBytes: Uint8Array, margins: (TableProps | null)[], c
   let content = strFromU8(contentBytes);
   margins.forEach((m, i) => {
     if (!m) return;
-    const width = Math.round((contentWidthCm - m.ml - m.mr) * 1000) / 1000;
+    const width = Math.round((m.widthCm - m.ml - m.mr) * 1000) / 1000;
     const horiz = m.ml || m.mr
       ? ` style:width="${width}cm" fo:margin-left="${m.ml}cm" fo:margin-right="${m.mr}cm"` : '';
     const vert = `${m.mt ? ` fo:margin-top="${m.mt}cm"` : ''}${m.mb ? ` fo:margin-bottom="${m.mb}cm"` : ''}`;
@@ -2660,32 +2733,48 @@ function applyOrderedListFormats(odtBytes: Uint8Array, formats: (OlStyleFix | nu
   return rezipOdt(files);
 }
 
-// One slot per top-level list (matching odf-kit's L# order): an ordered list's
-// start value when >1 (a continued Word list), else null.
-function collectListStartValues(node: TiptapNode, result: (number | null)[]): void {
+// One slot per top-level list (matching odf-kit's L# order): an ordered list's start
+// value when >1, or the slot of the list it continues — the ordered list before it, which
+// it counts on from (orderedList.ts).
+type ListStart = { start: number | null; continues: number | null };
+// The items a list numbers: an item of sub-lists only has no label (listStyle.ts).
+export function labelledItems(list: TiptapNode): number {
+  return (list.content ?? []).filter(i => {
+    const first = i.content?.[0]?.type;
+    return first !== 'bulletList' && first !== 'orderedList';
+  }).length;
+}
+function collectListStartValues(node: TiptapNode, result: ListStart[]): void {
+  let prev: { slot: number; end: number } | null = null;
   for (const child of node.content ?? []) {
     if (child.type === 'bulletList') {
-      result.push(null);
+      result.push({ start: null, continues: null });
     } else if (child.type === 'orderedList') {
-      const s = child.attrs?.start;
-      result.push(typeof s === 'number' && s > 1 ? s : null);
+      const s = typeof child.attrs?.start === 'number' ? child.attrs.start : 1;
+      const continues = child.attrs?.continueNumbering === true && prev && prev.end + 1 === s ? prev.slot : null;
+      result.push({ start: s > 1 && continues == null ? s : null, continues });
+      prev = { slot: result.length - 1, end: s + labelledItems(child) - 1 };
     }
   }
 }
 
-// odf-kit drops the ordered-list `start` attr, so a list continued across an intervening
-// paragraph would restart at 1. Add text:start-value to each such list's first item.
-function applyListStartValues(odtBytes: Uint8Array, starts: (number | null)[]): Uint8Array {
-  if (starts.every(s => s === null)) return odtBytes;
+// odf-kit drops the ordered-list `start` attr: a list with a start of its own gets
+// text:start-value on its first item, a continued one text:continue-list naming the
+// list it continues — no start value, so LibreOffice counts on as the list before grows.
+function applyListStartValues(odtBytes: Uint8Array, starts: ListStart[]): Uint8Array {
+  if (starts.every(s => s.start == null && s.continues == null)) return odtBytes;
 
   const files = unzipSync(odtBytes);
   const contentBytes = files['content.xml'];
   if (!contentBytes) return odtBytes;
 
   let content = strFromU8(contentBytes);
-  starts.forEach((start, i) => {
+  const continued = new Set(starts.map(s => s.continues).filter((c): c is number => c != null));
+  starts.forEach(({ start, continues }, i) => {
+    const attrs = `${continued.has(i) ? ` xml:id="list-L${i + 1}"` : ''}${continues != null ? ` text:continue-list="list-L${continues + 1}"` : ''}`;
+    if (attrs) content = content.replace(`<text:list text:style-name="L${i + 1}"`, `<text:list${attrs} text:style-name="L${i + 1}"`);
     if (start == null) return;
-    const re = new RegExp(`(<text:list text:style-name="L${i + 1}"[^>]*>\\s*<text:list-item)>`);
+    const re = new RegExp(`(<text:list\\b[^>]*text:style-name="L${i + 1}"[^>]*>\\s*<text:list-item)>`);
     content = content.replace(re, `$1 text:start-value="${start}">`);
   });
 
@@ -3056,7 +3145,8 @@ function applyListStyleNames(odtBytes: Uint8Array, names: (string | null)[]): Ui
   let content = strFromU8(contentBytes);
   names.forEach((name, i) => {
     if (!name) return;
-    content = content.replace(`<text:list text:style-name="L${i + 1}">`, `<text:list text:style-name="${escapeXml(odfStyleName(name))}">`);
+    // The tag may carry a continued list's link ahead of its style name.
+    content = content.replace(new RegExp(`(<text:list\\b[^>]*? )text:style-name="L${i + 1}"`), (_m, head: string) => `${head}text:style-name="${escapeXml(odfStyleName(name))}"`);
   });
 
   files['content.xml'] = strToU8(content);
@@ -3196,7 +3286,7 @@ function applyCellBlocks(odtBytes: Uint8Array, cellBlocks: CellBlock[][]): Uint8
   // Each <text:list> (root or nested) carries its own type-based style-name, so mixed
   // bullet/number nesting renders correctly; indent comes from nesting depth. One
   // segment consumed per list item, DFS order (matching buildCellContent).
-  const buildList = (list: CellListBlock, segments: string[], cur: { i: number }, depth = 1, mlGov = false, cycle: OrderedCycle = ROOT_ORDERED_CYCLE): string => {
+  const buildList = (list: CellListBlock, segments: string[], cur: { i: number }, depth = 1, mlGov = false, cycle: OrderedCycle = ROOT_ORDERED_CYCLE, link = ''): string => {
     const isBullet = !list.ordered;
     const ml = !isBullet && (list.listStyleType === 'multilevel' || (mlGov && !list.listStyleType));
     let listStyle: string;
@@ -3210,24 +3300,45 @@ function applyCellBlocks(odtBytes: Uint8Array, cellBlocks: CellBlock[][]): Uint8
     }
     const cChild = childCycle(cycle, list.listStyleType, list.ordered);
     const paraParent = isBullet ? 'List_20_Bullet' : 'List_20_Number';
-    let out = `<text:list text:style-name="${listStyle}">`;
+    let out = `<text:list${link} text:style-name="${listStyle}">`;
+    const continued = link.includes('text:continue-list');
     list.items.forEach((item, idx) => {
-      const startAttr = !isBullet && idx === 0 && list.start != null ? ` text:start-value="${list.start}"` : '';
-      const seg = segments[cur.i++] ?? '';
-      out += `<text:list-item${startAttr}><text:p text:style-name="${styleNameFor(paraParent, item.style)}">${seg}</text:p>`;
+      const startAttr = !isBullet && idx === 0 && list.start != null && !continued ? ` text:start-value="${list.start}"` : '';
+      if (item.labelless) out += `<text:list-item${startAttr}>`;
+      else out += `<text:list-item${startAttr}><text:p text:style-name="${styleNameFor(paraParent, item.style)}">${segments[cur.i++] ?? ''}</text:p>`;
       if (item.nested) out += buildList(item.nested, segments, cur, depth + 1, ml, cChild);
       out += '</text:list-item>';
     });
     return out + '</text:list>';
   };
 
+  // A continued ordered list names the one before it in the cell, as a body list does
+  // (applyListStartValues) — where counting on from that one gives its start.
+  let listIds = 0;
+  const listLinks = (blocks: CellBlock[]): string[] => {
+    const links = blocks.map(() => '');
+    let prev: { at: number; end: number } | null = null;
+    blocks.forEach((b, i) => {
+      if (b.kind !== 'list' || !b.ordered) return;
+      const start = b.start ?? 1;
+      if (b.continues && prev && prev.end + 1 === start) {
+        const id = `list-C${++listIds}`;
+        links[prev.at] = ` xml:id="${id}"${links[prev.at]}`;
+        links[i] = ` text:continue-list="${id}"`;
+      }
+      prev = { at: i, end: start + b.items.filter(it => !it.labelless).length - 1 };
+    });
+    return links;
+  };
+
   const buildBlocks = (blocks: CellBlock[], inner: string): string => {
     const segments = inner.split(SEG);
     const cur = { i: 0 };
+    const links = listLinks(blocks);
     let out = '';
-    for (const block of blocks) {
+    for (const [i, block] of blocks.entries()) {
       if (block.kind === 'list') {
-        out += buildList(block, segments, cur);
+        out += buildList(block, segments, cur, 1, false, ROOT_ORDERED_CYCLE, links[i]);
       } else if (block.kind === 'heading') {
         const seg = segments[cur.i++] ?? '';
         const name = styleNameFor(`Heading_20_${block.level}`, block.style);
@@ -4061,15 +4172,20 @@ function buildCellContent(cell: TiptapNode, c: CellBuilder, force: TextProps = {
     const items: CellListItem[] = [];
     for (const item of listNode.content ?? []) {
       if (item.type !== 'listItem') continue;
+      const nested = item.content?.find(x => x.type === 'bulletList' || x.type === 'orderedList');
+      // An item of sub-lists only has no paragraph, so no segment either.
+      if (nested && item.content?.[0] === nested) {
+        items.push({ style: paraStyleFromAttrs(undefined, false), nested: walkList(nested), labelless: true });
+        continue;
+      }
       const firstPara = item.content?.find(x => x.type === 'paragraph');
       emitSegment(firstPara?.content); // one segment per item, in DFS order
-      const nested = item.content?.find(x => x.type === 'bulletList' || x.type === 'orderedList');
       items.push({ style: paraStyleFromAttrs(firstPara?.attrs, false), nested: nested ? walkList(nested) : null });
     }
     // Raw attrs; applyCellBlocks resolves the depth defaults when it knows the depth.
     const listStyleType = ordered && typeof listNode.attrs?.listStyleType === 'string' ? (listNode.attrs.listStyleType as string) : null;
     const bulletChar = !ordered && typeof listNode.attrs?.bulletChar === 'string' ? (listNode.attrs.bulletChar as string) : null;
-    return { kind: 'list', ordered, start, listStyleType, bulletChar, items };
+    return { kind: 'list', ordered, start, continues: ordered && listNode.attrs?.continueNumbering === true, listStyleType, bulletChar, items };
   };
 
   for (const block of cell.content ?? []) {
@@ -4143,7 +4259,7 @@ function tablePropsOf(node: TiptapNode, contentWidthCm: number): TableProps | nu
   const sectionIndex = Number.isInteger(si) && si > 0 ? si : null;
   if (ml + mr > contentWidthCm - 1) ml = mr = 0;
   if (!ml && !mr && !mt && !mb && !keepRows && !repeatHeader && !breakBefore && sectionIndex == null) return null;
-  return { ml: round3(ml), mr: round3(mr), mt: round3(mt), mb: round3(mb), keepRows, repeatHeader, breakBefore, sectionIndex };
+  return { ml: round3(ml), mr: round3(mr), mt: round3(mt), mb: round3(mb), keepRows, repeatHeader, breakBefore, sectionIndex, widthCm: contentWidthCm };
 }
 
 // A formula cell as ODF writes it: LibreOffice's own formula language behind its
@@ -4311,6 +4427,8 @@ function exportTable(node: TiptapNode, doc: OdtDocument, contentWidthCm: number,
   const rows = (node.content ?? []).filter(r => r.type === 'tableRow');
   if (rows.length === 0) return;
   const grid = tableGridJson(rows);
+  // A nested table measures against its cell (replaceNestedTables), not the page.
+  if (typeof node.attrs?.odtWidthCm === 'number') contentWidthCm = node.attrs.odtWidthCm;
   const margins = tablePropsOf(node, contentWidthCm);
   tableMargins.push(margins);
   // The named table style, if the registry still knows it: its name goes on the table's
@@ -5488,8 +5606,13 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
       zoneBlocks.push(marker(`${HFZ}S${id}${HFZ}`), ...((doc.content ?? []) as TiptapNode[]), marker(`${HFZ}E${id}${HFZ}`));
     }
   }
+  // Text width = the format's page width (orientation-swapped) minus the L/R
+  // margins. Table column widths are scaled to fill exactly this width.
+  const pageWidthCm = pageDimsCm(pageFormat, orientation).w;
+  const contentWidthCm = pageWidthCm - margins.left - margins.right;
+
   const withZones: TiptapNode = splitNestedLists(zoneBlocks.length ? { ...docJson, content: [...(docJson.content ?? []), ...zoneBlocks] } : docJson);
-  const sentinels = replaceRuby(replaceBibEntries(replaceIndexEntries(replaceRevisions(replaceSequenceFields(replaceComments(replaceBookmarks(replaceFormulas(replacePlaceholderFields(replaceDateTimeFields(replaceImages(replaceTabs(replaceHardBreaks(replaceSectionBreaks(replaceNotes(replaceColumns(replaceTextBoxes(replacePageBreaks(replaceTableOfContents(replacePageFields(withZones, hf?.pageCount ?? 1), tocs)), textBoxes), columns), notes)))), images), dateFields), placeholderLabels), formulas), crossRefs), commentList), seqFields, seqAnchors), revisionList), indexMarks), bibMarks), rubies);
+  const sentinels = replaceRuby(replaceBibEntries(replaceIndexEntries(replaceRevisions(replaceSequenceFields(replaceComments(replaceBookmarks(replaceFormulas(replacePlaceholderFields(replaceDateTimeFields(replaceImages(replaceTabs(replaceHardBreaks(replaceSectionBreaks(replaceNotes(replaceColumns(replaceTextBoxes(replaceNestedTables(replacePageBreaks(replaceTableOfContents(replacePageFields(withZones, hf?.pageCount ?? 1), tocs)), contentWidthCm), textBoxes), columns), notes)))), images), dateFields), placeholderLabels), formulas), crossRefs), commentList), seqFields, seqAnchors), revisionList), indexMarks), bibMarks), rubies);
   const unmerged = markTextEffects(bakeListCharStyles(sentinels, styles), DEFAULT_FONT_SIZE_PT, styles);
   const raw = mergeListItemBlocks(unmerged);
   // Section 1's zones, as the Standard master page carries them. With a variant on, page 1
@@ -5524,11 +5647,6 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   if (docZones.header || docZones.footer) {
     json = { ...json, content: [{ type: CUST_HF }, ...(json.content ?? [])] };
   }
-
-  // Text width = the format's page width (orientation-swapped) minus the L/R
-  // margins. Table column widths are scaled to fill exactly this width.
-  const pageWidthCm = pageDimsCm(pageFormat, orientation).w;
-  const contentWidthCm = pageWidthCm - margins.left - margins.right;
 
   // Filled by exportTable, in document order, one CellBlock[] per table cell.
   // applyCellBlocks consumes it to rebuild real <text:h>/<text:p>/<text:list>.
@@ -5651,7 +5769,7 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
 
   // A Word list continued across an intervening paragraph splits into separate nodes with
   // a `start` attr; odf-kit drops it, so emit text:start-value on each such list's first item.
-  const listStarts: (number | null)[] = [];
+  const listStarts: ListStart[] = [];
   collectListStartValues(raw, listStarts);
   numberedOdt = applyListStartValues(numberedOdt, listStarts);
 
@@ -5701,9 +5819,9 @@ export async function buildOdt(docJson: TiptapNode, margins: PageMargins = DEFAU
   collectTableRowHeights(raw, rowHeights);
   const styledRows = applyTableRowHeights(expandCellPadding(styledCells), rowHeights);
   const withTableMargins = applyTableStyleNames(
-    applyTableHeaderRows(applyTableProps(styledRows, tableMargins, contentWidthCm), tableMargins), tableStyleNames);
+    applyTableHeaderRows(applyTableProps(styledRows, tableMargins), tableMargins), tableStyleNames);
 
-  const cleaned = collapseRunWhitespace(applyNestedListItems(withTableMargins));
+  const cleaned = collapseRunWhitespace(applyNestedListItems(applyNestedTables(withTableMargins)));
   // Before applyInlineSentinels: it matches the bare style:type="char" a leader would hide.
   const withBreaks = applyInlineSentinels(applyTabLeaders(cleaned));
   const withImages = applyImages(withBreaks, images);

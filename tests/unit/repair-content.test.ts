@@ -13,14 +13,16 @@ describe('repairContent', () => {
     expect(r).toEqual({ content: doc, error: null });
   });
 
-  it('gives a list item that starts with a sub-list its paragraph', () => {
+  it('keeps the text of a table a list item cannot hold', () => {
+    const cell = { type: 'tableCell', content: [{ type: 'paragraph', content: [text('cell')] }] };
     const doc = { type: 'doc', content: [{ type: 'orderedList', content: [{ type: 'listItem', content: [
-      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [text('chapter')] }] }] },
+      { type: 'paragraph', content: [text('item ')] },
+      { type: 'table', content: [{ type: 'tableRow', content: [cell] }] },
     ] }] }] };
     const r = repairContent(doc, schema);
     expect(r.error).toBeTruthy();
     expect(() => schema.nodeFromJSON(r.content).check()).not.toThrow();
-    expect(schema.nodeFromJSON(r.content).textContent).toBe('chapter');
+    expect(schema.nodeFromJSON(r.content).textContent).toBe('item cell');
   });
 
   it('wraps loose text in a paragraph', () => {

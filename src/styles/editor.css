@@ -813,6 +813,10 @@
 .paper .tiptap li {
   list-style: none;
 }
+/* An item opening with a sub-list has no line of its own to label, and counts nothing. */
+.paper .tiptap li:has(> :is(ul, ol):first-child) {
+  counter-increment: list-item 0;
+}
 /* The level's hanging indent; a list's own `hanging` attr sets it inline (listMarker.ts). */
 .paper .tiptap :is(ol, ul) {
   --list-hang: 0.635cm;
@@ -1018,7 +1022,8 @@
 }
 /* Only an item's first paragraph or heading carries the label, as both exports number
    it; the blocks after it continue the item unnumbered. */
-.paper .tiptap li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10) ~ :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before {
+.paper .tiptap li > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10) ~ :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before,
+.paper .tiptap li > :is(ul, ol):first-child ~ :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)::before {
   content: none !important;
 }
 
@@ -1121,12 +1126,26 @@
   --space-before: 0;
 }
 
+/* A nested table measures its cell margins from its own attr or the default, never
+   from the cell around it: the custom properties would otherwise inherit. */
+.paper .tiptap table {
+  --cell-pad-t: initial;
+  --cell-pad-r: initial;
+  --cell-pad-b: initial;
+  --cell-pad-l: initial;
+}
+
 /* Header-row cells (tableHeaderRow.ts toggle): bold rendered presentationally so all
    text — existing, typed, or pasted — is bold. The light fill comes from the cell's
    inline background-color; export bakes the bold for Word/LibreOffice consistency. */
 .paper .tiptap td.cell-header,
 .paper .tiptap th.cell-header {
   font-weight: 600;
+}
+
+/* Export bakes that bold onto the cell's own runs only, not a table nested in it. */
+.paper .tiptap .cell-header table {
+  font-weight: normal;
 }
 
 /* Selected-cell highlight while editing (ProseMirror tables add .selectedCell).

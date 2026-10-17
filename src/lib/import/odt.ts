@@ -4,7 +4,7 @@ import en from '../i18n/locales/en';
 import { StyleResolver, NS, WATERMARK_NAME, lengthToPt, lengthToCm, layerTextProps, langTagsOfProps, type PropMap } from './styleResolver';
 import { cjkDocFont, odfFromTag, tagFromOdf } from '../storage/documentLanguage';
 import { ASIAN_SCRIPT_RE } from '../utils/script';
-import { ODF_LOOK_ATTRS, normalizeColor } from '../export/odt';
+import { ODF_LOOK_ATTRS, normalizeColor, labelledItems } from '../export/odt';
 import { HEADING_STYLE_OVERRIDES, MAX_HEADING_LEVEL } from '../styles/headings';
 import { isAllowedUri } from '@tiptap/extension-link';
 import { builtinStyleSheet, DEFAULT_STYLE, type ParaProps, type Style, type StyleSheet, type TextProps } from '../styles/styleSheet';
@@ -169,6 +169,8 @@ type Ctx = {
   // `docContentWidthCm` is the first section's, where the export keeps an index's stop.
   contentWidthCm: number;
   docContentWidthCm: number;
+  // Text width (cm) of the cell being converted: what a table nested in it measures against.
+  cellWidthCm?: number;
   // The section's left page margin: a frame placed against the page is kept against the
   // text column, as the DOCX importer keeps it.
   leftMarginCm: number;
@@ -572,7 +574,11 @@ function textBoxContent(children: Element[], ctx: Ctx, widthCm: number | null): 
     try { table = convertTable(tables[0], ctx); } finally { ctx.contentWidthCm = outerCm; }
     if (table) return [table];
   }
-  const blocks = unnestBoxes(convertBlocks(textChildren, ctx, 'cell'), ctx);
+  // No cell around the box's blocks any more, whatever the box sits in.
+  const outerCell = ctx.cellWidthCm;
+  ctx.cellWidthCm = undefined;
+  let blocks: Node[];
+  try { blocks = unnestBoxes(convertBlocks(textChildren, ctx, 'cell'), ctx); } finally { ctx.cellWidthCm = outerCell; }
   return blocks.length ? blocks : [{ type: 'paragraph' }];
 }
 
@@ -1424,7 +1430,7 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
           for (const h of headingEls) out.push(convertParaLike(h, ctx, 'body'));
         } else {
           const list = convertList(el, ctx, null, 1, false, ROOT_ORDERED_CYCLE, !isChapterList(el, ctx.resolver));
-          if (list) out.push(list);
+          for (const part of list ? liftListTables(list, true) : []) out.push(part.type === 'table' ? part : keepContinuation(out, part));
         }
       } else if (el.localName === 'section') {
         const inner = convertBlocks(Array.from(el.children), ctx, kind, boldByDefault);
@@ -1443,7 +1449,14 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
       }
       // tracked-changes registry, decls, soft-page-break, … → no visual content
     } else if (el.namespaceURI === NS.table && el.localName === 'table') {
-      if (kind === 'body' || kind === 'zone') {
+      if (kind === 'cell' && ctx.cellWidthCm != null) {
+        const outerCm = ctx.contentWidthCm;
+        ctx.contentWidthCm = ctx.cellWidthCm;
+        try {
+          const table = convertTable(el, ctx);
+          if (table) out.push(table);
+        } finally { ctx.contentWidthCm = outerCm; }
+      } else if (kind === 'body' || kind === 'zone') {
         // Before the conversion: a section the table opens may have a text width of its
         // own, which is what its columns are measured against.
         const flow = tableSectionFlow(el, ctx);
@@ -1453,8 +1466,8 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
           out.push(table);
         }
       } else {
-        // The editor (and its export) can't nest tables in cells/list items.
-        ctx.warnings.add(WARN.nestedTables);
+        // A text box holds either its text or one table, never both.
+        ctx.warnings.add(WARN.boxTables);
         out.push(...flattenTable(el, ctx));
       }
     } else if (el.namespaceURI === NS.draw) {
@@ -3194,29 +3207,35 @@ function convertList(el: Element, ctx: Ctx, inheritedStyleName: string | null, d
         const nested = convertList(child, ctx, styleName, depth + 1, inChain, childBaseCycle, keepHeadings);
         if (nested) blocks.push(nested);
       } else if (child.namespaceURI === NS.table && child.localName === 'table') {
-        ctx.warnings.add(WARN.nestedTables);
-        blocks.push(...flattenTable(child, ctx));
+        // Kept in place for now; liftListTables cuts the list around it.
+        const table = convertTable(child, ctx);
+        if (table) blocks.push(table);
       }
     }
-    // listItem opens with a paragraph or a heading. One that opens with a sub-list draws
-    // no line of its own: it goes on the item before it, as a further sub-list there.
+    // An item opening with a sub-list draws no line of its own and counts nothing, so its
+    // sub-list counts its level on. One restarting it is a further sub-list of the item
+    // before (our own export's form, splitNestedLists), and goes back on that item.
     const prev = items[items.length - 1];
-    if (blocks.length && blocks[0].type !== 'paragraph' && blocks[0].type !== 'heading' && prev) {
+    const opener = Array.from(item.children).find((c) => c.namespaceURI === NS.text && ['p', 'h', 'list'].includes(c.localName));
+    const restarts = opener?.localName === 'list'
+      && !!Array.from(opener.children).find((c) => c.localName === 'list-item')?.hasAttributeNS(NS.text, 'start-value');
+    if (blocks.length && blocks[0].type !== 'paragraph' && blocks[0].type !== 'heading' && prev && restarts) {
       prev.content!.push(...blocks);
       continue;
     }
-    if (blocks[0]?.type !== 'paragraph' && blocks[0]?.type !== 'heading') blocks.unshift({ type: 'paragraph' });
+    if (!blocks.length) blocks.push({ type: 'paragraph' });
     items.push({ type: 'listItem', content: blocks });
   }
   if (items.length === 0) return null;
+  let continued = false;
   if (ordered && depth === 1 && styleName) {
     // LibreOffice continues the latest list of the same style, or the one continue-list names.
     const ref = el.getAttributeNS(NS.text, 'continue-list');
     const prev = ref ? ctx.listEnds.get(`id:${ref}`)
       : el.getAttributeNS(NS.text, 'continue-numbering') === 'true' ? ctx.listEnds.get(`style:${styleName}`) : undefined;
-    if (start == null && prev != null) start = prev + 1;
+    if (start == null && prev != null) { start = prev + 1; continued = true; }
     const styleStart = parseInt(levelDef!.getAttributeNS(NS.text, 'start-value') ?? '', 10);
-    const end = (start ?? (styleStart > 0 ? styleStart : 1)) + Array.from(el.children).filter((c) => c.localName === 'list-item').length - 1;
+    const end = (start ?? (styleStart > 0 ? styleStart : 1)) + labelledItems({ type: 'orderedList', content: items }) - 1;
     ctx.listEnds.set(`style:${styleName}`, end);
     const id = el.getAttribute('xml:id');
     if (id) ctx.listEnds.set(`id:${id}`, end);
@@ -3264,6 +3283,7 @@ function convertList(el: Element, ctx: Ctx, inheritedStyleName: string | null, d
   }
   const attrs: Record<string, unknown> = {};
   if (start != null) attrs.start = start;
+  if (continued) attrs.continueNumbering = true;
   if (named) {
     if (depth === 1) attrs.listStyleName = displayStyleName(styleName!, ctx.resolver.listStyleDisplayName(styleName!));
   } else {
@@ -3487,6 +3507,8 @@ function convertTable(el: Element, ctx: Ctx): Node | null {
     }
   }
 
+  const margins = tableMargins(el, ctx);
+  const tableCm = ctx.contentWidthCm - (margins?.marginLeft ?? 0) - (margins?.marginRight ?? 0);
   const rows: Node[] = [];
   // Source-row bookkeeping: a row of only covered cells is dropped (the editor cannot
   // hold a cell-less row), so every span reaching over it must shrink by one.
@@ -3535,8 +3557,15 @@ function convertTable(el: Element, ctx: Ctx): Node | null {
         row: rowIdx, col: colIndex, rowSpan: rowspan, colSpan: colspan,
         rows: gridRows, cols: gridCols,
       }, regLook) : null;
-      const blocks = convertBlocks(Array.from(cellEl.children), ctx, 'cell',
-        backgroundColor === HEADER_SHADE || paint?.text.bold === true);
+      const share = weights ? weights.slice(colIndex, colIndex + colspan).reduce((a, b) => a + b, 0)
+        / weights.reduce((a, b) => a + b, 0) : colspan / Math.max(1, gridCols);
+      const outerCellCm = ctx.cellWidthCm;
+      ctx.cellWidthCm = tableCm * share - padSides[1] - padSides[3];
+      let blocks: Node[];
+      try {
+        blocks = convertBlocks(Array.from(cellEl.children), ctx, 'cell',
+          backgroundColor === HEADER_SHADE || paint?.text.bold === true);
+      } finally { ctx.cellWidthCm = outerCellCm; }
       if (paint?.text.color) unbakeRegionColor(blocks, paint.text.color);
       // LibreOffice writes the formula in its own language behind an `ooow:` prefix;
       // the cached result is the cell's text and needs nothing here.
@@ -3578,7 +3607,7 @@ function convertTable(el: Element, ctx: Ctx): Node | null {
     const cut = dropped.filter((d) => d > p.row && d < p.row + p.span).length;
     if (cut) p.attrs.rowspan = p.span - cut;
   }
-  const attrs: Record<string, unknown> = { ...(tableMargins(el, ctx) ?? {}), ...tableSpacing(el, ctx) };
+  const attrs: Record<string, unknown> = { ...(margins ?? {}), ...tableSpacing(el, ctx) };
   if (cellPad) attrs.cellPadding = cellPad;
   // The default is to allow a break, so only the explicit "no" is worth an attr.
   if (ctx.resolver.tableProps(el.getAttributeNS(NS.table, 'style-name'))['style:may-break-between-rows'] === 'false') {
@@ -3690,6 +3719,48 @@ function columnWeights(tableEl: Element, resolver: StyleResolver): number[] | nu
   const present = widths.filter((w): w is number => w != null);
   const avg = present.reduce((a, b) => a + b, 0) / present.length;
   return widths.map(w => Math.max(1, Math.round(w ?? avg)));
+}
+
+// ODF keeps no table in a list item, yet some files carry one: the list is cut around it
+// as the editor's own insert cuts it (splitListAt). What follows counts on — the outer
+// list by its attr, a deeper level through the item without a label it opens with.
+function liftListTables(list: Node, outer: boolean): Node[] {
+  const isList = (n: Node) => n.type === 'bulletList' || n.type === 'orderedList';
+  if (!JSON.stringify(list).includes('"type":"table"')) return [list];
+  const out: Node[] = [];
+  let part: Node = { ...list, content: [] };
+  let end = (Number(list.attrs?.start) || 1) - 1;
+  const cut = (table: Node, it: Node, item: Node[]) => {
+    if (item.length) part.content!.push({ ...it, content: item.splice(0) });
+    if (part.content!.length) {
+      out.push(part);
+      end = (Number(part.attrs?.start) || 1) + labelledItems(part) - 1;
+    }
+    out.push(table);
+    const { start: _s, ...attrs } = list.attrs ?? {};
+    part = { ...list, attrs: list.type === 'orderedList' && outer ? { ...attrs, start: end + 1, continueNumbering: true } : attrs, content: [] };
+  };
+  for (const it of list.content ?? []) {
+    const item: Node[] = [];
+    for (const b of it.content ?? []) {
+      if (b.type === 'table') cut(b, it, item);
+      else if (isList(b)) for (const p of liftListTables(b, false)) { if (p.type === 'table') cut(p, it, item); else item.push(p); }
+      else item.push(b);
+    }
+    if (item.length) part.content!.push({ ...it, content: item });
+  }
+  if (part.content!.length) out.push(part);
+  return out;
+}
+
+// The editor continues the ordered list before it in the same parent; the file may name
+// another, so the flag stays only where counting on from that one gives the same start.
+function keepContinuation(out: Node[], list: Node): Node {
+  if (!list.attrs?.continueNumbering) return list;
+  const prev = out.findLast((n) => n.type === 'orderedList');
+  const end = prev ? (Number(prev.attrs?.start) || 1) + labelledItems(prev) - 1 : 0;
+  if (end + 1 !== list.attrs.start) delete list.attrs.continueNumbering;
+  return list;
 }
 
 // Salvage a nested table's text: its cells' blocks, in reading order. Walks

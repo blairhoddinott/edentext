@@ -147,11 +147,16 @@ function collectRuns(root: HTMLElement): Run[] {
   return runs;
 }
 
-// 1-based ordinal of a li within its list (start attr respected).
+// An item opening with a sub-list has no label and counts nothing (listStyle.ts).
+const labelless = (li: Element) => /^(UL|OL)$/.test(li.firstElementChild?.tagName ?? '');
+
+// 1-based ordinal of a li within its list (start attr respected); an item without a
+// label stands in a chain at the count before it, as the counter it leaves alone does.
 function liOrdinal(li: HTMLElement): number {
   const parent = li.parentElement!;
-  const items = Array.from(parent.children).filter((c) => c.tagName === 'LI');
-  return parseInt(parent.getAttribute('start') ?? '1', 10) + items.indexOf(li);
+  const items = Array.from(parent.children);
+  const before = items.slice(0, items.indexOf(li)).filter((c) => c.tagName === 'LI' && !labelless(c)).length;
+  return parseInt(parent.getAttribute('start') ?? '1', 10) + before - (labelless(li) ? 1 : 0);
 }
 
 // The outermost <ol> of the unbroken 'multilevel' run this list sits in — where the
@@ -217,6 +222,7 @@ function materializeListMarkers(root: HTMLElement): void {
   // Every box is read before the first span goes in: a write between reads would
   // restyle the whole copy once per item.
   const labels = Array.from(root.querySelectorAll<HTMLLIElement>('li')).flatMap((li) => {
+    if (labelless(li)) return [];
     const glyph = listMarkerGlyph(li, root);
     if (!glyph) return [];
     const target = li.querySelector<HTMLElement>(':scope > :is(p, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)') ?? li;

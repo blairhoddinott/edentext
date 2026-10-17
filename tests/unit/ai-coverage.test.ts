@@ -227,6 +227,7 @@ const SCHEMA: Record<string, Entry> = {
   'bulletList.bulletChar': check(fmt({ from: 2, css: 'list-style-type: "–"' }), attr('bulletList', 'bulletChar', '–'), LIST),
   'orderedList.start': check([fmt({ from: 2, to: 3, list: 'number' }), fmt({ from: 2, css: 'start: 4' })], attr('orderedList', 'start', 4), LIST),
   'orderedList.type': same('orderedList.listStyleType'),
+  'orderedList.continueNumbering': na('set where a table splits a list, which counts on past it'),
   'orderedList.listStyleType': check([fmt({ from: 2, to: 3, list: 'number' }), fmt({ from: 2, css: 'list-style-type: lower-roman' })], attr('orderedList', 'listStyleType', 'lower-roman'), LIST),
   table: check(insert(TABLE), (d) => !!first(d, 'table')),
   'table.breakBefore': same('paragraph.breakBefore'),

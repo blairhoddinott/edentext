@@ -6,6 +6,9 @@ import Text from '@tiptap/extension-text';
 import ListItem from '@tiptap/extension-list-item';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { OrderedList } from '../../src/lib/editor/extensions/orderedList';
+import { extensions as fullExtensions } from '../../src/lib/editor/extensions';
+import { listNumberAt } from '../../src/lib/editor/extensions/listStyle';
+import { builtinStyleSheet } from '../../src/lib/styles/styleSheet';
 import { BulletList } from '../../src/lib/editor/extensions/bulletList';
 import { Indent } from '../../src/lib/editor/extensions/indent';
 import {
@@ -158,5 +161,51 @@ describe('list-style memory', () => {
   });
   it('leaves the new list attr-less when no sibling level carries an explicit style', () => {
     expect(styleAround(indentC(null), 'c')).toBeNull();
+  });
+});
+
+describe('a table inserted in a list', () => {
+  const p = (text: string) => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+  const li = (...content: object[]) => ({ type: 'listItem', content });
+  const ol = (...items: object[]) => ({ type: 'orderedList', content: items });
+  let editor: Editor | null = null;
+  afterEach(() => { editor?.destroy(); editor = null; });
+  const open = (content: object[]) => {
+    editor = new Editor({ element: document.createElement('div'), extensions: fullExtensions, content: { type: 'doc', content } });
+    return editor;
+  };
+  const caretIn = (ed: Editor, text: string) => {
+    let at = -1;
+    ed.state.doc.descendants((n, pos) => { if (n.isText && n.text === text) at = pos + text.length; });
+    ed.commands.setTextSelection(at);
+  };
+  const numberOf = (ed: Editor, text: string) => {
+    let at = -1;
+    ed.state.doc.descendants((n, pos) => { if (n.isText && n.text === text) at = pos; });
+    return listNumberAt(ed.state.doc, at, builtinStyleSheet())?.parts.join('.');
+  };
+
+  it('goes between the list\'s two parts, and the second counts on as the first grows', () => {
+    const ed = open([ol(li(p('one')), li(p('two')), li(p('three')))]);
+    caretIn(ed, 'two');
+    expect(ed.commands.insertTable({ rows: 1, cols: 1, withHeaderRow: false })).toBe(true);
+    expect(ed.state.doc.content.content.map((n) => n.type.name).slice(0, 3)).toEqual(['orderedList', 'table', 'orderedList']);
+    expect(numberOf(ed, 'three')).toBe('3');
+    caretIn(ed, 'one');
+    ed.commands.splitListItem('listItem');
+    ed.commands.insertContent('one and a half');
+    expect(numberOf(ed, 'three')).toBe('4');
+    ed.commands.undo();
+    expect(numberOf(ed, 'three')).toBe('3');
+  });
+
+  it('cut below the first level, counts both levels on through an item without a label', () => {
+    const ed = open([ol(li(p('A'), ol(li(p('a1')), li(p('a2')))), li(p('B')))]);
+    caretIn(ed, 'a1');
+    expect(ed.commands.insertTable({ rows: 1, cols: 1, withHeaderRow: false })).toBe(true);
+    expect(ed.state.doc.child(1).type.name).toBe('table');
+    expect(numberOf(ed, 'a2')).toBe('1.b');
+    expect(numberOf(ed, 'B')).toBe('2');
+    expect(() => ed.state.doc.check()).not.toThrow();
   });
 });

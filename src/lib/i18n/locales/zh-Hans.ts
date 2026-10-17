@@ -1385,7 +1385,7 @@ const zhHans: Messages = {
     structureRepaired: '部分内容不符合文档结构，已作调整',
     noDictionary: (tag: string) => `拼写检查语言“${tag}”没有随附词典——已关闭拼写检查`,
     textBoxFlattened: '嵌套在其他文本框中的文本框已被展平',
-    nestedTables: '嵌套表格已展平为段落',
+    boxTables: '文本框中与文字并列的表格已展平为段落',
     chartsReplaced: '图表和其他绘图已替换为占位符',
     imagesPlaceholder: '浏览器无法显示的格式（如 WMF、EMF）的图片已替换为占位符',
     imagesRemoved: '浏览器无法显示的格式（如 WMF、EMF）的图片已被移除',

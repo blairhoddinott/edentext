@@ -1387,7 +1387,7 @@ const pt: Messages = {
     structureRepaired: 'Alguns conteúdos não se ajustavam à estrutura do documento e foram ajustados',
     noDictionary: (tag) => `O idioma de verificação ortográfica « ${tag} » não tem dicionário integrado: a verificação ortográfica foi desativada`,
     textBoxFlattened: 'As caixas de texto aninhadas noutras caixas de texto foram achatadas',
-    nestedTables: 'As tabelas aninhadas foram convertidas em parágrafos',
+    boxTables: 'As tabelas junto a texto numa caixa de texto foram convertidas em parágrafos',
     chartsReplaced: 'Os gráficos e outros desenhos foram substituídos por um marcador de posição',
     imagesPlaceholder: 'As imagens num formato que o navegador não consegue apresentar (p. ex., WMF, EMF) foram substituídas por um marcador de posição',
     imagesRemoved: 'As imagens num formato que o navegador não consegue apresentar (p. ex., WMF, EMF) foram removidas',

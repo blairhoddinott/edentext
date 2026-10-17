@@ -3,7 +3,7 @@ import en from '../i18n/locales/en';
 import { DocxStyles, parseRunProps, mergeRunProps, readNumPr, readSpacing, readTabStops, toggle as onOff, wVal, W, R, WP, A, B, WPS, WPG, MC, VML, O, PKG_REL, type RunProps, type ParaSpacing } from './docxStyles';
 import { mostlyAsian } from '../utils/script';
 import { lengthToPt, WATERMARK_NAME } from './styleResolver';
-import { normalizeColor } from '../export/odt';
+import { normalizeColor, labelledItems } from '../export/odt';
 import { HEADING_STYLE_OVERRIDES, MAX_HEADING_LEVEL } from '../styles/headings';
 import { PLACEHOLDER_SDT_TAG } from '../export/docx';
 import { isAllowedUri } from '@tiptap/extension-link';
@@ -90,6 +90,8 @@ type Ctx = {
   usedListStyles: Map<number, string>; // numId → the named numbering style it links to
   // Text width (cm) of the file's page setup; a table's margins are relative to it.
   contentWidthCm: number;
+  // Text width (cm) of the cell being converted: what a table nested in it measures against.
+  cellWidthCm?: number;
   // Left page margin (cm), the origin a page-relative frame offset is measured against.
   leftMarginCm: number;
   rightMarginCm: number;
@@ -761,15 +763,20 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
   // Floating tables, each with the place in `out` its anchor follows (floatingTableBox).
   const floatBoxes: { box: Node; at: number }[] = [];
 
+  // The last ordered list `out` took, which a later one of the same numId continues.
+  type Ordered = { list: Node; numId: number };
+  let lastOrdered = null as Ordered | null;
   const closeTop = () => {
     const top = stack.pop()!;
     if (stack.length) {
       const parent = stack[stack.length - 1].list;
       let item = parent.content![parent.content!.length - 1];
-      if (!item) { item = { type: 'listItem', content: [{ type: 'paragraph' }] }; parent.content!.push(item); }
+      // A level opened with no item above it is an item without a label of its own.
+      if (!item) { item = { type: 'listItem', content: [] }; parent.content!.push(item); }
       item.content!.push(top.list);
     } else {
       out.push(top.list);
+      if (top.list.type === 'orderedList') lastOrdered = { list: top.list, numId: top.numId };
     }
   };
   const flush = () => { while (stack.length) closeTop(); };
@@ -843,8 +850,16 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
         const own = listItemIndent(src, ctx);
         while (stack.length === 0 || stack[stack.length - 1].ilvl < num.ilvl) {
           const ilvl = stack.length ? stack[stack.length - 1].ilvl + 1 : 0;
-          stack.push({ ilvl, numId: num.numId,
-            list: makeListNode(ctx, num.numId, ilvl, ilvl === num.ilvl ? own : EMPTY_ITEM_INDENT),
+          const list = makeListNode(ctx, num.numId, ilvl, ilvl === num.ilvl ? own : EMPTY_ITEM_INDENT);
+          // Opened by a deeper paragraph, the first level has no item of its own yet; it
+          // continues the list before it where that one ends on the numId's count.
+          const count = ctx.listCounters.get(num.numId)?.get(0);
+          const prev = lastOrdered as Ordered | null;
+          if (ilvl === 0 && num.ilvl > 0 && list.type === 'orderedList' && count != null && prev?.numId === num.numId
+            && (Number(prev.list.attrs?.start) || 1) + labelledItems(prev.list) - 1 === count) {
+            list.attrs = { ...(list.attrs ?? {}), start: count + 1, continueNumbering: true };
+          }
+          stack.push({ ilvl, numId: num.numId, list,
             textTwip: (ilvl === num.ilvl ? own.left : null) ?? ctx.styles.level(num.numId, ilvl).leftTwip ?? null });
           if (ilvl === num.ilvl) break;
         }
@@ -852,8 +867,17 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
         const number = nextListNumber(ctx, num.numId, num.ilvl);
         // A non-list paragraph splits one Word list into separate nodes here; carry the
         // running count onto a fresh ordered node so numbering continues, not restarts at 1.
-        if (targetList.type === 'orderedList' && targetList.content!.length === 0 && number > 1) {
+        // A level opened under an item without a label counts on by itself (listStarts).
+        const underLabelless = stack.length > 1 && stack[stack.length - 2].list.content!.length === 0;
+        if (targetList.type === 'orderedList' && targetList.content!.length === 0 && number > 1 && !underLabelless) {
           targetList.attrs = { ...(targetList.attrs ?? {}), start: number };
+          // Word counts the numId on wherever it resumes: the editor's continuation does
+          // the same while the list before it is that numId and ends right before.
+          const prev = lastOrdered as Ordered | null;
+          if (stack.length === 1 && prev && prev.numId === num.numId
+            && (Number(prev.list.attrs?.start) || 1) + labelledItems(prev.list) === number) {
+            targetList.attrs.continueNumbering = true;
+          }
         }
         targetList.content!.push({ type: 'listItem', content: [para] });
       } else if (continued >= 0) {
@@ -891,8 +915,17 @@ function convertBlocks(children: Element[], ctx: Ctx, kind: BlockKind, boldByDef
         const t = convertTable(el, ctx);
         if (t && pageBreak) applyBreakBefore(t);
         if (t) out.push(t);
+      } else if (ctx.cellWidthCm != null) {
+        // A nested table: in its cell's flow, never floated, measured against the cell.
+        const outerCm = ctx.contentWidthCm;
+        ctx.contentWidthCm = ctx.cellWidthCm;
+        try {
+          const t = convertTable(el, ctx);
+          if (t) out.push(t);
+        } finally { ctx.contentWidthCm = outerCm; }
       } else {
-        ctx.warnings.add(WARN.nestedTables);
+        // A text box holds either its text or one table, never both.
+        ctx.warnings.add(WARN.boxTables);
         out.push(...flattenTable(el, ctx));
       }
     } else if (el.localName === 'sdt') {
@@ -3082,7 +3115,7 @@ function convertWpsShape(wsp: Element, root: Element, isAnchor: boolean, ctx: Ct
   // Only a:spAutoFit grows the shape with its text; without it the box keeps its extent
   // and clips what overflows, in Word as in LibreOffice (probed).
   if (txbxContent && attrs.height && !nsChild(bodyPr, A, 'spAutoFit')) attrs.fixedHeight = true;
-  const blocks = txbxContent ? unnestBoxes(convertBlocks(Array.from(txbxContent.children), ctx, 'cell'), ctx) : [];
+  const blocks = txbxContent ? boxBlocks(txbxContent, ctx) : [];
   return { type: 'textBox', attrs, content: blocks.length ? blocks : [{ type: 'paragraph' }] };
 }
 
@@ -3166,7 +3199,7 @@ function convertPict(pict: Element, ctx: Ctx): Node | null {
   const swm = /^([\d.]+)\s*(pt)?$/.exec(shape.getAttribute('strokeweight') ?? '');
   setShapeStyleAttrs(attrs, fill, stroke, swm ? parseFloat(swm[1]) : null);
 
-  const blocks = txbxContent ? unnestBoxes(convertBlocks(Array.from(txbxContent.children), ctx, 'cell'), ctx) : [];
+  const blocks = txbxContent ? boxBlocks(txbxContent, ctx) : [];
   return { type: 'textBox', attrs, content: blocks.length ? blocks : [{ type: 'paragraph' }] };
 }
 
@@ -3495,8 +3528,16 @@ function buildTable(tbl: Element, ctx: Ctx): Node | null {
       const bg = fill ? hexColor(fill) : paint.fill;
       // Header-shaded cells and a bold region render bold by default (CSS); a baked-bold
       // run needs no mark, only an explicitly normal one gets fontWeight:normal.
-      const blocks = convertBlocks(Array.from(tc.children), ctx, 'cell',
-        bg === HEADER_SHADE || styled?.text.bold === true);
+      const ownSides = cellMarginsCm([fc(tcPr, 'tcMar')]);
+      const spanTwip = useWeights?.slice(col, col + colspan).reduce((a, b) => a + b, 0);
+      const outerCellCm = ctx.cellWidthCm;
+      ctx.cellWidthCm = (spanTwip ? twipToCm(spanTwip) : ctx.contentWidthCm * colspan / gridCols)
+        - (ownSides[1] ?? padBase[1]) - (ownSides[3] ?? padBase[3]);
+      let blocks: Node[];
+      try {
+        blocks = convertBlocks(Array.from(tc.children), ctx, 'cell',
+          bg === HEADER_SHADE || styled?.text.bold === true);
+      } finally { ctx.cellWidthCm = outerCellCm; }
       bakeCellRuns(blocks, paint.run);
       if (styled?.text.color) unbakeRegionColor(blocks, styled.text.color);
       const attrs: Record<string, unknown> = { colspan, rowspan: 1 };
@@ -3508,7 +3549,7 @@ function buildTable(tbl: Element, ctx: Ctx): Node | null {
       if (vAlign === 'center') attrs.verticalAlign = 'middle';
       else if (vAlign === 'bottom') attrs.verticalAlign = 'bottom';
       // The cell's own margins (w:tcMar), kept only where they differ from the table's.
-      const ownPad = cellPaddingAttr(cellMarginsCm([fc(tcPr, 'tcMar')]), padBase);
+      const ownPad = cellPaddingAttr(ownSides, padBase);
       if (ownPad) attrs.cellPadding = ownPad;
       // Per side: the table's borders, then each conditional area over them, then the
       // cell's own w:tcBorders. An edge of the box a layer covers takes that layer's
@@ -3624,6 +3665,13 @@ function flattenTable(tbl: Element, ctx: Ctx): Node[] {
   const out: Node[] = [];
   for (const tr of fcAll(tbl, 'tr')) for (const tc of fcAll(tr, 'tc')) out.push(...convertBlocks(Array.from(tc.children), ctx, 'cell'));
   return out;
+}
+
+// A text box's blocks: no cell around them any more, whatever the box sits in.
+function boxBlocks(content: Element, ctx: Ctx): Node[] {
+  const outerCell = ctx.cellWidthCm;
+  ctx.cellWidthCm = undefined;
+  try { return unnestBoxes(convertBlocks(Array.from(content.children), ctx, 'cell'), ctx); } finally { ctx.cellWidthCm = outerCell; }
 }
 
 // ---- section: page geometry + headers/footers ------------------------------

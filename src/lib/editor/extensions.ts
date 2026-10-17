@@ -1,6 +1,7 @@
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
+import { TextSelection } from '@tiptap/pm/state';
 import Bold from '@tiptap/extension-bold';
 import Italic from '@tiptap/extension-italic';
 import { TextEffects, UnderlineStyled, StrikeStyled } from './extensions/textEffects';
@@ -21,8 +22,8 @@ import { BulletList } from './extensions/bulletList';
 import { OrderedList } from './extensions/orderedList';
 import ListItem from '@tiptap/extension-list-item';
 import { ListMarker } from './extensions/listMarker';
-import { ListStyle } from './extensions/listStyle';
-import { Table, TableHeader, TableCell } from '@tiptap/extension-table';
+import { ListStyle, splitListAt } from './extensions/listStyle';
+import { Table, TableHeader, TableCell, createTable } from '@tiptap/extension-table';
 import { addColumnAfter, addColumnBefore, addRowAfter, addRowBefore } from '@tiptap/pm/tables';
 import { ResizableTableRow } from './extensions/tableRow';
 import { inheritingInsert } from './extensions/tableInsert';
@@ -94,8 +95,10 @@ const pxToPt = (size: string): string | null => {
   return px ? `${Math.round(Number(px) * 0.75 * 10) / 10}pt` : size || null;
 };
 
-const CELL_CONTENT = '(paragraph | heading | bulletList | orderedList)+';
-const LIST_ITEM_CONTENT = '(paragraph | heading) (paragraph | heading | bulletList | orderedList)*';
+const CELL_CONTENT = '(paragraph | heading | bulletList | orderedList | table)+';
+// An item opening with a sub-list is ODF's item without a paragraph of its own: no label,
+// no count — what a list continued past a table opens with below its first level.
+const LIST_ITEM_CONTENT = '(paragraph | heading | bulletList | orderedList) (paragraph | heading | bulletList | orderedList)*';
 
 export const extensions = [
   // columns has its own group so only the document (not cells/lists) admits it; the
@@ -227,16 +230,24 @@ export const extensions = [
   // resizable:false keeps TipTap's columnResizing plugin off; TableView, the two
   // resize plugins, and ResizableTableRow supply the drag handling instead. Table
   // (unlike TableKit) doesn't auto-add children, so ResizableTableRow is listed here.
-  // No table inside a table (neither exporter writes a nested one), in a list item (ODF's
-  // holds paragraphs, headings and lists) or in a note (whose inline content would take
-  // it wrapped in a text box).
+  // No table in a note (whose inline content would take it wrapped in a text box); a cell
+  // may nest one. In a list it goes between the list's two parts, as in both word
+  // processors: neither format keeps one in a list item, and the second part counts on.
   Table.extend({
     addCommands() {
       const parent = this.parent?.() ?? {};
       return { ...parent, insertTable: (options) => (props) => {
         if (inNote(props.state)) return false;
-        for (let d = props.state.selection.$from.depth; d > 0; d--) if (['table', 'listItem'].includes(props.state.selection.$from.node(d).type.name)) return false;
-        return parent.insertTable?.(options)(props) ?? false;
+        const { $from } = props.state.selection;
+        let item = 0;
+        for (let d = $from.depth; d > 0 && !item; d--) if ($from.node(d).type.name === 'listItem') item = d;
+        if (!item) return parent.insertTable?.(options)(props) ?? false;
+        const { tr, state } = props;
+        const at = splitListAt(tr, $from, item);
+        if (at == null) return false;
+        tr.insert(at, createTable(state.schema, options?.rows ?? 3, options?.cols ?? 3, options?.withHeaderRow ?? true));
+        tr.setSelection(TextSelection.near(tr.doc.resolve(at + 1))).scrollIntoView();
+        return true;
       },
       addRowBefore: () => ({ state, dispatch }) => inheritingInsert(addRowBefore, 'row', 'before')(state, dispatch),
       addRowAfter: () => ({ state, dispatch }) => inheritingInsert(addRowAfter, 'row', 'after')(state, dispatch),
@@ -245,8 +256,7 @@ export const extensions = [
     },
   }).configure({ resizable: false, View: TableView }),
   ResizableTableRow,
-  // A cell holds what both exporters can write into one, which is also what the importers
-  // salvage a nested table into — the command's own refusal is not the only way in.
+  // A cell holds what both exporters can write into one, a nested table included.
   TableHeader.extend({ content: CELL_CONTENT }),
   TableCell.extend({ content: CELL_CONTENT }),
   TableColumnResize,

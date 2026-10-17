@@ -1388,7 +1388,7 @@ const es: Messages = {
     structureRepaired: 'Algunos contenidos no encajaban en la estructura del documento y se han ajustado',
     noDictionary: (tag) => `El idioma de revisión «${tag}» no tiene diccionario incluido: se ha desactivado la revisión ortográfica`,
     textBoxFlattened: 'Los cuadros de texto anidados en otros cuadros de texto se han convertido en texto',
-    nestedTables: 'Las tablas anidadas se han convertido en párrafos',
+    boxTables: 'Las tablas junto a texto en un cuadro de texto se han convertido en párrafos',
     chartsReplaced: 'Los gráficos y otros dibujos se han sustituido por un marcador de posición',
     imagesPlaceholder: 'Las imágenes en un formato que el navegador no puede mostrar (p. ej., WMF, EMF) se han sustituido por un marcador de posición',
     imagesRemoved: 'Se han eliminado las imágenes en un formato que el navegador no puede mostrar (p. ej., WMF, EMF)',

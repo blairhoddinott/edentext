@@ -16,6 +16,7 @@ const ORDERED_DEFAULTS: Record<string, unknown> = {
   alt: '', inFront: false, paddingCm: 0.15, flipV: false, flipH: false, textVertical: false, textVAlign: 'top', // the editor's own picture and box defaults
   wrapFromPage: false,
   cantSplit: false, fixedHeight: false, // tableRow.ts and textBox.ts defaults
+  continueNumbering: false, // orderedList.ts
   wrapFromBody: false,
   // index attrs the DOCX TOC field has no switch for come back at their defaults
   maxLevel: MAX_HEADING_LEVEL, leader: '.', citationStyle: 'key',

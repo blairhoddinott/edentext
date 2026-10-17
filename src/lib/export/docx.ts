@@ -47,7 +47,7 @@ import { effectiveOrderedDefAt, formatOrdinal, childCycle, orderedTypeDef, ROOT_
 import { effectiveListLevel, listStyleMarginCm, listStyleOverridden, type ListStyle as ListStyleDef } from '../styles/listStyles';
 import { outlineIsEmpty, type OutlineNumbering } from '../styles/outlineNumbering';
 import { defaultBulletChar } from '../utils/bulletListTypes';
-import { normalizeColor, GENERATOR, mergeJoinedParagraphsJson, twinFontName, frameRank, type HfExport } from './odt';
+import { normalizeColor, GENERATOR, mergeJoinedParagraphsJson, twinFontName, frameRank, labelledItems, type HfExport } from './odt';
 import { MAX_HEADING_LEVEL } from '../styles/headings';
 import { EMPTY_DOC_PROPERTIES, type DocProperties } from '../storage/docProperties';
 import { DEFAULT_PAGE_NUMBERING, type PageNumbering } from '../storage/pageNumbering';
@@ -357,6 +357,9 @@ class Numbering {
   private mlRefs = new Set<string>();
   private counter = 0;
   private styleRefs = new Map<string, { reference: string; configIndex: number; instances: number; lastEnd: number }>();
+  // The last ordered list written, which a continued one (orderedList.ts) shares its
+  // numbering with, as Word counts one numId on across whatever stands between.
+  lastOrdered: { reference: string; instance: number; end: number } | null = null;
 
   newReference(): string {
     const reference = `num-${this.counter++}`;
@@ -2673,13 +2676,16 @@ function listToParagraphs(
 function listEntryToDocx(node: TiptapNode, num: Numbering, out: (Paragraph | Table | TableOfContents)[]): void {
   const style = listStyleOf(node);
   const start = typeof node.attrs?.start === 'number' ? node.attrs.start : null;
-  const items = (node.content ?? []).filter((c) => c.type === 'listItem').length;
-  const shared = style && !listStyleOverridden(node) && !(node.content ?? []).some(subtreeHasStart)
+  const items = labelledItems(node);
+  const last = num.lastOrdered;
+  const continued = node.type === 'orderedList' && node.attrs?.continueNumbering === true
+    && last && start === last.end + 1 ? last : null;
+  const shared = continued ? null : style && !listStyleOverridden(node) && !(node.content ?? []).some(subtreeHasStart)
     ? num.refForStyle(style, start, items) : null;
-  if (style && shared) {
-    listToParagraphs(node, 0, shared.reference, 0, num, out, ROOT_ORDERED_CYCLE, style, shared.instance);
-  } else {
-    listToParagraphs(node, 0, num.newReference(), 0, num, out, ROOT_ORDERED_CYCLE, style);
+  const target = continued ?? (style && shared ? shared : { reference: num.newReference(), instance: 0 });
+  listToParagraphs(node, 0, target.reference, 0, num, out, ROOT_ORDERED_CYCLE, style, target.instance);
+  if (node.type === 'orderedList') {
+    num.lastOrdered = { reference: target.reference, instance: target.instance, end: (start ?? style?.levels[0]?.startAt ?? 1) + items - 1 };
   }
 }
 
@@ -2759,7 +2765,8 @@ function cellBlocksToDocx(content: TiptapNode[] = [], force: TextProps, num: Num
       out.push(paragraphToDocx(emitFloatingTables(child, contentWidthCm, num, out), { force, inCell: true }));
     }
   }
-  if (out.length === 0) out.push(new Paragraph({}));
+  // A cell ends with a paragraph, or Word reports the file damaged.
+  if (!(out[out.length - 1] instanceof Paragraph)) out.push(new Paragraph({}));
   return out;
 }
 
@@ -2785,6 +2792,7 @@ function tableToDocx(node: TiptapNode, contentWidthCm: number, num: Numbering, f
   // styled table its black default shows in Word, whose table borders beat a cell's
   // "none" (only "nil" loses). The editor's base grid still arrives via the cell fallback.
   const tableBorder = tableStyle ? noneBorder : cellBorder;
+  const gridCols = Math.max(1, (rows[0]?.content ?? []).reduce((n, c) => n + ((c.attrs?.colspan as number) || 1), 0));
   const tableRows = rows.map((row, rowIndex) => {
     const rh = row.attrs?.rowHeight;
     let col = 0;
@@ -2817,7 +2825,10 @@ function tableToDocx(node: TiptapNode, contentWidthCm: number, num: Numbering, f
           left: docxCellBorder(cell.attrs, 'borderLeft'),
           right: docxCellBorder(cell.attrs, 'borderRight'),
         },
-        children: cellBlocksToDocx(content, cellForce(tableStyle, cell, bg), num, contentWidthCm),
+        // A nested table measures against the cell's text width, as on import.
+        children: cellBlocksToDocx(content, cellForce(tableStyle, cell, bg), num,
+          (widthTwip ? widthTwip * 2.54 / 1440 : (contentWidthCm - ml - mr) * colspan / gridCols)
+            - (ownPad ?? pad)[1] - (ownPad ?? pad)[3]),
       }));
     }
     return new TableRow({

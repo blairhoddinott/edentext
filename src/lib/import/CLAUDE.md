@@ -77,8 +77,12 @@ every later one, as overlapping ranges collapse to the outermost. LibreOffice wr
 `office:annotation-end` beside a deletion, never into the change registry.
 
 An ODF list with `text:continue-numbering="true"` continues the **latest top-level list of
-its style**, `text:continue-list` the one with that `xml:id`; both import as `start`. The
-DOCX export lets such a list share the previous list's `w:num`, so the style name survives.
+its style**, `text:continue-list` the one with that `xml:id`; both import as `start`, plus
+`continueNumbering` where counting on from the ordered list before it gives that start
+(`keepContinuation`); a DOCX numId resuming after a break does the same. Both exports write
+the link back (`text:continue-list`, the shared `w:num`). An item opening with a sub-list
+stays an item without a label, unless that sub-list restarts — our own export's form of an
+item's further sub-list, which goes back on the item before.
 
 `utils/shapePresets.json` is generated (`scripts/make-shape-presets.mjs`, MPL-2.0 from LibreOffice): never edit it by hand.
 

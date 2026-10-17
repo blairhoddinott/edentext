@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state';
+import type { ResolvedPos } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { childCycle, defaultOrderedTypeAt, formatOrdinal, orderedTypeDef, ROOT_ORDERED_CYCLE, type OrderedCycle, type OrderedListType } from '../../utils/orderedListTypes';
@@ -16,6 +17,7 @@ const EMPTY_SHEET: StyleSheet = { paragraph: {}, character: {}, table: {}, list:
 // the same way the attrs would render, so editor.css needs no style-aware rules.
 export function listStyleDecos(doc: ProseMirrorNode, sheet: StyleSheet): DecorationSet {
   const decos: Decoration[] = [];
+  const { implicit } = listStarts(doc, sheet);
   const walk = (
     node: ProseMirrorNode, pos: number,
     cycle: OrderedCycle, multilevel: boolean, inList: boolean,
@@ -42,7 +44,10 @@ export function listStyleDecos(doc: ProseMirrorNode, sheet: StyleSheet): Decorat
         const own = eff.listStyleType;
         const type = own === 'multilevel' || (listMultilevel && !own) ? 'multilevel' : own ?? defaultOrderedTypeAt(listCycle);
         attrs['data-eff-list-style'] = type;
-        if (eff.startAt != null && eff.startAt !== 1 && (node.attrs.start ?? 1) === 1) {
+        const counted = name === 'orderedList' ? implicit.get(pos) : undefined;
+        if (counted != null) {
+          attrs.start = String(counted);
+        } else if (eff.startAt != null && eff.startAt !== 1 && (node.attrs.start ?? 1) === 1) {
           // A <ul> ignores the start attribute, so its offset rides the counter itself.
           if (name === 'orderedList') attrs.start = String(eff.startAt);
           else css.push(`counter-reset: list-item ${eff.startAt - 1}`);
@@ -89,20 +94,27 @@ export function listNumberAt(
   doc: ProseMirrorNode, pos: number, sheet: StyleSheet,
 ): { parts: string[]; multilevel: boolean } | null {
   const $pos = doc.resolve(Math.max(0, Math.min(pos, doc.content.size)));
-  const chain: { list: ProseMirrorNode; index: number }[] = [];
+  const chain: { list: ProseMirrorNode; index: number; pos: number }[] = [];
+  let derived = false;
   for (let d = 1; d <= $pos.depth; d++) {
     const node = $pos.node(d);
     if (node.type.name !== 'orderedList' && node.type.name !== 'bulletList') continue;
-    chain.push({ list: node, index: $pos.index(d) });
+    // Items without a label count nothing; one in the chain stands at the count before it.
+    let index = isLabelless(node.child($pos.index(d))) ? -1 : 0;
+    for (let i = 0; i < $pos.index(d); i++) if (!isLabelless(node.child(i))) index++;
+    chain.push({ list: node, index, pos: $pos.before(d) });
+    if (d > 1 && $pos.index(d - 1) === 0 && isLabelless($pos.node(d - 1))) derived = true;
   }
   if (!chain.length) return null;
+  // A whole-document walk, so only where a level's start is derived at all.
+  const implicit = derived ? listStarts(doc, sheet).implicit : new Map<number, number>();
   // Only the outermost list's style counts, as in ODF and in the decoration walk.
   const style = sheet.list[chain[0].list.attrs.listStyleName as string] ?? null;
   let cycle = ROOT_ORDERED_CYCLE;
   let multilevel = false;
   const parts: string[] = [];
   for (let depth = 1; depth <= chain.length; depth++) {
-    const { list, index } = chain[depth - 1];
+    const { list, index, pos: listPos } = chain[depth - 1];
     const ordered = list.type.name === 'orderedList';
     const eff = effectiveListLevel(list.attrs, ordered, style, depth);
     if (eff.kind !== 'number') {
@@ -115,7 +127,7 @@ export function listNumberAt(
     const own = eff.listStyleType;
     const type: OrderedListType = own === 'multilevel' || (multilevel && !own) ? 'multilevel' : own ?? defaultOrderedTypeAt(cycle);
     const attrStart = Number(list.attrs.start) || 1;
-    const start = attrStart !== 1 ? attrStart : eff.startAt ?? 1;
+    const start = implicit.get(listPos) ?? (attrStart !== 1 ? attrStart : eff.startAt ?? 1);
     parts.push(formatOrdinal(start + index, orderedTypeDef(type).numFormat));
     cycle = childCycle(cycle, own as OrderedListType | null, true);
     multilevel = type === 'multilevel';
@@ -124,6 +136,102 @@ export function listNumberAt(
 }
 
 const listStyleKey = new PluginKey<DecorationSet>('listStyleEff');
+
+const isListNode = (n: ProseMirrorNode) => n.type.name === 'bulletList' || n.type.name === 'orderedList';
+
+/**
+ * Cut the lists around the item at `itemDepth` behind the text the caret is in, up to the
+ * outermost list, and return the position between the two outer parts (null where no
+ * table may stand) — where a table goes, as neither format keeps one in a list item. The second part counts on: its
+ * outer list by `continueNumbering`, a deeper level through the item without a label
+ * it now opens with (listStarts).
+ */
+export function splitListAt(tr: Transaction, $from: ResolvedPos, itemDepth: number): number | null {
+  let top = itemDepth - 1;
+  while (top > 1 && $from.node(top - 1).type.name === 'listItem') top -= 2;
+  // A columns section holds no table.
+  const after = $from.index(top - 1) + 1;
+  if (!$from.node(top - 1).canReplaceWith(after, after, tr.doc.type.schema.nodes.table)) return null;
+  // The item's further paragraphs stay with it: a part opening with one would number it.
+  const item = $from.node(itemDepth);
+  let index = $from.index(itemDepth) + 1;
+  while (index < item.childCount && item.child(index).isTextblock) index++;
+  let pos = $from.start(itemDepth);
+  for (let i = 0; i < index; i++) pos += item.child(i).nodeSize;
+  // Nothing after the cut at a level: it moves out to the next.
+  let depth = itemDepth;
+  while (depth >= top && pos === $from.end(depth)) pos = $from.after(depth--);
+  if (depth < top) return pos;
+  const typesAfter = [];
+  for (let d = top; d <= depth; d++) {
+    const node = $from.node(d);
+    const attrs: Record<string, unknown> = { ...node.attrs };
+    if (node.type.name === 'orderedList') {
+      delete attrs.start;
+      attrs.continueNumbering = d === top;
+    }
+    typesAfter.push({ type: node.type, attrs });
+  }
+  tr.split(pos, depth - top + 1, typesAfter);
+  return pos + depth - top + 1;
+}
+
+/** An item of sub-lists only — ODF's item without a paragraph: no label, no count. */
+export const isLabelless = (item: ProseMirrorNode) => !!item.firstChild && isListNode(item.firstChild);
+
+/**
+ * Where the ordered lists that count on start. A list continued by its attr takes the last
+ * number of the ordered list before it in the same parent, plus one (LibreOffice's
+ * continue-list, Word's shared numId), and its `start` is kept in step (`fixes`). The
+ * first sub-list of an item without a label counts on from the same level of the item
+ * before, as nothing numbered reset it (`implicit`, derived, never stored).
+ */
+export function listStarts(doc: ProseMirrorNode, sheet: StyleSheet): { fixes: { pos: number; start: number }[]; implicit: Map<number, number> } {
+  const fixes: { pos: number; start: number }[] = [];
+  const implicit = new Map<number, number>();
+  // A list's last number, then those of its open deeper levels after its last item.
+  const visitList = (list: ProseMirrorNode, pos: number, from: number[] | null, how: 'attr' | 'implicit' | null, depth: number): number[] => {
+    const ordered = list.type.name === 'orderedList';
+    let start = Number(list.attrs.start) || 1;
+    let carry: number[] = [];
+    if (from) {
+      if (ordered && how === 'attr' && start !== (from[0] ?? 0) + 1) fixes.push({ pos, start: (from[0] ?? 0) + 1 });
+      if (ordered) start = (from[0] ?? 0) + 1;
+      if (ordered && how === 'implicit') implicit.set(pos, start);
+      carry = from.slice(1);
+    } else if (ordered && start === 1 && depth === 1) {
+      start = effectiveListLevel(list.attrs, true, sheet.list[list.attrs.listStyleName as string] ?? null, 1).startAt ?? 1;
+    }
+    let count = 0;
+    let itemPos = pos + 1;
+    list.forEach((item) => {
+      const labelled = !isLabelless(item);
+      if (labelled) { count++; carry = []; }
+      let childPos = itemPos + 1;
+      item.forEach((child, _o, index) => {
+        if (isListNode(child)) carry = visitList(child, childPos, !labelled && index === 0 ? carry : null, 'implicit', depth + 1);
+        childPos += child.nodeSize;
+      });
+      itemPos += item.nodeSize;
+    });
+    return [ordered ? start + count - 1 : 0, ...carry];
+  };
+  const visit = (parent: ProseMirrorNode, base: number) => {
+    let prev: number[] = [];
+    parent.forEach((child, offset) => {
+      const pos = base + offset;
+      if (isListNode(child)) {
+        const continued = child.type.name === 'orderedList' && !!child.attrs.continueNumbering;
+        const tails = visitList(child, pos, continued ? prev : null, continued ? 'attr' : null, 1);
+        if (child.type.name === 'orderedList') prev = tails;
+      } else if (child.isBlock && !child.isTextblock) {
+        visit(child, pos + 1);
+      }
+    });
+  };
+  visit(doc, 0);
+  return { fixes, implicit };
+}
 
 // The named style governing the cursor's list (the outermost list's), for the
 // dropdowns' active state; null = none or not in a list.
@@ -230,6 +338,19 @@ export const ListStyle = Extension.create<{ sheet: () => StyleSheet }>({
           decorations(state) {
             return listStyleKey.getState(state);
           },
+        },
+      }),
+      // A continued list follows the one before it, so an item added or removed there
+      // renumbers it; the fix rides the edit's own history event.
+      new Plugin({
+        key: new PluginKey('listContinue'),
+        appendTransaction(trs, _old, state) {
+          if (!trs.some((tr) => tr.docChanged && touchesList(tr))) return null;
+          const { fixes } = listStarts(state.doc, sheet());
+          if (!fixes.length) return null;
+          const tr = state.tr;
+          for (const { pos, start } of fixes) tr.setNodeAttribute(pos, 'start', start);
+          return tr;
         },
       }),
     ];

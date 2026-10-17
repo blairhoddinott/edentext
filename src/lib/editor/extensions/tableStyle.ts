@@ -66,15 +66,12 @@ function paintTable(tr: Transaction, tablePos: number, style: TableStyleDef | nu
   return changed;
 }
 
-// Every table carrying a style name, with its position. Tables sit at block level, so the
-// walk stops at textblocks.
+// Every table carrying a style name, with its position, nested ones included. Tables sit
+// at block level, so the walk stops at textblocks.
 function styledTables(doc: PMNode): { pos: number; node: PMNode }[] {
   const out: { pos: number; node: PMNode }[] = [];
   doc.descendants((node, pos) => {
-    if (node.type.name === 'table') {
-      if (node.attrs.tableStyle) out.push({ pos, node });
-      return false;
-    }
+    if (node.type.name === 'table' && node.attrs.tableStyle) out.push({ pos, node });
     return node.isBlock && !node.isTextblock;
   });
   return out;

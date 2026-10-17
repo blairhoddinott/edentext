@@ -27,6 +27,38 @@ Covers the `table*.ts` extensions in `src/lib/editor/extensions/` and the table-
 
 We deliberately keep TipTap's `resizable: false` (so its own columnResizing plugin isn't loaded) and supply the custom view + drag plugins instead.
 
+## Nested tables and tables in lists
+
+A cell holds a table as it holds any block (`CELL_CONTENT`, `extensions.ts`), to any depth.
+Each table measures its column weights, margins and cell margins against its own box: the
+CSS `--cell-pad-*` properties are reset on every table, a table style's text rules reach
+its own cells only (child combinators, `tableStyleCss`), and a header cell's bold stops at
+a table nested in it, as export bakes that bold onto the cell's own runs only.
+
+- **Import:** both importers convert a table in a cell instead of flattening it, measured
+  against the cell's text width (`ctx.cellWidthCm`: the span's share of the grid less the
+  cell's side margins). A text box holds its text or one table, so a table beside text
+  there still flattens, with the `boxTables` warning.
+- **ODF export:** odf-kit's cell builder holds no table, so `replaceNestedTables` leaves a
+  `NTB P{i}` marker paragraph in the cell and stages the table at top level between
+  `NTB S{i}`/`E{i}` markers, with the cell's width as `odtWidthCm`. There it rides every
+  ordinal table pass (`Table{n}` styles, row heights, cell blocks, formulas) in the order
+  odf-kit emits it; `applyNestedTables` moves it back, innermost first.
+- **DOCX export:** `cellBlocksToDocx` writes the table into the `w:tc`, measured against the
+  cell, and ends the cell with a paragraph, without which Word reports the file damaged.
+
+Neither format keeps a table in a list item. As in both word processors, **Insert Table in
+a list cuts the list** behind the caret's text up to the outermost list (`splitListAt`,
+`listStyle.ts`) and puts the table between the parts. The second outer list carries
+`continueNumbering` and counts on from the ordered list before it in the same parent; a
+plugin keeps its `start` in step as that list grows. A cut below the first level leaves the
+second part opening with an **item without a label** (a listItem whose first child is a
+list): it counts nothing, and its sub-list counts the level on, as nothing numbered reset
+it — derived in `listStarts`, never stored. Probed in LibreOffice: it writes the same
+structure (`text:continue-list`, a `text:list-item` holding only a `text:list`), and the
+DOCX equivalent is one shared numId with a level-2 paragraph right after the table. The
+ODT importer cuts a list whose item holds a table the same way (`liftListTables`).
+
 ## Table styles (third style family)
 
 - **Table styles** are the third family (`sheet.table`, model in **`styles/tableStyles.ts`** —

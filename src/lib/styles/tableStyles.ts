@@ -332,8 +332,9 @@ export function previewTextCss(
 }
 
 // One rule per style and region, emitted in ascending precedence so an overlap (header
-// row ∩ first column) resolves by source order. The descendant selector is required: the
+// row ∩ first column) resolves by source order. The block selector is required: the
 // Standard paragraph rule would otherwise beat a plain cell rule on font/size/color.
+// Child combinators keep a table's style off the tables nested in its cells.
 export function tableStyleCss(styles: Record<string, TableStyle>): string {
   const rules: string[] = [];
   for (const style of Object.values(styles ?? {})) {
@@ -341,7 +342,8 @@ export function tableStyleCss(styles: Record<string, TableStyle>): string {
     const emit = (cellSel: string, text: TextProps | undefined) => {
       const decls = textDeclarations(text ?? {});
       if (!decls.length) return;
-      const selectors = [`${table} ${cellSel}`, `${table} ${cellSel} :is(p,h1,h2,h3,h4,h5,li)`];
+      const cell = `${table} > tbody > tr > ${cellSel}`;
+      const selectors = [cell, `${cell} > :is(p,h1,h2,h3,h4,h5)`, `${cell} > :is(ul,ol) li`];
       rules.push(`${selectors.join(',\n')} {\n  ${decls.join(';\n  ')};\n}`);
     };
     emit(':is(td,th)', style.wholeTable?.text);

@@ -96,6 +96,13 @@ export const OrderedList = OrderedListBase.extend<{ headingNumbering: HeadingNum
   addAttributes() {
     return {
       ...this.parent?.(),
+      // Counts on from the ordered list before it in the same parent (listStyle.ts keeps
+      // `start` in step), as LibreOffice's continue-numbering and Word's shared numId do.
+      continueNumbering: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-continue-numbering') === 'true',
+        renderHTML: (attributes) => (attributes.continueNumbering ? { 'data-continue-numbering': 'true' } : {}),
+      },
       listStyleType: {
         default: null,
         parseHTML: (element) => element.getAttribute('data-list-style') || null,

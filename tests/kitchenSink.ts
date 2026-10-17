@@ -24,6 +24,11 @@ const h = (level: number, text: string): N =>
   ({ type: 'heading', attrs: { level }, content: [t(text)] });
 const li = (...c: N[]): N => ({ type: 'listItem', content: c });
 
+// A table in a cell: one row of two, the first cell holding `inner`.
+const cell = (...content: N[]): N => ({ type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content });
+const nestedTable = (inner: N): N => ({ type: 'table', content: [
+  { type: 'tableRow', content: [cell(inner, p([])), cell(p([t('daneben')]))] }] });
+
 function styledTable(): N {
   const name = 'Box List Blue';
   const style = builtinTableStyles()[name];
@@ -99,6 +104,14 @@ export function kitchenSinkDoc(): N {
         { type: 'orderedList', attrs: { listStyleType: 'lower-alpha-paren' }, content: [li(p([t('a) darunter')]))] }),
       li(p([t('weiter')])),
     ] },
+    p([t('unterbrochen')]),
+    { type: 'orderedList', attrs: { start: 5, continueNumbering: true, listStyleType: 'upper-roman' },
+      content: [li(p([t('zählt weiter mit V')]),
+        { type: 'orderedList', attrs: { listStyleType: 'lower-alpha-paren' }, content: [li(p([t('a) vor der Tabelle')]))] })] },
+    nestedTable(p([t('Tabelle in der Liste')])),
+    { type: 'orderedList', attrs: { start: 6, continueNumbering: true, listStyleType: 'upper-roman' }, content: [
+      li({ type: 'orderedList', attrs: { listStyleType: 'lower-alpha-paren' }, content: [li(p([t('b) nach der Tabelle')]))] }),
+      li(p([t('VI')]))] },
     p([]),
     { type: 'orderedList', attrs: { listStyleName: 'Outline I.A.1' }, content: [
       li(p([t('Gliederung I.')]),
@@ -116,7 +129,7 @@ export function kitchenSinkDoc(): N {
         { type: 'tableCell', attrs: { colspan: 2, rowspan: 1, colwidth: null, backgroundColor: '#DDEEFF' },
           content: [p([t('verbunden über zwei Spalten')])] },
         { type: 'tableCell', attrs: { colspan: 1, rowspan: 2, colwidth: null, verticalAlign: 'middle' },
-          content: [p([t('über zwei Zeilen')])] },
+          content: [p([t('über zwei Zeilen')]), nestedTable(nestedTable(p([t('zwei Ebenen tief')]))), p([])] },
       ] },
       { type: 'tableRow', attrs: { rowHeight: 64 }, content: [
         { type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null, borderBottom: '2pt solid #FF0000' },

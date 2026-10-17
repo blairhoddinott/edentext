@@ -1392,7 +1392,7 @@ const fr: Messages = {
     structureRepaired: 'Certains contenus ne correspondaient pas à la structure du document et ont été ajustés',
     noDictionary: (tag) => `La langue de vérification orthographique « ${tag} » ne dispose d’aucun dictionnaire intégré : la vérification orthographique a été désactivée`,
     textBoxFlattened: 'Les zones de texte imbriquées dans d’autres zones de texte ont été aplaties',
-    nestedTables: 'Les tableaux imbriqués ont été convertis en paragraphes',
+    boxTables: 'Les tableaux placés à côté de texte dans une zone de texte ont été convertis en paragraphes',
     chartsReplaced: 'Les diagrammes et autres dessins ont été remplacés par un espace réservé',
     imagesPlaceholder: 'Les images dans un format que le navigateur ne peut pas afficher (p. ex. WMF, EMF) ont été remplacées par un espace réservé',
     imagesRemoved: 'Les images dans un format que le navigateur ne peut pas afficher (p. ex. WMF, EMF) ont été supprimées',
