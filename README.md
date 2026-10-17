@@ -22,6 +22,10 @@
   <a href="https://edentext.app"><strong>▶ Open EdenText</strong></a>
 </p>
 
+<p align="center">
+  <b>English</b> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.zh-CN.md">简体中文</a>
+</p>
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
   <img src="docs/hero-light.webp" alt="EdenText editing a two-column newsletter, with its features marked">
