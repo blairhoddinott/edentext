@@ -2,6 +2,13 @@
 
 <!-- Newest release first. New entries go here: ## [x.y.z] — YYYY-MM-DD -->
 
+## [0.10.1] — 2026-10-17
+
+### Fixed
+- The Linux packages (AppImage, deb and the archive for Flathub) are published again; the 0.10.0
+  release shipped without them
+
+
 ## [0.10.0] — 2026-10-17
 
 EdenText 0.10.0 extends table support: tables can be nested in table cells, placed beside the text
