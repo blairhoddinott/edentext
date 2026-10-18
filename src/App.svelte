@@ -2089,6 +2089,8 @@
     recentCount={recentFiles.length}
     onClearRecent={() => { forgetRecentFiles(); recentFiles = []; }}
     onAutoCorrect={() => (autoCorrectOpen = true)}
+    {documentLanguage}
+    onLanguage={setDocumentLanguage}
   />
   <ResumeCard show={!volatile && tick >= 0 && !!editor && !isDocNonEmpty()} onShowAll={() => (browserDocsOpen = true)} />
   <PromptDialog />

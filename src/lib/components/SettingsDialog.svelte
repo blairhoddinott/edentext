@@ -12,6 +12,7 @@
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
   import Icon from './ribbon/Icon.svelte';
   import Toggle from './Toggle.svelte';
+  import { LANGUAGES, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
   import { aiSettings, setAi, aiConfig, AI_PRESETS, presetOf, DEFAULT_CONTEXT_TOKENS, type CustomCommand } from '../storage/ai.svelte';
   import { COMMANDS, commandName } from '../ai/commands';
   import { streamChat, aiErrorText } from '../ai/client';
@@ -30,6 +31,8 @@
     recentCount,
     onClearRecent,
     onAutoCorrect,
+    documentLanguage,
+    onLanguage,
   }: {
     open?: boolean;
     /** The side-bar entry shown; the AI pane opens the dialog on 'ai'. */
@@ -43,6 +46,8 @@
     recentCount: number;
     onClearRecent: () => void;
     onAutoCorrect: () => void;
+    documentLanguage: DocumentLanguage;
+    onLanguage: (code: DocumentLanguage) => void;
   } = $props();
 
   const SECTIONS: { id: Section; icon: 'settings' | 'autoCorrect' | 'ruler' | 'sparkle' | 'lock' }[] = [
@@ -185,6 +190,14 @@
           <div class="row sub">
             <div class="info"><div class="name">{t().wordCompletion.clear}</div><div class="desc">{t().wordCompletion.collected(wc.words.length)}</div></div>
             <button class="btn" disabled={!wc.words.length} onclick={() => setWordCompletion({ ...wc, words: [] })}>{t().browserDocs.delete}</button>
+          </div>
+          <div class="row">
+            <div class="info"><div class="name">{t().spellPicker.label}</div><div class="desc">{t().settings.spellLanguageHint}</div></div>
+            <!-- Sets only the document's default; paragraphs and runs with their own language keep it. -->
+            <select value={documentLanguage} onchange={(e) => onLanguage(e.currentTarget.value)}>
+              {#each LANGUAGES as l (l.code)}<option value={l.code}>{l.noDict ? `${l.label} ${t().spellPicker.noDictionary}` : l.label}</option>{/each}
+              <option value={NO_LANGUAGE}>{t().spellPicker.noSpellCheck}</option>
+            </select>
           </div>
           <div class="row">
             <div class="info"><div class="name">{t().settings.grammar}</div><div class="desc">{t().grammar.hint} {t().grammar.unavailable}</div></div>

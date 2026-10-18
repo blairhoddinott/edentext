@@ -37,6 +37,7 @@ const zhHant: Messages = {
     accentHint: '按鈕、開關和醒目提示',
     accents: { slate: '石板藍', blue: '藍色', teal: '青色', green: '綠色', violet: '紫羅蘭', berry: '莓紅', graphite: '石墨' },
     grammar: '文法檢查',
+    spellLanguageHint: '套用於整份文件，隨檔案一併儲存',
     autoCorrectHint: '引號、破折號、大寫和取代表',
     open: '開啟…',
     rulerHint: '頁面上方的縮排和定位點',

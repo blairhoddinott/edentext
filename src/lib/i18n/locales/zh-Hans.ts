@@ -36,6 +36,7 @@ const zhHans: Messages = {
     accentHint: '按钮、开关和突出显示',
     accents: { slate: '石板蓝', blue: '蓝色', teal: '青色', green: '绿色', violet: '紫罗兰', berry: '莓红', graphite: '石墨' },
     grammar: '语法检查',
+    spellLanguageHint: '适用于整个文档，随文件一起保存',
     autoCorrectHint: '引号、破折号、大写和替换表',
     open: '打开…',
     rulerHint: '页面上方的缩进和制表位',

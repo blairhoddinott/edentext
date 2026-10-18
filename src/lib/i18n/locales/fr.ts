@@ -35,6 +35,7 @@ const fr: Messages = {
     accentHint: 'Boutons, interrupteurs et mises en évidence',
     accents: { slate: 'Ardoise', blue: 'Bleu', teal: 'Bleu canard', green: 'Vert', violet: 'Violet', berry: 'Baie', graphite: 'Graphite' },
     grammar: 'Vérification grammaticale',
+    spellLanguageHint: 'Pour tout le document ; enregistrée avec le fichier',
     autoCorrectHint: 'Guillemets, tirets, majuscules et table de remplacement',
     open: 'Ouvrir…',
     rulerHint: 'Retraits et tabulations au-dessus de la page',

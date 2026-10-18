@@ -37,6 +37,7 @@ const ja: Messages = {
     accentHint: 'ボタン、スイッチ、強調表示',
     accents: { slate: 'スレート', blue: 'ブルー', teal: 'ティール', green: 'グリーン', violet: 'バイオレット', berry: 'ベリー', graphite: 'グラファイト' },
     grammar: '文法チェック',
+    spellLanguageHint: '文書全体に適用され、ファイルと一緒に保存されます',
     autoCorrectHint: '引用符、ダッシュ、大文字、置換表',
     open: '開く…',
     rulerHint: 'ページ上部のインデントとタブ位置',

@@ -35,6 +35,7 @@ const de: Messages = {
     accentHint: 'Schaltflächen, Schalter und Hervorhebungen',
     accents: { slate: 'Schieferblau', blue: 'Blau', teal: 'Petrol', green: 'Grün', violet: 'Violett', berry: 'Beere', graphite: 'Graphit' },
     grammar: 'Grammatikprüfung',
+    spellLanguageHint: 'Für das ganze Dokument; wird mit der Datei gespeichert',
     autoCorrectHint: 'Anführungszeichen, Striche, Großschreibung und die Ersetzungstabelle',
     open: 'Öffnen…',
     rulerHint: 'Einzüge und Tabstopps über der Seite',

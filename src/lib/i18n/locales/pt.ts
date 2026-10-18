@@ -35,6 +35,7 @@ const pt: Messages = {
     accentHint: 'Botões, interruptores e destaques',
     accents: { slate: 'Ardósia', blue: 'Azul', teal: 'Azul-petróleo', green: 'Verde', violet: 'Violeta', berry: 'Baga', graphite: 'Grafite' },
     grammar: 'Verificação gramatical',
+    spellLanguageHint: 'Para todo o documento; guardado com o ficheiro',
     autoCorrectHint: 'Aspas, travessões, maiúsculas e a tabela de substituições',
     open: 'Abrir…',
     rulerHint: 'Avanços e tabulações acima da página',

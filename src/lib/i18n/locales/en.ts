@@ -36,6 +36,7 @@ const en = {
     accentHint: 'Buttons, switches and highlights',
     accents: { slate: 'Slate', blue: 'Blue', teal: 'Teal', green: 'Green', violet: 'Violet', berry: 'Berry', graphite: 'Graphite' },
     grammar: 'Grammar check',
+    spellLanguageHint: 'For the whole document; saved with the file',
     autoCorrectHint: 'Quotes, dashes, capitals and the replacement table',
     open: 'Open…',
     rulerHint: 'Indents and tab stops above the page',
