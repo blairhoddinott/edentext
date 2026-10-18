@@ -1364,6 +1364,7 @@ const de: Messages = {
     couldNotSave: 'Diese Datei konnte nicht gespeichert werden.',
     fileChangedElsewhere: (name: string) => `„${name}“ wurde seit dem letzten Öffnen oder Speichern außerhalb von EdenText geändert. Trotzdem überschreiben? Andernfalls wird das Dokument unter einem neuen Namen gespeichert.`,
     scriptBlocked: 'Ein Teil der App konnte nicht geladen werden — ein Skript-Blocker (uBlock Origin, NoScript, strenger Schutzmodus) verhindert das. Erlaube diese Seite und versuche es erneut.',
+    appUpdated: 'EdenText wurde aktualisiert, seit dieser Tab geöffnet ist, und dieser Teil der alten Version ist nicht mehr verfügbar. Lade die Seite neu. Ist „Automatisches Speichern“ aus, gehen beim Neuladen Änderungen verloren, die nicht in einer Datei gespeichert sind.',
     couldNotLoadGrammar: 'Die Grammatikprüfung konnte nicht geladen werden.',
     couldNotLoadThesaurus: 'Die Synonymliste konnte nicht geladen werden.',
     couldNotLoadDictionary: (language: string) =>

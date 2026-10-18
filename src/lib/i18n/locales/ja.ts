@@ -1360,6 +1360,7 @@ const ja: Messages = {
     couldNotSave: 'このファイルを保存できませんでした。',
     fileChangedElsewhere: (name: string) => `「${name}」は、前回開いたか保存した後に EdenText の外部で変更されています。それでも上書きしますか？上書きしない場合は、新しい名前で保存します。`,
     scriptBlocked: 'アプリの一部を読み込めませんでした — スクリプトブロッカー (uBlock Origin、NoScript、厳格なプライバシーモード)がブロックしています。このサイトを許可してもう一度お試しください。',
+    appUpdated: 'このタブを開いた後に EdenText が更新され、旧バージョンのこの部分は利用できなくなりました。ページを再読み込みしてください。自動保存がオフの場合、ファイルに保存していない変更は再読み込みで失われます。',
     couldNotLoadGrammar: '文法チェックを読み込めませんでした。',
     couldNotLoadThesaurus: '類義語の一覧を読み込めませんでした。',
     couldNotLoadDictionary: (language: string) =>

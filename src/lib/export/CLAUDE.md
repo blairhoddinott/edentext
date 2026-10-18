@@ -32,3 +32,5 @@ A strip clones only the parts it keeps, and page JPEGs are cropped and encoded i
 `pageWorker.ts` workers while the next strip renders.
 
 The vector PDF (`printPdf`) builds one print page; a browser opens its print dialog on it, the desktop app turns it into the PDF file directly (`desktopPrintToPdf`).
+
+Everything a save loads (ODT with odf-kit's lazy chunk, DOCX, templates, encryption) is loaded once the editor is idle (`App.svelte`): a deploy deletes the build's lazy chunks, and saving must still work in a tab opened before it. The Pages deploy keeps earlier assets for 30 days (`assets.txt`) for everything else.

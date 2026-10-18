@@ -33,7 +33,7 @@
 
 ---
 
-EdenText es un potente procesador de textos que funciona en el navegador y sirve para todo: desde notas rápidas hasta libros completos. Sin servidor ni cuenta: todo se procesa en local y tus documentos nunca salen de tu equipo. Basta con abrir el enlace, o instalar EdenText como app y usarlo sin conexión. En la mayoría de los idiomas, la primera descarga ocupa menos de 2 MB; los diccionarios y las fuentes se cargan cuando hacen falta[^1]. La interfaz está disponible en inglés, alemán, español, francés, portugués, griego, ruso, ucraniano, japonés y chino (simplificado y tradicional).
+EdenText es un potente procesador de textos que funciona en el navegador y sirve para todo: desde notas rápidas hasta libros completos. Sin servidor ni cuenta: todo se procesa en local y tus documentos nunca salen de tu equipo. Basta con abrir el enlace, o instalar EdenText como app y usarlo sin conexión. En la mayoría de los idiomas, la primera descarga ocupa unos 2 MB; los diccionarios y las fuentes se cargan cuando hacen falta[^1]. La interfaz está disponible en inglés, alemán, español, francés, portugués, griego, ruso, ucraniano, japonés y chino (simplificado y tradicional).
 
 > [!NOTE]
 > EdenText todavía está en **beta** y en pleno desarrollo. Las pruebas y las
@@ -192,7 +192,7 @@ Foundation. `.docx` y `.odt` se admiten por interoperabilidad.*
 
 *Esta es una traducción del [README](README.md) en inglés; en caso de discrepancia, prevalece la versión inglesa.*
 
-[^1]: Transferencia por red, comprimida: ~0,7 MB de código de la app; el resto es el
+[^1]: Transferencia por red, comprimida: ~0,9 MB de código de la app; el resto es el
     corrector ortográfico con el diccionario del idioma del navegador y las fuentes que
     muestra una página. Los diccionarios de griego y ucraniano añaden ~2,5 y ~1,5 MB.
     Todo lo demás se descarga cuando hace falta y se conserva para usarlo sin conexión;

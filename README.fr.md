@@ -33,7 +33,7 @@
 
 ---
 
-EdenText est un traitement de texte puissant qui s’utilise dans le navigateur, de la note rapide au livre entier. Ni serveur ni compte : tout est traité en local et vos documents ne quittent jamais votre ordinateur. Il suffit d’ouvrir le lien, ou d’installer EdenText comme application pour l’utiliser hors ligne. Pour la plupart des langues, le premier téléchargement fait moins de 2 Mo ; les dictionnaires et les polices sont chargés au besoin[^1]. L’interface est disponible en anglais, allemand, espagnol, français, portugais, grec, russe, ukrainien, japonais et chinois (simplifié et traditionnel).
+EdenText est un traitement de texte puissant qui s’utilise dans le navigateur, de la note rapide au livre entier. Ni serveur ni compte : tout est traité en local et vos documents ne quittent jamais votre ordinateur. Il suffit d’ouvrir le lien, ou d’installer EdenText comme application pour l’utiliser hors ligne. Pour la plupart des langues, le premier téléchargement fait environ 2 Mo ; les dictionnaires et les polices sont chargés au besoin[^1]. L’interface est disponible en anglais, allemand, espagnol, français, portugais, grec, russe, ukrainien, japonais et chinois (simplifié et traditionnel).
 
 > [!NOTE]
 > EdenText est encore en **bêta** et en développement actif. Des tests et des
@@ -198,7 +198,7 @@ Foundation. Les formats `.docx` et `.odt` sont pris en charge à des fins d’in
 
 *Ceci est une traduction du [README](README.md) anglais ; en cas de divergence, la version anglaise fait foi.*
 
-[^1]: Volume transféré, compressé : ~0,7 Mo de code d’application, le reste étant le
+[^1]: Volume transféré, compressé : ~0,9 Mo de code d’application, le reste étant le
     correcteur orthographique avec le dictionnaire de la langue du navigateur et les
     polices qu’affiche une page ; les dictionnaires grec et ukrainien ajoutent ~2,5 et
     ~1,5 Mo. Tout le reste est téléchargé à la première utilisation puis conservé pour le

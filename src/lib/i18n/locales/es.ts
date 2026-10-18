@@ -1359,6 +1359,7 @@ const es: Messages = {
     couldNotSave: 'No se ha podido guardar este archivo.',
     fileChangedElsewhere: (name: string) => `«${name}» se ha modificado fuera de EdenText desde la última vez que se abrió o guardó. ¿Desea sobrescribirlo de todos modos? De lo contrario, el documento se guardará con otro nombre.`,
     scriptBlocked: 'Una parte de la aplicación no se ha podido cargar: un bloqueador de scripts (uBlock Origin, NoScript, modo de privacidad estricto) lo impide. Permita este sitio e inténtelo de nuevo.',
+    appUpdated: 'EdenText se ha actualizado desde que se abrió esta pestaña y esta parte de la versión anterior ya no está disponible. Vuelva a cargar la página. Con el autoguardado desactivado, los cambios que no se hayan guardado en un archivo se pierden al recargar.',
     couldNotLoadGrammar: 'No se ha podido cargar la revisión gramatical.',
     couldNotLoadThesaurus: 'No se ha podido cargar la lista de sinónimos.',
     couldNotLoadDictionary: (language: string) =>

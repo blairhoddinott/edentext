@@ -1359,6 +1359,7 @@ const zhHant: Messages = {
     couldNotSave: '無法儲存此檔案。',
     fileChangedElsewhere: (name: string) => `「${name}」自上次開啟或儲存後已在 EdenText 之外被修改。仍要覆寫嗎？否則將以新名稱儲存文件。`,
     scriptBlocked: '應用程式的一部分未能載入——指令碼封鎖程式（uBlock Origin、NoScript、嚴格的隱私模式）擋住了它。請為本站台放行後再試一次。',
+    appUpdated: '自從開啟此分頁以來，EdenText 已更新，舊版本的這一部分已無法使用。請重新載入頁面。若自動儲存已關閉，未儲存到檔案的變更會在重新載入時遺失。',
     couldNotLoadGrammar: '無法載入文法檢查。',
     couldNotLoadThesaurus: '無法載入同義詞清單。',
     couldNotLoadDictionary: (language: string) => `無法載入${language}詞典——該語言的拼字將不再檢查。`,

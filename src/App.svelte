@@ -25,7 +25,7 @@
   import { getTableCellDebug } from './lib/editor/extensions/tableCellAlign';
   import { getFrameDebug } from './lib/editor/extensions/caption';
   import { getColorDebug } from './lib/utils/colorDebug';
-  import { reportLoadFailure } from './lib/utils/loadFailure';
+  import { CHUNK_FAILURE, reportLoadFailure } from './lib/utils/loadFailure';
   import { resetHistoryLog } from './lib/utils/historyLog.svelte';
   import { countText, type TextStats } from './lib/utils/wordCount';
   import type { Node as PmNode } from 'prosemirror-model';
@@ -1117,7 +1117,8 @@
     } catch (err) {
       busyTask = null;
       console.error('[import] Failed to open file:', err);
-      alert(err instanceof Error ? localizeImportMessage(err.message) : t().dialogs.couldNotOpen);
+      if (err instanceof Error && CHUNK_FAILURE.test(err.message)) reportLoadFailure(t().dialogs.couldNotOpen, err);
+      else alert(err instanceof Error ? localizeImportMessage(err.message) : t().dialogs.couldNotOpen);
     }
   }
 
@@ -1453,6 +1454,15 @@
   }
 
   onMount(() => {
+    // Saving must not depend on the server: a redeploy deletes this build's lazy chunks, so
+    // everything a save loads comes in once the editor is idle. The tiny ODT export pulls
+    // odf-kit's own lazy chunk; a failure here is reported by the save that needs it.
+    const preloadSave = () => void Promise.all([
+      buildBytes('odt', { type: 'doc', content: [{ type: 'paragraph' }] }),
+      import('./lib/export/docx'), import('./lib/export/template'), import('./lib/crypto/odf'), import('./lib/crypto/ooxml'),
+    ]).catch(() => {});
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(preloadSave, { timeout: 5000 });
+    else setTimeout(preloadSave, 2000);
     void loadHfPictures().then((stored) => {
       if (!stored || zoneEpoch !== 0 || hfActive) return;
       const zones = repairZones(stored.zones);

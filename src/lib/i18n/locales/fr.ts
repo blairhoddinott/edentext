@@ -1363,6 +1363,7 @@ const fr: Messages = {
     couldNotSave: 'Impossible d’enregistrer ce fichier.',
     fileChangedElsewhere: (name: string) => `« ${name} » a été modifié en dehors d’EdenText depuis sa dernière ouverture ou son dernier enregistrement. L’écraser quand même ? Sinon, le document sera enregistré sous un nouveau nom.`,
     scriptBlocked: 'Une partie de l’application n’a pas pu être chargée : un bloqueur de scripts (uBlock Origin, NoScript ou mode de confidentialité strict) la bloque. Autorisez ce site et réessayez.',
+    appUpdated: 'EdenText a été mis à jour depuis l’ouverture de cet onglet, et cette partie de l’ancienne version n’est plus disponible. Rechargez la page. Si l’enregistrement automatique est désactivé, les modifications non enregistrées dans un fichier sont perdues au rechargement.',
     couldNotLoadGrammar: 'Impossible de charger la vérification grammaticale.',
     couldNotLoadThesaurus: 'Impossible de charger la liste de synonymes.',
     couldNotLoadDictionary: (language: string) =>

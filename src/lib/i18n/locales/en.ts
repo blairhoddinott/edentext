@@ -1373,6 +1373,7 @@ const en = {
     couldNotSave: 'Could not save this file.',
     fileChangedElsewhere: (name: string) => `“${name}” has been changed outside EdenText since it was last opened or saved. Overwrite it anyway? Otherwise the document is saved under a new name.`,
     scriptBlocked: 'Part of the app could not be loaded — a script blocker (uBlock Origin, NoScript, strict privacy mode) is blocking it. Allow this site and try again.',
+    appUpdated: 'EdenText has been updated since this tab was opened, and this part of the old version is no longer available. Reload the page. With Autosave off, changes not saved to a file are lost on reload.',
     couldNotLoadGrammar: 'The grammar check could not be loaded.',
     couldNotLoadThesaurus: 'The synonym list could not be loaded.',
     couldNotLoadDictionary: (language: string) =>

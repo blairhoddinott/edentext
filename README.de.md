@@ -33,7 +33,7 @@
 
 ---
 
-EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von der schnellen Notiz bis zum ganzen Buch. Kein Server, kein Konto: Alles wird lokal verarbeitet, die Dokumente verlassen nie den eigenen Rechner. Einfach den Link öffnen oder EdenText als App installieren und offline nutzen. Der erste Download ist für die meisten Sprachen kleiner als 2 MB, Wörterbücher und Schriften werden erst bei Bedarf geladen[^1]. Die Oberfläche gibt es auf Englisch, Deutsch, Spanisch, Französisch, Portugiesisch, Griechisch, Russisch, Ukrainisch, Japanisch und Chinesisch (vereinfacht und traditionell).
+EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von der schnellen Notiz bis zum ganzen Buch. Kein Server, kein Konto: Alles wird lokal verarbeitet, die Dokumente verlassen nie den eigenen Rechner. Einfach den Link öffnen oder EdenText als App installieren und offline nutzen. Der erste Download ist für die meisten Sprachen etwa 2 MB groß, Wörterbücher und Schriften werden erst bei Bedarf geladen[^1]. Die Oberfläche gibt es auf Englisch, Deutsch, Spanisch, Französisch, Portugiesisch, Griechisch, Russisch, Ukrainisch, Japanisch und Chinesisch (vereinfacht und traditionell).
 
 > [!NOTE]
 > EdenText ist noch in der **Beta** und wird laufend weiterentwickelt. Tests und
@@ -191,7 +191,7 @@ Foundation verbunden. `.docx` und `.odt` werden aus Gründen der Interoperabilit
 
 *Dies ist eine Übersetzung der englischen [README](README.md); maßgeblich ist die englische Fassung.*
 
-[^1]: Komprimiert übertragen: ~0,7 MB App-Code, der Rest ist die Rechtschreibprüfung mit
+[^1]: Komprimiert übertragen: ~0,9 MB App-Code, der Rest ist die Rechtschreibprüfung mit
     dem Wörterbuch für die Sprache des Browsers und die Schriften der angezeigten Seite.
     Das griechische Wörterbuch bringt ~2,5 MB zusätzlich mit, das ukrainische ~1,5 MB.
     Alles andere wird erst bei Bedarf geladen und danach für die Offline-Nutzung gespeichert; alle
