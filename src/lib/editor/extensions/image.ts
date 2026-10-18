@@ -71,6 +71,12 @@ const parseCrop = (v: string | null): Crop | null => {
   return cropOf({ l, t, r, b });
 };
 
+// How the picture's colours are drawn: ODF's draw:color-mode, which is also LibreOffice's
+// reading of Word's grayscale, black-and-white and washout effects. null = as stored.
+export type ColorMode = 'greyscale' | 'mono' | 'watermark';
+export const colorModeOf = (v: unknown): ColorMode | null =>
+  v === 'greyscale' || v === 'mono' || v === 'watermark' ? v : null;
+
 export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 // The page text width, live from the vars the editor maintains (margins/orientation).
@@ -485,6 +491,11 @@ export const Image = Node.create({
         parseHTML: el => parseCrop((el as HTMLElement).getAttribute('data-crop')),
         renderHTML: () => ({}),
       },
+      colorMode: {
+        default: null,
+        parseHTML: el => colorModeOf((el as HTMLElement).getAttribute('data-color-mode')),
+        renderHTML: () => ({}),
+      },
       // Where an as-char frame sits against the line (see inlineVerticalAlign).
       // null = its bottom on the baseline, which is LibreOffice's and Word's default.
       vAlign: {
@@ -552,6 +563,7 @@ export const Image = Node.create({
       ...(style ? { style } : {}),
       ...(rot ? { 'data-rotation': String(rot) } : {}),
       ...(crop ? { 'data-crop': [crop.l, crop.t, crop.r, crop.b].join(',') } : {}),
+      ...(colorModeOf(node.attrs.colorMode) ? { 'data-color-mode': node.attrs.colorMode } : {}),
       ...(wrap !== 'inline' ? { 'data-wrap': wrap } : {}),
       ...(offset != null ? { 'data-wrap-offset': String(offset) } : {}),
       ...(offsetY != null ? { 'data-wrap-offset-y': String(offsetY) } : {}),
@@ -769,6 +781,7 @@ class ImageView {
     clip.appendChild(this.img);
     this.rotor.appendChild(clip);
     this.applyCrop();
+    this.applyColorMode();
 
     for (const cfg of HANDLES) {
       const h = document.createElement('span');
@@ -1159,6 +1172,7 @@ class ImageView {
     this.img.alt = (node.attrs.alt as string) ?? '';
     this.applyLayout(this.attrW(), this.attrH(), this.attrRot());
     this.applyCrop();
+    this.applyColorMode();
     this.applyWrap();
     return true;
   }
@@ -1175,6 +1189,13 @@ class ImageView {
     s.height = c ? `${100 / h}%` : '';
     s.left = c ? `${(-100 * c.l) / w}%` : '';
     s.top = c ? `${(-100 * c.t) / h}%` : '';
+  }
+
+  // editor.css draws the mode from the attribute, which the static HTML carries too.
+  private applyColorMode(): void {
+    const mode = colorModeOf(this.node.attrs.colorMode);
+    if (mode) this.img.dataset.colorMode = mode;
+    else delete this.img.dataset.colorMode;
   }
 
   selectNode(): void {

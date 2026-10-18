@@ -27,7 +27,7 @@ const imageOf = (json: { content?: unknown[] }): { attrs: Record<string, unknown
   JSON.parse(JSON.stringify(json)).content.flatMap((b: { content?: unknown[] }) => b.content ?? [])
     .find((n: { type: string }) => n.type === 'image');
 
-describe('picture crop', () => {
+describe('picture crop and colour mode', () => {
   it('measures a bitmap at its own resolution, 96dpi without one', () => {
     expect(imageSizeCm(png(676, 422, 4330))!.h).toBeCloseTo(9.746, 3);
     expect(imageSizeCm(png(96, 48))).toEqual({ w: 2.54, h: 1.27 });
@@ -41,5 +41,13 @@ describe('picture crop', () => {
   it('round-trips through ODT as fo:clip', async () => {
     const got = imageOf(importOdt(await buildOdt(doc)).content as never).attrs.crop as typeof crop;
     for (const k of ['l', 't', 'r', 'b'] as const) expect(got[k]).toBeCloseTo(crop[k], 3);
+  });
+
+  // A colour mode rides the same picture properties: ODF's draw:color-mode, Word's blip effect.
+  it.each(['greyscale', 'mono', 'watermark'])('round-trips the %s colour mode through both formats', async (mode) => {
+    const moded = JSON.parse(JSON.stringify(doc));
+    moded.content[0].content[0].attrs.colorMode = mode;
+    expect(imageOf(importDocx(await buildDocx(moded)).content as never).attrs).toMatchObject({ colorMode: mode, crop: expect.anything() });
+    expect(imageOf(importOdt(await buildOdt(moded)).content as never).attrs).toMatchObject({ colorMode: mode, crop: expect.anything() });
   });
 });

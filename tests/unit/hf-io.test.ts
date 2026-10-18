@@ -161,14 +161,14 @@ describe('a header frame', () => {
   const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
   const rels = (id: string, type: string, target: string) => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="${id}" Type="${REL}/${type}" Target="${target}"/></Relationships>`;
   // 2cm from the page's left edge, 1cm below its top (or the body's), behind the text.
-  const source = (vFrom: string, wrap: string) => importDocx(docxOf('<w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="rId1"/>'
+  const source = (vFrom: string, wrap: string, posV = '<wp:posOffset>360000</wp:posOffset>') => importDocx(docxOf('<w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="rId1"/>'
     + '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="567" w:footer="567"/></w:sectPr>', { files: {
     'word/_rels/document.xml.rels': rels('rId1', 'header', 'header1.xml'),
     'word/header1.xml': `<?xml version="1.0"?><w:hdr xmlns:w="${W_NS}" xmlns:r="${REL}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
       <w:p><w:r><w:drawing><wp:anchor behindDoc="1" allowOverlap="1">
         <wp:positionH relativeFrom="page"><wp:posOffset>720000</wp:posOffset></wp:positionH>
-        <wp:positionV relativeFrom="${vFrom}"><wp:posOffset>360000</wp:posOffset></wp:positionV>
+        <wp:positionV relativeFrom="${vFrom}">${posV}</wp:positionV>
         <wp:extent cx="1080000" cy="360000"/>${wrap}
         <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
       </wp:anchor></w:drawing></w:r><w:r><w:t>Letterhead</w:t></w:r></w:p></w:hdr>`,
@@ -219,6 +219,19 @@ describe('a header frame', () => {
     it('keeps it through ODT and back through DOCX', async () => {
       expect(strFromU8(unzipSync(await odtOf(body))['styles.xml'])).toMatch(/vertical-rel="page-content"/);
       expect((await journey(body)).map(fromBody)).toEqual([want, want]);
+    });
+    // Centred on the text area (Word's picture watermark): (24.62cm − 1cm) / 2 below its top.
+    const centred = { y: 11.81, fromBody: true, fromPage: false };
+    it('reads a frame centred on the body as the y that centres it (DOCX)', () => {
+      expect(fromBody(logo(source('margin', '<wp:wrapNone/>', '<wp:align>center</wp:align>').header))).toEqual(centred);
+    });
+    it('reads a frame centred on the body as the y that centres it (ODT)', async () => {
+      const files = unzipSync(await odtOf(body));
+      const styles = new DOMParser().parseFromString(strFromU8(files['styles.xml']), 'application/xml');
+      for (const gp of Array.from(styles.getElementsByTagName('style:graphic-properties')))
+        if (gp.getAttribute('style:vertical-rel') === 'page-content') gp.setAttribute('style:vertical-pos', 'middle');
+      files['styles.xml'] = strToU8(new XMLSerializer().serializeToString(styles));
+      expect(fromBody(logo(importOdt(zipSync(files)).header))).toEqual(centred);
     });
   });
 });

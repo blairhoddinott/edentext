@@ -11,7 +11,7 @@ import { builtinStyleSheet, DEFAULT_STYLE, type ParaProps, type Style, type Styl
 import { DEFAULT_OUTLINE_LEVEL, MAX_OUTLINE_LEVELS, type OutlineLevel, type OutlineNumbering } from '../styles/outlineNumbering';
 import { LIST_LEVEL_STEP_CM, MAX_LIST_LEVELS, type ListLevelStyle, type ListStyle } from '../styles/listStyles';
 import { HEADER_SHADE } from '../editor/extensions/tableHeaderRow';
-import { cropOf, fitInlineImage, framePx, stackRank, wrapGap, wrapGapAttr, type Crop } from '../editor/extensions/image';
+import { colorModeOf, cropOf, fitInlineImage, framePx, stackRank, wrapGap, wrapGapAttr, type Crop } from '../editor/extensions/image';
 import { odfChartDataUrl } from './chart';
 import { formatTabStops, normalizeLeader } from '../editor/extensions/tabStops';
 import { isEmphasis, type CapsMode, type LineStyle } from '../editor/extensions/textEffects';
@@ -176,6 +176,9 @@ type Ctx = {
   // The section's left page margin: a frame placed against the page is kept against the
   // text column, as the DOCX importer keeps it.
   leftMarginCm: number;
+  // Page and body-text height (cm): what a frame centred on either sits in.
+  pageHeightCm: number;
+  textHeightCm: number;
   // The page's own direction: a block declaring the same one is inheriting, not
   // formatted, so only a block that differs carries a `dir` attr.
   pageRtl: boolean;
@@ -304,7 +307,7 @@ function pictureAlignX(frame: Element, attrs: Record<string, unknown>, gp: PropM
   if (x != null) attrs.wrapOffset = Math.round(x * 100) / 100;
 }
 
-function applyFrameRotationAndWrap(el: Element, attrs: Record<string, unknown>, gp: PropMap, contentCm = 0, leftMarginCm = 0): void {
+function applyFrameRotationAndWrap(el: Element, attrs: Record<string, unknown>, gp: PropMap, contentCm = 0, leftMarginCm = 0, heights?: { pageHeightCm: number; textHeightCm: number }): void {
   const deg = frameRotationDeg(el);
   if (deg) attrs.rotation = deg;
   const anchor = el.getAttributeNS(NS.text, 'anchor-type');
@@ -358,8 +361,12 @@ function applyFrameRotationAndWrap(el: Element, attrs: Record<string, unknown>, 
   const fromPage = rel === 'page';
   const fromBody = rel === 'page-content';
   const vpos = gp['style:vertical-pos'];
+  // Centred or set to the bottom of the page or its body: the top that puts it there.
+  const room = heights && (fromPage ? heights.pageHeightCm : heights.textHeightCm)
+    - (lengthToCm(el.getAttributeNS(NS.svg, 'height')) ?? 0);
   const y = vpos === 'from-top' && (!rel || rel.startsWith('paragraph') || rel === 'line' || fromPage || fromBody)
-    ? placedAt(el, 'y') : vpos === 'top' && (fromPage || fromBody) ? 0 : null;
+    ? placedAt(el, 'y') : vpos === 'top' && (fromPage || fromBody) ? 0
+      : room != null && (fromPage || fromBody) && (vpos === 'middle' || vpos === 'bottom') ? (vpos === 'middle' ? room / 2 : room) : null;
   if (y != null && attrs.wrap && (fromPage || fromBody || y > 0 || (attrs.wrap === 'through' && y < 0))) {
     attrs.wrapOffsetY = Math.round(y * 100) / 100;
     if (fromPage) attrs.wrapFromPage = true;
@@ -496,7 +503,9 @@ function convertFrame(frame: Element, ctx: Ctx): Node | null {
   const gp = ctx.resolver.frameGraphicProps(frame.getAttributeNS(NS.draw, 'style-name'));
   const crop = clipCrop(gp['fo:clip'], ctx.files[href]);
   if (crop) attrs.crop = crop;
-  applyFrameRotationAndWrap(frame, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm);
+  const mode = colorModeOf(gp['draw:color-mode']);
+  if (mode) attrs.colorMode = mode;
+  applyFrameRotationAndWrap(frame, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm, ctx);
   pictureAlignX(frame, attrs, gp, ctx.contentWidthCm);
   if (!attrs.wrap || attrs.wrap === 'inline') fitInlineImage(attrs, Math.floor(cmToPx(ctx.contentWidthCm)));
   return { type: 'image', attrs };
@@ -630,7 +639,7 @@ function convertTextBoxFrame(frame: Element, textBoxEl: Element, ctx: Ctx): Node
   if (hCm != null) attrs.height = framePx(cmToPx(hCm));
   if (minHCm == null && hCm != null) attrs.fixedHeight = true;
   const gp = ctx.resolver.frameGraphicProps(frame.getAttributeNS(NS.draw, 'style-name'));
-  applyFrameRotationAndWrap(frame, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm);
+  applyFrameRotationAndWrap(frame, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm, ctx);
   boxWrapAlign(gp, attrs);
   const padCm = lengthToCm(gp['fo:padding'] ?? gp['fo:padding-left']);
   if (padCm != null && Math.abs(padCm - TEXTBOX_PADDING_CM) > 0.01) attrs.paddingCm = Math.round(padCm * 1000) / 1000;
@@ -681,7 +690,7 @@ function convertChartFrame(frame: Element, ctx: Ctx): Node | null {
   if (!src) return null;
   const attrs: Record<string, unknown> = { src, width: framePx(cmToPx(wCm)), height: framePx(cmToPx(hCm)), alt: 'Chart' };
   const gp = ctx.resolver.frameGraphicProps(frame.getAttributeNS(NS.draw, 'style-name'));
-  applyFrameRotationAndWrap(frame, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm);
+  applyFrameRotationAndWrap(frame, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm, ctx);
   pictureAlignX(frame, attrs, gp, ctx.contentWidthCm);
   if (!attrs.wrap || attrs.wrap === 'inline') fitInlineImage(attrs, Math.floor(cmToPx(ctx.contentWidthCm)));
   return { type: 'image', attrs };
@@ -768,7 +777,7 @@ function convertShape(el: Element, ctx: Ctx): Node | null {
   // A rectangle keeps its height unless it grows with its text: a rule drawn as a
   // 0.5mm bar holds an empty paragraph it must not grow to.
   if (el.localName === 'rect' && hCm != null && gp['draw:auto-grow-height'] !== 'true') attrs.fixedHeight = true;
-  applyFrameRotationAndWrap(el, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm);
+  applyFrameRotationAndWrap(el, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm, ctx);
   boxWrapAlign(gp, attrs);
   shapeStyleAttrs(gp, attrs, true);
   if (path) outlineHeads(gp, attrs);
@@ -828,7 +837,7 @@ function convertFreeform(el: Element, ctx: Ctx): Node | null {
     shapePath: path, width: framePx(cmToPx(wCm)), height: framePx(cmToPx(hCm)),
   };
   const gp = ctx.resolver.graphicProps(el.getAttributeNS(NS.draw, 'style-name'));
-  applyFrameRotationAndWrap(el, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm);
+  applyFrameRotationAndWrap(el, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm, ctx);
   boxWrapAlign(gp, attrs);
   shapeStyleAttrs(gp, attrs, true);
   outlineHeads(gp, attrs);
@@ -860,7 +869,7 @@ function convertLine(el: Element, ctx: Ctx): Node | null {
   const back = start && !end;
   if ((y2 < y1) !== back) attrs.flipV = true;
   if ((x2 < x1) !== back) attrs.flipH = true;
-  applyFrameRotationAndWrap(el, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm);
+  applyFrameRotationAndWrap(el, attrs, gp, ctx.contentWidthCm, ctx.leftMarginCm, ctx);
   boxWrapAlign(gp, attrs);
   shapeStyleAttrs(gp, attrs, true);
   return { type: 'textBox', attrs, content: [{ type: 'paragraph' }] };
@@ -926,7 +935,7 @@ function convertDrawGroup(g: Element, ctx: Ctx): Node[] {
   bounds.setAttributeNS(NS.svg, 'svg:height', `${Math.max(...members.map((m) => m.box.y + m.box.h)) - minY}cm`);
   const gp = ctx.resolver.graphicProps(g.getAttributeNS(NS.draw, 'style-name'));
   const place: Record<string, unknown> = {};
-  applyFrameRotationAndWrap(bounds, place, gp, ctx.contentWidthCm, ctx.leftMarginCm);
+  applyFrameRotationAndWrap(bounds, place, gp, ctx.contentWidthCm, ctx.leftMarginCm, ctx);
   delete place.rotation;
 
   // Member offsets count from the group's own offset where it has one, else from the
@@ -1097,7 +1106,7 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
   const first = resolver.hasMasterPage(masters.leading) ? masters.leading : null;
   const geo = resolver.pageGeometry(first) ?? resolver.pageGeometry();
   const contentWidthCm = contentWidthOf(geo);
-  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), listEnds: new Map(), warnings, seqRefNames: sequenceRefNames(body), files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, leftMarginCm: geo?.margins.left ?? 0, pageRtl: geo?.rtl ?? false, breakDropsSpace: odfBreakDropsSpace(files), masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
+  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), listEnds: new Map(), warnings, seqRefNames: sequenceRefNames(body), files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, leftMarginCm: geo?.margins.left ?? 0, ...heightsOf(geo), pageRtl: geo?.rtl ?? false, breakDropsSpace: odfBreakDropsSpace(files), masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
   // Whole-document columns declared on the page layout instead of a
   // text:section: the body's wrappable runs are wrapped the way a section's would be.
   const pageCols = resolver.pageColumns();
@@ -1277,7 +1286,7 @@ function hfSetOfMasterPage(
 // the same way, while every margin *between* two of its paragraphs counts in full.
 function convertHfZone(zoneEl: Element, ctx: Ctx, geo: Parameters<typeof contentWidthOf>[0], bandCm = 0, footer = false): HfDoc {
   const zoneCtx: Ctx = {
-    ...ctx, zone: true, contentWidthCm: contentWidthOf(geo), leftMarginCm: geo?.margins.left ?? ctx.leftMarginCm, foldMarks: false,
+    ...ctx, zone: true, contentWidthCm: contentWidthOf(geo), leftMarginCm: geo?.margins.left ?? ctx.leftMarginCm, ...heightsOf(geo), foldMarks: false,
     openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), openInsertions: new Map(),
   };
   const blocks = convertBlocks(Array.from(zoneEl.children), zoneCtx, 'zone');
@@ -1302,6 +1311,11 @@ function convertHfZone(zoneEl: Element, ctx: Ctx, geo: Parameters<typeof content
 }
 
 // The text width of a page setup; the ODF default page where the file declares none.
+function heightsOf(geo: { margins: PageMargins; orientation: Orientation; format: PageFormat } | null): { pageHeightCm: number; textHeightCm: number } {
+  const h = pageDimsCm(geo?.format ?? 'A4', geo?.orientation ?? 'portrait').h;
+  return { pageHeightCm: h, textHeightCm: h - (geo ? geo.margins.top + geo.margins.bottom : 2 * 2) };
+}
+
 function contentWidthOf(geo: { margins: PageMargins; orientation: Orientation; format: PageFormat } | null): number {
   return geo
     ? pageDimsCm(geo.format, geo.orientation).w - geo.margins.left - geo.margins.right
@@ -2147,7 +2161,7 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
     const restart = Number(paraProps['style:page-number']);
     ctx.masterPageStarts.push(Number.isFinite(restart) ? clampPageStart(restart) : null);
     const geo = resolver.pageGeometry(master!);
-    if (geo) { ctx.contentWidthCm = contentWidthOf(geo); ctx.leftMarginCm = geo.margins.left; }
+    if (geo) { ctx.contentWidthCm = contentWidthOf(geo); ctx.leftMarginCm = geo.margins.left; Object.assign(ctx, heightsOf(geo)); }
   }
   const attrs = blockAttrs(paraProps, baseTextProps, defaults, kind);
   // A paragraph breaking itself onto a page under LibreOffice's Word 2013 layout opens it
@@ -3474,7 +3488,7 @@ function sectionFlowAttrs(master: string | null, breakBefore: boolean, ctx: Ctx)
     ctx.masterPages.push(master);
     ctx.masterPageStarts.push(null);
     const geo = ctx.resolver.pageGeometry(master);
-    if (geo) { ctx.contentWidthCm = contentWidthOf(geo); ctx.leftMarginCm = geo.margins.left; }
+    if (geo) { ctx.contentWidthCm = contentWidthOf(geo); ctx.leftMarginCm = geo.margins.left; Object.assign(ctx, heightsOf(geo)); }
     attrs.sectionBreak = true;
   }
   if (master && ctx.bodyBlocks) attrs.breakBefore = 'page';

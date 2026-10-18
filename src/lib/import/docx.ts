@@ -1,6 +1,6 @@
 import { strFromU8 } from 'fflate';
 import en from '../i18n/locales/en';
-import { DocxStyles, parseRunProps, mergeRunProps, readNumPr, readSpacing, readTabStops, toggle as onOff, wVal, W, R, WP, A, B, WPS, WPG, MC, VML, O, PKG_REL, type RunProps, type ParaSpacing } from './docxStyles';
+import { DocxStyles, parseRunProps, mergeRunProps, readNumPr, readSpacing, readTabStops, toggle as onOff, wVal, W, R, WP, A, B, WPS, WPG, MC, VML, O, W10, PKG_REL, type RunProps, type ParaSpacing } from './docxStyles';
 import { mostlyAsian } from '../utils/script';
 import { lengthToPt, WATERMARK_NAME } from './styleResolver';
 import { normalizeColor, labelledItems } from '../export/odt';
@@ -13,7 +13,7 @@ import { DEFAULT_OUTLINE_LEVEL, MAX_OUTLINE_LEVELS, type OutlineNumbering } from
 import { markerFormatFromText, pruneImportedMarkers } from '../editor/extensions/listMarker';
 import { MAX_LIST_LEVELS, type ListLevelStyle, type ListStyle } from '../styles/listStyles';
 import { HEADER_SHADE } from '../editor/extensions/tableHeaderRow';
-import { cropOf, fitInlineImage, framePx, stackRank, wrapGap, wrapGapAttr, type WrapGap } from '../editor/extensions/image';
+import { cropOf, fitInlineImage, framePx, stackRank, wrapGap, wrapGapAttr, type ColorMode, type WrapGap } from '../editor/extensions/image';
 import { TEXTBOX_PADDING_CM, boxTextWidthCm } from '../editor/extensions/textBox';
 import { formatTabStops } from '../editor/extensions/tabStops';
 import type { CapsMode, LineStyle } from '../editor/extensions/textEffects';
@@ -95,6 +95,9 @@ type Ctx = {
   // Left page margin (cm), the origin a page-relative frame offset is measured against.
   leftMarginCm: number;
   rightMarginCm: number;
+  // Page and text-area height (cm): what a frame centred or set to the bottom of either sits in.
+  pageHeightCm: number;
+  textHeightCm: number;
   // The section's own direction: a block declaring the same one is inheriting, not
   // formatted, so only a block that differs carries a `dir` attr.
   pageRtl: boolean;
@@ -314,7 +317,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   const contentWidthCm = sectionContentWidthCm(sectPr);
   const leftMarginCm = twipToCm(intAttr(fc(sectPr, 'pgMar'), W, 'left') ?? 1440);
   const rightMarginCm = twipToCm(intAttr(fc(sectPr, 'pgMar'), W, 'right') ?? 1440);
-  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), headingNumPr: new Map(), bodyNumLevels: new Set(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, rightMarginCm, pageRtl: sectPrRtl(sectPr), mainLang: docLangs.main, hyphenate: docSetting(files, 'autoHyphenation'), mathJc: docMathJc(files), cellSpacing: {}, compatMode: wordCompatMode(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), themeLineWidths: Array.from(themeDoc?.getElementsByTagNameNS(A, 'lnStyleLst')[0]?.children ?? [], (ln) => (Number(ln.getAttribute('w')) || 12700) / 12700), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
+  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), headingNumPr: new Map(), bodyNumLevels: new Set(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, rightMarginCm, ...sectionHeightsCm(sectPr), pageRtl: sectPrRtl(sectPr), mainLang: docLangs.main, hyphenate: docSetting(files, 'autoHyphenation'), mathJc: docMathJc(files), cellSpacing: {}, compatMode: wordCompatMode(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), themeLineWidths: Array.from(themeDoc?.getElementsByTagNameNS(A, 'lnStyleLst')[0]?.children ?? [], (ln) => (Number(ln.getAttribute('w')) || 12700) / 12700), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
     footnote: noteParts(files, 'footnotes', 'footnote'),
     endnote: noteParts(files, 'endnotes', 'endnote'),
   }, noteBookmarks: new Map() };
@@ -348,6 +351,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     ctx.contentWidthCm = sectionContentWidthCm(sect);
     ctx.leftMarginCm = twipToCm(intAttr(fc(sect, 'pgMar'), W, 'left') ?? 1440);
     ctx.rightMarginCm = twipToCm(intAttr(fc(sect, 'pgMar'), W, 'right') ?? 1440);
+    Object.assign(ctx, sectionHeightsCm(sect));
     ctx.sectionCols = groupCols[gi];
     // A page break ending the last section moves this one's first block, which keeps its
     // space above there (measured in LibreOffice), unlike one moved within a section.
@@ -2677,23 +2681,52 @@ function convertDrawing(drawing: Element, ctx: Ctx): Node | Node[] | null {
   const side = (k: string) => Math.max(0, intAttr(rect ?? null, '', k) ?? 0) / 100000;
   const crop = rect && cropOf({ l: side('l'), t: side('t'), r: side('r'), b: side('b') });
   if (crop) attrs.crop = crop;
+  const mode = blipColorMode(blip);
+  if (mode) attrs.colorMode = mode;
 
   if (anchor) {
-    const { wrap, offsetCm, offsetYCm, fromPage, fromBody, alignH, distCm, alignXCm } = anchorWrap(anchor, ctx);
-    attrs.wrap = wrap;
-    if ((offsetCm ?? alignXCm) != null) attrs.wrapOffset = offsetCm ?? alignXCm;
-    if (offsetYCm != null) attrs.wrapOffsetY = offsetYCm;
-    if (fromPage) attrs.wrapFromPage = true;
-    if (fromBody) attrs.wrapFromBody = true;
-    if (distCm != null) attrs.wrapDist = distCm;
-    if (alignH && wrap === 'topBottom') attrs.wrapAlign = alignH;
-    if (wrap === 'through') attrs.inFront = anchor.getAttribute('behindDoc') !== '1';
-    const rank = stackRank(anchor, null, 'relativeHeight');
-    if (rank) attrs.zIndex = rank;
+    setAnchorAttrs(attrs, anchor, ctx);
   } else {
     fitInlineImage(attrs, Math.floor(cmToPx(ctx.contentWidthCm)));
   }
   return { type: 'image', attrs };
+}
+
+// A floating picture's wrap and place, from its wp:anchor.
+function setAnchorAttrs(attrs: Record<string, unknown>, anchor: Element, ctx: Ctx): void {
+  const { wrap, offsetCm, offsetYCm, fromPage, fromBody, alignH, distCm, alignXCm } = anchorWrap(anchor, ctx);
+  attrs.wrap = wrap;
+  if ((offsetCm ?? alignXCm) != null) attrs.wrapOffset = offsetCm ?? alignXCm;
+  if (offsetYCm != null) attrs.wrapOffsetY = offsetYCm;
+  if (fromPage) attrs.wrapFromPage = true;
+  if (fromBody) attrs.wrapFromBody = true;
+  if (distCm != null) attrs.wrapDist = distCm;
+  if (alignH && wrap === 'topBottom') attrs.wrapAlign = alignH;
+  if (wrap === 'through') attrs.inFront = anchor.getAttribute('behindDoc') !== '1';
+  const rank = stackRank(anchor, null, 'relativeHeight');
+  if (rank) attrs.zIndex = rank;
+}
+
+// The blip's colour effect as a colour mode: Word's grayscale and black-and-white, and
+// its washout, which both word processors write as this a:lum pair (probed).
+function blipColorMode(blip: Element): ColorMode | null {
+  if (nsChild(blip, A, 'grayscl')) return 'greyscale';
+  if (nsChild(blip, A, 'biLevel')) return 'mono';
+  const lum = nsChild(blip, A, 'lum');
+  return lum && lum.getAttribute('bright') === '70000' && lum.getAttribute('contrast') === '-70000' ? 'watermark' : null;
+}
+
+// The same three on a VML v:imagedata. A washout is gain 0.3 over black level 0.35 —
+// fractions written as 65536ths with an `f` suffix.
+function vmlColorMode(data: Element): ColorMode | null {
+  const on = (name: string) => /^(t|true)$/.test(data.getAttribute(name) ?? '');
+  if (on('grayscale')) return 'greyscale';
+  if (on('bilevel')) return 'mono';
+  const frac = (name: string) => {
+    const v = data.getAttribute(name) ?? '';
+    return v.endsWith('f') ? parseFloat(v) / 65536 : parseFloat(v);
+  };
+  return Math.abs(frac('gain') - 0.3) < 0.01 && Math.abs(frac('blacklevel') - 0.35) < 0.01 ? 'watermark' : null;
 }
 
 // A drawing group (wpg:wgp): the editor has no group node, so each child becomes a frame
@@ -2733,6 +2766,8 @@ function convertGroup(wgp: Element, root: Element, anchor: Element | undefined, 
       const blip = kid.getElementsByTagNameNS(A, 'blip')[0];
       const src = blip ? blipSrc(blip, ctx) : null;
       node = src ? frameNode(src, box, '', anchor, ctx) : null;
+      const mode = blip && blipColorMode(blip);
+      if (node && mode) node.attrs = { ...node.attrs, colorMode: mode };
     } else {
       node = convertWpsShape(kid, root, !!anchor, ctx, box);
     }
@@ -2836,17 +2871,7 @@ function chartImage(drawing: Element, box: { w: number; h: number }, ctx: Ctx): 
 function frameNode(src: string, box: { w: number; h: number }, label: string, anchor: Element | undefined, ctx: Ctx): Node {
   const attrs: Record<string, unknown> = { src, width: box.w, height: box.h, alt: label };
   if (anchor) {
-    const { wrap, offsetCm, offsetYCm, fromPage, fromBody, alignH, distCm, alignXCm } = anchorWrap(anchor, ctx);
-    attrs.wrap = wrap;
-    if ((offsetCm ?? alignXCm) != null) attrs.wrapOffset = offsetCm ?? alignXCm;
-    if (offsetYCm != null) attrs.wrapOffsetY = offsetYCm;
-    if (fromPage) attrs.wrapFromPage = true;
-    if (fromBody) attrs.wrapFromBody = true;
-    if (distCm != null) attrs.wrapDist = distCm;
-    if (alignH && wrap === 'topBottom') attrs.wrapAlign = alignH;
-    if (wrap === 'through') attrs.inFront = anchor.getAttribute('behindDoc') !== '1';
-    const rank = stackRank(anchor, null, 'relativeHeight');
-    if (rank) attrs.zIndex = rank;
+    setAnchorAttrs(attrs, anchor, ctx);
   } else {
     fitInlineImage(attrs, Math.floor(cmToPx(ctx.contentWidthCm)));
   }
@@ -2857,7 +2882,7 @@ function frameNode(src: string, box: { w: number; h: number }, label: string, an
 // top margin's strip starts there too) or of the page's body text (`margin`). The strip
 // below the body is left at the anchor: LibreOffice starts it where the body ends, which
 // a footer can move — nothing the editor places a frame against.
-function anchorOffsetY(anchor: Element): { cm: number | null; fromPage: boolean; fromBody: boolean } {
+function anchorOffsetY(anchor: Element, ctx: Ctx): { cm: number | null; fromPage: boolean; fromBody: boolean } {
   const posV = anchor.getElementsByTagNameNS(WP, 'positionV')[0];
   const from = posV?.getAttribute('relativeFrom');
   const fromBody = from === 'margin';
@@ -2866,6 +2891,14 @@ function anchorOffsetY(anchor: Element): { cm: number | null; fromPage: boolean;
   const fromPage = from === 'page' || from === 'topMargin';
   const none = { cm: null, fromPage: false, fromBody: false };
   if (!fromPage && !fromBody && from !== 'paragraph' && from !== 'line') return none;
+  // Aligned to the page or its text area: the top that puts it there.
+  const align = posV?.getElementsByTagNameNS(WP, 'align')[0]?.textContent?.trim();
+  if (align && (from === 'page' || fromBody)) {
+    const room = (from === 'page' ? ctx.pageHeightCm : ctx.textHeightCm)
+      - (intAttr(anchor.getElementsByTagNameNS(WP, 'extent')[0], '', 'cy') ?? 0) / 360000;
+    const cm = align === 'center' ? room / 2 : align === 'bottom' || align === 'outside' ? room : 0;
+    return { cm: round2(cm), fromPage, fromBody };
+  }
   const off = parseInt(posV?.getElementsByTagNameNS(WP, 'posOffset')[0]?.textContent ?? '', 10);
   if (!Number.isFinite(off)) return none;
   // The exporter floors this offset at one twip (LO derails on 0); sub-visible
@@ -2913,7 +2946,7 @@ function gapOf(top: number, bottom: number, left: number, right: number): number
 }
 
 function anchorWrap(anchor: Element, ctx: Ctx): { wrap: 'left' | 'right' | 'topBottom' | 'through'; offsetCm: number | null; offsetYCm: number | null; fromPage: boolean; fromBody: boolean; alignH: 'left' | 'right' | null; distCm: number | WrapGap | null; alignXCm: number | null } {
-  const { cm: offsetYCm, fromPage, fromBody } = anchorOffsetY(anchor);
+  const { cm: offsetYCm, fromPage, fromBody } = anchorOffsetY(anchor, ctx);
   const offsetCm = anchorOffsetX(anchor, ctx);
   const align = anchor.getElementsByTagNameNS(WP, 'positionH')[0]
     ?.getElementsByTagNameNS(WP, 'align')[0]?.textContent?.trim();
@@ -2958,6 +2991,72 @@ function anchorWrap(anchor: Element, ctx: Ctx): { wrap: 'left' | 'right' | 'topB
 }
 
 // ---- text boxes / shapes ------------------------------------------------------
+
+// A floating text box's wrap and place, from its wp:anchor.
+function setBoxAnchorAttrs(attrs: Record<string, unknown>, root: Element, ctx: Ctx): void {
+  const { wrap, offsetCm, offsetYCm, fromPage, fromBody, distCm } = anchorWrap(root, ctx);
+  attrs.wrap = wrap;
+  if (offsetCm != null) attrs.wrapOffset = offsetCm;
+  if (offsetYCm != null) attrs.wrapOffsetY = offsetYCm;
+  if (fromPage) attrs.wrapFromPage = true;
+  if (fromBody) attrs.wrapFromBody = true;
+  if (distCm != null) attrs.wrapDist = distCm;
+  // Where the box sits across its band. A box is a block, so it takes the middle and
+  // the far end that an image reads as one half of a side-by-side pair.
+  const align = root.getElementsByTagNameNS(WP, 'positionH')[0]
+    ?.getElementsByTagNameNS(WP, 'align')[0]?.textContent?.trim();
+  if ((wrap === 'topBottom' || wrap === 'through') && offsetCm == null
+    && (align === 'center' || align === 'right')) attrs.wrapAlign = align;
+  if (wrap === 'through') attrs.inFront = root.getAttribute('behindDoc') !== '1';
+  const rank = stackRank(root, null, 'relativeHeight');
+  if (rank) attrs.zIndex = rank;
+}
+
+// A VML shape placed out of the line (`position:absolute`) as the wp:anchor DrawingML
+// writes for the same placement, so both read through one anchorWrap. null = in line.
+const VML_FROM_H: Record<string, string> = { margin: 'margin', page: 'page', text: 'column', char: 'character', 'left-margin-area': 'leftMargin', 'right-margin-area': 'rightMargin' };
+const VML_FROM_V: Record<string, string> = { margin: 'margin', page: 'page', text: 'paragraph', line: 'line', 'top-margin-area': 'topMargin', 'bottom-margin-area': 'bottomMargin' };
+function vmlAnchor(shape: Element, style: string): Element | null {
+  const prop = (key: string) => new RegExp(`(?:^|;)\\s*${key}\\s*:\\s*([^;]+)`).exec(style)?.[1].trim() ?? null;
+  if (prop('position') !== 'absolute') return null;
+  // A VML length (pt by default) in EMU.
+  const emu = (key: string) => {
+    const m = /^(-?[\d.]+)(pt|in|cm|mm|px)?$/.exec(prop(key) ?? '');
+    if (!m) return 0;
+    const v = parseFloat(m[1]);
+    const pt = { pt: v, in: v * 72, cm: (v * 72) / 2.54, mm: (v * 7.2) / 2.54, px: v * 0.75 }[m[2] ?? 'pt']!;
+    return Math.round(pt * 12700);
+  };
+  const doc = shape.ownerDocument;
+  const el = (name: string, attrs: Record<string, string> = {}, text?: string) => {
+    const e = doc.createElementNS(WP, `wp:${name}`);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const anchor = el('anchor', { behindDoc: Number(prop('z-index') ?? 0) < 0 ? '1' : '0' });
+  const axis = (name: string, from: string, align: string | null, offKey: string) => {
+    const pos = el(name, { relativeFrom: from });
+    pos.appendChild(align && align !== 'absolute' ? el('align', {}, align) : el('posOffset', {}, String(emu(offKey))));
+    anchor.appendChild(pos);
+  };
+  axis('positionH', VML_FROM_H[prop('mso-position-horizontal-relative') ?? ''] ?? 'column', prop('mso-position-horizontal'), 'margin-left');
+  axis('positionV', VML_FROM_V[prop('mso-position-vertical-relative') ?? ''] ?? 'paragraph', prop('mso-position-vertical'), 'margin-top');
+  anchor.appendChild(el('extent', { cx: String(emu('width')), cy: String(emu('height')) }));
+  for (const [side, key] of [['T', 'top'], ['B', 'bottom'], ['L', 'left'], ['R', 'right']]) {
+    const d = emu(`mso-wrap-distance-${key}`);
+    if (d) anchor.setAttribute(`dist${side}`, String(d));
+  }
+  // w10:wrap names the wrap; without one the shape runs through the text.
+  const wrap = Array.from(shape.children).find((c) => c.localName === 'wrap' && c.namespaceURI === W10);
+  const type = wrap?.getAttribute('type');
+  const side = wrap?.getAttribute('side');
+  anchor.appendChild(type === 'topAndBottom' ? el('wrapTopAndBottom')
+    : type === 'square' || type === 'tight' || type === 'through'
+      ? el('wrapSquare', { wrapText: side === 'left' || side === 'right' ? side : side === 'largest' ? 'largest' : 'bothSides' })
+      : el('wrapNone'));
+  return anchor;
+}
 function nsChild(el: Element | null, ns: string, localName: string): Element | null {
   if (!el) return null;
   for (const c of Array.from(el.children)) if (c.namespaceURI === ns && c.localName === localName) return c;
@@ -3076,24 +3175,7 @@ function convertWpsShape(wsp: Element, root: Element, isAnchor: boolean, ctx: Ct
   }
   const rot = intAttr(xfrm, '', 'rot');
   if (rot) attrs.rotation = ((Math.round(rot / 60000) % 360) + 360) % 360;
-  if (isAnchor) {
-    const { wrap, offsetCm, offsetYCm, fromPage, fromBody, distCm } = anchorWrap(root, ctx);
-    attrs.wrap = wrap;
-    if (offsetCm != null) attrs.wrapOffset = offsetCm;
-    if (offsetYCm != null) attrs.wrapOffsetY = offsetYCm;
-    if (fromPage) attrs.wrapFromPage = true;
-    if (fromBody) attrs.wrapFromBody = true;
-    if (distCm != null) attrs.wrapDist = distCm;
-    // Where the box sits across its band. A box is a block, so it takes the middle and
-    // the far end that an image reads as one half of a side-by-side pair.
-    const align = root.getElementsByTagNameNS(WP, 'positionH')[0]
-      ?.getElementsByTagNameNS(WP, 'align')[0]?.textContent?.trim();
-    if ((wrap === 'topBottom' || wrap === 'through') && offsetCm == null
-      && (align === 'center' || align === 'right')) attrs.wrapAlign = align;
-    if (wrap === 'through') attrs.inFront = root.getAttribute('behindDoc') !== '1';
-    const rank = stackRank(root, null, 'relativeHeight');
-    if (rank) attrs.zIndex = rank;
-  }
+  if (isAnchor) setBoxAnchorAttrs(attrs, root, ctx);
 
   // What spPr leaves unsaid comes from the shape style's theme references (wps:style),
   // index 0 meaning none — so a preset shape drawn with the theme keeps its fill and line.
@@ -3186,8 +3268,9 @@ function convertPict(pict: Element, ctx: Ctx): Node | null {
   };
   const w = dimPx('width');
   const h = dimPx('height');
+  const anchor = vmlAnchor(shape, style);
 
-  // A v:imagedata is a legacy inline picture (no text box) → an image node.
+  // A v:imagedata is a legacy picture (no text box) → an image node.
   const imagedata = shape.getElementsByTagNameNS(VML, 'imagedata')[0];
   const imgRel = imagedata ? ctx.rels.get(imagedata.getAttributeNS(R, 'id') ?? '') : undefined;
   if (imagedata && imgRel && !imgRel.external) {
@@ -3202,6 +3285,9 @@ function convertPict(pict: Element, ctx: Ctx): Node | null {
     const imgAttrs: Record<string, unknown> = { src };
     if (w) imgAttrs.width = w;
     if (h) imgAttrs.height = h;
+    const mode = vmlColorMode(imagedata);
+    if (mode) imgAttrs.colorMode = mode;
+    if (anchor) setAnchorAttrs(imgAttrs, anchor, ctx);
     return { type: 'image', attrs: imgAttrs };
   }
 
@@ -3227,6 +3313,7 @@ function convertPict(pict: Element, ctx: Ctx): Node | null {
   if (kind !== 'textbox') attrs.shapeKind = kind;
   if (w) attrs.width = w;
   if (h) attrs.height = h;
+  if (anchor) setBoxAnchorAttrs(attrs, anchor, ctx);
   // VML's counterpart of a:spAutoFit rides the text box's own style.
   if (txbxContent && h && !/mso-fit-shape-to-text\s*:\s*t/.test(textbox?.getAttribute('style') ?? '')) attrs.fixedHeight = true;
 
@@ -3717,6 +3804,14 @@ function sectionContentWidthCm(sect: Element | null): number {
   const left = intAttr(pgMar, W, 'left') ?? 1440;
   const right = intAttr(pgMar, W, 'right') ?? 1440;
   return Math.max(1, twipToCm(w - left - right));
+}
+
+function sectionHeightsCm(sect: Element | null): { pageHeightCm: number; textHeightCm: number } {
+  const h = intAttr(fc(sect, 'pgSz'), W, 'h') ?? 16838;
+  const pgMar = fc(sect, 'pgMar');
+  const top = Math.abs(intAttr(pgMar, W, 'top') ?? 1440);
+  const bottom = Math.abs(intAttr(pgMar, W, 'bottom') ?? 1440);
+  return { pageHeightCm: twipToCm(h), textHeightCm: Math.max(1, twipToCm(h - top - bottom)) };
 }
 
 // Split body children into sections: a <w:p> whose pPr carries a sectPr ends the
@@ -4309,6 +4404,7 @@ function convertHfPart(relId: string | null, ctx: Ctx, sect: Element | null): Hf
     openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: new Map(),
     listCounters: new Map(), cellSpacing: {},
     contentWidthCm: sectionContentWidthCm(sect), leftMarginCm: twipToCm(intAttr(fc(sect, 'pgMar'), W, 'left') ?? 1440), rightMarginCm: twipToCm(intAttr(fc(sect, 'pgMar'), W, 'right') ?? 1440),
+    ...sectionHeightsCm(sect),
   };
   const zone: HfDoc = { type: 'doc', content: convertBlocks(Array.from(root.children), zoneCtx, 'zone') };
   return hfIsEmpty(zone) ? null : zone;

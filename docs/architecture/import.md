@@ -103,6 +103,12 @@ A `wrapNone` picture aligned in the column (`wp:align` against `margin`/`column`
 the x that alignment gives, since nothing floats a run-through frame to a side.
 An ODF frame aligned `left`/`top` against the `page` is offset 0 from the page's corner
 (`wrapFromPage`), how a header carries a cover picture filling the first sheet.
+A `wp:align` on `positionV` against the `page` or the text area (`margin`) becomes the y it
+gives there — top, centre or bottom — which is where Word's picture watermark sits; ODF's
+`style:vertical-pos` `middle`/`bottom` against `page`/`page-content` reads the same way.
+A VML shape out of the line (`position:absolute`, `mso-position-*`, `w10:wrap`, a negative
+`z-index` behind the text) is read as the `wp:anchor` DrawingML writes for it (`vmlAnchor`),
+so both forms go through `anchorWrap`; without it the shape stood in the line.
 
 Resolve table borders and conditional table-style areas before baking them into cells, because
 the editor registry does not retain file table styles. Honor compatibility mode when interpreting

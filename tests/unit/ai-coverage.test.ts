@@ -124,6 +124,7 @@ const SCHEMA: Record<string, Entry> = {
   'image.anchorPage': na('set by the layout when a frame is placed on its page'),
   'image.wrapAlign': na('set where two imported frames share one band'),
   'image.crop': na('needs the picture, which the model does not see'),
+  'image.colorMode': na('a picture effect from imported files'),
   'image.vAlign': na('an in-line picture\'s place against the line, from imported files'),
   'image.wrapFromPage': check(frame({ y_cm: 1, y_from: 'page' }), attr('image', 'wrapFromPage', true), FRAME),
   'image.wrapFromBody': check(frame({ y_cm: 1, y_from: 'margin' }), attr('image', 'wrapFromBody', true), FRAME),

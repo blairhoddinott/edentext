@@ -851,6 +851,44 @@ describe('DOCX import of foreign text boxes / shapes', () => {
     expect(walk(b, 'text')[0].text).toBe('vml text');
   });
 
+  // Word writes the same placement two ways: VML (older files, watermarks) and DrawingML.
+  // Both forms of one placement and effect must read as the same frame.
+  describe('a VML picture reads as its DrawingML counterpart', () => {
+    const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+    const PIC = 'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+    const picture = (run: string) => {
+      const res = importDocx(zipSync({
+        'word/document.xml': strToU8(`<?xml version="1.0"?><w:document ${W} ${VNS} ${WPNS} ${ANS} ${PIC} ${R} xmlns:w10="urn:schemas-microsoft-com:office:word"><w:body>
+          <w:p><w:r>${run}</w:r></w:p>
+          <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:bottom="1440" w:left="1440" w:right="1440"/></w:sectPr></w:body></w:document>`),
+        'word/_rels/document.xml.rels': strToU8('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+          + '<Relationship Id="rImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/a.png"/></Relationships>'),
+        'word/media/a.png': Uint8Array.from(atob(PNG.split(',')[1]), (c) => c.charCodeAt(0)),
+      }));
+      return walk(res.content as N, 'image')[0]?.attrs;
+    };
+    const vml = (style: string, inner = '', data = '') => picture(`<w:pict><v:shape style="position:absolute;width:144pt;height:72pt;${style}">${inner}<v:imagedata r:id="rImg"${data}/></v:shape></w:pict>`);
+    const dml = (attrs: string, h: string, v: string, wrap: string, effect = '') => picture(`<w:drawing><wp:anchor ${attrs}>
+      <wp:positionH relativeFrom="${h.split(':')[0]}">${posOf(h)}</wp:positionH><wp:positionV relativeFrom="${v.split(':')[0]}">${posOf(v)}</wp:positionV>
+      <wp:extent cx="1828800" cy="914400"/>${wrap}<a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rImg">${effect}</a:blip></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>`);
+    const posOf = (p: string) => { const v = p.split(':')[1]; return /^-?\d+$/.test(v) ? `<wp:posOffset>${v}</wp:posOffset>` : `<wp:align>${v}</wp:align>`; };
+    it.each([
+      ['centred on the text area, behind the text, washed out',
+        () => vml('z-index:-1;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:margin', '', ' gain="19661f" blacklevel="22938f"'),
+        () => dml('behindDoc="1"', 'margin:center', 'margin:center', '<wp:wrapNone/>', '<a:lum bright="70000" contrast="-70000"/>')],
+      ['set off the page corner, in front of the text',
+        () => vml('margin-left:36pt;margin-top:72pt;mso-position-horizontal-relative:page;mso-position-vertical-relative:page'),
+        () => dml('behindDoc="0"', 'page:457200', 'page:914400', '<wp:wrapNone/>')],
+      ['aligned right with text wrapping beside it',
+        () => vml('mso-position-horizontal:right;mso-position-horizontal-relative:margin', '<w10:wrap type="square"/>'),
+        () => dml('behindDoc="0"', 'margin:right', 'paragraph:0', '<wp:wrapSquare wrapText="bothSides"/>')],
+    ])('%s', (_label, fromVml, fromDml) => {
+      const a = fromVml(), b = fromDml();
+      expect(a?.wrap).toBeTruthy();
+      expect({ ...a, src: undefined }).toEqual({ ...b, src: undefined });
+    });
+  });
+
   it('drops unsupported shapes, and keeps a chart as a placeholder of its size', () => {
     const documentXml = `<?xml version="1.0"?><w:document ${W} ${WPNS} ${ANS} ${WPSNS}><w:body>
       <w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">

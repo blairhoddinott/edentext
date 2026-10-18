@@ -31,7 +31,7 @@ import { isEmphasis } from '../editor/extensions/textEffects';
 import { BORDER_SIDES, parseBorderAttr } from '../editor/extensions/tableCellBorders';
 import { parseCellPadding, DEFAULT_CELL_PADDING, type CellPadding } from '../editor/extensions/tableCellPadding';
 import { TEXTBOX_PADDING_CM, boxTextWidthCm, type TextVAlign } from '../editor/extensions/textBox';
-import { cropOf, wrapGap, wrapGapAttr, type Crop, type WrapGap } from '../editor/extensions/image';
+import { colorModeOf, cropOf, wrapGap, wrapGapAttr, type ColorMode, type Crop, type WrapGap } from '../editor/extensions/image';
 import { imageSizeCm } from '../import/imageFormats';
 import { numberLocale, parseCellNumber, toWriterFormula, type CellRef, type NumberLocale } from '../utils/tableFormula';
 import { presetOdfGeometry } from '../utils/shapePresets';
@@ -516,7 +516,7 @@ function replaceSectionBreaks(doc: TiptapNode): TiptapNode {
 // bytes is ArrayBuffer-backed to match fflate's zip entry map. rotationDeg is CW;
 // wrap floats the frame at its anchor paragraph (left/right/top-bottom/run-through).
 type WrapMode = 'inline' | 'left' | 'right' | 'topBottom' | 'through';
-type ImageExport = { path: string; bytes: Uint8Array<ArrayBuffer>; mimeType: string; widthCm: number; heightCm: number; alt: string; rotationDeg: number; wrap: WrapMode; wrapOffsetCm: number | null; wrapOffsetYCm: number | null; wrapDist: WrapGap | null; wrapAlign: string | null; anchorPage: number | null; vAlign: string | null; inFront: boolean; zIndex: number; wrapFromPage: boolean; wrapFromBody: boolean; clip: string | null };
+type ImageExport = { path: string; bytes: Uint8Array<ArrayBuffer>; mimeType: string; widthCm: number; heightCm: number; alt: string; rotationDeg: number; wrap: WrapMode; wrapOffsetCm: number | null; wrapOffsetYCm: number | null; wrapDist: WrapGap | null; wrapAlign: string | null; anchorPage: number | null; vAlign: string | null; inFront: boolean; zIndex: number; wrapFromPage: boolean; wrapFromBody: boolean; clip: string | null; colorMode: ColorMode | null };
 
 function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
   const bin = atob(b64);
@@ -571,6 +571,7 @@ function imageDescriptor(node: TiptapNode, index: number, namePrefix = 'image'):
     inFront: node.attrs?.inFront === true,
     zIndex: frameRank(node.attrs?.zIndex),
     clip: foClip(cropOf(node.attrs?.crop), bytes),
+    colorMode: colorModeOf(node.attrs?.colorMode),
   };
 }
 
@@ -4628,10 +4629,11 @@ const verticalRel = (f: { wrapFromPage: boolean; wrapFromBody: boolean }) =>
 // Inline images need none. Injected into content.xml automatic-styles by applyImages.
 function imageGraphicStyle(img: ImageExport, index: number): string {
   const style = frameGraphicStyle(img, index);
-  if (!img.clip) return style;
+  const own = (img.clip ? ` fo:clip="${img.clip}"` : '') + (img.colorMode ? ` draw:color-mode="${img.colorMode}"` : '');
+  if (!own) return style;
   return style
-    ? style.replace('<style:graphic-properties', `<style:graphic-properties fo:clip="${img.clip}"`)
-    : `<style:style style:name="ImgFr${index + 1}" style:family="graphic"><style:graphic-properties fo:clip="${img.clip}"/></style:style>`;
+    ? style.replace('<style:graphic-properties', `<style:graphic-properties${own}`)
+    : `<style:style style:name="ImgFr${index + 1}" style:family="graphic"><style:graphic-properties${own}/></style:style>`;
 }
 
 function frameGraphicStyle(img: ImageExport, index: number): string {
@@ -4687,7 +4689,7 @@ function imageFrameXml(img: ImageExport, index: number): string {
   const anchor = img.anchorPage != null
     ? ` text:anchor-type="page" text:anchor-page-number="${img.anchorPage}"`
     : ` text:anchor-type="${floats ? 'char' : 'as-char'}"`;
-  const named = floats || !!img.clip || (img.vAlign != null && img.vAlign in INLINE_VALIGN_ODF);
+  const named = floats || !!img.clip || !!img.colorMode || (img.vAlign != null && img.vAlign in INLINE_VALIGN_ODF);
   const styleName = named ? ` draw:style-name="ImgFr${index + 1}"` : '';
   const xCm = img.wrapOffsetCm != null && floats && !img.wrapAlign ? img.wrapOffsetCm : null;
   // An as-char frame carries svg:y only for the offset alignment, which is what it means.

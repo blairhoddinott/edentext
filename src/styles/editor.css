@@ -496,6 +496,11 @@
   display: block;
   cursor: move;
 }
+/* A picture's colour mode (image.ts colorMode). The watermark is LibreOffice's: contrast
+   -70% and luminance +50%, min(1, 0.3x + 0.85) — brightness(2) at 15% over white paper. */
+img[data-color-mode='greyscale'] { filter: grayscale(1); }
+img[data-color-mode='mono'] { filter: grayscale(1) contrast(100); }
+img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
 .paper .tiptap .image-node.image-selected .image-crop {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
