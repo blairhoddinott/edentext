@@ -426,11 +426,13 @@
   cursor: pointer;
 }
 /* A display formula owns its line at its paragraph's alignment, as in LibreOffice. The
-   <math> stays display style but inline, since a block <math> centers itself. */
+   <math> stays display style but inline, since a block <math> centers itself; Firefox
+   and WebKit lack `inline math` and take the plain `inline` before it. */
 .paper .tiptap span.formula[data-display='true'] {
   display: block;
 }
 .paper .tiptap span.formula[data-display='true'] math {
+  display: inline;
   display: inline math;
 }
 .paper .tiptap span.formula.selected {
