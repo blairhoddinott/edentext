@@ -84,13 +84,19 @@ sub-document whose root *is* the MathML — and two manifest entries (`Formula{n
 
 Export (`export/docx.ts`, sentinel `MTH`, post-pack pass `applyFormulasDocx` beside
 `applyTextBoxesDocx`): the run holding the sentinel is replaced by `<m:oMath>`, or by
-`<m:oMathPara>` when `display` — which is what centers it on its own line. The namespace is
+`<m:oMathPara>` when `display`, its `m:jc` the paragraph's resolved alignment (`alignDisplayFormulas`):
+Word places a math paragraph by that alone, ignoring `w:jc`. The namespace is
 declared inline on the `m:` element, like the `wps`/`a` namespaces in the text-box XML.
 
 Import: `m:oMath`/`m:oMathPara` sit **beside** the `w:r` runs in their own namespace, so
 `convertInline` picks them up before its `namespaceURI !== W` guard — that guard is why every
 formula in a Word document was silently dropped before this feature. `m:oMathPara` →
-`display: true`. Word stores no size for a formula, and neither do we.
+`display: true`, and its `m:jc` (else `settings.xml` `m:defJc`, else centered) becomes the
+paragraph's alignment, over its `w:jc` — as LibreOffice converts it (probed; LibreOffice itself
+ignores `m:defJc`). A display formula **renders at its paragraph's alignment** (`editor.css`),
+which is also where LibreOffice puts a formula alone in an ODF paragraph; inserting one into an
+empty paragraph, or switching one alone in its paragraph to display, centers the paragraph.
+Word stores no size for a formula, and neither do we.
 
 ## A pasted formula is a picture, not a formula
 

@@ -915,6 +915,24 @@ try {
   const dialog = await page.waitForSelector('.formula-dialog', { timeout: 5_000 }).then(() => true).catch(() => false);
   check(dialog, `a double-click on a formula opens its dialog from the ${await page.locator('.ribbon-tab.active').textContent()} tab`);
 
+  // A display formula stands at its paragraph's alignment; inserting one into an empty
+  // paragraph centers that paragraph.
+  await page.keyboard.press('Escape');
+  const placed = await page.evaluate(async () => {
+    const ed = document.querySelector('.tiptap').editor;
+    ed.commands.setContent({ type: 'doc', content: [
+      { type: 'paragraph', content: [{ type: 'formula', attrs: { latex: 'x', display: true } }] }, { type: 'paragraph' }] });
+    ed.chain().setTextSelection(ed.state.doc.child(0).nodeSize + 1).insertFormula({ latex: 'y', display: true }).run();
+    await new Promise((r) => setTimeout(r, 300));
+    const [a, b] = [...document.querySelectorAll('.tiptap span.formula')].map((f) => {
+      const p = f.parentElement.getBoundingClientRect(), m = f.querySelector('math').getBoundingClientRect();
+      return Math.round((m.left - p.left) - (p.right - m.right));
+    });
+    return { a, b };
+  });
+  check(placed.a < -100 && Math.abs(placed.b) <= 2,
+    `a display formula sits at its paragraph's alignment, an inserted one centered (left gap minus right gap: ${placed.a}, ${placed.b})`);
+
   // The grammar check: the 16 MB wasm has to survive Vite's build and reach the browser,
   // which only a real page can show. English document, switch on, one wrong sentence.
   await page.keyboard.press('Escape'); // the formula dialog above still covers the chrome

@@ -205,7 +205,7 @@ export const PLACEHOLDER_SDT_TAG = 'edentext-placeholder';
 
 // Formulas collected while serializing, in document order (module-level like
 // docLangTag: inlineToRuns is reached from every block path without a collector).
-type FormulaDocx = { latex: string; display: boolean };
+type FormulaDocx = { latex: string; display: boolean; align?: unknown };
 let docFormulas: FormulaDocx[] = [];
 
 // The ruby annotations, in the same document order their sentinels are met in.
@@ -952,7 +952,7 @@ function inlineToRuns(content: TiptapNode[] = [], force: TextProps = {}): Inline
     } else if (node.type === 'formula') {
       const latex = typeof node.attrs?.latex === 'string' ? node.attrs.latex : '';
       if (latex) {
-        docFormulas.push({ latex, display: node.attrs?.display === true });
+        docFormulas.push({ latex, display: node.attrs?.display === true, align: node.attrs?.align });
         out.push(new TextRun({ text: `${MTH}${docFormulas.length - 1}${MTH}` }));
       }
     }
@@ -1420,7 +1420,7 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
       // A sentinel run, resolved by applyFormulasDocx — it runs after the boxes are packed.
       const latex = typeof child.attrs?.latex === 'string' ? child.attrs.latex : '';
       if (latex) {
-        docFormulas.push({ latex, display: child.attrs?.display === true });
+        docFormulas.push({ latex, display: child.attrs?.display === true, align: child.attrs?.align });
         runs += `<w:r><w:t xml:space="preserve">${MTH}${docFormulas.length - 1}${MTH}</w:t></w:r>`;
       }
     } else if (child.type === 'ruby') {
@@ -1907,7 +1907,9 @@ function applyFormulasDocx(bytes: Uint8Array, formulas: FormulaDocx[]): Uint8Arr
       const f = formulas[Number(idx)];
       if (!f) return '';
       const omath = ommlDocument(parseLatex(f.latex));
-      return f.display ? `<m:oMathPara xmlns:m="${OMML_NS}">${omath}</m:oMathPara>` : omath;
+      // Centered is the math paragraph's default, so only another edge is written.
+      const jc = f.align === 'left' || f.align === 'right' ? `<m:oMathParaPr><m:jc m:val="${f.align}"/></m:oMathParaPr>` : '';
+      return f.display ? `<m:oMathPara xmlns:m="${OMML_NS}">${jc}${omath}</m:oMathPara>` : omath;
     }));
   }
   const out: Record<string, [Uint8Array, { level: 6 }]> = {};
@@ -3148,6 +3150,20 @@ function blockPt(node: TiptapNode): number {
   return resolveStyle(exportSheet, styleOf(node)).text.fontSizePt ?? 12;
 }
 
+// Stamps each display formula with its paragraph's alignment, the attr over the named
+// style's, for its m:jc: Word places a math paragraph by that alone, not by w:jc.
+// shortcut: an unaligned rtl paragraph counts as left; resolve its direction if one shows up.
+function alignDisplayFormulas(node: TiptapNode): TiptapNode {
+  if (!node.content?.length) return node;
+  const ta = node.attrs?.textAlign;
+  const align = node.type === 'paragraph' || node.type === 'heading'
+    ? (ta === 'center' || ta === 'right' || ta === 'justify' ? ta : resolveStyle(exportSheet, styleOf(node)).para.textAlign ?? 'left')
+    : null;
+  return { ...node, content: node.content.map((c) => c.type === 'formula' && c.attrs?.display === true && align
+    ? { ...c, attrs: { ...c.attrs, align: align === 'justify' ? 'left' : align } }
+    : alignDisplayFormulas(c)) };
+}
+
 function styleOf(node: TiptapNode): string {
   const own = node.attrs?.styleName;
   if (typeof own === 'string' && own) return own;
@@ -3394,6 +3410,7 @@ export async function buildDocx(
   // rasterizing is async where the emitters that place them are not.
   docJson = await rasterizeSvgImages(docJson);
   exportSheet = styles;
+  docJson = alignDisplayFormulas(docJson);
   exportSpacingModel = spacingModel;
   docFormulas = [];
   nextBookmarkId = 0;

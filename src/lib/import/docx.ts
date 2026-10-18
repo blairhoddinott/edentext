@@ -100,6 +100,8 @@ type Ctx = {
   pageRtl: boolean;
   // Word's document-wide automatic hyphenation: a paragraph can only turn it off.
   hyphenate: boolean;
+  // settings.xml m:defJc: where a math paragraph without its own m:jc stands.
+  mathJc?: string | null;
   // The citation style the sources part names (b:Sources StyleName).
   citationStyle: CitationStyle;
   // The enclosing table style's w:pPr/w:spacing, applied to its cells' paragraphs.
@@ -308,7 +310,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   const contentWidthCm = sectionContentWidthCm(sectPr);
   const leftMarginCm = twipToCm(intAttr(fc(sectPr, 'pgMar'), W, 'left') ?? 1440);
   const rightMarginCm = twipToCm(intAttr(fc(sectPr, 'pgMar'), W, 'right') ?? 1440);
-  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), headingNumPr: new Map(), bodyNumLevels: new Set(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, rightMarginCm, pageRtl: sectPrRtl(sectPr), mainLang: docLangs.main, hyphenate: docSetting(files, 'autoHyphenation'), cellSpacing: {}, compatMode: wordCompatMode(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), themeLineWidths: Array.from(themeDoc?.getElementsByTagNameNS(A, 'lnStyleLst')[0]?.children ?? [], (ln) => (Number(ln.getAttribute('w')) || 12700) / 12700), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
+  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), headingNumPr: new Map(), bodyNumLevels: new Set(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, rightMarginCm, pageRtl: sectPrRtl(sectPr), mainLang: docLangs.main, hyphenate: docSetting(files, 'autoHyphenation'), mathJc: docMathJc(files), cellSpacing: {}, compatMode: wordCompatMode(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), themeLineWidths: Array.from(themeDoc?.getElementsByTagNameNS(A, 'lnStyleLst')[0]?.children ?? [], (ln) => (Number(ln.getAttribute('w')) || 12700) / 12700), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
     footnote: noteParts(files, 'footnotes', 'footnote'),
     endnote: noteParts(files, 'endnotes', 'endnote'),
   }, noteBookmarks: new Map() };
@@ -1531,7 +1533,8 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   // paragraph style commonly carries justify), so style-level alignment isn't lost.
   const directJc = fc(ppr, 'jc');
   const styleJc = ctx.styles.paragraphAlign(pStyle ? wVal(pStyle) : null);
-  const jcVal = directJc ? wVal(directJc) : styleJc;
+  const mathJc = mathParaAlign(el, ctx);
+  const jcVal = mathJc ?? (directJc ? wVal(directJc) : styleJc);
   const styleId = styleIdOf(ppr, ctx);
   // w:bidi — the block's own base direction; resolved first, alignment suppression
   // depends on it (the base direction decides which edge is the unset default).
@@ -1542,7 +1545,7 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   // over the table style's w:pPr (probed: that ranks *below* the paragraph style). A
   // header/footer paragraph carries none either, and bakes its Header/Footer style in.
   const baked = kind === 'cell' || kind === 'zone';
-  const attrs = blockAttrs(ppr, kind, level, directJc || baked ? jcVal : null,
+  const attrs = blockAttrs(ppr, kind, level, directJc || baked || mathJc ? jcVal : null,
     baked || kind === 'list' ? ctx.styles.paragraphSpacing(styleId, kind === 'cell' ? ctx.cellSpacing : undefined) : {},
     bidi ?? ctx.pageRtl, kind === 'zone' ? null : styleJc);
   // A list item carries no style name either and renders the default style's spacing,
@@ -2274,6 +2277,16 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
   };
   for (const el of inlineChildren(p)) handleInline(el);
   return mergeAdjacentText(out);
+}
+
+// A math paragraph stands at its m:jc, else the document's m:defJc, else centered — over
+// the paragraph's own w:jc. The editor draws a display formula at its paragraph's alignment.
+function mathParaAlign(p: Element, ctx: Ctx): string | null {
+  const para = Array.from(p.children).find(c => c.namespaceURI === OMML_NS && c.localName === 'oMathPara');
+  if (!para) return null;
+  const jc = fcAll(para, 'oMathParaPr', OMML_NS)[0]?.getElementsByTagNameNS(OMML_NS, 'jc')[0]?.getAttributeNS(OMML_NS, 'val');
+  const v = jc || ctx.mathJc || 'center';
+  return v === 'centerGroup' ? 'center' : v;
 }
 
 // <m:oMath> / <m:oMathPara> → a formula node. Word stores no size for a formula, so
@@ -3982,6 +3995,16 @@ function docHasEvenOddHeaders(files: Record<string, Uint8Array>): boolean {
     return !!el && onOff(el);
   } catch {
     return false;
+  }
+}
+
+function docMathJc(files: Record<string, Uint8Array>): string | null {
+  const bytes = files['word/settings.xml'];
+  if (!bytes) return null;
+  try {
+    return parseXml(strFromU8(bytes)).getElementsByTagNameNS(OMML_NS, 'defJc')[0]?.getAttributeNS(OMML_NS, 'val') || null;
+  } catch {
+    return null;
   }
 }
 

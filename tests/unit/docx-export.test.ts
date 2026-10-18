@@ -189,4 +189,20 @@ describe('DOCX formulas', () => {
     (function walk(n: any) { if (n.type === 'formula') found.push(n); for (const c of n.content ?? []) walk(c); })(res.content);
     expect(found.map((f) => [f.attrs.latex, f.attrs.display])).toEqual([['\\sum_{i=1}^{n} x_{i}', false], ['\\sqrt{a+b}', true]]);
   });
+
+  // A math paragraph stands at its m:jc, not at w:jc; the editor at its paragraph's alignment.
+  it('keeps a display formula at its paragraph alignment', async () => {
+    const aligns = [undefined, 'center', 'right'];
+    const bytes = await buildDocx({ type: 'doc', content: aligns.map((a) => para([formula('x', true)], a ? { textAlign: a } : {})) } as any);
+    const files = unzipSync(bytes);
+    const blocks = (res: any) => res.content.content.filter((n: any) => n.content?.[0]?.type === 'formula').map((n: any) => n.attrs?.textAlign ?? null);
+    expect(blocks(importDocx(bytes))).toEqual([null, 'center', 'right']);
+    // Without its own m:jc the document's m:defJc decides.
+    const doc = strFromU8(files['word/document.xml']).replace(/<m:oMathParaPr>.*?<\/m:oMathParaPr>/g, '');
+    const settings = strFromU8(files['word/settings.xml']).replace(/(<w:settings\b[^>]*>)/,
+      '$1<m:mathPr xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:defJc m:val="right"/></m:mathPr>');
+    const { zipSync, strToU8 } = await import('fflate');
+    const res = importDocx(zipSync({ ...files, 'word/document.xml': strToU8(doc), 'word/settings.xml': strToU8(settings) }));
+    expect(blocks(res)).toEqual(['right', 'right', 'right']);
+  });
 });

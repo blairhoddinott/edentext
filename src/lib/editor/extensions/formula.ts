@@ -14,7 +14,7 @@ export const EDIT_FORMULA_EVENT = 'odf-edit-formula';
 
 export interface FormulaAttrs {
   latex: string;
-  /** Display formula: its own centered line, as Word's m:oMathPara. */
+  /** Display formula: its own line, at its paragraph's alignment, as Word's m:oMathPara. */
   display: boolean;
 }
 
@@ -70,7 +70,10 @@ export const Formula = Node.create({
 
   addCommands() {
     return {
-      insertFormula: (attrs) => ({ commands, state }) => {
+      insertFormula: (attrs) => ({ commands, state, tr }) => {
+        // A display formula opening an empty paragraph centers it, as both word processors do.
+        const { $from, empty } = state.selection;
+        const lone = attrs.display && empty && $from.parent.content.size === 0 && 'textAlign' in $from.parent.attrs;
         // Adopt the cursor's marks so the formula sits in the run's font, as the
         // date/time field does.
         const marks = (state.storedMarks ?? state.selection.$to.marks())
@@ -79,12 +82,18 @@ export const Formula = Node.create({
           type: this.name,
           attrs,
           ...(marks.length ? { marks } : {}),
-        });
+        }) && (!lone || !!tr.setNodeAttribute(tr.selection.$from.before(), 'textAlign', 'center'));
       },
       updateFormula: (pos, attrs) => ({ state, dispatch }) => {
         const node = state.doc.nodeAt(pos);
         if (!node || node.type.name !== this.name) return false;
-        if (dispatch) dispatch(atomAttrTr(state, pos, { ...node.attrs, ...attrs }, node.marks));
+        if (!dispatch) return true;
+        const tr = atomAttrTr(state, pos, { ...node.attrs, ...attrs }, node.marks);
+        const $pos = state.doc.resolve(pos);
+        if (attrs.display && !node.attrs.display && $pos.depth > 0 && $pos.parent.childCount === 1 && 'textAlign' in $pos.parent.attrs) {
+          tr.setNodeAttribute($pos.before(), 'textAlign', 'center');
+        }
+        dispatch(tr);
         return true;
       },
     };

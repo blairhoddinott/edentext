@@ -423,10 +423,13 @@
   vertical-align: baseline;
   cursor: pointer;
 }
-/* A display formula owns its line, centered, as in LibreOffice and Word. */
+/* A display formula owns its line at its paragraph's alignment, as in LibreOffice. The
+   <math> stays display style but inline, since a block <math> centers itself. */
 .paper .tiptap span.formula[data-display='true'] {
   display: block;
-  text-align: center;
+}
+.paper .tiptap span.formula[data-display='true'] math {
+  display: inline math;
 }
 .paper .tiptap span.formula.selected {
   outline: 2px solid var(--color-primary, #52748b);
