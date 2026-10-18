@@ -224,13 +224,17 @@ const LIST_INDENT_EPS_CM = 0.05;
 const LINK_BLUE = '#0563C1'; // the visual the exporter paints on hyperlink runs
 
 // ---- small DOM helpers ------------------------------------------------------
+// Child walks go by sibling and whole-part queries through `list`: jsdom (the tests) answers
+// every `length` read of a live collection with a scan of it, so iterating one is quadratic.
+const list = <T extends Element>(c: HTMLCollectionOf<T>): T[] => Array.prototype.slice.call(c);
 function fc(el: Element | null, localName: string): Element | null {
-  if (!el) return null;
-  for (const c of Array.from(el.children)) if (c.namespaceURI === W && c.localName === localName) return c;
+  for (let c = el?.firstElementChild ?? null; c; c = c.nextElementSibling) if (c.namespaceURI === W && c.localName === localName) return c;
   return null;
 }
 function fcAll(el: Element, localName: string, ns: string = W): Element[] {
-  return Array.from(el.children).filter((c) => c.namespaceURI === ns && c.localName === localName);
+  const out: Element[] = [];
+  for (let c = el.firstElementChild; c; c = c.nextElementSibling) if (c.namespaceURI === ns && c.localName === localName) out.push(c);
+  return out;
 }
 function intAttr(el: Element | null, ns: string, name: string): number | null {
   if (!el) return null;
@@ -243,7 +247,7 @@ function parseXml(xml: string): Document {
   const doc = parseImportXml(xml, 'docx');
   // A content control around a row or a cell holds nothing a table walk reads but the
   // w:tr / w:tc itself, so it is unwrapped where it stands.
-  for (const sdt of Array.from(doc.getElementsByTagNameNS(W, 'sdt'))) {
+  for (const sdt of list(doc.getElementsByTagNameNS(W, 'sdt'))) {
     const parent = sdt.parentNode as Element | null;
     if (parent?.namespaceURI !== W || (parent.localName !== 'tbl' && parent.localName !== 'tr')) continue;
     const content = fc(sdt, 'sdtContent');
@@ -253,7 +257,7 @@ function parseXml(xml: string): Document {
   // A range marker beside a table's rows or cells moves into the cell paragraph next to it,
   // where the paragraph walk reads it: the walk over rows and cells passes it by.
   const moved = new Set<Element>();
-  for (const m of [...RANGE_MARKERS].flatMap((n) => Array.from(doc.getElementsByTagNameNS(W, n)))) {
+  for (const m of [...RANGE_MARKERS].flatMap((n) => list(doc.getElementsByTagNameNS(W, n)))) {
     const parent = m.parentNode as Element | null;
     if (parent?.namespaceURI !== W || (parent.localName !== 'tbl' && parent.localName !== 'tr')) continue;
     let next = m.nextElementSibling;
@@ -315,7 +319,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     endnote: noteParts(files, 'endnotes', 'endnote'),
   }, noteBookmarks: new Map() };
   ctx.noteBookmarks = noteBookmarkNames(ctx.noteParts);
-  for (const p of Array.from(body.getElementsByTagNameNS(W, 'p'))) {
+  for (const p of list(body.getElementsByTagNameNS(W, 'p'))) {
     const np = headingLevelOf(fc(p, 'pPr'), ctx) == null ? paragraphNum(p, ctx) : null;
     if (np) ctx.bodyNumLevels.add(`${np.numId}:${np.ilvl}`);
   }
@@ -323,7 +327,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   // Mid-body sectPr paragraphs delimit sections; a section whose w:cols declares
   // more than one column becomes a columns node (the trailing group is described
   // by the body-final sectPr, covering whole-document multi-column files).
-  const { groups, midSectPrs } = splitBodySections(Array.from(body.children));
+  const { groups, midSectPrs } = splitBodySections(list(body.children));
   ctx.bodyField = newBodyField();
   const finalSectPr = fc(body, 'sectPr');
   const blocks: Node[] = [];

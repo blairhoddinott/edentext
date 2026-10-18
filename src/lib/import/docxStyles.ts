@@ -716,7 +716,7 @@ export class DocxStyles {
 }
 
 function firstChild(el: Element, localName: string): Element | null {
-  for (const c of Array.from(el.children)) if (c.namespaceURI === W && c.localName === localName) return c;
+  for (let c = el.firstElementChild; c; c = c.nextElementSibling) if (c.namespaceURI === W && c.localName === localName) return c;
   return null;
 }
 

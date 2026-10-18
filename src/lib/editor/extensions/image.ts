@@ -239,7 +239,7 @@ export function stackRank(el: Element, ns: string | null, attr: string): number 
   if (!ranks) {
     const paras = new Map<Element, number>();
     const frames: { el: Element; v: number; at: number }[] = [];
-    for (const e of Array.from(doc.getElementsByTagName('*'))) {
+    for (const e of Array.from(doc.querySelectorAll('*'))) {
       // A paragraph inside a frame's text counts as its anchor's.
       let p: Element | null = e.parentElement;
       while (p && !paras.has(p)) p = p.parentElement;

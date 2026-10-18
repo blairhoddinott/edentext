@@ -131,6 +131,12 @@ without free-position support collapse to the nearest supported wrap mode. Chart
 SVG images because the editor has no chart model. Unknown hyperlinks flatten only with
 warnings.
 
+**Live collections in jsdom.** Every `length` read of an `HTMLCollection` scans the whole
+collection there (a named-property lookup), so `Array.from`/`for…of` over one is quadratic in
+the tests while browsers stay linear. A walk over a whole part copies it once (`list`, or
+`querySelectorAll`) and child lookups go by sibling (`fc`, `firstChild`); probed, a 4 MB
+`document.xml` took over 20 minutes under Vitest and 0.7 s in Chromium.
+
 ## Verification
 
 `tests/roundtrip.test.ts` covers editor export-import. `tests/lo-roundtrip.test.ts` adds a
