@@ -2627,9 +2627,13 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
   const markFont = fontPair(attrs.fontFamily, attrs.fontFamilyAsian, (f) => f);
   const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
   const blockLang = langProp(attrs.lang, attrs.langAsian);
-  const runForce = blockLang
-    ? { ...opts.force, lang: str(attrs.lang) ?? opts.force?.lang, langAsian: str(attrs.langAsian) ?? opts.force?.langAsian }
-    : opts.force;
+  // Unmarked text renders at the block's size and font; a run without its own takes the
+  // style's in Word, so the block's goes onto the runs as well as the paragraph mark.
+  const runForce: TextProps = { ...opts.force };
+  if (markSize) runForce.fontSizePt = markSize / 2;
+  if (str(attrs.fontFamily)) runForce.fontFamily = attrs.fontFamily as string;
+  if (str(attrs.fontFamilyAsian)) runForce.fontFamilyAsian = attrs.fontFamilyAsian as string;
+  if (blockLang) Object.assign(runForce, { lang: str(attrs.lang) ?? opts.force?.lang, langAsian: str(attrs.langAsian) ?? opts.force?.langAsian });
   return new Paragraph({
     style,
     alignment: alignOf(attrs),

@@ -16,6 +16,8 @@ Headings and body defaults must match the importers and `HEADING_STYLE_OVERRIDES
 named styles and direct formatting separately so values matching product defaults remain
 implicit. `saveDocument` settles the format before constructing bytes; do not infer it from
 the browser save dialog.
+A block's own size and font (`fontSize`, `fontFamily`) render its unmarked text, so both go
+onto the runs too: DOCX via `runForce`, ODT cells via `emitSegment` (the body's FSZ style covers it).
 
 A shape's text is drawing text to LibreOffice, where a link holds plain text: `shapeLinks` writes a span outside `text:a`, since one inside comes back empty (probed).
 

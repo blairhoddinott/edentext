@@ -4182,10 +4182,15 @@ function buildCellContent(cell: TiptapNode, c: CellBuilder, force: TextProps = {
   const blocks: CellBlock[] = [];
   const state = { emitted: false }; // whether any segment has been emitted yet
 
-  const emitSegment = (content: TiptapNode[] | undefined) => {
+  // A cell block carries no FSZ style of its own, so its font goes onto the runs, as the
+  // editor renders its unmarked text.
+  const emitSegment = (content: TiptapNode[] | undefined, attrs?: TiptapNode['attrs']) => {
     if (state.emitted) c.addText(SEG);
     state.emitted = true;
-    applyRuns(c, content ?? [], force);
+    const own: TextProps = { ...force };
+    if (typeof attrs?.fontSize === 'string' && /pt$/.test(attrs.fontSize)) own.fontSizePt = parseFloat(attrs.fontSize);
+    if (typeof attrs?.fontFamily === 'string' && attrs.fontFamily) own.fontFamily = attrs.fontFamily;
+    applyRuns(c, content ?? [], own);
   };
 
   const walkList = (listNode: TiptapNode): CellListBlock => {
@@ -4201,7 +4206,7 @@ function buildCellContent(cell: TiptapNode, c: CellBuilder, force: TextProps = {
         continue;
       }
       const firstPara = item.content?.find(x => x.type === 'paragraph');
-      emitSegment(firstPara?.content); // one segment per item, in DFS order
+      emitSegment(firstPara?.content, firstPara?.attrs); // one segment per item, in DFS order
       items.push({ style: paraStyleFromAttrs(firstPara?.attrs, false), nested: nested ? walkList(nested) : null });
     }
     // Raw attrs; applyCellBlocks resolves the depth defaults when it knows the depth.
@@ -4212,10 +4217,10 @@ function buildCellContent(cell: TiptapNode, c: CellBuilder, force: TextProps = {
 
   for (const block of cell.content ?? []) {
     if (block.type === 'paragraph') {
-      emitSegment(block.content);
+      emitSegment(block.content, block.attrs);
       blocks.push({ kind: 'paragraph', style: cellParaStyle(block.attrs) });
     } else if (block.type === 'heading') {
-      emitSegment(block.content);
+      emitSegment(block.content, block.attrs);
       const level = (block.attrs?.level as number) ?? 1;
       blocks.push({ kind: 'heading', level, style: pairMargins(paraStyleFromAttrs(block.attrs), `Heading ${level}`) });
     } else if (block.type === 'bulletList' || block.type === 'orderedList') {
