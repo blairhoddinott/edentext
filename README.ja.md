@@ -117,6 +117,9 @@ EdenText はブラウザで動く高機能なワープロです。ちょっと�
 - **Linux** — `EdenText-<version>.AppImage`（`chmod +x` してから実行）または `.deb`
   （`sudo apt install ./edentext_*.deb`）。
 
+デスクトップアプリはファイルマネージャーから文書を開いてそのまま上書き保存でき、印刷
+ダイアログを経ずに PDF を書き出し、起動時に新しいバージョンがあれば知らせます。
+
 ## 開発
 
 ```bash

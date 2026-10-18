@@ -108,6 +108,9 @@ EdenText 是在瀏覽器中執行、功能強大的文書處理軟體，從隨�
 - **Linux**——`EdenText-<version>.AppImage`（先 `chmod +x` 再執行）或 `.deb`
   （`sudo apt install ./edentext_*.deb`）。
 
+桌面應用程式可以從檔案管理員開啟文件並直接存回原檔，不經列印對話框即可寫出 PDF，
+並在啟動時提示是否有新版本。
+
 ## 開發
 
 ```bash

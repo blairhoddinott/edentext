@@ -119,6 +119,10 @@ Cada versión incluye además instaladores de escritorio sin firmar, creados con
 - **Linux** — `EdenText-<version>.AppImage` (`chmod +x` y luego ejecútalo) o el `.deb`
   (`sudo apt install ./edentext_*.deb`).
 
+La app de escritorio abre documentos desde el gestor de archivos y guarda en ellos, escribe
+PDF directamente sin el diálogo de impresión y avisa al iniciarse cuando hay una versión más
+reciente.
+
 ## Desarrollo
 
 ```bash

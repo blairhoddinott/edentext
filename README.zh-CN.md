@@ -107,6 +107,9 @@ EdenText 是一款基于网页、功能强大的文字处理软件，从随手�
 - **Linux**——`EdenText-<version>.AppImage`（先 `chmod +x`，再运行）或 `.deb`
   （`sudo apt install ./edentext_*.deb`）。
 
+桌面应用可以从文件管理器打开文档并直接保存回原文件，无需打印对话框即可写出 PDF，
+并在启动时提示是否有新版本。
+
 ## 开发
 
 ```bash

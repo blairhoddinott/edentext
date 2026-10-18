@@ -118,6 +118,9 @@ Cada versão inclui também instaladores para computador, sem assinatura, feitos
 - **Linux** — `EdenText-<version>.AppImage` (`chmod +x` e depois executar) ou o `.deb`
   (`sudo apt install ./edentext_*.deb`).
 
+O app de desktop abre documentos a partir do gerenciador de arquivos e salva neles, grava
+PDF diretamente sem a caixa de impressão e avisa ao iniciar quando há uma versão mais nova.
+
 ## Desenvolvimento
 
 ```bash

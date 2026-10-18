@@ -122,6 +122,10 @@ Chaque version est aussi livrée avec des installateurs de bureau non signés, c
 - **Linux** – `EdenText-<version>.AppImage` (`chmod +x`, puis lancez-le) ou le `.deb`
   (`sudo apt install ./edentext_*.deb`).
 
+L’application de bureau ouvre les documents depuis le gestionnaire de fichiers et y
+enregistre directement, écrit les PDF sans passer par la boîte de dialogue d’impression et
+signale au démarrage qu’une version plus récente est disponible.
+
 ## Développement
 
 ```bash

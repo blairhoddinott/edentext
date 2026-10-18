@@ -119,6 +119,9 @@ Zu jedem Release gibt es außerdem unsignierte Desktop-Installer (Electron):
 - **Linux** – `EdenText-<version>.AppImage` (`chmod +x`, dann starten) oder das `.deb`
   (`sudo apt install ./edentext_*.deb`).
 
+Die Desktop-App öffnet Dokumente aus dem Dateimanager und speichert in sie zurück, schreibt
+PDFs direkt ohne Druckdialog und meldet beim Start, wenn es eine neuere Version gibt.
+
 ## Entwicklung
 
 ```bash

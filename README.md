@@ -118,6 +118,9 @@ Each release also carries unsigned desktop installers built with Electron:
 - **Linux** — `EdenText-<version>.AppImage` (`chmod +x`, then run it) or the `.deb`
   (`sudo apt install ./edentext_*.deb`).
 
+The desktop app opens documents from the file manager and saves back into them, writes PDFs
+directly without the print dialog and tells you at start when a newer version is out.
+
 ## Development
 
 ```bash
