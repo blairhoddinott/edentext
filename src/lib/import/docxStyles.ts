@@ -184,7 +184,7 @@ export function mergeRunProps(base: RunProps, over: RunProps): RunProps {
 }
 
 export class DocxStyles {
-  private defaultsRun: RunProps = {};
+  private defaultsRun: RunProps = { sizeHalfPt: 20 }; // Word's size where no w:sz is set: 10pt
   private ownRun = new Map<string, RunProps>(); // styleId → own w:rPr
   private basedOn = new Map<string, string | null>();
   private next = new Map<string, string | null>(); // w:next
@@ -250,7 +250,7 @@ export class DocxStyles {
     const defs = doc.getElementsByTagNameNS(W, 'docDefaults')[0];
     if (defs) {
       const rPr = defs.getElementsByTagNameNS(W, 'rPrDefault')[0]?.getElementsByTagNameNS(W, 'rPr')[0];
-      this.defaultsRun = parseRunProps(rPr);
+      this.defaultsRun = { sizeHalfPt: 20, ...parseRunProps(rPr) };
       const pPr = defs.getElementsByTagNameNS(W, 'pPrDefault')[0]?.getElementsByTagNameNS(W, 'pPr')[0];
       const ddJc = pPr ? firstChild(pPr, 'jc') : null;
       if (ddJc) this.defaultsAlign = wVal(ddJc);

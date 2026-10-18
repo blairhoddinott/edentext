@@ -1659,8 +1659,12 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   const ownSize = Math.abs(ownSizePt - defaults.fontSizePt) > 0.05 ? `${Math.round(ownSizePt * 10) / 10}pt` : null;
   const fs = runSize !== undefined ? runSize ?? ownSize : paragraphMarkFontSize(ppr, ctx, baseRun, defaults.fontSizePt);
   if (fs) attrs.fontSize = fs;
+  // A run without w:sz keeps its style's size, not the mark's the block now carries.
+  if (fs && Math.abs(parseFloat(fs) - runDefaults.fontSizePt) > 0.05) keepRunDefault(content, 'fontSize', `${runDefaults.fontSizePt}pt`);
   const ff = paragraphMarkFont(ppr, ctx, baseRun, defaults);
   if (ff.west) attrs.fontFamily = ff.west;
+  const styleFont = baseRun.font ?? ctx.styles.themeFont(baseRun.fontTheme ?? 'minor');
+  if (ff.west && styleFont) keepRunDefault(content, 'fontFamily', styleFont);
   if (ff.asian) attrs.fontFamilyAsian = ff.asian;
   if (blockLang && blockLang !== defaults.lang) attrs.lang = blockLang;
   if (blockLangAsian && blockLangAsian !== defaults.langAsian) attrs.langAsian = blockLangAsian;
@@ -1684,6 +1688,16 @@ function applyContextualSpacing(el: Element, ppr: Element | null, ctx: Ctx, styl
     !!sib && sib.namespaceURI === W && sib.localName === 'p' && styleIdOf(fc(sib, 'pPr'), ctx) === styleId;
   if (sameStyle(el.previousElementSibling)) attrs.spaceBefore = 0;
   if (sameStyle(el.nextElementSibling)) attrs.spaceAfter = 0;
+}
+
+// Text runs without their own `key` render the block's; give them the style's `value`.
+function keepRunDefault(content: Node[], key: 'fontSize' | 'fontFamily', value: string): void {
+  for (const n of content) {
+    if (n.type !== 'text') continue;
+    const ts = (n.marks ??= []).find((m) => m.type === 'textStyle');
+    if (!ts) n.marks.push({ type: 'textStyle', attrs: { [key]: value } });
+    else if (ts.attrs?.[key] == null) ts.attrs = { ...ts.attrs, [key]: value };
+  }
 }
 
 // The paragraph mark's resolved font size (w:pPr/w:rPr, incl. its rStyle), as a CSS

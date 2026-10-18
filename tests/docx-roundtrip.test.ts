@@ -628,8 +628,9 @@ describe('DOCX import: empty line keeps its paragraph-mark font size', () => {
   // half-points = 22pt, like a title's blank spacer lines. And a plain empty paragraph.
   const documentXml = `<?xml version="1.0"?><w:document ${W}><w:body>
     <w:p><w:pPr><w:jc w:val="center"/><w:rPr><w:sz w:val="44"/></w:rPr></w:pPr></w:p>
-    <w:p><w:pPr><w:rPr><w:sz w:val="24"/></w:rPr></w:pPr></w:p>
+    <w:p><w:pPr><w:rPr><w:sz w:val="20"/></w:rPr></w:pPr></w:p>
     <w:p/>
+    <w:p><w:pPr><w:rPr><w:sz w:val="32"/></w:rPr></w:pPr><w:r><w:rPr><w:sz w:val="28"/></w:rPr><w:t>big </w:t></w:r><w:r><w:t>plain</w:t></w:r></w:p>
     <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:bottom="1440" w:left="1440" w:right="1440"/></w:sectPr>
   </w:body></w:document>`;
   const bytes = zipSync({ 'word/document.xml': strToU8(documentXml) });
@@ -643,9 +644,14 @@ describe('DOCX import: empty line keeps its paragraph-mark font size', () => {
     expect(p.attrs.textAlign).toBe('center');
   });
 
-  it('suppresses a paragraph-mark size equal to the 12pt body default', () => {
+  it('suppresses a paragraph-mark size equal to the body default (10pt without w:sz)', () => {
     expect(doc.content![1].attrs?.fontSize ?? null).toBeNull();
     expect(doc.content![2].attrs?.fontSize ?? null).toBeNull();
+  });
+
+  it('keeps a run without w:sz at the style size, not the mark size', () => {
+    const plain = doc.content![3].content!.find((t) => t.text === 'plain')!;
+    expect(plain.marks?.find((m) => m.type === 'textStyle')?.attrs?.fontSize).toBe('10pt');
   });
 });
 

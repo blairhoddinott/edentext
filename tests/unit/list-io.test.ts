@@ -36,8 +36,8 @@ describe('a list label', () => {
     expect((await roundTrips(right)).map(label)).toEqual([want, want]);
   });
   it('counts a character indent in the paragraph style size', () => {
-    // No style size: 12pt, so 2 characters are 0.85cm.
-    expect(label(docx('<w:ind w:left="880" w:leftChars="400" w:firstLine="480" w:firstLineChars="200"/>', '')).hanging).toBe(-0.85);
+    // No style size: 10pt, so 2 characters are 0.71cm.
+    expect(label(docx('<w:ind w:left="880" w:leftChars="400" w:firstLine="480" w:firstLineChars="200"/>', '')).hanging).toBe(-0.71);
   });
   it('with the usual hang carries no label attrs through either round trip', async () => {
     const doc = docx('', '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>');

@@ -4,6 +4,9 @@
 
 import type { EditorState } from '@tiptap/pm/state';
 import { blockFontSize, DEFAULT_FONT_SIZE, type SizedBlock } from './fontSize';
+import { resolveStyle } from '../styles/styleSheet';
+import { styleSheet } from '../styles/sheet.svelte';
+import { blockStyleName } from '../editor/extensions/paragraphStyle';
 import { ASIAN_SCRIPT_RE } from './script';
 import { asianLang, westLang } from '../storage/documentLanguage';
 
@@ -47,22 +50,31 @@ function storedMarkAttr(state: EditorState, markName: string, attr: string): str
 
 // The font the box shows: Chinese, Japanese or Korean text reads its asian font, other
 // text the western one, so a selection over both shows a font only where the two agree.
-// At a bare caret the character before it decides.
+// A run without one shows its block's, else the block style's. At a bare caret the
+// character before it decides.
 export function uniformFont(state: EditorState): string {
-  const west = (attrs?: Record<string, string>) => attrs?.fontFamily ?? DEFAULT_EDITOR_FONT;
-  const asian = (attrs?: Record<string, string>) => attrs?.fontFamilyAsian ?? west(attrs);
+  type Attrs = Record<string, unknown> | undefined;
+  const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+  const style = (block: SizedBlock) => resolveStyle(styleSheet(), blockStyleName(block)).text;
+  const west = (run: Attrs, block: SizedBlock) =>
+    str(run?.fontFamily) ?? str(block?.attrs?.fontFamily) ?? style(block).fontFamily ?? DEFAULT_EDITOR_FONT;
+  const asian = (run: Attrs, block: SizedBlock) =>
+    str(run?.fontFamilyAsian) ?? str(run?.fontFamily) ?? str(block?.attrs?.fontFamilyAsian) ?? str(block?.attrs?.fontFamily)
+    ?? style(block).fontFamilyAsian ?? style(block).fontFamily ?? DEFAULT_EDITOR_FONT;
   const { from, to, empty, $head } = state.selection;
   if (empty) {
     const attrs = (state.storedMarks ?? $head.marks()).find((m) => m.type.name === 'textStyle')?.attrs;
-    return ASIAN_SCRIPT_RE.test($head.nodeBefore?.text?.slice(-1) ?? '') ? asian(attrs) : west(attrs);
+    const block = $head.parent as unknown as SizedBlock;
+    return ASIAN_SCRIPT_RE.test($head.nodeBefore?.text?.slice(-1) ?? '') ? asian(attrs, block) : west(attrs, block);
   }
   const fonts = new Set<string>();
-  state.doc.nodesBetween(from, to, (node, pos) => {
+  state.doc.nodesBetween(from, to, (node, pos, parent) => {
     if (!bearsMark(node as unknown as MarkedNode, 'textStyle')) return;
     const attrs = node.marks.find((m) => m.type.name === 'textStyle')?.attrs;
+    const block = parent as unknown as SizedBlock;
     const text = node.text?.slice(Math.max(0, from - pos), to - pos) ?? '';
-    if (!node.isText || /[^\s]/u.test(text.replace(new RegExp(ASIAN_SCRIPT_RE.source, 'gu'), ''))) fonts.add(west(attrs));
-    if (ASIAN_SCRIPT_RE.test(text)) fonts.add(asian(attrs));
+    if (!node.isText || /[^\s]/u.test(text.replace(new RegExp(ASIAN_SCRIPT_RE.source, 'gu'), ''))) fonts.add(west(attrs, block));
+    if (ASIAN_SCRIPT_RE.test(text)) fonts.add(asian(attrs, block));
   });
   return fonts.size > 1 ? '' : [...fonts][0] ?? DEFAULT_EDITOR_FONT;
 }
