@@ -1387,7 +1387,7 @@ const en = {
     couldNotPrint: 'Could not print.',
     couldNotPrintPdf: 'Could not print to PDF.',
     autosaveQuota:
-      'The document is too large to save automatically (browser storage limit reached). This usually happens with large embedded images. Save it locally to keep your work.',
+      "The document is too large for the browser's storage, so it is no longer saved automatically. Your text is still open: save it as a file to keep your work.",
     autosaveQuotaOthers:
       'The browser\'s storage is full, so the document is no longer saved automatically. Delete older documents under File ▸ Recent documents, or save it locally to keep your work.',
     openSnapshot: (when: string) =>

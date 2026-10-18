@@ -1373,7 +1373,7 @@ const es: Messages = {
     couldNotPrint: 'No se ha podido imprimir.',
     couldNotPrintPdf: 'No se ha podido imprimir a PDF.',
     autosaveQuota:
-      'El documento es demasiado grande para guardarlo automáticamente (se ha alcanzado el límite de almacenamiento del navegador). Suele ocurrir con imágenes incrustadas grandes. Guárdelo localmente para conservar su trabajo.',
+      'El documento es demasiado grande para el almacenamiento del navegador y ya no se guarda automáticamente. Su texto sigue abierto: guárdelo como archivo para conservar su trabajo.',
     autosaveQuotaOthers:
       'El almacenamiento del navegador está lleno, así que el documento ya no se guarda automáticamente. Elimine documentos anteriores en Archivo ▸ Documentos recientes, o guárdelo localmente para conservar su trabajo.',
     openSnapshot: (when) =>

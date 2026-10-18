@@ -1372,7 +1372,7 @@ const zhHant: Messages = {
     couldNotPrint: '無法列印。',
     couldNotPrintPdf: '無法列印為 PDF。',
     autosaveQuota:
-      '文件過大，無法自動儲存（已達瀏覽器儲存空間上限）。這通常是因為內嵌了大張圖片。請將其儲存到本機以保留您的成果。',
+      '文件過大，超出瀏覽器儲存空間，已不再自動儲存。文字仍保持開啟：請將其儲存為檔案以保留您的成果。',
     autosaveQuotaOthers:
       '瀏覽器儲存空間已滿，文件不再自動儲存。請在「檔案 ▸ 最近使用的文件」中刪除較舊的文件，或將其儲存到本機以保留您的成果。',
     openSnapshot: (when: string) => `文件無法載入。要改為開啟編輯器在 ${when} 保留的版本嗎？`,

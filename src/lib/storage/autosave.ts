@@ -21,7 +21,7 @@ let pending: (() => object) | null = null;
 // Writes queue behind each other: an older write finishing after a newer one would
 // store the older document and sweep the pictures the newer one just added.
 let chain: Promise<void> = Promise.resolve();
-// localStorage has a ~5 MB quota; embedded images (data-URIs) can exceed it. Warn
+// localStorage has a ~5 MB quota, which a long enough text alone exceeds. Warn
 // the user once so a failed autosave isn't silent, and swallow the throw so the
 // debounced timer doesn't surface an unhandled error.
 let quotaWarned = false;
