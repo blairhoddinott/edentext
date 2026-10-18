@@ -143,6 +143,10 @@ Or serve the files yourself: every release carries an `edentext-<tag>.zip` of
 the built app, and `npm run build` produces the same folder in `dist/` — point
 any web server at it, or build the image locally with `docker build -t edentext .`.
 
+To update, copy the new files over the old ones instead of emptying the folder:
+tabs opened before the update keep loading their own build's files until reloaded.
+A missing file should answer 404, not `index.html`, so such a tab can tell it to reload.
+
 ## Architecture
 
 ```mermaid

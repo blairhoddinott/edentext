@@ -144,6 +144,11 @@ Es geht auch ohne Docker: Jedes Release enthält ein `edentext-<tag>.zip` mit de
 App (`npm run build` erzeugt dasselbe in `dist/`). Den Ordner kann jeder Webserver
 ausliefern. Das Image lässt sich auch lokal bauen: `docker build -t edentext .`.
 
+Für ein Update die neuen Dateien über die alten kopieren, statt den Ordner zu leeren:
+Tabs, die vor dem Update geöffnet wurden, laden bis zum Neuladen weiter die Dateien ihrer
+Version. Eine fehlende Datei sollte mit 404 antworten, nicht mit `index.html`, damit ein
+solcher Tab zum Neuladen auffordern kann.
+
 ## Architektur
 
 ```mermaid

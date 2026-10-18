@@ -144,6 +144,11 @@ También funciona sin Docker: cada versión incluye un `edentext-<tag>.zip` con 
 compilada (`npm run build` genera lo mismo en `dist/`). Cualquier servidor web puede
 servir esa carpeta. La imagen también se puede crear en local con `docker build -t edentext .`.
 
+Para actualizar, copia los archivos nuevos encima de los antiguos en lugar de vaciar la
+carpeta: las pestañas abiertas antes de la actualización siguen cargando los archivos de su
+versión hasta que se recargan. Un archivo que falta debe responder con 404, no con
+`index.html`, para que esa pestaña pueda pedir que se recargue.
+
 ## Arquitectura
 
 ```mermaid

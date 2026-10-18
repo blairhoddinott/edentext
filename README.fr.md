@@ -148,6 +148,11 @@ l’application prête à l’emploi (`npm run build` produit la même chose dan
 N’importe quel serveur web peut servir ce dossier. L’image peut aussi être construite en
 local avec `docker build -t edentext .`.
 
+Pour une mise à jour, copiez les nouveaux fichiers par-dessus les anciens au lieu de vider
+le dossier : les onglets ouverts avant la mise à jour continuent de charger les fichiers de
+leur version jusqu’au rechargement. Un fichier manquant doit répondre 404, et non
+`index.html`, pour qu’un tel onglet puisse demander un rechargement.
+
 ## Architecture
 
 ```mermaid
