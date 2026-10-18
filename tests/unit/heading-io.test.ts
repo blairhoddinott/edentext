@@ -93,6 +93,37 @@ describe('LibreOffice heading styles import unchanged', () => {
   });
 });
 
+// A heading in a table cell carries no style name: the level's style renders it, so the
+// file's own definition of that style has to arrive even where no top-level block uses it,
+// and under any other style the 9pt has to stay on the heading itself.
+describe('a heading in a table cell', () => {
+  const sizeOf = (res: N) => {
+    const find = (n: N): N => n.type === 'heading' ? n : (n.content ?? []).map(find).find(Boolean);
+    const h = find(res.content);
+    const mark = h.content[0].marks?.find((m: N) => m.type === 'textStyle')?.attrs?.fontSize;
+    return parseFloat(mark ?? h.attrs.fontSize ?? '') || res.styles.paragraph[`Heading ${h.attrs.level}`]?.text.fontSizePt;
+  };
+  const docx = (id: string, name: string) => importDocx(docxOf(`<w:tbl><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="${id}"/></w:pPr>`
+    + '<w:r><w:rPr><w:sz w:val="18"/></w:rPr><w:t>When, where</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr/>', {
+    styles: NORMAL + `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="Normal"/>`
+      + '<w:pPr><w:outlineLvl w:val="2"/></w:pPr><w:rPr><w:sz w:val="18"/></w:rPr></w:style>' }));
+  const odt = (id: string, name: string) => importOdt(odtOf(`
+    <style:default-style style:family="paragraph"><style:text-properties fo:font-size="12pt"/></style:default-style>
+    <style:style style:name="Standard" style:family="paragraph"/>
+    <style:style style:name="${id}" style:display-name="${name}" style:family="paragraph" style:parent-style-name="Standard">
+     <style:text-properties fo:font-size="9pt"/></style:style>`,
+  '<office:body><office:text><table:table xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"><table:table-row><table:table-cell>'
+    + `<text:h text:style-name="${id}" text:outline-level="3">When, where</text:h></table:table-cell></table:table-row></table:table></office:text></office:body>`));
+  it.each([
+    ['DOCX, the level\'s style', () => docx('Heading3', 'heading 3')],
+    ['DOCX, a style of its own', () => docx('Dates', 'Dates')],
+    ['ODT, the level\'s style', () => odt('Heading_20_3', 'Heading 3')],
+    ['ODT, a style of its own', () => odt('Dates', 'Dates')],
+  ])('renders at the file\'s size (%s)', (_name, load) => {
+    expect(sizeOf(load())).toBe(9);
+  });
+});
+
 // A heading's own bold run is only "what the style supplies" where the editor's bold
 // built-in still renders it — a file declaring its own heading style re-parents it.
 describe('heading bold', () => {

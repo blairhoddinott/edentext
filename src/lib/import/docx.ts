@@ -1632,8 +1632,9 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   // on another one inherits Standard — so its runs' bold is formatting, not the default.
   const headingBold = !ctx.styles.styleBasedOn(styleId);
   // A heading keeps its level in a cell or a box, where the editor re-applies the level's
-  // own style (`hN:not([data-style])`) — so it is measured against that one.
-  const levelStyled = level != null && kind !== 'zone';
+  // own style (`hN:not([data-style])`) — so it is measured against that one, which is the
+  // file's only where the paragraph names it; any other style renders as the built-in.
+  const levelStyled = level != null && kind !== 'zone' && !!styleId && ctx.styleNames.get(styleId) === `Heading ${level}`;
   const defaults = blockDefaults(name || levelStyled ? baseRun : ctx.styles.paragraphRun(ctx.styles.defaultParagraphStyle()), level, boldByDefault, headingBold);
   if (!name && !levelStyled && level != null) defaults.fontSizePt = HEADING_SIZES[level - 1];
   // A run inherits the block's own size, not the default style's, so that is what it is
@@ -1654,6 +1655,9 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   if (name) {
     ctx.usedStyles.add(styleId!);
     if (name !== (level ? `Heading ${level}` : DEFAULT_STYLE)) attrs.styleName = name;
+  } else if (levelStyled) {
+    // The level's style renders it, so the sheet needs the file's definition of it.
+    ctx.usedStyles.add(styleId!);
   }
 
   // The block's size is the strut of every line. LibreOffice sets a line with text by its

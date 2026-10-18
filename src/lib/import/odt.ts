@@ -2124,10 +2124,12 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
   // Only a body block carries its style's name (below); anywhere else — a cell, a text
   // box — the formatting has to become direct, so it is measured against the default
   // style instead: the one `p:not([data-style])` re-applies (styleSheet.ts). A heading
-  // keeps its level's yardstick, which is what `hN:not([data-style])` re-applies.
+  // keeps its level's yardstick, which is what `hN:not([data-style])` re-applies: the
+  // file's style where the heading names it, the built-in (null) under any other style.
   // A header/footer zone renders its paragraphs at the editor's own defaults with only the
   // default style's font on top, so that is what its formatting is measured against.
-  const yardstick = kind === 'body' || (isHeading && kind !== 'zone') ? named : kind === 'zone' ? null : DEFAULT_STYLE;
+  const levelStyled = isHeading && kind !== 'zone' && !!named && (ctx.styleNames.get(named) ?? named) === `Heading ${level}`;
+  const yardstick = kind === 'body' || levelStyled ? named : kind === 'zone' || isHeading ? null : DEFAULT_STYLE;
   const defaults = blockDefaults(resolver, yardstick, isHeading ? level : null, boldByDefault);
   // A cell paragraph's spacing is the exception: editor.css zeroes it whatever the default
   // style declares (only that rule outranks the style's — not the `li p` one, and not for a
@@ -2229,6 +2231,9 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
     const display = ctx.styleNames.get(named) ?? named;
     ctx.usedStyles.add(named);
     if (display !== (isHeading ? `Heading ${level}` : DEFAULT_STYLE)) attrs.styleName = display;
+  } else if (levelStyled) {
+    // The level's style renders it, so the sheet needs the file's definition of it.
+    ctx.usedStyles.add(named!);
   }
   if (Object.keys(attrs).length) node.attrs = attrs;
   if (content.length) node.content = content;
