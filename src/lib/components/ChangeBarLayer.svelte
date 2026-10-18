@@ -9,12 +9,13 @@
   // The changed-lines bar both word processors draw in the margin: a stroke beside every
   // line a recorded change or a comment covers, so a pane entry can be found in the text.
   // The one the caret sits in is drawn heavier.
-  let { editor, tick, pageBoxes, pageMargins }: {
+  let { editor, tick, pageBoxes, marginsAt }: {
     editor: Editor | null;
     tick: number;
     /** One box per page (Editor.svelte): a section on its own paper differs in size. */
     pageBoxes: { top: number; left: number; height: number; width: number }[];
-    pageMargins: PageMargins;
+    /** The margins of a page's own section. */
+    marginsAt: (page: number) => PageMargins;
   } = $props();
 
   // Between the text edge and the bar — inside the line numbers, which sit further out.
@@ -39,7 +40,7 @@
     // the display mode takes a kind off the page or brings it back.
     void tick;
     void pageBoxes;
-    void pageMargins;
+    void marginsAt;
     void markupView();
     schedule();
   });
@@ -95,13 +96,14 @@
       } catch { continue; }
       // A range crossing a page break must not stroke through the gap or the margins:
       // clipped to each page's text area, it draws one segment per page it covers.
-      for (const box of pageBoxes) {
-        const t = Math.max(top, box.top + cmToPx(pageMargins.top));
-        const b = Math.min(bottom, box.top + box.height - cmToPx(pageMargins.bottom));
+      for (const [i, box] of pageBoxes.entries()) {
+        const m = marginsAt(i + 1);
+        const t = Math.max(top, box.top + cmToPx(m.top));
+        const b = Math.min(bottom, box.top + box.height - cmToPx(m.bottom));
         if (b - t < 1) continue;
         out.push({
           top: t, height: b - t,
-          left: box.left + cmToPx(pageMargins.left) - cmToPx(GAP_CM),
+          left: box.left + cmToPx(m.left) - cmToPx(GAP_CM),
           color: r.color, active: r.active,
         });
       }

@@ -375,9 +375,11 @@
 }
 /* A footnote is lifted out of the flow to the foot of its anchor's page; pageBreaks.ts
    sets `top` in document px and marks the first note of each page. The margin custom
-   properties are .tiptap's own, so the box spans exactly the text width. */
+   properties are .tiptap's own, so the box spans exactly the text width. Above the
+   .band-layer (21), whose mask over a split table starts where the notes do. */
 .paper .tiptap .note[data-note-kind='footnote'] {
   position: absolute;
+  z-index: 22;
   left: var(--page-margin-left);
   right: var(--page-margin-right);
 }

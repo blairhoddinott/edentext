@@ -10,13 +10,14 @@
   // ponytail: measures every block in the document on each settle. Fine while numbering
   // is on and the document is ordinary; a 400-page one would want a windowed pass keyed
   // to a running count per page.
-  let { editor, tick, lineNumbering, pageBoxes, pageMargins }: {
+  let { editor, tick, lineNumbering, pageBoxes, marginsAt }: {
     editor: Editor | null;
     tick: number;
     lineNumbering: LineNumbering;
     /** One box per page (Editor.svelte): a section on its own paper differs in size. */
     pageBoxes: { top: number; left: number; height: number; width: number }[];
-    pageMargins: PageMargins;
+    /** The margins of a page's own section. */
+    marginsAt: (page: number) => PageMargins;
   } = $props();
 
   // The page a document-px top falls on, against boxes that may differ in height.
@@ -26,7 +27,7 @@
   };
   // Measured from the page's own left edge: a narrower section's page is centred.
   const leftOf = (top: number) => (pageBoxes[pageAt(top) - 1]?.left ?? 0)
-    + cmToPx(pageMargins.left) - cmToPx(lineNumbering.distanceCm);
+    + cmToPx(marginsAt(pageAt(top)).left) - cmToPx(lineNumbering.distanceCm);
 
   let marks = $state<{ top: number; label: string }[]>([]);
   let host = $state<HTMLElement | null>(null);

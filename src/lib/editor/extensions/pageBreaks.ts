@@ -107,8 +107,8 @@ export type TableBreakBand = {
   rowBreak: boolean;
   // Whether the table draws borders: only then does the mask close and reopen it.
   lines: boolean;
-  left: number;       // content-area left (mask left)
-  width: number;      // content-area width (mask width)
+  left: number;       // the table's box left (mask left)
+  width: number;      // the table's box width (mask width)
   marginBottom: number;
   gap: number;
 };
@@ -1620,15 +1620,7 @@ export const PageBreaks = Extension.create({
           const vm = readVerticalMargins(dom);
           const CONTENT_HEIGHT = vm.contentHeight;
 
-          // Side margins + page width (px) for table close/open bands. These don't
-          // affect pagination (only line wrapping), so readVerticalMargins ignores
-          // them; we read them here just to size the bands to the content width.
           const csRoot = getComputedStyle(dom);
-          const mlRaw = parseFloat(csRoot.getPropertyValue('--user-margin-left'));
-          const mrRaw = parseFloat(csRoot.getPropertyValue('--user-margin-right'));
-          const pwRaw = parseFloat(csRoot.getPropertyValue('--user-page-width'));
-          const marginLeft = Number.isFinite(mlRaw) ? mlRaw : 80;
-          const contentWidth = (Number.isFinite(pwRaw) ? pwRaw : 794) - marginLeft - (Number.isFinite(mrRaw) ? mrRaw : 80);
           // Page 1's own header/footer (different first page) may reach further than the
           // others, so its content starts lower / ends sooner; each falls back to the
           // shared effective margin.
@@ -1640,8 +1632,8 @@ export const PageBreaks = Extension.create({
           // clears its own pages. Missing/short → the document-wide pair above.
           const reach = csRoot.getPropertyValue('--pb-section-reach').split(',')
             .map((g) => g.split('|').map(Number))
-            .filter((g) => g.length === 4 && g.every(Number.isFinite));
-          const reachAt = (i: number) => reach[Math.min(i, reach.length - 1)]
+            .filter((g): g is Band => g.length === 4 && g.every(Number.isFinite));
+          const reachAt = (i: number): Band => reach[Math.min(i, reach.length - 1)]
             ?? [effTopFirst, vm.top, effBottomFirst, vm.bottom];
           // Its side margins, as a delta on the document's: .tiptap's padding draws only
           // one pair, so a section wanting others insets its own blocks by the difference.
@@ -1702,9 +1694,9 @@ export const PageBreaks = Extension.create({
             // First page per section, which is what a numbering restart counts from.
             const sectionFirstPages: number[] = [1];
             // The grid this placement lays out against, grown as each section's first
-            // page becomes known. Built here, not read back, so a pass never measures
-            // its own last answer.
-            const grid = new PageGrid(paperAt(0));
+            // page becomes known, with its reaches. Built here, not read back, so a pass
+            // never measures its own last answer.
+            const grid = new PageGrid(paperAt(0), 0, reachAt(0));
             const placements: {
               docPos: number;
               height: number;
@@ -1726,7 +1718,7 @@ export const PageBreaks = Extension.create({
             // Close/open bands for in-cell + between-rows table breaks. Keyed by the
             // rounded openY (the grouping id) → the unrounded openY (so the band lands
             // exactly on the page cycle) plus whether it's a between-rows break.
-            const tableBands = new Map<number, { openY: number; rowBreak: boolean; lines: boolean }>();
+            const tableBands = new Map<number, { openY: number; rowBreak: boolean; lines: boolean; left: number; right: number }>();
             const leavesDebug: PageBreakDebugSnapshot['leaves'] = [];
             const placementsDebug: PageBreakDebugSnapshot['placements'] = [];
 
@@ -1830,7 +1822,7 @@ export const PageBreaks = Extension.create({
                 }
                 // Its paper governs from its first page on. Setting it here can only move
                 // pages *below* that one, so the page just resolved stays valid.
-                grid.setFrom(sectionFirstPage, paperAt(sectionIndex));
+                grid.setFrom(sectionFirstPage, paperAt(sectionIndex), 0, reachAt(sectionIndex));
               }
               const [topFirst, topRest, bottomFirst, bottomRest] = reachAt(sectionIndex);
               const onFirst = page === sectionFirstPage;
@@ -2159,8 +2151,17 @@ export const PageBreaks = Extension.create({
                   const key = Math.round(br.bandOpenY);
                   const rowBreak = br.row !== null;
                   const lines = tableDrawsBorders(leaf.el);
+                  // The table's own box, not the document's text area: a section's
+                  // margins, or a page centred beside a wider section, move it.
+                  const table = (leaf.el.closest('table') ?? leaf.el) as HTMLElement;
+                  const left = leftInEditor(editorView, table);
+                  const right = left + table.offsetWidth;
                   const existing = tableBands.get(key);
-                  if (!existing) tableBands.set(key, { openY: br.bandOpenY, rowBreak, lines });
+                  if (existing) {
+                    existing.left = Math.min(existing.left, left);
+                    existing.right = Math.max(existing.right, right);
+                  }
+                  if (!existing) tableBands.set(key, { openY: br.bandOpenY, rowBreak, lines, left, right });
                   else if (lines) existing.lines = true;
                   // An in-cell break sharing the boundary needs the full mask, so a
                   // band stays rowBreak only if every break at this key is one.
@@ -2403,18 +2404,19 @@ export const PageBreaks = Extension.create({
           // In-cell table breaks (all values in unscaled document px relative to
           // .tiptap's top). Editor.svelte renders the mask + gap overlay from these.
           // The closing page's own content end and sheet bottom, which a footer taller
-          // than the bottom margin lifts above the document's margins.
+          // than the bottom margin lifts above the document's margins, and its footnotes
+          // above that: the table closes over them, as LibreOffice sets the notes below.
           const tableBreakBands = Array.from(tableBands, ([key, info]) => {
             const closing = Math.max(1, placed.grid.pageAt(info.openY) - 1);
-            const closeY = Math.min(info.openY, placed.grid.contentBottomOf(closing));
+            const closeY = Math.min(info.openY, placed.grid.contentBottomOf(closing) - (reserved.get(closing) ?? 0));
             return {
               key,
               closeY,
               height: info.openY - closeY,
               rowBreak: info.rowBreak,
               lines: info.lines,
-              left: marginLeft,
-              width: contentWidth,
+              left: info.left,
+              width: info.right - info.left,
               marginBottom: placed.grid.bottomOf(closing) - closeY,
               gap: PAGE_GAP,
             };
@@ -2425,7 +2427,7 @@ export const PageBreaks = Extension.create({
           // re-reads the whole document from it and writes back what it found, so a pass
           // that lands what the last one did would set the round going again.
           const announced = `${numPages}:${targetHeight}:${sectionStartPages.join()}:${placementsKey}:`
-            + tableBreakBands.map((b) => `${b.key}@${Math.round(b.closeY)}`).join();
+            + tableBreakBands.map((b) => `${b.key}@${Math.round(b.closeY)}|${Math.round(b.left)}|${Math.round(b.width)}`).join();
           if (announced !== lastAnnounced) {
             lastAnnounced = announced;
             dom.dispatchEvent(new CustomEvent('pm-pagecount', {

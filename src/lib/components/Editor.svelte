@@ -364,6 +364,15 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   });
   let leftPageAt = $derived((page: number) => isLeftPage(printedNumberAt(page)));
 
+  // The margins a page's own section sets, its first page's where that differs — what
+  // every layer drawing against the text area (border, change bars, line numbers) uses.
+  let marginsAt = $derived((page: number): PageMargins => {
+    const i = pageBoxes[page - 1]?.section ?? 0;
+    const s = i > 0 ? extraHfSections[i - 1] : null;
+    const first = i === 0 ? 1 : sectionStartPages[i - 1] ?? 1;
+    return (page === first ? s?.marginsFirst ?? s?.margins : s?.margins) ?? pageMargins;
+  });
+
   $effect(() => {
     const s = document.documentElement.style;
     s.setProperty('--pb-section-numstart', sectionNumStarts);
@@ -915,23 +924,22 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   // table box crosses a page boundary, each as a band in doc px. Rendered in .band-layer
   // inside the scaled .paper — a mask hides borders in the margins, a stripe is the gap.
   type BandStyle = { top: number; left: number; width: number; height: number; lines: boolean };
-  type GapStripeStyle = { top: number; width: number; height: number; background: string };
+  type GapStripeStyle = { top: number; left: number; width: number; height: number; background: string };
   let tableBandsDoc = $state<TableBreakBand[]>([]);
   let bandStyles = $state<BandStyle[]>([]);
   let gapStripeStyles = $state<GapStripeStyle[]>([]);
 
   function recomputeBands() {
-    // Page width and the bands are both document px — one measurement serves both panes.
+    // The bands and the page boxes are both document px, so one pass serves both panes.
     const tiptap = (editor?.view.dom ?? null) as HTMLElement | null;
     if (!tiptap || tableBandsDoc.length === 0) {
       if (bandStyles.length) bandStyles = [];
       if (gapStripeStyles.length) gapStripeStyles = [];
       return;
     }
-    const pageWidth = tiptap.offsetWidth; // unscaled doc px = full page width
     // Everything below is in document px (relative to .tiptap's top). The .band-layer
     // lives inside the scaled .paper, so the transform applies the scaling — no `* z`.
-    const border = 1; // 1px page-edge line, like the CSS .tiptap background
+    const border = 1; // 1px page-edge line, like the sheet's own border
     // Only in-cell breaks get the white mask + close/open lines; between-rows breaks
     // are capped by the rows' own cell borders, so a band there would double them.
     bandStyles = tableBandsDoc.filter((b) => !b.rowBreak).map((b) => {
@@ -940,20 +948,24 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
       // content. Matched to the table's content box (b.left/b.width) so the lines align.
       return { top: b.closeY, left: b.left, width: b.width, height: b.height, lines: b.lines };
     });
-    // Full-page-width gap stripe: the dark page gap + its two edge lines at the surface
-    // bottom (closeY + marginBottom). One element covers the whole gap → no seam; painted
-    // after the bands so it overrides their fill in the gap region.
+    // The dark page gap + its two edge lines at the surface bottom (closeY + marginBottom),
+    // one element so there is no seam; painted after the bands so it overrides their fill.
+    // Each edge line spans its own page: beside a landscape section the sheet is wider.
     gapStripeStyles = tableBandsDoc.map((b) => {
       const gapStart = b.closeY + b.marginBottom;
+      const below = pageBoxes.findIndex((p) => p.top >= gapStart);
+      const above = pageBoxes[below - 1] ?? pageBoxes[pageBoxes.length - 1];
+      const next = pageBoxes[below] ?? above;
+      const left = Math.min(above.left, next.left);
+      const width = Math.max(above.left + above.width, next.left + next.width) - left;
+      const line = (p: typeof above, y: string) =>
+        `linear-gradient(var(--color-page-border), var(--color-page-border)) ${p.left - left}px ${y} / ${p.width}px ${border}px no-repeat`;
       return {
         top: gapStart - border,
-        width: pageWidth,
+        left,
+        width,
         height: b.gap + 2 * border,
-        background:
-          `linear-gradient(to bottom,`
-          + ` var(--color-page-border) 0, var(--color-page-border) ${border}px,`
-          + ` var(--color-bg) ${border}px, var(--color-bg) ${border + b.gap}px,`
-          + ` var(--color-page-border) ${border + b.gap}px, var(--color-page-border) 100%)`,
+        background: `${line(above, '0')}, ${line(next, '100%')}, var(--color-bg)`,
       };
     });
   }
@@ -1838,20 +1850,20 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
           {#each gapStripeStyles as s}
             <div
               class="page-gap-stripe"
-              style="top: {s.top}px; width: {s.width}px; height: {s.height}px; background: {s.background};"
+              style="top: {s.top}px; left: {s.left}px; width: {s.width}px; height: {s.height}px; background: {s.background};"
             ></div>
           {/each}
         </div>
       {/if}
       <PageSheetLayer {pageBoxes} />
-      <PageDecorLayer decor={pageDecor} {pageBoxes} {pageMargins} hfInsets={decorHfInsets} isLeft={leftPageAt} />
+      <PageDecorLayer decor={pageDecor} {pageBoxes} {marginsAt} hfInsets={decorHfInsets} isLeft={leftPageAt} />
       {#if foldMarks}
         <FoldMarkLayer {pageBoxes} />
       {/if}
       {#if lineNumbering.on}
-        <LineNumberLayer {editor} {tick} {lineNumbering} {pageBoxes} {pageMargins} />
+        <LineNumberLayer {editor} {tick} {lineNumbering} {pageBoxes} {marginsAt} />
       {/if}
-      <ChangeBarLayer {editor} {tick} {pageBoxes} {pageMargins} />
+      <ChangeBarLayer {editor} {tick} {pageBoxes} {marginsAt} />
       <HeaderFooterLayer
         bind:headerDoc
         bind:footerDoc
@@ -2097,12 +2109,11 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
       -1px 0 0 0 var(--color-page-bg);
   }
 
-  /* The page gap at a table break, drawn as ONE full-page-width element on top of the
+  /* The page gap at a table break, drawn as ONE element across both pages on top of the
      masks so the dark gap is a single rasterised rectangle — no left/right edge to
-     disagree (sub-pixel, at fractional zoom) with the .tiptap background gap. */
+     disagree (sub-pixel, at fractional zoom) with the sheets' own gap. */
   .page-gap-stripe {
     position: absolute;
-    left: 0;
     pointer-events: none;
   }
 </style>

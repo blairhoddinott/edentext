@@ -412,27 +412,55 @@ try {
   check(bands === '-/none true/none -/both anchored/none -/none true/none true/none -/both',
     `loaded from the autosave, the block after a band frame clears it, after an anchored one it does not (${bands})`);
 
-  // A borderless table split inside its cell under a footer taller than the bottom margin:
-  // the page-break mask draws no edge lines, and its gap stripe sits on the sheets' gap.
+  // A borderless table split inside its cell, its pages centred beside a landscape section
+  // — under a footer taller than the bottom margin, under none, and above a footnote: the
+  // mask draws no edge lines, its gap stripe sits on the sheets' gap, neither reaches past
+  // the table's pages, no line of the cell lies under it and the note stays visible below
+  // its top. The document's own 2cm margins: the band once took a default reach of its own.
   const cellLines = Array.from({ length: 70 }, (_, i) => block(words(`cell line ${i + 1}`)));
-  await page.evaluate(([d, f]) => {
-    localStorage.setItem('edentext-doc', JSON.stringify(d));
-    localStorage.setItem('edentext-footer', JSON.stringify(f));
-  }, [{ type: 'doc', content: [{ type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell',
-    attrs: { borderTop: 'none', borderRight: 'none', borderBottom: 'none', borderLeft: 'none' }, content: cellLines }] }] }] },
-  { type: 'doc', content: Array.from({ length: 6 }, (_, i) => block(words(`footer ${i + 1}`))) }]);
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('.tiptap', { timeout: 15_000 });
-  await settle(page, true);
-  const mask = await page.evaluate(() => {
-    const stripe = document.querySelector('.page-gap-stripe');
-    const sheets = Array.from(document.querySelectorAll('.page-sheet'), (s) => s.getBoundingClientRect());
-    const top = stripe ? stripe.getBoundingClientRect().top + 1 : NaN;
-    return { lines: document.querySelectorAll('.table-break-band.lines').length, off: Math.min(...sheets.map((r) => Math.abs(r.bottom - top))) };
-  });
-  check(mask.lines === 0 && mask.off <= 1,
-    `a borderless table's page-break mask draws no lines and its gap on the sheets' (${mask.lines} lines, ${mask.off.toFixed(1)}px off)`);
-  await page.evaluate(() => localStorage.removeItem('edentext-footer'));
+  const tallFooter = { type: 'doc', content: Array.from({ length: 6 }, (_, i) => block(words(`footer ${i + 1}`))) };
+  for (const [label, footer, note] of [['a tall footer', tallFooter, false], ['no footer', null, false], ['a footnote', null, true]]) {
+    await page.evaluate(([d, f]) => {
+      localStorage.setItem('edentext-doc', JSON.stringify(d));
+      if (f) localStorage.setItem('edentext-footer', JSON.stringify(f));
+      else localStorage.removeItem('edentext-footer');
+      localStorage.setItem('edentext-hf-sections', JSON.stringify([{ orientation: 'landscape' }]));
+      localStorage.setItem('edentext-page-margins', JSON.stringify({ top: 2, bottom: 2, left: 2, right: 2 }));
+    }, [{ type: 'doc', content: [
+      ...(note ? [block(words('noted'), { type: 'noteRef', attrs: { id: 'n1', kind: 'footnote' } })] : []),
+      { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell',
+        attrs: { borderTop: 'none', borderRight: 'none', borderBottom: 'none', borderLeft: 'none' }, content: cellLines }] }] },
+      { type: 'paragraph', attrs: { breakBefore: 'page', sectionBreak: true }, content: [words('landscape')] },
+      ...(note ? [{ type: 'noteSection', content: [{ type: 'note', attrs: { id: 'n1', kind: 'footnote' }, content: [words('the note')] }] }] : []),
+    ] }, footer]);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.tiptap', { timeout: 15_000 });
+    await settle(page, true);
+    const mask = await page.evaluate(() => {
+      document.querySelector('.table-break-band')?.scrollIntoView({ block: 'center' });
+      const stripe = document.querySelector('.page-gap-stripe');
+      const sheets = Array.from(document.querySelectorAll('.page-sheet'), (s) => s.getBoundingClientRect());
+      const top = stripe ? stripe.getBoundingClientRect().top + 1 : NaN;
+      const page = sheets[0];
+      const outside = [stripe, ...document.querySelectorAll('.table-break-band')].filter((e) => e).map((e) => e.getBoundingClientRect())
+        .reduce((m, r) => Math.max(m, page.left - r.left, r.right - page.right), 0);
+      const band = document.querySelector('.table-break-band')?.getBoundingClientRect();
+      const under = (sel) => Array.from(document.querySelectorAll(sel), (p) => p.getBoundingClientRect())
+        .filter((r) => band && r.bottom > band.top + 0.5 && r.top < band.bottom - 0.5).length;
+      // A note inside the table's frame, or painted over by the mask, is the table not closing
+      // above it. The overlay takes no pointer events, which a hit test would look through.
+      const layer = document.querySelector('.band-layer');
+      if (layer) layer.style.pointerEvents = 'auto';
+      const enclosed = Array.from(document.querySelectorAll('.tiptap-host .note'), (n) => n.getBoundingClientRect())
+        .filter((r) => band && (r.top < band.top - 0.5 || !document.elementFromPoint(r.left + 20, r.top + r.height / 2)?.closest('.note'))).length;
+      if (layer) layer.style.pointerEvents = '';
+      return { lines: document.querySelectorAll('.table-break-band.lines').length, outside, hidden: under('.tiptap-host .tiptap td p'),
+        enclosed, off: Math.min(...sheets.map((r) => Math.abs(r.bottom - top))) };
+    });
+    check(mask.lines === 0 && mask.off <= 1 && mask.outside <= 1 && mask.hidden === 0 && mask.enclosed === 0,
+      `with ${label}, a borderless table's page-break mask draws no lines and its gap on the sheets', within its pages, over no text and under no note (${mask.lines} lines, ${mask.off.toFixed(1)}px off, ${mask.outside.toFixed(1)}px outside, ${mask.hidden} lines under it, ${mask.enclosed} notes enclosed or hidden)`);
+  }
+  await page.evaluate(() => ['edentext-footer', 'edentext-hf-sections', 'edentext-page-margins'].forEach((k) => localStorage.removeItem(k)));
 
   // A row that may not break and is taller than a page starts on a fresh one.
   await page.evaluate((d) => localStorage.setItem('edentext-doc', JSON.stringify(d)), { type: 'doc', content: [
