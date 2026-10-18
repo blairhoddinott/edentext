@@ -1,6 +1,5 @@
 # Submission draft for Flathub; once accepted, the flathub/io.github.stffnb.edentext
 # repository is authoritative and its bot bumps the archives on every release.
-# Fill in the version and sha256 sums from the release's tar.gz files before submitting.
 id: io.github.stffnb.edentext
 runtime: org.freedesktop.Platform
 runtime-version: '26.08'
@@ -29,8 +28,8 @@ modules:
     sources:
       - type: archive
         only-arches: [x86_64]
-        url: https://github.com/stffnb/edentext/releases/download/vVERSION/edentext-VERSION.tar.gz
-        sha256: SHA256
+        url: https://github.com/stffnb/edentext/releases/download/v0.10.1/edentext-0.10.1.tar.gz
+        sha256: 95a346b1d0ecbf28334920b2c97fc4e2409a8e45627f22b50b467c41e9912523
         dest: edentext
         x-checker-data:
           type: json
@@ -39,8 +38,8 @@ modules:
           url-query: .assets[] | select(.name == "edentext-" + $version + ".tar.gz") | .browser_download_url
       - type: archive
         only-arches: [aarch64]
-        url: https://github.com/stffnb/edentext/releases/download/vVERSION/edentext-VERSION-arm64.tar.gz
-        sha256: SHA256
+        url: https://github.com/stffnb/edentext/releases/download/v0.10.1/edentext-0.10.1-arm64.tar.gz
+        sha256: 91cdd49b2882286a21e739247236c0fb1f059fd3e81f7b2ee3df60b60df63ea2
         dest: edentext
         x-checker-data:
           type: json
