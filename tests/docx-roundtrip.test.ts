@@ -856,16 +856,16 @@ describe('DOCX import of foreign text boxes / shapes', () => {
   describe('a VML picture reads as its DrawingML counterpart', () => {
     const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
     const PIC = 'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
-    const picture = (run: string) => {
+    const picture = (run: string, type = 'image') => {
       const res = importDocx(zipSync({
-        'word/document.xml': strToU8(`<?xml version="1.0"?><w:document ${W} ${VNS} ${WPNS} ${ANS} ${PIC} ${R} xmlns:w10="urn:schemas-microsoft-com:office:word"><w:body>
+        'word/document.xml': strToU8(`<?xml version="1.0"?><w:document ${W} ${VNS} ${WPNS} ${ANS} ${PIC} ${WPSNS} ${R} xmlns:w10="urn:schemas-microsoft-com:office:word"><w:body>
           <w:p><w:r>${run}</w:r></w:p>
           <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:bottom="1440" w:left="1440" w:right="1440"/></w:sectPr></w:body></w:document>`),
         'word/_rels/document.xml.rels': strToU8('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
           + '<Relationship Id="rImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/a.png"/></Relationships>'),
         'word/media/a.png': Uint8Array.from(atob(PNG.split(',')[1]), (c) => c.charCodeAt(0)),
       }));
-      return walk(res.content as N, 'image')[0]?.attrs;
+      return walk(res.content as N, type)[0]?.attrs;
     };
     const vml = (style: string, inner = '', data = '') => picture(`<w:pict><v:shape style="position:absolute;width:144pt;height:72pt;${style}">${inner}<v:imagedata r:id="rImg"${data}/></v:shape></w:pict>`);
     const dml = (attrs: string, h: string, v: string, wrap: string, effect = '') => picture(`<w:drawing><wp:anchor ${attrs}>
@@ -886,6 +886,17 @@ describe('DOCX import of foreign text boxes / shapes', () => {
       const a = fromVml(), b = fromDml();
       expect(a?.wrap).toBeTruthy();
       expect({ ...a, src: undefined }).toEqual({ ...b, src: undefined });
+    });
+    // A text box takes the same placement; its fill and line have defaults of their own.
+    it('places a text box the same way', () => {
+      const text = '<w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent>';
+      const place = (a: N) => Object.fromEntries(Object.entries(a ?? {}).filter(([k]) => /^(wrap|inFront)/.test(k)));
+      const a = place(picture(`<w:pict><v:rect style="position:absolute;width:144pt;height:72pt;z-index:-1;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:bottom;mso-position-vertical-relative:page"><v:textbox>${text}</v:textbox></v:rect></w:pict>`, 'textBox'));
+      const b = place(picture(`<w:drawing><wp:anchor behindDoc="1"><wp:positionH relativeFrom="margin"><wp:align>center</wp:align></wp:positionH>
+        <wp:positionV relativeFrom="page"><wp:align>bottom</wp:align></wp:positionV><wp:extent cx="1828800" cy="914400"/><wp:wrapNone/>
+        <a:graphic><a:graphicData><wps:wsp><wps:spPr><a:prstGeom prst="rect"/></wps:spPr><wps:txbx>${text}</wps:txbx><wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>`, 'textBox'));
+      expect(a.wrap).toBe('through');
+      expect(a).toEqual(b);
     });
   });
 
