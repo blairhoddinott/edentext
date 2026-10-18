@@ -1423,12 +1423,14 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
       const z = appliedZoom / 100;
       const page = pageOfPane(pane);
       const box = pageBoxes[page - 1];
+      // Whole pixels: a cell clipped at a fractional edge leaves its old edge painted
+      // beside the canvas when a zoom step moves it (Chromium).
       return {
         pane, page, live: page <= numPages,
-        left: (pane % gridCols) * pageStride * z,
-        top: rowOfSlot(Math.floor(pane / gridCols)) * firstCycle * z,
-        width: (box?.width ?? paperWidth) * z,
-        height: (box?.height ?? firstCycle - PAGE_GAP) * z,
+        left: Math.round((pane % gridCols) * pageStride * z),
+        top: Math.round(rowOfSlot(Math.floor(pane / gridCols)) * firstCycle * z),
+        width: Math.round((box?.width ?? paperWidth) * z),
+        height: Math.round((box?.height ?? firstCycle - PAGE_GAP) * z),
         // Where the document sits inside the cell: its own page box, at the top left.
         paperTop: -(box?.top ?? 0) * z,
         paperLeft: -(box?.left ?? 0) * z,
