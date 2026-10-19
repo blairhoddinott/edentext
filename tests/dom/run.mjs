@@ -1100,7 +1100,16 @@ try {
   };
   const docEnd = process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End';
   const docStart = process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home';
-  await page.locator('.page-cell:not(.empty) .tiptap p').first().click();
+  // Cells are recycled as the grid scrolls, so the first one in the DOM need not show
+  // page 1: click the top-left cell of the grid scrolled to its start.
+  await page.evaluate(() => document.querySelector('.editor-panes.grid > .editor').scrollTo(0, 0));
+  await page.waitForTimeout(350);
+  const firstCell = await page.evaluate(() => {
+    const r = [...document.querySelectorAll('.page-cell:not(.empty)')].map((c) => c.getBoundingClientRect())
+      .sort((a, b) => a.top - b.top || a.left - b.left)[0];
+    return { x: r.left + r.width / 2, y: r.top + r.height / 3 };
+  });
+  await page.mouse.click(firstCell.x, firstCell.y);
   await gridStep('click');
   await page.keyboard.press(docEnd);
   await gridStep('document end');
