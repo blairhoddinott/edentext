@@ -7,7 +7,7 @@
   import { wordCompletion, setWordCompletion } from '../storage/wordCompletion.svelte';
   import { grammarEnabled, setGrammarEnabled } from '../spell/grammar.svelte';
   import { numberRecognition, setNumberRecognition } from '../storage/tableOptions.svelte';
-  import { ACCENTS, loadAccent, saveAccent, applyAccent, type Accent, type ChromeMode, type ThemeMode } from '../storage/theme';
+  import { ACCENTS, loadAccent, saveAccent, applyAccent, isCustomAccent, parseAccentHex, type Accent, type ChromeMode, type ThemeMode } from '../storage/theme';
   import { LOCALES, LOCALE_LABELS, isLocale } from '../i18n/config';
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
   import Icon from './ribbon/Icon.svelte';
@@ -68,6 +68,12 @@
     accent = a;
     saveAccent(a);
     applyAccent(a);
+  }
+  // The colour input starts from the accent on screen, so a preset can be fine-tuned.
+  const shownAccent = () => parseAccentHex(getComputedStyle(document.documentElement).getPropertyValue('--brand-slate')) ?? '#4c6c8a';
+  function typeAccentHex(e: Event & { currentTarget: HTMLInputElement }) {
+    const hex = parseAccentHex(e.currentTarget.value);
+    if (hex) pickAccent(hex);
   }
   let wc = $derived(wordCompletion());
   let ai = $derived(aiSettings());
@@ -152,6 +158,10 @@
               {#each ACCENTS as a (a)}
                 <button role="radio" aria-checked={accent === a} class:on={accent === a} data-accent={a} title={t().settings.accents[a]} aria-label={t().settings.accents[a]} onclick={() => pickAccent(a)}></button>
               {/each}
+              <input type="color" class="custom" class:on={isCustomAccent(accent)} value={isCustomAccent(accent) ? accent : shownAccent()} title={t().settings.accents.custom} aria-label={t().settings.accents.custom} oninput={(e) => pickAccent(parseAccentHex(e.currentTarget.value) ?? accent)} />
+              {#if isCustomAccent(accent)}
+                <input class="field accent-hex" type="text" maxlength="7" spellcheck="false" value={accent} aria-label={t().settings.accentHex} oninput={typeAccentHex} onblur={(e) => (e.currentTarget.value = accent)} />
+              {/if}
             </div>
           </div>
           <!-- The modern chrome is still a beta, so only a development build offers the choice. -->
@@ -464,7 +474,15 @@
   .swatch.auto { background: linear-gradient(135deg, #fff 50%, #2b2f36 50%); }
   .accents { display: flex; flex-wrap: wrap; gap: 6px; }
   .accents button { width: 22px; height: 22px; padding: 0; border: 2px solid var(--color-surface); border-radius: 50%; outline: 1px solid var(--w-border-strong); background: var(--brand-slate); cursor: pointer; }
-  .accents button.on { outline: 2px solid var(--color-text); }
+  .accents { align-items: center; }
+  .accents button.on, .accents .custom.on { outline: 2px solid var(--color-text); }
+  .accents .custom { appearance: none; width: 22px; height: 22px; padding: 0; border: 2px solid var(--color-surface); border-radius: 50%; outline: 1px solid var(--w-border-strong); background: conic-gradient(#e0483e, #e0b43e, #4caf50, #3ea6e0, #6a5ae0, #e03ea6, #e0483e); cursor: pointer; }
+  .accents .custom::-webkit-color-swatch-wrapper { padding: 0; }
+  .accents .custom::-webkit-color-swatch { border: none; border-radius: 50%; }
+  .accents .custom::-moz-color-swatch { border: none; border-radius: 50%; }
+  .accents .custom:not(.on)::-webkit-color-swatch { opacity: 0; }
+  .accents .custom:not(.on)::-moz-color-swatch { opacity: 0; }
+  .field.accent-hex { width: 6.5em; font-family: ui-monospace, monospace; }
 
   .choices { display: flex; flex-direction: column; gap: 6px; }
   .choice {

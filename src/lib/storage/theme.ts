@@ -128,12 +128,27 @@ export function applyTheme(mode: ThemeMode): void {
 }
 
 // The chrome's accent colour; 'slate' is the logo's and stays the stored-nothing default.
+// A custom accent is stored as its own '#rrggbb'.
 export const ACCENTS = ['slate', 'blue', 'teal', 'green', 'violet', 'berry', 'graphite'] as const;
-export type Accent = (typeof ACCENTS)[number];
+export type Accent = (typeof ACCENTS)[number] | `#${string}`;
+
+const HEX_ACCENT = /^#[0-9a-f]{6}$/;
+
+// A '#rgb' or '#rrggbb' (the '#' optional) as the stored lowercase form, else null.
+export function parseAccentHex(text: string): `#${string}` | null {
+  let hex = text.trim().toLowerCase().replace(/^#?/, '#');
+  if (/^#[0-9a-f]{3}$/.test(hex)) hex = '#' + [...hex.slice(1)].map((c) => c + c).join('');
+  return HEX_ACCENT.test(hex) ? (hex as `#${string}`) : null;
+}
+
+export function isCustomAccent(accent: Accent): accent is `#${string}` {
+  return accent.startsWith('#');
+}
 
 export function loadAccent(): Accent {
-  const saved = localStorage.getItem(ACCENT_KEY);
-  return (ACCENTS as readonly string[]).includes(saved ?? '') ? (saved as Accent) : 'slate';
+  const saved = localStorage.getItem(ACCENT_KEY) ?? '';
+  if (HEX_ACCENT.test(saved)) return saved as Accent;
+  return (ACCENTS as readonly string[]).includes(saved) ? (saved as Accent) : 'slate';
 }
 
 export function saveAccent(accent: Accent): void {
@@ -141,7 +156,11 @@ export function saveAccent(accent: Accent): void {
   else localStorage.setItem(ACCENT_KEY, accent);
 }
 
+// A custom accent goes on <html> inline, where it outranks every theme's own slate.
 export function applyAccent(accent: Accent): void {
-  if (accent === 'slate') document.documentElement.removeAttribute('data-accent');
-  else document.documentElement.setAttribute('data-accent', accent);
+  const root = document.documentElement;
+  if (isCustomAccent(accent)) root.style.setProperty('--brand-slate', accent);
+  else root.style.removeProperty('--brand-slate');
+  if (accent === 'slate') root.removeAttribute('data-accent');
+  else root.setAttribute('data-accent', isCustomAccent(accent) ? 'custom' : accent);
 }
