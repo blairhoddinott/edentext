@@ -5,7 +5,7 @@
   import { anchored, clickOutside, isMenuOpen, toggleMenu, closeMenu } from '../menu.svelte';
   import { uniformBlockAttr } from '../../../utils/selectionFormat';
   import { findColumns, DEFAULT_COLUMN_GAP_CM } from '../../../editor/extensions/columns';
-  import { PAGE_FORMAT_CM, type PageFormat } from '../../../storage/pageFormat';
+  import { PAGE_FORMAT_CM, formatDimsCm, isNamedFormat, type NamedPageFormat, type PageFormat } from '../../../storage/pageFormat';
   import { DEFAULT_MARGINS, marginAxisLabel, withMirrored, type PageMargins } from '../../../storage/pageMargins';
   import type { Orientation } from '../../../storage/pageOrientation';
   import { EMPTY_HF_SET, spreadMargins, type HfSet, type HfZone, type PageSide } from '../../../storage/headerFooter';
@@ -98,7 +98,7 @@
     currentSection > 0 ? extraHfSections[currentSection - 1]?.pageNumberStart ?? null : null,
   );
 
-  const FORMATS = Object.keys(PAGE_FORMAT_CM) as PageFormat[];
+  const FORMATS = Object.keys(PAGE_FORMAT_CM) as NamedPageFormat[];
   const EDGES = ['top', 'bottom', 'left', 'right'] as const;
 
   // Named after the value they set, so no preset hides what it does.
@@ -230,6 +230,13 @@
               <span class="menu-sub">{fmtCm(PAGE_FORMAT_CM[f].w)} × {fmtCm(PAGE_FORMAT_CM[f].h)} cm</span>
             </button>
           {/each}
+          {#if !isNamedFormat(pageFormat)}
+            {@const d = formatDimsCm(pageFormat)}
+            <button class="selected" onclick={closeMenu}>
+              {t().toolbarExpanded.pageFormatCustom}
+              <span class="menu-sub">{fmtCm(d.w)} × {fmtCm(d.h)} cm</span>
+            </button>
+          {/if}
           {#if currentSection > 0}
             <div class="rb-menu-label">{t().ribbon.thisSection}</div>
             {#each FORMATS as f}
@@ -237,6 +244,9 @@
                 {t().toolbarExpanded.pageFormats[f]}
               </button>
             {/each}
+            {#if sectionFormat && !isNamedFormat(sectionFormat)}
+              <button class="selected" onclick={closeMenu}>{t().toolbarExpanded.pageFormatCustom}</button>
+            {/if}
             <button class:selected={sectionFormat === null} onclick={() => { closeMenu(); setSectionProp({ format: null }); }}>{t().ribbon.likeDocument}</button>
           {/if}
         </div>

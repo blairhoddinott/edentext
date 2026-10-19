@@ -407,6 +407,7 @@ const ru: Messages = {
     pageLayoutMargins: 'Макет страницы и поля',
     layout: 'Макет',
     pageFormat: 'Формат страницы',
+    pageFormatCustom: 'Пользовательский',
     pageFormats: {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',

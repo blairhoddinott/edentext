@@ -1,5 +1,5 @@
 import en, { type Messages } from '../../i18n/locales/en';
-import { PAGE_FORMAT_CM, type PageFormat } from '../../storage/pageFormat';
+import { PAGE_FORMAT_CM, type NamedPageFormat } from '../../storage/pageFormat';
 
 export const TABS = ['home', 'insert', 'layout', 'references', 'review', 'view'] as const;
 export const CONTEXTUAL = ['tableDesign', 'tableLayout', 'pictureFormat', 'shapeFormat', 'headerFooter'] as const;
@@ -92,7 +92,7 @@ export const RIBBON_COMMANDS: RibbonCommand[] = [
   c('layout', 'orientation', (m) => m.toolbarExpanded.orientation),
   ...(['portrait', 'landscape'] as const).map((o) => c('layout', `orientation-${o}`, (m) => m.toolbarExpanded[o], 'orientation')),
   c('layout', 'pageSize', (m) => m.ribbon.size),
-  ...(Object.keys(PAGE_FORMAT_CM) as PageFormat[]).map((f) => c('layout', `pageSize-${f}`, (m) => m.toolbarExpanded.pageFormats[f], 'pageSize')),
+  ...(Object.keys(PAGE_FORMAT_CM) as NamedPageFormat[]).map((f) => c('layout', `pageSize-${f}`, (m) => m.toolbarExpanded.pageFormats[f], 'pageSize')),
   c('layout', 'columns', (m) => m.toolbarExpanded.columns),
   ...([['1', 'columnsOne'], ['2', 'columnsTwo'], ['3', 'columnsThree']] as const).map(([n, k]) => c('layout', `columns-${n}`, (m) => m.toolbarExpanded[k], 'columns')),
   c('layout', 'breaks', (m) => m.ribbon.breaks),

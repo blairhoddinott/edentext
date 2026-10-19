@@ -1,6 +1,6 @@
 import { fitMargins, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
-import { formatFromCm, type PageFormat } from '../storage/pageFormat';
+import { pageFormatOf, type PageFormat } from '../storage/pageFormat';
 import { ODF_IMPLIED_TAB_CM } from '../storage/tabInterval';
 import { normalizeLeader, type TabAlign, type TabStop } from '../editor/extensions/tabStops';
 import { DEFAULT_NOTE_SETTINGS, type NoteKind, type NoteNumFormat, type NoteSettings } from '../storage/noteSettings';
@@ -934,7 +934,7 @@ export class StyleResolver {
     const h = lengthToCm(props.getAttributeNS(NS.fo, 'page-height'));
     const fitted = fitMargins(margins, w ?? 21, h ?? 29.7);
     const orientation: Orientation = w != null && h != null && w > h ? 'landscape' : 'portrait';
-    const format: PageFormat = w != null && h != null ? (formatFromCm(w, h) ?? 'A4') : 'A4';
+    const format: PageFormat = w != null && h != null ? pageFormatOf(w, h) : 'A4';
     // style:writing-mode: rl-tb is a right-to-left page — the columns fill from the
     // right and the text's base direction is RTL. The vertical modes are not read.
     const rtl = (props.getAttributeNS(NS.style, 'writing-mode') ?? '').startsWith('rl');

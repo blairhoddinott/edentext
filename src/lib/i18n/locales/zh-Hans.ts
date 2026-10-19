@@ -397,6 +397,7 @@ const zhHans: Messages = {
     pageLayoutMargins: '页面布局和页边距',
     layout: '布局',
     pageFormat: '纸张大小',
+    pageFormatCustom: '自定义',
     pageFormats: {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',

@@ -23,7 +23,7 @@ import { nameLookup, normalizeAiHtml, pageFields, TAB_LEADERS, type NoteText } f
 import { parseTabStops } from '../editor/extensions/tabStops';
 import { newNoteId } from '../editor/extensions/notes';
 import { revisions, trackedReplace, type Revision } from '../editor/extensions/trackChanges';
-import { loadPageFormat } from '../storage/pageFormat';
+import { loadPageFormat, isNamedFormat } from '../storage/pageFormat';
 import { loadOrientation } from '../storage/pageOrientation';
 import { loadPageMargins } from '../storage/pageMargins';
 import { loadPageNumbering } from '../storage/pageNumbering';
@@ -383,7 +383,8 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
   }
   if (layout) body += `\n— end of page ${pages![pages!.length - 1]}, about ${layout.lastFill}% full —`;
   const m = loadPageMargins();
-  body += `\n\nPage: ${loadPageFormat()} ${loadOrientation()}, margins ${[m.top, m.right, m.bottom, m.left].join('/')} cm (top/right/bottom/left)`
+  const format = loadPageFormat();
+  body += `\n\nPage: ${isNamedFormat(format) ? format : `${format.replace('x', ' × ')} cm`} ${loadOrientation()}, margins ${[m.top, m.right, m.bottom, m.left].join('/')} cm (top/right/bottom/left)`
     + (pages ? `, ${pages[pages.length - 1]} page${pages[pages.length - 1] > 1 ? 's' : ''}` : '');
   const settings = documentSettings();
   if (settings.length) body += `\nSettings: ${settings.join('; ')}`;

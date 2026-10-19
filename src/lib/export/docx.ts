@@ -25,7 +25,7 @@ import { cellFormatCode, isCellFormat } from '../utils/cellFormat';
 import { cjkDocFont, isAsianTag, type ExportLanguage } from '../storage/documentLanguage';
 import { DEFAULT_MARGINS, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
-import { pageDimsCm, PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
+import { pageDimsCm, formatDimsCm, type PageFormat } from '../storage/pageFormat';
 import { DEFAULT_TAB_INTERVAL_CM } from '../storage/tabInterval';
 import type { SpacingModel } from '../storage/spacingModel';
 import { HF_DISTANCE_CM, HF_ZONE_KEYS, hfIsEmpty, type HfDoc, type HfSet } from '../storage/headerFooter';
@@ -3517,7 +3517,7 @@ export async function buildDocx(
     // The package swaps the pair itself for a landscape section, so it wants the
     // **portrait** box — handed the swapped one it writes a portrait page merely
     // labelled landscape, which is what LibreOffice then renders.
-    const dims = PAGE_FORMAT_CM[s.format ?? pageFormat];
+    const dims = formatDimsCm(s.format ?? pageFormat);
     // A section's own edge→zone distances, where its page setup gives it others.
     const hDist = s.distances ? Math.min(s.distances.header, m.top) : Math.min(headerDist, m.top);
     const fDist = s.distances ? Math.min(s.distances.footer, m.bottom) : Math.min(footerDist, m.bottom);

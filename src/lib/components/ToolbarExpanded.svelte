@@ -23,7 +23,7 @@
   } from '../utils/fontDetect';
   import { DEFAULT_MARGINS, cmToPx, marginAxisLabel, withMirrored, type MarginAxis, type PageMargins } from '../storage/pageMargins';
   import type { Orientation } from '../storage/pageOrientation';
-  import { pageDimsCm, PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
+  import { pageDimsCm, formatDimsCm, isNamedFormat, PAGE_FORMAT_CM, type NamedPageFormat, type PageFormat } from '../storage/pageFormat';
   import { DEFAULT_HF_DISTANCES, clampHfDistance, spreadMargins, type HfDistances, type HfSet } from '../storage/headerFooter';
   import { blockFontSize, coversWholeBlock, DEFAULT_FONT_SIZE, parseSize, sizeLabel, sizeMenu, type SizedBlock } from '../utils/fontSize';
   import { listContext } from '../editor/extensions/indent';
@@ -38,7 +38,7 @@
   let { editor, tick, showFormattingMarks = $bindable(), showRuler = $bindable(true), splitView = $bindable(false), pageColumns = $bindable(1), pageMargins = $bindable(DEFAULT_MARGINS), extraHfSections = $bindable<HfSet[]>([]), pageOrientation = $bindable<Orientation>('portrait'), pageFormat = $bindable<PageFormat>('A4'), hyphenate = $bindable(false), pageNumbering = $bindable(DEFAULT_PAGE_NUMBERING), hfDistances = $bindable(DEFAULT_HF_DISTANCES), differentFirstPage = $bindable(false), differentOddEven = $bindable(false), hfActive = null, onEditZone, onDebugDump, onManageTableStyles, onNoteOptions, navigatorOpen = false, onToggleNavigator }:
     { editor: Editor | null; tick: number; showFormattingMarks: boolean; showRuler?: boolean; splitView?: boolean; pageColumns?: number; pageMargins?: PageMargins; extraHfSections?: HfSet[]; pageOrientation?: Orientation; pageFormat?: PageFormat; hyphenate?: boolean; pageNumbering?: PageNumbering; hfDistances?: HfDistances; differentFirstPage?: boolean; differentOddEven?: boolean; hfActive?: 'header' | 'footer' | null; onEditZone?: (zone: 'header' | 'footer') => void; onDebugDump?: () => void; onManageTableStyles?: () => void; onNoteOptions?: () => void; navigatorOpen?: boolean; onToggleNavigator?: () => void } = $props();
 
-  const PAGE_FORMATS = Object.keys(PAGE_FORMAT_CM) as PageFormat[];
+  const PAGE_FORMATS = Object.keys(PAGE_FORMAT_CM) as NamedPageFormat[];
 
   // This chrome has no room for a menu, so the button cycles the count and its
   // icon draws it: as many page columns as it sets, within the 16px viewBox.
@@ -1434,6 +1434,9 @@
             {#each PAGE_FORMATS as fmt}
               <option value={fmt}>{t().toolbarExpanded.pageFormats[fmt]} — {fmtCm(PAGE_FORMAT_CM[fmt].w)} × {fmtCm(PAGE_FORMAT_CM[fmt].h)} cm</option>
             {/each}
+            {#if !isNamedFormat(pageFormat)}
+              <option value={pageFormat}>{t().toolbarExpanded.pageFormatCustom} — {fmtCm(formatDimsCm(pageFormat).w)} × {fmtCm(formatDimsCm(pageFormat).h)} cm</option>
+            {/if}
           </select>
           <div class="lh-section-label">{t().toolbarExpanded.orientation}</div>
           <div class="orientation-row">

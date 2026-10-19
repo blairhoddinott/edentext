@@ -135,7 +135,7 @@ function zones(r: Rng): HfSet {
 function section(r: Rng): HfSet {
   const s = zones(r);
   if (maybe(r, 0.2)) s.margins = pick(r, MARGIN_SETS);
-  if (maybe(r, 0.15)) { s.format = pick(r, ['A5', 'letter']); s.orientation = pick(r, ['portrait', 'landscape']); }
+  if (maybe(r, 0.15)) { s.format = pick(r, ['A5', 'letter', '12.7x20.32']); s.orientation = pick(r, ['portrait', 'landscape']); }
   if (maybe(r, 0.2)) s.pageNumberStart = int(r, 1, 9);
   if (maybe(r, 0.15)) s.pageNumberFormat = pick(r, ['i', 'I', 'a', 'A']);
   if (maybe(r, 0.15)) s.distances = { header: pick(r, [0.6, 1]), footer: pick(r, [0.6, 1]) };
@@ -190,7 +190,7 @@ function genOptions(r: Rng, sheet: StyleSheet, nSections: number, carrier: boole
     orientation: maybe(r, 0.15) ? 'landscape' : 'portrait',
     hf: genHf(r, nSections),
     language: pick(r, [odfOf('en'), odfOf('de'), null]),
-    pageFormat: maybe(r, 0.3) ? pick(r, ['A5', 'letter', 'legal', 'A3', 'executive', 'isoB5']) : 'A4',
+    pageFormat: maybe(r, 0.3) ? pick(r, ['A5', 'letter', 'legal', 'A3', 'executive', 'isoB5', '12.3x20']) : 'A4',
     styles: sheet,
     tabIntervalCm: pick(r, [1.25, 1.25, 2, 0.5]),
     spacingModel: maybe(r, 0.15) ? 'max' : 'add',

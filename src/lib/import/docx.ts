@@ -28,7 +28,7 @@ import { imageDataUrl, placeholderImage, unzipArchive, type ConvertedImages } fr
 import { parseImportXml } from './importLimits';
 import { PX_PER_CM, cmToPx, fitMargins, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
-import { formatFromCm, type PageFormat } from '../storage/pageFormat';
+import { pageFormatOf, type PageFormat } from '../storage/pageFormat';
 import { clampTabInterval, DOCX_IMPLIED_TAB_CM } from '../storage/tabInterval';
 import { languageFromOdf, mainOfPair, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
 import { EMPTY_HF_SET, HF_DISTANCE_CM, hfIsEmpty, type HfDistances, type HfDoc, type HfSet } from '../storage/headerFooter';
@@ -4258,7 +4258,7 @@ function sectPaper(sect: Element | null): { orientation: Orientation; format: Pa
   const h = intAttr(pgSz, W, 'h');
   return {
     orientation: pgSz?.getAttributeNS(W, 'orient') === 'landscape' || (w && h && w > h) ? 'landscape' : 'portrait',
-    format: w && h ? (formatFromCm(twipToCm(w), twipToCm(h)) ?? 'A4') : null,
+    format: w && h ? pageFormatOf(twipToCm(w), twipToCm(h)) : null,
   };
 }
 

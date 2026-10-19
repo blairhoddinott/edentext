@@ -2,18 +2,22 @@ import { PX_PER_CM } from './pageMargins';
 import type { Orientation } from './pageOrientation';
 import { docKey, docStore } from './docScope';
 
-export type PageFormat =
+export type NamedPageFormat =
   | 'A3' | 'A4' | 'A5' | 'A6'
   | 'isoB4' | 'isoB5' | 'isoB6'
   | 'jisB4' | 'jisB5'
   | 'k16' | 'k32'
   | 'letter' | 'legal' | 'tabloid' | 'executive' | 'folio' | 'statement';
+// Paper no named format fits, as its portrait box in cm ("12.3x20"): a file's own size
+// survives import and export instead of snapping to A4.
+export type CustomPageFormat = `${number}x${number}`;
+export type PageFormat = NamedPageFormat | CustomPageFormat;
 
 const KEY = docKey('edentext-page-format');
 
 // Portrait page dimensions in cm per format (width < height). Landscape swaps them.
 // Grouped A / ISO-B / JIS-B / Chinese / US, matching the Word/LibreOffice paper menus.
-export const PAGE_FORMAT_CM: Record<PageFormat, { w: number; h: number }> = {
+export const PAGE_FORMAT_CM: Record<NamedPageFormat, { w: number; h: number }> = {
   A3:        { w: 29.7,   h: 42 },
   A4:        { w: 21,     h: 29.7 },
   A5:        { w: 14.8,   h: 21 },
@@ -33,20 +37,32 @@ export const PAGE_FORMAT_CM: Record<PageFormat, { w: number; h: number }> = {
   statement: { w: 13.97,  h: 21.59 },
 };
 
-const FORMATS = Object.keys(PAGE_FORMAT_CM) as PageFormat[];
+const FORMATS = Object.keys(PAGE_FORMAT_CM) as NamedPageFormat[];
+const CUSTOM_RE = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/;
+
+export function isNamedFormat(f: string): f is NamedPageFormat {
+  return (FORMATS as string[]).includes(f);
+}
 
 export function loadPageFormat(): PageFormat {
   const raw = docStore.getItem(KEY);
-  return (raw && (FORMATS as string[]).includes(raw)) ? (raw as PageFormat) : 'A4';
+  return raw && (isNamedFormat(raw) || CUSTOM_RE.test(raw)) ? (raw as PageFormat) : 'A4';
 }
 
 export function savePageFormat(f: PageFormat): void {
   docStore.setItem(KEY, f);
 }
 
+// Portrait page box (cm) of a named or custom format; an unreadable one is A4.
+export function formatDimsCm(format: PageFormat): { w: number; h: number } {
+  if (isNamedFormat(format)) return PAGE_FORMAT_CM[format];
+  const m = CUSTOM_RE.exec(format);
+  return m ? { w: +m[1], h: +m[2] } : PAGE_FORMAT_CM.A4;
+}
+
 // Page box (cm) for a format + orientation; landscape swaps width/height.
 export function pageDimsCm(format: PageFormat, orientation: Orientation): { w: number; h: number } {
-  const { w, h } = PAGE_FORMAT_CM[format];
+  const { w, h } = formatDimsCm(format);
   return orientation === 'landscape' ? { w: h, h: w } : { w, h };
 }
 
@@ -62,7 +78,7 @@ export function applyPageSizeVars(format: PageFormat, orientation: Orientation):
 
 // Match a page's dimensions (cm, any orientation) to a known format, within a
 // tolerance for producer rounding; null when nothing fits. Used by the importers.
-export function formatFromCm(wCm: number, hCm: number, tolCm = 0.2): PageFormat | null {
+export function formatFromCm(wCm: number, hCm: number, tolCm = 0.2): NamedPageFormat | null {
   const w = Math.min(wCm, hCm);
   const h = Math.max(wCm, hCm);
   for (const f of FORMATS) {
@@ -70,4 +86,17 @@ export function formatFromCm(wCm: number, hCm: number, tolCm = 0.2): PageFormat 
     if (Math.abs(dims.w - w) <= tolCm && Math.abs(dims.h - h) <= tolCm) return f;
   }
   return null;
+}
+
+// The format of a page read from a file: the named one it matches, else its own size,
+// to the 0.1 mm within half a twip of it (DOCX's unit), else to 0.01 mm, which still
+// writes back the same twip.
+export function pageFormatOf(wCm: number, hCm: number): PageFormat {
+  const named = formatFromCm(wCm, hCm);
+  if (named || !(wCm > 0 && hCm > 0)) return named ?? 'A4';
+  const r = (v: number) => {
+    const tenth = Math.round(v * 100) / 100;
+    return Math.abs(tenth - v) <= 2.54 / 1440 / 2 ? tenth : Math.round(v * 1000) / 1000;
+  };
+  return `${r(Math.min(wCm, hCm))}x${r(Math.max(wCm, hCm))}`;
 }

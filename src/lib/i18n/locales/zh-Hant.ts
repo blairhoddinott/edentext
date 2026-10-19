@@ -398,6 +398,7 @@ const zhHant: Messages = {
     pageLayoutMargins: '版面配置與邊界',
     layout: '版面配置',
     pageFormat: '紙張大小',
+    pageFormatCustom: '自訂',
     pageFormats: {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',
