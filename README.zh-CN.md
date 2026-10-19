@@ -166,10 +166,19 @@ EdenText 完全在浏览器中运行：`App.svelte` 围绕 TipTap 文档模型�
 
 ### 贡献者
 
-感谢所有通过想法、问题报告、测试和反馈提供帮助的人：
+感谢所有通过想法、问题报告、测试和反馈提供帮助的人。除 GitHub 上列出的贡献者外，我还要感谢：
 
-- Patrick R.——alpha 和 beta 测试
-- [@Deleh](https://github.com/Deleh)——beta 测试
+Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github.com/lukasmwerner)、[@JinJieBeWater](https://github.com/JinJieBeWater)、[@farragoo](https://github.com/farragoo)
+
+<p>
+<a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
+<a href="https://github.com/Camthalion77"><img src="https://github.com/Camthalion77.png?size=96" width="48" alt="@Camthalion77"/></a>
+<a href="https://github.com/ehrensperger-niklas"><img src="https://github.com/ehrensperger-niklas.png?size=96" width="48" alt="@ehrensperger-niklas"/></a>
+<a href="https://github.com/Deleh"><img src="https://github.com/Deleh.png?size=96" width="48" alt="@Deleh"/></a>
+<a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
+<a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
+<a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+</p>
 
 ## 许可证
 

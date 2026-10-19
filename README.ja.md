@@ -181,10 +181,19 @@ EdenText は完全にブラウザ内で動きます。`App.svelte` が TipTap �
 
 ### 協力者
 
-アイデア、バグ報告、テスト、フィードバックで協力してくださった皆さんに感謝します。
+アイデア、バグ報告、テスト、フィードバックで協力してくださった皆さんに感謝します。GitHub に表示されるコントリビューターに加えて、次の方々にも感謝します。
 
-- Patrick R. — アルファ版・ベータ版のテスト
-- [@Deleh](https://github.com/Deleh) — ベータ版のテスト
+Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github.com/lukasmwerner)、[@JinJieBeWater](https://github.com/JinJieBeWater)、[@farragoo](https://github.com/farragoo)
+
+<p>
+<a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
+<a href="https://github.com/Camthalion77"><img src="https://github.com/Camthalion77.png?size=96" width="48" alt="@Camthalion77"/></a>
+<a href="https://github.com/ehrensperger-niklas"><img src="https://github.com/ehrensperger-niklas.png?size=96" width="48" alt="@ehrensperger-niklas"/></a>
+<a href="https://github.com/Deleh"><img src="https://github.com/Deleh.png?size=96" width="48" alt="@Deleh"/></a>
+<a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
+<a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
+<a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+</p>
 
 ## ライセンス
 

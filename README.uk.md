@@ -177,10 +177,19 @@ EdenText працює повністю в браузері: `App.svelte` буд�
 
 ### Подяки
 
-Дякуємо всім, хто допоміг ідеями, повідомленнями про помилки, тестуванням і відгуками:
+Дякую всім, хто допоміг ідеями, повідомленнями про помилки, тестуванням і відгуками. Окрім учасників, зазначених на GitHub, хочу також подякувати:
 
-- Patrick R. — альфа- і бета-тестування
-- [@Deleh](https://github.com/Deleh) — бета-тестування
+Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo)
+
+<p>
+<a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
+<a href="https://github.com/Camthalion77"><img src="https://github.com/Camthalion77.png?size=96" width="48" alt="@Camthalion77"/></a>
+<a href="https://github.com/ehrensperger-niklas"><img src="https://github.com/ehrensperger-niklas.png?size=96" width="48" alt="@ehrensperger-niklas"/></a>
+<a href="https://github.com/Deleh"><img src="https://github.com/Deleh.png?size=96" width="48" alt="@Deleh"/></a>
+<a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
+<a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
+<a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+</p>
 
 ## Ліцензія
 

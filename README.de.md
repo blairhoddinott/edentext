@@ -181,10 +181,19 @@ ist ein unterschriebenes [CLA](CLA.md) nötig; das wird bei jedem Pull Request a
 
 ### Mitwirkende
 
-Danke an alle, die mit Ideen, Fehlerberichten, Tests und Rückmeldungen geholfen haben:
+Danke an alle, die mit Ideen, Fehlerberichten, Tests und Rückmeldungen geholfen haben. Neben den auf GitHub gelisteten Mitwirkenden möchte ich außerdem danken:
 
-- Patrick R. – Alpha- und Betatests
-- [@Deleh](https://github.com/Deleh) – Betatests
+Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo)
+
+<p>
+<a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
+<a href="https://github.com/Camthalion77"><img src="https://github.com/Camthalion77.png?size=96" width="48" alt="@Camthalion77"/></a>
+<a href="https://github.com/ehrensperger-niklas"><img src="https://github.com/ehrensperger-niklas.png?size=96" width="48" alt="@ehrensperger-niklas"/></a>
+<a href="https://github.com/Deleh"><img src="https://github.com/Deleh.png?size=96" width="48" alt="@Deleh"/></a>
+<a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
+<a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
+<a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+</p>
 
 ## Lizenz
 

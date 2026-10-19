@@ -187,10 +187,19 @@ pull request.
 
 ### Ευχαριστίες
 
-Ευχαριστούμε όλους όσοι βοήθησαν με ιδέες, αναφορές σφαλμάτων, δοκιμές και σχόλια:
+Ευχαριστώ όλους όσοι βοήθησαν με ιδέες, αναφορές σφαλμάτων, δοκιμές και σχόλια. Πέρα από τους συνεισφέροντες που εμφανίζει το GitHub, θέλω επίσης να ευχαριστήσω:
 
-- Patrick R. — δοκιμές alpha και beta
-- [@Deleh](https://github.com/Deleh) — δοκιμές beta
+Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo)
+
+<p>
+<a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
+<a href="https://github.com/Camthalion77"><img src="https://github.com/Camthalion77.png?size=96" width="48" alt="@Camthalion77"/></a>
+<a href="https://github.com/ehrensperger-niklas"><img src="https://github.com/ehrensperger-niklas.png?size=96" width="48" alt="@ehrensperger-niklas"/></a>
+<a href="https://github.com/Deleh"><img src="https://github.com/Deleh.png?size=96" width="48" alt="@Deleh"/></a>
+<a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
+<a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
+<a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+</p>
 
 ## Άδεια
 
