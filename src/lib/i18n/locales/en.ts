@@ -407,6 +407,9 @@ const en = {
     layout: 'Layout',
     pageFormat: 'Page format',
     pageFormatCustom: 'Custom',
+    pageSizeCustom: 'Custom size (cm)',
+    pageWidth: 'Width',
+    pageHeight: 'Height',
     pageFormats: {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',

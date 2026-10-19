@@ -26,7 +26,7 @@ import { docBudget, type AiConfig, type AiMode } from '../storage/ai.svelte';
 import { streamChat, parseArgs, type ChatMessage, type ToolCall, type ToolDef } from './client';
 import { blockLine, blockText, blockTexts, cellAt, trackedChanges, isFrame, htmlToSlice, type CellAt, inlineContent, pageLayout, serializeDoc, stripFences, zoneDocFromHtml, fillNotes, type Block } from './doc';
 import { borderAttr, nameLookup, parseMargins, splitDocumentHtml, type NoteText, type PageSpec } from './dialect';
-import { PAGE_FORMAT_CM, type PageFormat } from '../storage/pageFormat';
+import { PAGE_FORMAT_CM, sizeSetup, type PageFormat } from '../storage/pageFormat';
 import type { Orientation } from '../storage/pageOrientation';
 import type { PageMargins } from '../storage/pageMargins';
 import type { HfDoc, HfVariant, HfZone } from '../storage/headerFooter';
@@ -286,7 +286,7 @@ export const TOOLS: ToolDef[] = [
     parameters: {
       type: 'object',
       properties: {
-        size: { type: 'string', enum: Object.keys(PAGE_FORMAT_CM) },
+        size: str(`${Object.keys(PAGE_FORMAT_CM).join(', ')}, or width x height in cm, as 12.3x20`),
         orientation: { type: 'string', enum: ['portrait', 'landscape'] },
         margins_cm: str('One number for all sides, or four: top right bottom left'),
         page_numbers_start: num('The first page\'s number'),
@@ -344,8 +344,11 @@ const pageFormat = (name: unknown) => (Object.keys(PAGE_FORMAT_CM) as PageFormat
 function pageSetup(spec: PageSpec): PageSetup {
   const out: PageSetup = {};
   if (spec.size) {
-    out.format = pageFormat(spec.size);
-    if (!out.format) throw new ToolError(`unknown page size "${spec.size}"; sizes are: ${Object.keys(PAGE_FORMAT_CM).join(', ')}`);
+    const box = /^\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*$/i.exec(spec.size);
+    const sized = box ? sizeSetup(parseFloat(box[1].replace(',', '.')), parseFloat(box[2].replace(',', '.'))) : null;
+    out.format = sized?.format ?? pageFormat(spec.size);
+    if (!out.format) throw new ToolError(`unknown page size "${spec.size}"; sizes are: ${Object.keys(PAGE_FORMAT_CM).join(', ')}, or width x height in cm from 1 to 600`);
+    if (sized) out.orientation = sized.orientation;
   }
   if (spec.orientation) {
     if (spec.orientation !== 'portrait' && spec.orientation !== 'landscape') throw new ToolError('orientation is portrait or landscape');

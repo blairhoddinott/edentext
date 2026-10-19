@@ -23,7 +23,7 @@
   } from '../utils/fontDetect';
   import { DEFAULT_MARGINS, cmToPx, marginAxisLabel, withMirrored, type MarginAxis, type PageMargins } from '../storage/pageMargins';
   import type { Orientation } from '../storage/pageOrientation';
-  import { pageDimsCm, formatDimsCm, isNamedFormat, PAGE_FORMAT_CM, type NamedPageFormat, type PageFormat } from '../storage/pageFormat';
+  import { pageDimsCm, formatDimsCm, isNamedFormat, sizeSetup, PAGE_FORMAT_CM, type NamedPageFormat, type PageFormat } from '../storage/pageFormat';
   import { DEFAULT_HF_DISTANCES, clampHfDistance, spreadMargins, type HfDistances, type HfSet } from '../storage/headerFooter';
   import { blockFontSize, coversWholeBlock, DEFAULT_FONT_SIZE, parseSize, sizeLabel, sizeMenu, type SizedBlock } from '../utils/fontSize';
   import { listContext } from '../editor/extensions/indent';
@@ -609,6 +609,16 @@
 
   function stepMargin(axis: MarginAxis, delta: number) {
     setMargin(axis, pageMargins[axis] + delta);
+  }
+
+  // A typed width or height: the page takes the box, its orientation following the sides.
+  function setPageSize(side: 'w' | 'h', input: HTMLInputElement) {
+    const cur = pageDimsCm(pageFormat, pageOrientation);
+    const v = parseFloat(input.value.replace(',', '.'));
+    const next = sizeSetup(side === 'w' ? v : cur.w, side === 'h' ? v : cur.h);
+    if (!next) { input.value = fmtCm(cur[side]); return; }
+    pageFormat = next.format;
+    pageOrientation = next.orientation;
   }
 
   function commitMarginInput(axis: MarginAxis) {
@@ -1438,6 +1448,22 @@
               <option value={pageFormat}>{t().toolbarExpanded.pageFormatCustom} — {fmtCm(formatDimsCm(pageFormat).w)} × {fmtCm(formatDimsCm(pageFormat).h)} cm</option>
             {/if}
           </select>
+          <div class="margin-grid">
+            {#each (['w', 'h'] as const) as side}
+              {@const label = side === 'w' ? t().toolbarExpanded.pageWidth : t().toolbarExpanded.pageHeight}
+              <label class="margin-field">
+                <span class="margin-label">{label}</span>
+                <input
+                  type="text"
+                  class="margin-input"
+                  inputmode="decimal"
+                  value={fmtCm(pageDimsCm(pageFormat, pageOrientation)[side])}
+                  title={`${t().toolbarExpanded.pageSizeCustom}: ${label}`}
+                  onchange={(e) => setPageSize(side, e.currentTarget)}
+                />
+              </label>
+            {/each}
+          </div>
           <div class="lh-section-label">{t().toolbarExpanded.orientation}</div>
           <div class="orientation-row">
             <button

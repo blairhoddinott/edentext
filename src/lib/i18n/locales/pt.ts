@@ -397,6 +397,9 @@ const pt: Messages = {
     layout: 'Disposição',
     pageFormat: 'Formato de página',
     pageFormatCustom: 'Personalizado',
+    pageSizeCustom: 'Tamanho personalizado (cm)',
+    pageWidth: 'Largura',
+    pageHeight: 'Altura',
     pageFormats: {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',

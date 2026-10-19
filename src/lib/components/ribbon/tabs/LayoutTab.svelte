@@ -5,7 +5,7 @@
   import { anchored, clickOutside, isMenuOpen, toggleMenu, closeMenu } from '../menu.svelte';
   import { uniformBlockAttr } from '../../../utils/selectionFormat';
   import { findColumns, DEFAULT_COLUMN_GAP_CM } from '../../../editor/extensions/columns';
-  import { PAGE_FORMAT_CM, formatDimsCm, isNamedFormat, type NamedPageFormat, type PageFormat } from '../../../storage/pageFormat';
+  import { PAGE_FORMAT_CM, formatDimsCm, isNamedFormat, pageDimsCm, sizeSetup, type NamedPageFormat, type PageFormat } from '../../../storage/pageFormat';
   import { DEFAULT_MARGINS, marginAxisLabel, withMirrored, type PageMargins } from '../../../storage/pageMargins';
   import type { Orientation } from '../../../storage/pageOrientation';
   import { EMPTY_HF_SET, spreadMargins, type HfSet, type HfZone, type PageSide } from '../../../storage/headerFooter';
@@ -117,6 +117,15 @@
     const v = parseFloat(raw.replace(',', '.'));
     if (isNaN(v)) return;
     setMargins({ ...pageMargins, [edge]: Math.min(10, Math.max(0, v)) });
+  }
+  // A typed width or height: the page takes the box, its orientation following the sides.
+  function setPageSize(side: 'w' | 'h', input: HTMLInputElement) {
+    const cur = pageDimsCm(pageFormat, pageOrientation);
+    const v = parseFloat(input.value.replace(',', '.'));
+    const next = sizeSetup(side === 'w' ? v : cur.w, side === 'h' ? v : cur.h);
+    if (!next) { input.value = fmtCm(cur[side]); return; }
+    pageFormat = next.format;
+    pageOrientation = next.orientation;
   }
   function setMargins(next: PageMargins) {
     extraHfSections = spreadMargins(extraHfSections, pageMargins, next);
@@ -237,6 +246,24 @@
               <span class="menu-sub">{fmtCm(d.w)} × {fmtCm(d.h)} cm</span>
             </button>
           {/if}
+          <hr />
+          <div class="rb-menu-label">{t().toolbarExpanded.pageSizeCustom}</div>
+          <div class="margin-grid">
+            {#each (['w', 'h'] as const) as side}
+              {@const label = side === 'w' ? t().toolbarExpanded.pageWidth : t().toolbarExpanded.pageHeight}
+              <label class="margin-field">
+                <span>{label}</span>
+                <input
+                  type="text"
+                  inputmode="decimal"
+                  data-cmd={`pageSize-${side}`}
+                  value={fmtCm(pageDimsCm(pageFormat, pageOrientation)[side])}
+                  title={label}
+                  onchange={(e) => setPageSize(side, e.currentTarget)}
+                />
+              </label>
+            {/each}
+          </div>
           {#if currentSection > 0}
             <div class="rb-menu-label">{t().ribbon.thisSection}</div>
             {#each FORMATS as f}

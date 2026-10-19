@@ -428,6 +428,11 @@ describe('runTurn', () => {
     expect(runTool(ctx, call('set_page', { size: 'B12' })).result).toMatch(/unknown page size "B12"; sizes are: A3/);
     expect(runTool(ctx, call('insert_paragraphs', { after: 1, html: '<page size="letter"/><header><p>Letterhead</p></header><p>New</p>' })).result).toBe('ok');
     expect(pages[1]).toEqual({ format: 'letter' });
+    // A typed box is a size of its own, or the named one it equals; its sides set the orientation.
+    expect(runTool(ctx, call('set_page', { size: '20 x 12,3 cm' })).result).toBe('ok');
+    expect(runTool(ctx, call('set_page', { size: '21x29.7' })).result).toBe('ok');
+    expect(pages.slice(2)).toEqual([{ format: '12.3x20', orientation: 'landscape' }, { format: 'A4', orientation: 'portrait' }]);
+    expect(runTool(ctx, call('set_page', { size: '0x20' })).result).toMatch(/unknown page size/);
     expect(JSON.stringify(zones[2][2])).toContain('Letterhead');
     expect(texts(editor)).toEqual(['Body', 'New']);
     expect(runTool(turn(editor), call('set_page', { size: 'A4' })).result).toMatch(/cannot be changed here/);

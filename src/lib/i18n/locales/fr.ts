@@ -403,6 +403,9 @@ const fr: Messages = {
     layout: 'Mise en page',
     pageFormat: 'Format de page',
     pageFormatCustom: 'Personnalisé',
+    pageSizeCustom: 'Taille personnalisée (cm)',
+    pageWidth: 'Largeur',
+    pageHeight: 'Hauteur',
     pageFormats: {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',

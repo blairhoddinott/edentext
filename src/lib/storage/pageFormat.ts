@@ -100,3 +100,18 @@ export function pageFormatOf(wCm: number, hCm: number): PageFormat {
   };
   return `${r(Math.min(wCm, hCm))}x${r(Math.max(wCm, hCm))}`;
 }
+
+export const PAGE_SIZE_MIN_CM = 1;
+export const PAGE_SIZE_MAX_CM = 600;
+
+// A typed page box (cm, width × height): the named format it equals, else a custom one,
+// and the orientation its sides give; null outside 1–600 cm.
+export function sizeSetup(wCm: number, hCm: number): { format: PageFormat; orientation: Orientation } | null {
+  const ok = (v: number) => v >= PAGE_SIZE_MIN_CM && v <= PAGE_SIZE_MAX_CM;
+  if (!ok(wCm) || !ok(hCm)) return null;
+  const r = (v: number) => Math.round(v * 1000) / 1000;
+  return {
+    format: formatFromCm(wCm, hCm, 0.005) ?? `${r(Math.min(wCm, hCm))}x${r(Math.max(wCm, hCm))}`,
+    orientation: wCm > hCm ? 'landscape' : 'portrait',
+  };
+}

@@ -400,6 +400,9 @@ const ja: Messages = {
     layout: 'レイアウト',
     pageFormat: '用紙サイズ',
     pageFormatCustom: 'ユーザー定義',
+    pageSizeCustom: 'ユーザー定義サイズ (cm)',
+    pageWidth: '幅',
+    pageHeight: '高さ',
     pageFormats: {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',

@@ -399,6 +399,9 @@ const zhHant: Messages = {
     layout: '版面配置',
     pageFormat: '紙張大小',
     pageFormatCustom: '自訂',
+    pageSizeCustom: '自訂大小 (公分)',
+    pageWidth: '寬度',
+    pageHeight: '高度',
     pageFormats: {
       A3: 'A3', A4: 'A4', A5: 'A5', A6: 'A6',
       isoB4: 'B4 (ISO)', isoB5: 'B5 (ISO)', isoB6: 'B6 (ISO)',
