@@ -2,6 +2,40 @@
 
 <!-- Newest release first. New entries go here: ## [x.y.z] — YYYY-MM-DD -->
 
+## [0.11.0] — 2026-10-20
+
+EdenText 0.11.0 brings custom paper sizes: a page takes its own width and height, and a custom
+size in a DOCX or ODT file survives opening and saving instead of falling back to A4. The accent
+colour can be picked freely, and the spell-check language can also be set in Settings. Display
+formulas keep their paragraph's alignment, picture watermarks import centred and washed out, and a
+tab opened before an update of a self-hosted instance can still save.
+
+Thanks to @farragoo for suggesting custom paper sizes and accent colours (#14, #15).
+
+### Added
+- **Custom paper sizes**: Layout ▸ Size takes a width and height in cm (1–600); the longer side
+  sets the orientation, and the AI assistant accepts a custom size too
+- **A custom accent colour** in Settings ▸ General, with a colour picker and a hex field
+- **Spell-check language** also in Settings ▸ Editing, kept in step with the ribbon and status bar
+
+### Fixed
+- A custom page size in DOCX and ODT files, also per section, is kept instead of turning into A4
+- Display formulas stand at their paragraph's alignment, also in Firefox and WebKit, and DOCX
+  formula alignment is read and written
+- A picture watermark imports centred behind the text and washed out; greyscale and monochrome
+  pictures keep their colour mode in both formats
+- A heading in a table cell renders by the file's heading style
+- DOCX runs without their own size or font keep the style's, and a block's own size and font are
+  saved onto its text
+- Table-break markers, page borders, watermarks, change bars and line numbers follow their own
+  page and section
+- Thin lines beside the page grid after zooming are gone
+- Saving works in a tab opened before the app was updated; a missing part of an old build reports
+  the update instead of a script blocker
+- The storage-full warning says the document outgrew browser storage and can still be saved as a
+  file
+
+
 ## [0.10.1] — 2026-10-17
 
 ### Fixed
