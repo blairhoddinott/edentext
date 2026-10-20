@@ -28,8 +28,8 @@ modules:
     sources:
       - type: archive
         only-arches: [x86_64]
-        url: https://github.com/stffnb/edentext/releases/download/v0.10.1/edentext-0.10.1.tar.gz
-        sha256: 95a346b1d0ecbf28334920b2c97fc4e2409a8e45627f22b50b467c41e9912523
+        url: https://github.com/stffnb/edentext/releases/download/v0.11.0/edentext-0.11.0.tar.gz
+        sha256: 979797d101c28fffe5ee7a9e3d5ca646ff50ca72f8ecdf36514ec078ee96a567
         dest: edentext
         x-checker-data:
           type: json
@@ -38,8 +38,8 @@ modules:
           url-query: .assets[] | select(.name == "edentext-" + $version + ".tar.gz") | .browser_download_url
       - type: archive
         only-arches: [aarch64]
-        url: https://github.com/stffnb/edentext/releases/download/v0.10.1/edentext-0.10.1-arm64.tar.gz
-        sha256: 91cdd49b2882286a21e739247236c0fb1f059fd3e81f7b2ee3df60b60df63ea2
+        url: https://github.com/stffnb/edentext/releases/download/v0.11.0/edentext-0.11.0-arm64.tar.gz
+        sha256: adcb4ec81a885a951ef476cdaa20d25cdd6d481535a51b978b8a8122108943f1
         dest: edentext
         x-checker-data:
           type: json
