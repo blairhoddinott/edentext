@@ -1100,15 +1100,16 @@ try {
   };
   const docEnd = process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End';
   const docStart = process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home';
-  // Cells are recycled as the grid scrolls, so the first one in the DOM need not show
-  // page 1: click the top-left cell of the grid scrolled to its start.
+  // Cells are recycled as the grid scrolls and re-aimed a while after it, so the click
+  // waits until a cell on screen sits at the canvas's top left, where page 1 goes.
   await page.evaluate(() => document.querySelector('.editor-panes.grid > .editor').scrollTo(0, 0));
-  await page.waitForTimeout(350);
-  const firstCell = await page.evaluate(() => {
+  const firstCell = await page.waitForFunction(() => {
+    const view = document.querySelector('.editor-panes.grid > .editor').getBoundingClientRect();
+    const canvas = document.querySelector('.grid-canvas').getBoundingClientRect();
     const r = [...document.querySelectorAll('.page-cell:not(.empty)')].map((c) => c.getBoundingClientRect())
-      .sort((a, b) => a.top - b.top || a.left - b.left)[0];
-    return { x: r.left + r.width / 2, y: r.top + r.height / 3 };
-  });
+      .find((q) => Math.abs(q.top - canvas.top) < 1.5 && Math.abs(q.left - canvas.left) < 1.5);
+    return r && r.top >= view.top - 1 && r.top + r.height / 3 < view.bottom && { x: r.left + r.width / 2, y: r.top + r.height / 3 };
+  }, null, { timeout: 15_000 }).then((h) => h.jsonValue());
   await page.mouse.click(firstCell.x, firstCell.y);
   await gridStep('click');
   await page.keyboard.press(docEnd);
