@@ -48,6 +48,9 @@
   /* A frame or a formula wider than the text area is cut at the sheet's edge, as it is
      in LibreOffice. `clip` rather than `hidden`: it must not become a scroll box. */
   overflow-x: clip;
+  /* Its own compositing layer: that clip edge is scaled to a fractional pixel, which
+     Chromium otherwise left painted beside the page after each zoom step. */
+  backface-visibility: hidden;
 
   /* The sheets themselves are one box per page (PageSheetLayer), since a section on its
      own paper makes them differ in size. They sit at z-index -200, under the frames

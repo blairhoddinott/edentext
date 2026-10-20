@@ -1196,6 +1196,41 @@ try {
   await page.evaluate(() => { localStorage.clear(); localStorage.setItem('edentext-theme', 'dark'); });
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('.tiptap', { timeout: 15_000 });
+
+  // Zooming out step by step leaves nothing of the page's earlier edges on the dark
+  // backdrop: the scaled page's clip sits on fractional pixels, which Chromium kept painted.
+  await page.mouse.move(700, 500);
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 40; i++) { await page.mouse.wheel(0, 60); await page.waitForTimeout(30); }
+  await page.keyboard.up('Control');
+  await page.waitForTimeout(600);
+  const shot = (await page.screenshot()).toString('base64');
+  const stale = await page.evaluate(async (png) => {
+    const img = await createImageBitmap(await (await fetch(`data:image/png;base64,${png}`)).blob());
+    const ctx = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height }).getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, img.width, img.height).data;
+    const at = (x, y) => (y * img.width + x) * 4;
+    const pane = document.querySelector('.editor').getBoundingClientRect();
+    const papers = Array.from(document.querySelectorAll('.paper'), (p) => p.getBoundingClientRect());
+    const top = Math.ceil(pane.top + 40), bottom = Math.floor(pane.bottom - 20), bg = at(Math.ceil(pane.left) + 20, bottom - 5);
+    const columns = [];
+    for (let x = Math.ceil(pane.left) + 2; x < pane.right - 20; x++) {
+      if (papers.some((p) => x > p.left - 8 && x < p.right + 8)) continue;
+      let n = 0;
+      for (let y = top; y < bottom; y++) {
+        const i = at(x, y);
+        if ([0, 1, 2].some((k) => Math.abs(data[i + k] - data[bg + k]) > 2)) n++;
+      }
+      if (n > 20) columns.push(x);
+    }
+    return columns;
+  }, shot);
+  check(stale.length === 0, `zooming out leaves no line beside the page (${stale.length ? `at x ${stale.join(', ')}` : 'none'})`);
+  await page.evaluate(() => localStorage.setItem('edentext-zoom', '100'));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.tiptap', { timeout: 15_000 });
+
   await page.click('.tiptap');
   await page.keyboard.type('Contrast');
   await page.evaluate(() => document.querySelector('.tiptap').editor.commands.insertTextBox());
