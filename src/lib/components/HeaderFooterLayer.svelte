@@ -149,12 +149,13 @@
     // From the page's own left edge — a section on narrower paper is centred.
     const left = box.left + cmToPx(swap ? m.right : m.left);
     const width = contentWidthOf(page);
+    const clip = clipOf(zone, page);
     if (zone === 'header') {
       const top = box.top + dist.header;
-      return { top, left, width, height: Math.max(MIN_ZONE_PX, cmToPx(m.top) - dist.header) };
+      return { top, left, width, height: clip ?? Math.max(MIN_ZONE_PX, cmToPx(m.top) - dist.header) };
     }
     // Footer anchors its bottom edge at its distance from the page bottom and grows up.
-    const height = Math.max(MIN_ZONE_PX, cmToPx(m.bottom) - dist.footer);
+    const height = clip ?? Math.max(MIN_ZONE_PX, cmToPx(m.bottom) - dist.footer);
     const top = box.top + box.height - dist.footer - height;
     return { top, left, width, height };
   }
@@ -167,7 +168,7 @@
     // discounted: the frame tracks the real content and the break overflows past the
     // anchored edge, so entering edit never shifts the text.
     const contentPx = Math.max(0, activeContentPx - activeTrailingPx);
-    const height = Math.max(b.height, contentPx);
+    const height = clipOf(zone, page) ?? Math.max(b.height, contentPx);
     if (zone === 'footer') return { ...b, top: b.top + b.height - height, height };
     return { ...b, height };
   }
@@ -248,7 +249,7 @@
     const n = HF_ZONE_KEYS.length;
     const read = () => {
       const next = setSig.map((_, i) => HF_ZONE_KEYS.map((_, k) => boxes[i * n + k]?.offsetHeight ?? 0));
-      if (String(next) !== String(untrack(() => zoneHeights))) zoneHeights = next;
+      if (String(next) !== String(untrack(() => renderedHeights))) renderedHeights = next;
       const past = setSig.map((_, i) => HF_ZONE_KEYS.map((key, k) => (key.startsWith('header') ? intrusion(boxes[i * n + k]) : 0)));
       if (String(past) !== String(untrack(() => zoneIntrusions))) zoneIntrusions = past;
     };
@@ -259,6 +260,39 @@
     read();
     return () => ro.disconnect();
   });
+
+  // LibreOffice gives a page's header and footer together at most 80% of the room between
+  // the edges they start from, the footer first, and clips what runs past (probed): the
+  // body keeps the rest, so a zone taller than the page cannot push it off.
+  const HF_MAX_SHARE = 0.8;
+  let renderedHeights = $state<number[][]>([]);
+  $effect(() => {
+    const next = renderedHeights.map((row, i) => row.map((_, k) => fittedPx(i, row, k)));
+    if (String(next) !== String(untrack(() => zoneHeights))) zoneHeights = next;
+  });
+  // Zone k's band within the cap; HF_ZONE_KEYS pairs each header with its footer (k ^ 1).
+  // A clipped zone keeps a line, since a band of 0 reads as one not yet measured.
+  function fittedPx(i: number, row: number[], k: number): number {
+    const header = row[k & ~1], footer = row[k | 1];
+    if (!row[k]) return row[k] ?? 0;
+    const s = sets[i];
+    const first = HF_ZONE_KEYS[k].endsWith('First');
+    const restM = s?.margins ?? pageMargins;
+    const m = first ? s?.marginsFirst ?? restM : restM;
+    const d = (first ? s?.distancesFirst ?? s?.distances : s?.distances) ?? hfDistances;
+    const top = header ? cmToPx(d.header) : cmToPx(m.top);
+    const bottom = footer ? cmToPx(d.footer) : cmToPx(m.bottom);
+    const room = HF_MAX_SHARE * (boxOf(sectionFirstPage(i)).height - top - bottom);
+    const foot = footer && Math.max(MIN_ZONE_PX, Math.min(footer, room - (header ? MIN_ZONE_PX : 0)));
+    return k & 1 ? foot : Math.max(MIN_ZONE_PX, Math.min(header, room - foot));
+  }
+  // The band a page's zone is cut to, or null where its content fits.
+  function clipOf(zone: HfZone, page: number): number | null {
+    const index = Math.min(sectionOf(page), setSig.length - 1);
+    const k = HF_ZONE_KEYS.indexOf(zoneKey(zone, variantFor(page, index)));
+    const fitted = zoneHeights[index]?.[k] ?? 0;
+    return fitted < (renderedHeights[index]?.[k] ?? 0) ? fitted : null;
+  }
 
   // The body text a header's frames set against it keep clear: down to the frame's
   // bottom, unless LibreOffice would wrap the text beside it — it leaves a gap under
@@ -597,6 +631,7 @@
         {@const zb = zoneBox(zone, p)}
         <div
           class="hf-zone hf-zone-bg hf-{zone}"
+          class:hf-clipped={clipOf(zone, p) !== null}
           style={boxStyle(zb) + pageVar(zb, p)}
           use:fillZone={[p, sig.includes('"pageCount"') ? numPages : 0, sources[id], sig.includes('"chapterField"') ? chapterStarts : null, zone, pageLabel(p), sourceVersion]}
         ></div>
@@ -618,6 +653,7 @@
           class="hf-zone hf-{zone}"
           class:hf-empty={!sig}
           class:hf-has-bg={bg}
+          class:hf-clipped={clipOf(zone, p) !== null}
           data-hf-label={zone === 'header' ? t().hf.addHeaderHint : t().hf.addFooterHint}
           style={boxStyle(zb) + pageVar(zb, p) + (interactive ? hitVars(zone, p, zb) : '')}
           ondblclick={() => interactive && startEdit(zone, p)}
@@ -633,7 +669,7 @@
     {@const box = activeZoneBox(hfActive, editingPage)}
     {@const index = sectionOf(editingPage)}
     {@const variant = variantFor(editingPage, index)}
-    <div class="hf-zone hf-{hfActive} hf-active" style={boxStyle(box) + pageVar(box, editingPage) + ` --hf-tb-offset: ${-activeTrailingPx}px;`} bind:this={liveMount}></div>
+    <div class="hf-zone hf-{hfActive} hf-active" class:hf-clipped={clipOf(hfActive, editingPage) !== null} style={boxStyle(box) + pageVar(box, editingPage) + ` --hf-tb-offset: ${-activeTrailingPx}px;`} bind:this={liveMount}></div>
     <div class="hf-tag" style="top: {box.top}px; left: {box.left}px;">
       {hfActive === 'header'
         ? (variant === 'first' ? t().hf.firstPageHeader : variant === 'even' ? t().hf.evenPageHeader : t().hf.headerLabel)
@@ -746,6 +782,15 @@
 
   .hf-header {
     justify-content: flex-start;
+  }
+  /* A zone past its share of the page shows its start and cuts the rest, as LibreOffice
+     does; the edited one scrolls instead, so the caret stays in view. */
+  .hf-zone.hf-clipped {
+    justify-content: flex-start;
+    overflow: clip;
+  }
+  .hf-active.hf-clipped {
+    overflow-y: auto;
   }
   .hf-footer {
     justify-content: flex-end;

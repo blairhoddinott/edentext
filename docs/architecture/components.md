@@ -128,7 +128,11 @@ for DOM capture and browser printing so every page is present.
 Sections own their header/footer set, distances, and first-page variants. The selected zone is
 the section on the page being edited; a section with different margins must position its zone
 from those margins. The body reach is measured from off-screen rendered zone copies, including
-wrapping and internal spacing, rather than inferred from line counts.
+wrapping and internal spacing, rather than inferred from line counts. A page's header and
+footer together take at most 80% of the room between the edges they start from, the footer
+first, as LibreOffice does (probed: the body keeps ten 12pt lines on A4 under any zone height).
+`HeaderFooterLayer` publishes the fitted bands and cuts a zone past its band (`hf-clipped`).
+The open zone scrolls instead, so the caret stays in view.
 
 ## Review UI
 
