@@ -80,10 +80,34 @@ try {
   await page.waitForSelector('.tiptap', { timeout: 15_000 });
   const zoomed = await settled(opened);
   check(zoomed === opened, `zooming out keeps the page count (${zoomed} at 50%)`);
+
+  // The ruler's marks between the cm and its numbers thin out with the zoom: whatever
+  // is drawn keeps clear of its neighbours, and at 100% the quarter marks are there.
+  const ruler = () => page.evaluate(() => {
+    const marks = Array.from(document.querySelectorAll('.ruler .sub'), (m) => m.getBoundingClientRect().left).sort((a, b) => a - b);
+    const labels = Array.from(document.querySelectorAll('.ruler .tick span'), (s) => s.getBoundingClientRect()).sort((a, b) => a.left - b.left);
+    const gaps = marks.slice(1).map((x, i) => x - marks[i]);
+    const crowded = labels.slice(1).some((r, i) => r.left < labels[i].right + 2)
+      || marks.some((x) => labels.some((r) => x > r.left - 2 && x < r.right + 2));
+    return { count: marks.length, minGap: gaps.length ? Math.min(...gaps) : Infinity, crowded };
+  });
+  const rulerClear = async (zoom) => {
+    const r = await ruler();
+    check(r.minGap >= 6 && !r.crowded, `the ruler's marks and numbers keep clear at ${zoom}% (${r.count} marks)`);
+    return r;
+  };
+  await rulerClear(50);
+  await page.evaluate(() => localStorage.setItem('edentext-zoom', '20'));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.ruler .strip', { timeout: 15_000 });
+  await rulerClear(20);
+
   await page.evaluate(() => localStorage.setItem('edentext-zoom', '100'));
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('.tiptap', { timeout: 15_000 });
   await settled(opened);
+  const full = await rulerClear(100);
+  check(full.count >= 3 * 15, `the ruler shows quarter-cm marks at 100% (${full.count})`);
 
   // A language for all text rewrites every block's attrs, the blocks on both sides of each
   // page break included; the breaks have to stay where they were, and through the undo.

@@ -18,6 +18,8 @@
   const TYPES: TabAlign[] = ['left', 'center', 'right', 'decimal'];
   const SNAP_CM = 0.05;
   const DRAG_OFF_PX = 18; // pulled this far off the ruler = drop the stop
+  const SUB_TICK_GAP_PX = 8; // quarter/half marks need this spacing, which also clears a label
+  const LABEL_GAP_PX = 16; // a two-digit label plus air
 
   let type = $state<TabAlign>('left');
   let strip: HTMLDivElement;
@@ -34,6 +36,12 @@
 
   const textCm = $derived(Math.max(0, pageCm - margins.left - margins.right));
   const ticks = $derived(Array.from({ length: Math.ceil(pageCm) + 1 }, (_, i) => i - Math.floor(margins.left)));
+  // Between the cm marks: quarters, else halves, else none, whichever the zoom leaves room for.
+  const subStep = $derived([0.25, 0.5].find((step) => step * PX_PER_CM * scale >= SUB_TICK_GAP_PX) ?? 0);
+  const subTicks = $derived(subStep ? ticks.flatMap((cm) =>
+    Array.from({ length: 1 / subStep - 1 }, (_, i) => cm + (i + 1) * subStep)) : []);
+  // Zoomed far out, only every 2nd or 5th cm keeps its number.
+  const labelEvery = $derived([1, 2, 5].find((n) => n * PX_PER_CM * scale >= LABEL_GAP_PX) ?? 10);
 
   // Marker glyphs in a shared 10×10 box: L / ⊥ / ⅃, plus ⊥ with a dot for decimal. The
   // stem is the stop's own position, so it stays centred in the box and the foot's
@@ -138,8 +146,13 @@
     {#each ticks as cm (cm)}
       {#if px(cm) >= 0 && px(cm) <= width}
         <div class="tick" style="left: {px(cm)}px">
-          {#if cm > 0 && cm < textCm}<span>{cm}</span>{/if}
+          {#if cm > 0 && cm < textCm && cm % labelEvery === 0}<span>{cm}</span>{/if}
         </div>
+      {/if}
+    {/each}
+    {#each subTicks as cm (cm)}
+      {#if px(cm) >= 0 && px(cm) <= width}
+        <div class="sub" class:half={Math.abs(cm % 1) === 0.5} style="left: {px(cm)}px"></div>
       {/if}
     {/each}
 
@@ -252,6 +265,20 @@
     height: 4px;
     border-left: 1px solid currentColor;
     opacity: 0.55;
+  }
+
+  /* Quarter and half marks sit on the label's line, the half one longer. */
+  .sub {
+    position: absolute;
+    top: 50%;
+    height: 3px;
+    border-left: 1px solid currentColor;
+    opacity: 0.45;
+    transform: translate(-0.5px, -50%);
+  }
+
+  .sub.half {
+    height: 7px;
   }
 
   .tick span {
