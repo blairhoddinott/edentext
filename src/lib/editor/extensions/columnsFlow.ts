@@ -641,9 +641,11 @@ export const ColumnsFlow = Extension.create({
           updateDecorations();
         }
 
+        // A pending frame stays: run reads the state it finds, and re-requesting on every
+        // update let a dispatch from an earlier frame callback (pageBreaks' pass) push it
+        // a frame on for as long as the keys come.
         function schedule() {
-          if (rafId !== null) cancelAnimationFrame(rafId);
-          rafId = requestAnimationFrame(run);
+          if (rafId === null) rafId = requestAnimationFrame(run);
         }
 
         schedule();

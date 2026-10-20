@@ -543,6 +543,8 @@ type PageBreakState = { recalc: number; edit: number; textBlock: number | null }
 // Ancestors a leaf may have without the pass seeing more than the leaf: the walk
 // descends these (CONTAINER_TAGS), and their height is the sum of their blocks'.
 const FLOW_CONTAINERS = new Set(['bulletList', 'orderedList', 'listItem', 'blockquote']);
+// Ancestors of a caret block the pass places on the page grid: not a note, frame or section.
+const CARET_FLOW = new Set([...FLOW_CONTAINERS, 'table', 'tableRow', 'tableCell', 'tableHeader']);
 
 // The textblock a transaction only put text into or took text out of — the one block
 // whose height an edit like that can change. Null for anything else: a node, a split, a
@@ -2484,16 +2486,32 @@ export const PageBreaks = Extension.create({
           }
         }
 
+        // A pending frame stays, as in columnsFlow.ts: re-requesting it on every update can
+        // push it a frame on for as long as transactions keep coming.
         function schedule() {
           if (idleTimer !== null) { clearTimeout(idleTimer); idleTimer = null; }
-          if (rafId !== null) cancelAnimationFrame(rafId);
-          rafId = requestAnimationFrame(calculate);
+          if (rafId === null) rafId = requestAnimationFrame(calculate);
         }
         // The bottom of the last block, not .tiptap's height: its min-height would hide
         // a block growing on a short document's only page.
         function contentBottom(): number {
           const last = editorView.dom.lastElementChild as HTMLElement | null;
           return last ? last.offsetTop + last.offsetHeight : 0;
+        }
+        // The caret's block reaching past its page's text area: an edit's pause would keep the
+        // caret off the page for as long as the keys come (a held Enter), so it paginates now.
+        function caretOverflows(): boolean {
+          const $head = editorView.state.selection.$head;
+          if (!$head.parent.isTextblock || $head.depth === 0) return false;
+          for (let d = 1; d < $head.depth; d++) {
+            if (!CARET_FLOW.has($head.node(d).type.name)) return false;
+          }
+          const el = editorView.nodeDOM($head.before());
+          if (!(el instanceof HTMLElement)) return false;
+          const bottom = topInEditor(editorView, el) + el.offsetHeight;
+          const grid = readVerticalMargins(editorView.dom as HTMLElement).grid;
+          const page = grid.pageAt(bottom);
+          return bottom > grid.contentBottomOf(page) + 1 || bottom < grid.contentTopOf(page);
         }
         function scheduleEdit() {
           if (idleTimer !== null) clearTimeout(idleTimer);
@@ -2532,7 +2550,8 @@ export const PageBreaks = Extension.create({
               if (isEditTr && !forced) {
                 const b = after?.textBlock ?? null;
                 editBlock = b === null || (editBlock !== null && editBlock !== b) ? false : b;
-                scheduleEdit();
+                if (caretOverflows()) schedule();
+                else scheduleEdit();
               } else {
                 schedule();
               }
