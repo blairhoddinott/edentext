@@ -1463,10 +1463,11 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     const el = scrollers[0];
     if (!el || !canvasEl) return;
     const row = Math.max(0, Math.min(gridRows - 1, Math.floor((Math.max(1, page) - 1) / gridCols)));
-    // Written here rather than awaited from the scroll event: the caller reads the
-    // cells back in the same tick to find the page it just scrolled to.
-    firstRow = row;
+    // Read back rather than awaited from the scroll event: the caller looks the cells up
+    // in the same tick, and a write the scroller clamps to where it was fires no event.
+    flushSync();
     el.scrollTop = gridOrigin(el) + row * firstCycle * (appliedZoom / 100);
+    readFirstRow();
   }
 
   // Where the caret is drawn: a position at a wrap is also the next line's start, a page

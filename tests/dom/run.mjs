@@ -1133,7 +1133,13 @@ try {
     const r = [...document.querySelectorAll('.page-cell:not(.empty)')].map((c) => c.getBoundingClientRect())
       .find((q) => Math.abs(q.top - canvas.top) < 1.5 && Math.abs(q.left - canvas.left) < 1.5);
     return r && r.top >= view.top - 1 && r.top + r.height / 3 < view.bottom && { x: r.left + r.width / 2, y: r.top + r.height / 3 };
-  }, null, { timeout: 15_000 }).then((h) => h.jsonValue());
+  }, null, { timeout: 15_000 }).then((h) => h.jsonValue()).catch(async (err) => {
+    throw new Error(`no cell shows page 1 on screen: ${await page.evaluate(() => JSON.stringify({
+      scrollTop: document.querySelector('.editor-panes.grid > .editor').scrollTop,
+      canvas: document.querySelector('.grid-canvas').getBoundingClientRect().top,
+      cells: [...document.querySelectorAll('.page-cell:not(.empty)')].map((c) => Math.round(c.getBoundingClientRect().top)),
+    }))} (${err.message.split('\n')[0]})`);
+  });
   await page.mouse.click(firstCell.x, firstCell.y);
   await gridStep('click');
   await page.keyboard.press(docEnd);
