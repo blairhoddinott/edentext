@@ -279,6 +279,8 @@
   // region instead of the style itself (and has no parent chain, so own = resolved).
   let ownText = $derived(isTable ? regionProps.text ?? {} : style.text);
   let resolvedText = $derived(isTable ? regionProps.text ?? {} : resolved.text);
+  // What clearing a text property falls back to: the parent's value, not the style's own.
+  let parentText = $derived(isTable || !style.parent ? {} : resolveStyle(sheet, style.parent, family).text);
   function editText(patch: Partial<Style['text']>) {
     if (!isTable) return edit({ text: patch });
     const text = { ...(regionProps.text ?? {}), ...patch };
@@ -813,7 +815,7 @@
             value={ownText.fontFamily ?? ''}
             onchange={(e) => editText({ fontFamily: e.currentTarget.value || undefined })}
           >
-            <option value="">{inherited(resolvedText.fontFamily) || '—'}</option>
+            <option value="">{inherited(parentText.fontFamily) || '—'}</option>
             {#each fontOptions as font}
               <option value={font} style="font-family: '{font}'">{font}</option>
             {/each}
@@ -827,7 +829,7 @@
               value={ownText.fontFamilyAsian ?? ''}
               onchange={(e) => editText({ fontFamilyAsian: e.currentTarget.value || undefined })}
             >
-              <option value="">{inherited(resolvedText.fontFamilyAsian) || '—'}</option>
+              <option value="">{inherited(parentText.fontFamilyAsian) || '—'}</option>
               {#each asianFontOptions as font}
                 <option value={font} style="font-family: '{font}'">{fontLabel(font)}</option>
               {/each}
@@ -852,7 +854,7 @@
                 defaultColor={ownText.color ?? resolvedText.color ?? '#000000'}
                 title={t().styles.color}
                 chevronTitle={t().styles.color}
-                clearLabel={inherited(resolvedText.color) || '—'}
+                clearLabel={inherited(parentText.color) || t().toolbarExpanded.noColor}
                 onApply={(c) => editText({ color: c })}
                 onClear={() => editText({ color: undefined })}
               >
@@ -1199,6 +1201,8 @@
     background: var(--color-surface);
     color: var(--color-text);
   }
+  /* A number holds a few digits and "(inherited)", not the width its column offers. */
+  input[type='number'] { width: 9rem; max-width: 100%; box-sizing: border-box; }
 
   footer {
     display: flex;
