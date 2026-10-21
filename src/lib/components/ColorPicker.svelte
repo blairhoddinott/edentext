@@ -651,10 +651,10 @@
     background: var(--color-btn-hover);
   }
 
+  /* Marked like a chosen swatch: a filled button would read as the color it applies. */
   .color-automatic.active {
-    background: var(--color-primary);
-    color: white;
-    border-color: var(--color-primary);
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
   }
 
   .color-grid {
