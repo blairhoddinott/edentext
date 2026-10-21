@@ -893,7 +893,7 @@
                   defaultColor={parts.color}
                   title={t().borders.lineColor}
                   chevronTitle={t().borders.lineColor}
-                  clearLabel="—"
+                  clearLabel={t().toolbarExpanded.noColor}
                   onApply={(c) => apply(parts.width === 'none' ? '0.5' : parts.width, c)}
                   onClear={clear}
                 >
@@ -956,7 +956,7 @@
 
         <div class="border-grid">
           {#each PARA_BORDERS as { key, label }}
-            {@render borderField(label(), key, paraBorderParts(resolved.para[key]), (w, c) => paraBorder(key, w, c), () => edit({ para: { [key]: undefined } }))}
+            {@render borderField(label(), key, paraBorderParts(resolved.para[key]), (w, c) => paraBorder(key, w, c), () => paraBorder(key, 'none', '#000000'))}
           {/each}
           <label class="pad">{t().styles.borderPadding}
             <input type="number" min="0" max="31" step="0.5" value={style.para.borderPadding ?? ''}
