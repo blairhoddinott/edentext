@@ -60,6 +60,7 @@
   let lineHeight = $derived(read('lineHeight', '1'));
   // A fixed spacing is a height in pt ('28pt'), the presets are factors.
   let fixedLine = $derived(/pt$/.test(String(lineHeight)));
+  const LINE_FACTORS = ['1', '1.15', '1.5', '2', '2.5', '3'];
 
   let breakBefore = $derived(read<string | null>('breakBefore', null) === 'page');
   // widowControl is on unless a paragraph turned it off; the other two are off unless set.
@@ -166,7 +167,9 @@
         <label class="row newline">
           <span>{t().toolbarExpanded.lineSpacing}</span>
           <select value={fixedLine ? 'fixed' : String(lineHeight)} onchange={(e) => { const v = (e.currentTarget as HTMLSelectElement).value; editor?.chain().focus().setLineHeight(v === 'fixed' ? '12pt' : v).run(); }}>
-            {#each ['1', '1.15', '1.5', '2'] as h}<option value={h}>{h === '1' ? t().toolbarExpanded.lineSingle : h === '2' ? t().toolbarExpanded.lineDouble : h}</option>{/each}
+            {#each LINE_FACTORS as h}<option value={h}>{h === '1' ? t().toolbarExpanded.lineSingle : h === '2' ? t().toolbarExpanded.lineDouble : h}</option>{/each}
+            <!-- An imported factor off the list still shows, rather than a blank select. -->
+            {#if !fixedLine && !LINE_FACTORS.includes(String(lineHeight))}<option value={String(lineHeight)}>{lineHeight}</option>{/if}
             <option value="fixed">{t().toolbarExpanded.lineFixed}</option>
           </select>
         </label>

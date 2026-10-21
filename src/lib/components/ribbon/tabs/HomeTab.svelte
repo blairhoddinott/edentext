@@ -141,7 +141,7 @@
     else (dir > 0 ? chain.indentMore() : chain.indentLess()).run();
   }
 
-  const LINE_HEIGHTS = ['1', '1.15', '1.5', '2'];
+  const LINE_HEIGHTS = ['1', '1.15', '1.5', '2', '2.5', '3'];
   const LH_SHORTCUTS: Record<string, ShortcutId | undefined> = {
     '1': 'lineHeight1', '1.5': 'lineHeight15', '2': 'lineHeight2',
   };

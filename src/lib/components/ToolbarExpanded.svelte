@@ -149,7 +149,7 @@
 
   // Must match line-height in editor.css (.paper .tiptap)
   const DEFAULT_LINE_HEIGHT = '1';
-  const LINE_HEIGHTS = ['1', '1.15', '1.5', '2'];
+  const LINE_HEIGHTS = ['1', '1.15', '1.5', '2', '2.5', '3'];
 
   // Only these three have a key; 1.15 has none.
   const LH_SHORTCUTS: Record<string, ShortcutId | undefined> = {
