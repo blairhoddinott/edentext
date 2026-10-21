@@ -43,6 +43,8 @@ const zhHant: Messages = {
     open: '開啟…',
     rulerHint: '頁面上方的縮排和定位點',
     formattingMarksHint: '螢幕上的段落標記、空格和定位字元',
+    pageLabels: '頁面旁的頁碼',
+    pageLabelsHint: '每頁右下角旁顯示的頁序號，不會列印',
     recentFilesHint: '「檔案」選單中的檔案清單；檔案本身保留',
     retention: { keep: '保留文件', closed: '僅在開啟期間', none: '關閉' },
     retentionHint: { keep: '已關閉的文件保留在「檔案 ▸ 最近使用的文件」中。', closed: '已關閉的文件會在下次啟動時從瀏覽器中刪除。', none: '瀏覽器中不儲存任何內容：重新載入或當機會遺失文件。字詞自動完成與使用者字典也會關閉。' },

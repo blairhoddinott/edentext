@@ -27,6 +27,7 @@
     showRuler = $bindable(),
     showFormattingMarks = $bindable(),
     showFieldShading = $bindable(),
+    showPageLabels = $bindable(),
     chromeMode = $bindable(),
     recentCount,
     onClearRecent,
@@ -42,6 +43,7 @@
     showRuler: boolean;
     showFormattingMarks: boolean;
     showFieldShading: boolean;
+    showPageLabels: boolean;
     chromeMode: ChromeMode;
     recentCount: number;
     onClearRecent: () => void;
@@ -234,6 +236,10 @@
           <div class="row">
             <div class="info"><div class="name">{t().view.fieldShadings}</div><div class="desc">{t().view.fieldShadingsTitle}</div></div>
             <Toggle label={t().view.fieldShadings} checked={showFieldShading} onchange={(on) => (showFieldShading = on)} />
+          </div>
+          <div class="row">
+            <div class="info"><div class="name">{t().settings.pageLabels}</div><div class="desc">{t().settings.pageLabelsHint}</div></div>
+            <Toggle label={t().settings.pageLabels} checked={showPageLabels} onchange={(on) => (showPageLabels = on)} />
           </div>
 
         {:else if section === 'ai'}

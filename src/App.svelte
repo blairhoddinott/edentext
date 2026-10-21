@@ -30,7 +30,7 @@
   import { countText, type TextStats } from './lib/utils/wordCount';
   import type { Node as PmNode } from 'prosemirror-model';
   import { clampZoom, wheelZoomFactor, MIN_ZOOM, MAX_ZOOM } from './lib/utils/zoom';
-  import { loadTheme, saveTheme, applyTheme, loadToolbarExpanded, saveToolbarExpanded, loadChromeMode, saveChromeMode, loadFormattingMarks, saveFormattingMarks, loadFieldShading, saveFieldShading, loadRuler, saveRuler, loadSplitView, saveSplitView, loadPageColumns, savePageColumns, type ThemeMode, type ChromeMode } from './lib/storage/theme';
+  import { loadTheme, saveTheme, applyTheme, loadToolbarExpanded, saveToolbarExpanded, loadChromeMode, saveChromeMode, loadFormattingMarks, saveFormattingMarks, loadFieldShading, saveFieldShading, loadPageLabels, savePageLabels, loadRuler, saveRuler, loadSplitView, saveSplitView, loadPageColumns, savePageColumns, type ThemeMode, type ChromeMode } from './lib/storage/theme';
   import { loadPageMargins, savePageMargins, fitMargins, DEFAULT_MARGINS, type PageMargins } from './lib/storage/pageMargins';
   import { loadOrientation, saveOrientation, type Orientation } from './lib/storage/pageOrientation';
   import { loadTabInterval, saveTabInterval, applyTabIntervalVar, DEFAULT_TAB_INTERVAL_CM } from './lib/storage/tabInterval';
@@ -260,6 +260,7 @@
   let chromeMode: ChromeMode = $state(loadChromeMode());
   let showFormattingMarks = $state(loadFormattingMarks());
   let showFieldShading = $state(loadFieldShading());
+  let showPageLabels = $state(loadPageLabels());
   let showRuler = $state(loadRuler());
   let splitView = $state(loadSplitView());
   let pageColumns = $state(loadPageColumns());
@@ -437,6 +438,10 @@
 
   $effect(() => {
     saveFieldShading(showFieldShading);
+  });
+
+  $effect(() => {
+    savePageLabels(showPageLabels);
   });
 
   $effect(() => {
@@ -1981,6 +1986,7 @@
     onZoom={setZoom}
     {showFormattingMarks}
     {showFieldShading}
+    {showPageLabels}
     {showRuler}
     {splitView}
     pageColumns={gridColumns}
@@ -2085,6 +2091,7 @@
     bind:showRuler
     bind:showFormattingMarks
     bind:showFieldShading
+    bind:showPageLabels
     bind:chromeMode
     recentCount={recentFiles.length}
     onClearRecent={() => { forgetRecentFiles(); recentFiles = []; }}

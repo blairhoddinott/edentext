@@ -31,6 +31,7 @@ import LineNumberLayer from './LineNumberLayer.svelte';
 import FoldMarkLayer from './FoldMarkLayer.svelte';
 import ChangeBarLayer from './ChangeBarLayer.svelte';
   import ReviewMarginLayer, { REVIEW_MARGIN_CM } from './ReviewMarginLayer.svelte';
+  import PageLabelLayer from './PageLabelLayer.svelte';
   import { visibleComments, visibleRevisions } from './reviewItems';
   import { changesInMargin, commentsInMargin, markupView } from '../storage/markup.svelte';
 import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../storage/lineNumbering';
@@ -64,7 +65,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
 
   let {
     editor = $bindable(), tick = $bindable(0), currentPage = $bindable(1), numPages = $bindable(1),
-    zoom = 100, onZoom, onDocumentLost, showFormattingMarks = false, showFieldShading = true, showRuler = true, splitView = false, pageColumns = 1, pageMargins = DEFAULT_MARGINS, orientation = 'portrait',
+    zoom = 100, onZoom, onDocumentLost, showFormattingMarks = false, showFieldShading = true, showPageLabels = true, showRuler = true, splitView = false, pageColumns = 1, pageMargins = DEFAULT_MARGINS, orientation = 'portrait',
     pageFormat = 'A4', tabIntervalCm = DEFAULT_TAB_INTERVAL_CM, spacingModel = 'add', spacingAtPageStart = true, documentEpoch = 0, pageRtl = false, hyphenate = false, documentLanguage = 'en', pageNumbering = DEFAULT_PAGE_NUMBERING, pageDecor = EMPTY_PAGE_DECOR, lineNumbering = DEFAULT_LINE_NUMBERING, lineGrid = DEFAULT_LINE_GRID, balanceSpaces = false, foldMarks = false, commentAuthor = '',
     headerDoc = $bindable(null), footerDoc = $bindable(null), hfDistances = DEFAULT_HF_DISTANCES,
     headerFirstDoc = $bindable(null), footerFirstDoc = $bindable(null), differentFirstPage = false,
@@ -76,7 +77,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     onZoom?: (zoom: number) => void;
     /** The stored document was given up at startup; the editor starts empty. */
     onDocumentLost?: () => void;
-    showFormattingMarks?: boolean; showFieldShading?: boolean; showRuler?: boolean; pageMargins?: PageMargins; orientation?: Orientation; pageFormat?: PageFormat; tabIntervalCm?: number; spacingModel?: SpacingModel; spacingAtPageStart?: boolean;
+    showFormattingMarks?: boolean; showFieldShading?: boolean; showPageLabels?: boolean; showRuler?: boolean; pageMargins?: PageMargins; orientation?: Orientation; pageFormat?: PageFormat; tabIntervalCm?: number; spacingModel?: SpacingModel; spacingAtPageStart?: boolean;
     /** Two panes onto this document, scrolled on their own (Word's View ▸ Split). */
     splitView?: boolean;
     /** How many pages sit side by side (LibreOffice's View layout ▸ Columns); 1 = off. */
@@ -989,6 +990,8 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   // The scroller's footprint holds page + strip; .paper-scaler's `margin: 0 auto` then
   // centres the pair, so the page sits left of centre as it does in LibreOffice.
   let scaledCanvasWidth = $derived(scaledWidth + Math.round(reviewArea * appliedZoom / 100));
+  // Each pane scroller's width: the page labels may reach as far right as it does.
+  let paneWidths = $state<number[]>([]);
 
   let zoomRaf: number | null = null;
 
@@ -1812,6 +1815,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   class:pane-below={splitView && i > 0}
   style:flex={splitView && i === 0 ? `0 0 ${splitRatio}%` : '1'}
   bind:this={scrollers[i]}
+  bind:clientWidth={paneWidths[i]}
   use:paneEvents={i}
   onwheel={(e) => onWheel(e, i)}
   oncontextmenu={(e) => openContextMenu(e, i)}
@@ -1828,6 +1832,10 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
        Before the first measure (size 0) it's left unsized so .paper isn't clipped. -->
   <div class="paper-scaler" style={scaledWidth ? `width: ${scaledCanvasWidth}px; height: ${scaledHeight}px;` : ''}>
     {@render paper(i, 0, 0)}
+    {#if showPageLabels && scaledWidth}
+      <!-- The scaler is centred in the scroller, whose 1rem padding is room as well. -->
+      <PageLabelLayer {pageBoxes} zoom={appliedZoom} width={scaledCanvasWidth + Math.max(16, ((paneWidths[i] ?? 0) - scaledCanvasWidth) / 2)} />
+    {/if}
     {#if hasReviewMarkup}
       <ReviewMarginLayer {editor} {tick} {pageBoxes} {paperWidth} zoom={appliedZoom} author={commentAuthor} />
     {/if}

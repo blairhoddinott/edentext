@@ -41,6 +41,8 @@ const pt: Messages = {
     open: 'Abrir…',
     rulerHint: 'Avanços e tabulações acima da página',
     formattingMarksHint: 'Marcas de parágrafo, espaços e tabulações no ecrã',
+    pageLabels: 'Números de página ao lado da página',
+    pageLabelsHint: 'O número da folha em baixo, à direita de cada página; não é impresso',
     recentFilesHint: 'Os ficheiros no menu Ficheiro; os ficheiros em si ficam',
     retention: { keep: 'Manter os documentos', closed: 'Só enquanto estiverem abertos', none: 'Desativado' },
     retentionHint: { keep: 'Os documentos fechados ficam em Ficheiro ▸ Documentos recentes.', closed: 'Um documento fechado é eliminado do navegador no próximo arranque.', none: 'Nada é guardado no navegador: recarregar ou uma falha fazem perder o documento. O preenchimento automático de palavras e o dicionário do utilizador também ficam desativados.' },

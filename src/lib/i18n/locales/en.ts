@@ -42,6 +42,8 @@ const en = {
     open: 'Open…',
     rulerHint: 'Indents and tab stops above the page',
     formattingMarksHint: 'Paragraph marks, spaces and tabs on screen',
+    pageLabels: 'Page numbers beside the page',
+    pageLabelsHint: 'The sheet number at the bottom right of each page; not printed',
     recentFilesHint: 'The files listed in the File menu; the files themselves stay',
     retention: { keep: 'Keep documents', closed: 'Only while they are open', none: 'Off' },
     retentionHint: { keep: 'Closed documents stay under File ▸ Recent documents.', closed: 'A closed document is deleted from the browser at the next start.', none: 'Nothing is saved in the browser: a reload or a crash loses the document. Word completion and the user dictionary are off as well.' },

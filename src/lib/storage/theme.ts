@@ -11,6 +11,7 @@ const CHROME_KEY = 'edentext-chrome';
 const RIBBON_COLLAPSED_KEY = 'edentext-ribbon-collapsed';
 const FORMATTING_MARKS_KEY = 'edentext-formatting-marks';
 const FIELD_SHADING_KEY = 'edentext-field-shading';
+const PAGE_LABELS_KEY = 'edentext-page-labels';
 const RULER_KEY = 'edentext-ruler';
 const SPLIT_KEY = 'edentext-split';
 const PAGE_COLUMNS_KEY = 'edentext-page-columns';
@@ -85,6 +86,15 @@ export function loadFieldShading(): boolean {
 
 export function saveFieldShading(enabled: boolean): void {
     localStorage.setItem(FIELD_SHADING_KEY, String(enabled));
+}
+
+// The sheet number beside each page's bottom right corner; on unless switched off.
+export function loadPageLabels(): boolean {
+    return localStorage.getItem(PAGE_LABELS_KEY) !== 'false';
+}
+
+export function savePageLabels(enabled: boolean): void {
+    localStorage.setItem(PAGE_LABELS_KEY, String(enabled));
 }
 
 // Unset, the ruler is on except on a phone-wide window, where it only costs a row.

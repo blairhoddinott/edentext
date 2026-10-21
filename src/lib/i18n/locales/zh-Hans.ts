@@ -42,6 +42,8 @@ const zhHans: Messages = {
     open: '打开…',
     rulerHint: '页面上方的缩进和制表位',
     formattingMarksHint: '屏幕上的段落标记、空格和制表符',
+    pageLabels: '页面旁的页码',
+    pageLabelsHint: '每页右下角旁显示的页序号，不会打印',
     recentFilesHint: '“文件”菜单中的文件列表；文件本身保留',
     retention: { keep: '保留文档', closed: '仅在打开期间', none: '关闭' },
     retentionHint: { keep: '已关闭的文档保留在“文件 ▸ 最近使用的文档”中。', closed: '已关闭的文档会在下次启动时从浏览器中删除。', none: '浏览器中不保存任何内容：重新加载或崩溃会丢失文档。单词补全和用户词典也会关闭。' },

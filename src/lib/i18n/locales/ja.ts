@@ -43,6 +43,8 @@ const ja: Messages = {
     open: '開く…',
     rulerHint: 'ページ上部のインデントとタブ位置',
     formattingMarksHint: '画面上の段落記号、スペース、タブ',
+    pageLabels: 'ページの横にページ番号',
+    pageLabelsHint: '各ページの右下に表示される用紙番号 (印刷されません)',
     recentFilesHint: '［ファイル］メニューの一覧。ファイル自体は残ります',
     retention: { keep: '文書を保持する', closed: '開いている間だけ', none: 'オフ' },
     retentionHint: { keep: '閉じた文書は［ファイル］▸［最近使った文書］に残ります。', closed: '閉じた文書は次回起動時にブラウザーから削除されます。', none: 'ブラウザーには何も保存されません。再読み込みやクラッシュで文書は失われます。単語補完とユーザー辞書もオフになります。' },

@@ -41,6 +41,8 @@ const fr: Messages = {
     open: 'Ouvrir…',
     rulerHint: 'Retraits et tabulations au-dessus de la page',
     formattingMarksHint: 'Marques de paragraphe, espaces et tabulations à l’écran',
+    pageLabels: 'Numéros de page à côté de la page',
+    pageLabelsHint: 'Le numéro de feuille en bas à droite de chaque page ; non imprimé',
     recentFilesHint: 'Les fichiers du menu Fichier ; les fichiers eux-mêmes restent',
     retention: { keep: 'Conserver les documents', closed: 'Seulement tant qu’ils sont ouverts', none: 'Désactivé' },
     retentionHint: { keep: 'Les documents fermés restent dans Fichier ▸ Documents récents.', closed: 'Un document fermé est supprimé du navigateur au prochain démarrage.', none: 'Rien n’est enregistré dans le navigateur : un rechargement ou un plantage fait perdre le document. La saisie semi-automatique et le dictionnaire personnel sont aussi désactivés.' },

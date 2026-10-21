@@ -41,6 +41,8 @@ const es: Messages = {
     open: 'Abrir…',
     rulerHint: 'Sangrías y tabulaciones encima de la página',
     formattingMarksHint: 'Marcas de párrafo, espacios y tabulaciones en pantalla',
+    pageLabels: 'Números de página junto a la página',
+    pageLabelsHint: 'El número de hoja abajo a la derecha de cada página; no se imprime',
     recentFilesHint: 'Los archivos del menú Archivo; los archivos no se tocan',
     retention: { keep: 'Conservar los documentos', closed: 'Solo mientras estén abiertos', none: 'Desactivado' },
     retentionHint: { keep: 'Los documentos cerrados siguen en Archivo ▸ Documentos recientes.', closed: 'Un documento cerrado se elimina del navegador en el próximo inicio.', none: 'No se guarda nada en el navegador: recargar o un bloqueo hacen perder el documento. El autocompletado de palabras y el diccionario de usuario también se desactivan.' },

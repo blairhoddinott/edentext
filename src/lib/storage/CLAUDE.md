@@ -70,6 +70,7 @@ writes its own marker, so no two tabs race over one key.
 - **Ribbon collapsed:** `edentext-ribbon-collapsed` — boolean string; absent = expanded.
 - **Formatting marks:** `edentext-formatting-marks` — boolean string.
 - **Ruler:** `edentext-ruler` — boolean string; absent = on, off at ≤600px width.
+- **Page labels:** `edentext-page-labels` — boolean string; absent = on. The sheet number beside each page's bottom right corner (`PageLabelLayer.svelte`, Settings ▸ View); a view, never exported or printed.
 - **Split view:** `edentext-split` — boolean string; absent = off. The divider's position is not kept, as neither word processor restores one.
 - **Pages side by side:** `edentext-page-columns` — how many, 1–`MAX_PAGE_COLUMNS`; absent = 1. Only one pane layout at a time, so turning this on ends the split.
 - **Zoom:** `edentext-zoom` — integer percent.
