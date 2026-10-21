@@ -810,7 +810,9 @@ try {
   await page.locator('.ribbon-tab', { hasText: 'Home' }).first().click();
   await page.click('.gallery-more');
   await page.click('.rb-menu-foot');
-  await page.locator('.border-grid select').nth(1).selectOption('1');
+  const ruleBox = page.locator('.border-grid .bw input').nth(1);
+  await ruleBox.fill('1');
+  await ruleBox.press('Enter');
   const ruleWidth = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.tiptap h2')).borderBottomWidth));
   const ruled = await ruleWidth();
   await page.locator('footer button', { hasText: 'Reset to default' }).click();
