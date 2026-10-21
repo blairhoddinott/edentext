@@ -1142,6 +1142,19 @@ try {
   });
   await page.mouse.click(firstCell.x, firstCell.y);
   await gridStep('click');
+  // What the click hit and where it left the selection, for a failure on an engine
+  // this machine cannot run.
+  if (gridFaults.length) gridFaults.push(`click hit ${await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y);
+    const ed = document.querySelector('.tiptap').editor;
+    const sel = getSelection();
+    return JSON.stringify({
+      hit: `${hit?.tagName}.${hit?.className}`.slice(0, 60), inCell: !!hit?.closest('.page-cell'),
+      focus: `${document.activeElement?.tagName}.${document.activeElement?.className}`.slice(0, 60),
+      head: ed.state.selection.head, size: ed.state.doc.content.size,
+      domFocus: sel.focusNode ? `${sel.focusNode.nodeName}:${sel.focusOffset}` : null,
+    });
+  }, firstCell)}`);
   await page.keyboard.press(docEnd);
   await gridStep('document end');
   await page.keyboard.type('x');
