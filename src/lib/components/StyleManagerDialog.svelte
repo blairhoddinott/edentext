@@ -208,7 +208,7 @@
   const paraBorderParts = (v: string | undefined) => (v && v !== 'none' ? borderParts(v) : { width: 'none', color: '#000000' });
   // 'none' only overrules a parent's rule; without one the style just has none.
   function paraBorder(key: ParaBorder, width: string, color: string) {
-    const parentHas = !!resolveStyle(sheet, style.parent, family).para[key];
+    const parentHas = !!style.parent && !!resolveStyle(sheet, style.parent, family).para[key];
     edit({ para: { [key]: width === 'none' ? (parentHas ? 'none' : undefined) : `${parseFloat(width)}pt solid ${color.toUpperCase()}` } });
   }
 
