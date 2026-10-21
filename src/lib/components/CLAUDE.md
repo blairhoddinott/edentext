@@ -27,5 +27,6 @@ formulas, or notes before changing those areas.
 - `SettingsDialog.svelte` (the ribbon's gear) gathers app-wide settings in side-bar sections, each control writing through the store that owns it; on/off rows use `Toggle.svelte`, a checkbox with `role="switch"`.
 - `AiPane.svelte` (docked chat, also the selection's rewrites) mounts only while `aiEnabled()`; see `docs/architecture/ai.md`. The pane's left edge drags or arrow-keys its width (260 px to 60 % of the window, double-click resets), kept in `localStorage`.
 - `BusyIndicator.svelte` (status bar) names a running task (opening a file, PDF export) at once, a layout pass after 300 ms (`isLayingOut`, not while typing); the first layout after start-up or an import still reads as loading.
+- `BorderWidthBox.svelte` is every line-width field (style manager, border pens, text box): presets in a list or a typed pt value, clamped to 0.05–9 pt; `none` adds "None" where a side can have no line.
 - `Ruler.svelte` draws quarter-, else half-cm marks and thins its cm numbers to every 2nd/5th only as far as the zoom leaves them room, so nothing on it overlaps.
 - `PageLabelLayer.svelte` puts the sheet number beside each page's bottom right corner, in `.paper-scaler` (`.paper` clips) at an unscaled size, ending where the scroller does so it adds no scrollbar; not in the page grid.

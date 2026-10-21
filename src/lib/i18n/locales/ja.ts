@@ -522,7 +522,6 @@ const ja: Messages = {
     chooseBorderColor: '枠線の色を選択',
     noBorder: '枠線なし',
     borderWidth: '枠線の太さ',
-    pt: (w: number) => `${w} pt`,
   },
   bookmark: {
     dialogLabel: 'ブックマーク',

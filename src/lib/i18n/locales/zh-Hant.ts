@@ -521,7 +521,6 @@ const zhHant: Messages = {
     chooseBorderColor: '選擇框線色彩',
     noBorder: '無框線',
     borderWidth: '框線寬度',
-    pt: (w: number) => `${w} 點`,
   },
   bookmark: {
     dialogLabel: '書籤',

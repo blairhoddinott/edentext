@@ -2,6 +2,7 @@
   import type { Editor } from '@tiptap/core';
   import { activeParagraphBorderPresets, type ParaBorderPreset } from '../editor/extensions/paragraphBox';
   import { t } from '../i18n/i18n.svelte';
+  import BorderWidthBox from './BorderWidthBox.svelte';
 
   let { editor, tick }: { editor: Editor | null; tick: number } = $props();
 
@@ -108,20 +109,7 @@
       </div>
 
       <div class="bp-title">{t().borders.lineWidth}</div>
-      <div class="bp-widths">
-        {#each WIDTHS as w}
-          <button
-            class="bp-width"
-            class:active={widthPt === w}
-            title={t().borders.pt(w)}
-            aria-label={t().borders.pt(w)}
-            aria-pressed={widthPt === w}
-            onclick={() => (widthPt = w)}
-          >
-            <span class="bp-width-line" style="height: {Math.max(1, Math.round((w * 96) / 72))}px"></span>
-          </button>
-        {/each}
-      </div>
+      <BorderWidthBox value={String(widthPt)} presets={WIDTHS} none={false} onChange={(w) => (widthPt = Number(w))} />
 
       <div class="bp-title">{t().borders.lineColor}</div>
       <div class="bp-colors">
@@ -231,41 +219,6 @@
     outline-offset: -1px;
   }
 
-  .bp-widths {
-    display: flex;
-    gap: 2px;
-  }
-
-  .bp-width {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    height: 1.4rem;
-    min-width: unset;
-    padding: 0 4px;
-    border: 1px solid var(--color-border);
-    border-radius: calc(var(--radius) - 2px);
-    background: transparent;
-    color: var(--color-text);
-    cursor: pointer;
-    transition: background 0.1s;
-  }
-
-  .bp-width:hover {
-    background: var(--color-btn-hover);
-  }
-
-  .bp-width.active {
-    outline: 2px solid var(--color-primary);
-    outline-offset: -1px;
-  }
-
-  .bp-width-line {
-    display: block;
-    width: 100%;
-    background: currentColor;
-  }
 
   .bp-colors {
     display: flex;

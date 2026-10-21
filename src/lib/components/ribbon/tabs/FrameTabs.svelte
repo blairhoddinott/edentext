@@ -5,6 +5,7 @@
   import RibbonButton from '../RibbonButton.svelte';
   import ColorPicker from '../../ColorPicker.svelte';
   import ShapePicker from '../../ShapePicker.svelte';
+  import BorderWidthBox from '../../BorderWidthBox.svelte';
   import CaptionDialog from '../../CaptionDialog.svelte';
   import { droppedFrameAttrs, wrapGap, wrapGapAttr, type WrapGap, type WrapMode } from '../../../editor/extensions/image';
   import type { ShapeKind, TextVAlign } from '../../../editor/extensions/textBox';
@@ -188,18 +189,12 @@
       />
       <span class="rb-caption">{t().textBox.borderColor}</span>
     </div>
-    <label class="field" data-cmd="borderWidth">
+    <!-- Not a label: a click on the list's caret would also focus the field. -->
+    <div class="field" data-cmd="borderWidth">
       <span>{t().textBox.borderWidth}</span>
-      <input
-        type="text"
-        inputmode="decimal"
-        value={strokeWidthPt ?? 1}
-        onchange={(e) => {
-          const v = parseFloat((e.currentTarget as HTMLInputElement).value.replace(',', '.'));
-          if (!isNaN(v)) editor?.chain().focus().setTextBoxAttrs({ strokeWidthPt: Math.max(0, v) }).run();
-        }}
-      />
-    </label>
+      <BorderWidthBox value={String(strokeWidthPt ?? 1)} presets={[0.5, 1, 2.25]} none={false} style="flex: none; width: 72px; height: 24px"
+        onChange={(w) => editor?.chain().focus().setTextBoxAttrs({ strokeWidthPt: Number(w) }).run()} />
+    </div>
   </RibbonGroup>
 
   <div class="ribbon-sep"></div>

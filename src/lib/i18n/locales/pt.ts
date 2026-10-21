@@ -519,7 +519,6 @@ const pt: Messages = {
     chooseBorderColor: 'Escolha a cor do limite',
     noBorder: 'Sem limite',
     borderWidth: 'Espessura do limite',
-    pt: (w) => `${w} pt`,
   },
   bookmark: {
     dialogLabel: 'Marcador',

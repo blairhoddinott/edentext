@@ -530,7 +530,6 @@ const el: Messages = {
     chooseBorderColor: "Επιλογή χρώματος περιγράμματος",
     noBorder: "Χωρίς περίγραμμα",
     borderWidth: "Πλάτος περιγράμματος",
-    pt: (w: number) => `${w} στ.`,
   },
   bookmark: {
     dialogLabel: "Σελιδοδείκτης",

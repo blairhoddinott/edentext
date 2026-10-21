@@ -530,7 +530,6 @@ const uk: Messages = {
     chooseBorderColor: 'Вибрати колір межі',
     noBorder: 'Без межі',
     borderWidth: 'Товщина межі',
-    pt: (w) => `${w} пт`,
   },
   bookmark: {
     dialogLabel: 'Закладка',

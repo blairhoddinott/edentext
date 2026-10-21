@@ -4,6 +4,7 @@
   import type { ShapeKind, TextBoxAttrs } from '../editor/extensions/textBox';
   import ColorPicker from './ColorPicker.svelte';
   import ShapePicker from './ShapePicker.svelte';
+  import BorderWidthBox from './BorderWidthBox.svelte';
   import { t } from '../i18n/i18n.svelte';
 
   let {
@@ -227,20 +228,8 @@
     {/snippet}
   </ColorPicker>
 
-  <select
-    class="tb-width"
-    title={t().textBox.borderWidth}
-    aria-label={t().textBox.borderWidth}
-    value={String(strokeWidthPt)}
-    onchange={(e) => set({ strokeWidthPt: parseFloat((e.target as HTMLSelectElement).value) })}
-  >
-    {#each strokeWidths as w}
-      <option value={String(w)}>{t().textBox.pt(w)}</option>
-    {/each}
-    {#if !strokeWidths.includes(strokeWidthPt)}
-      <option value={String(strokeWidthPt)}>{t().textBox.pt(strokeWidthPt)}</option>
-    {/if}
-  </select>
+  <BorderWidthBox value={String(strokeWidthPt)} presets={strokeWidths} none={false} style="flex: none; width: 4.5rem; height: 1.7rem"
+    onChange={(w) => set({ strokeWidthPt: Number(w) })} />
 </div>
 
 <style>
@@ -290,13 +279,4 @@
     background: var(--color-border);
   }
 
-  .tb-width {
-    height: 1.7rem;
-    padding: 0 0.2rem;
-    border: 1px solid var(--color-border);
-    border-radius: calc(var(--radius) - 2px);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font-size: 0.72rem;
-  }
 </style>

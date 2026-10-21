@@ -525,7 +525,6 @@ const fr: Messages = {
     chooseBorderColor: 'Choisir la couleur de bordure',
     noBorder: 'Aucune bordure',
     borderWidth: 'Épaisseur de bordure',
-    pt: (w) => `${w} pt`,
   },
   bookmark: {
     dialogLabel: 'Signet',

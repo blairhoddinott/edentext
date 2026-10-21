@@ -530,7 +530,6 @@ const ru: Messages = {
     chooseBorderColor: 'Выбрать цвет границы',
     noBorder: 'Без границы',
     borderWidth: 'Толщина границы',
-    pt: (w) => `${w} пт`,
   },
   bookmark: {
     dialogLabel: 'Закладка',

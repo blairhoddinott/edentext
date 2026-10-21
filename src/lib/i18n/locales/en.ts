@@ -529,7 +529,6 @@ const en = {
     chooseBorderColor: 'Choose border color',
     noBorder: 'No border',
     borderWidth: 'Border width',
-    pt: (w: number) => `${w} pt`,
   },
   bookmark: {
     dialogLabel: 'Bookmark',

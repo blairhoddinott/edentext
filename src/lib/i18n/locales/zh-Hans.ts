@@ -520,7 +520,6 @@ const zhHans: Messages = {
     chooseBorderColor: '选择边框颜色',
     noBorder: '无边框',
     borderWidth: '边框宽度',
-    pt: (w: number) => `${w} 磅`,
   },
   bookmark: {
     dialogLabel: '书签',

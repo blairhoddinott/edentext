@@ -521,7 +521,6 @@ const de: Messages = {
     chooseBorderColor: 'Rahmenfarbe wählen',
     noBorder: 'Kein Rahmen',
     borderWidth: 'Rahmenbreite',
-    pt: (w) => `${w} pt`,
   },
   bookmark: {
     dialogLabel: 'Textmarke',

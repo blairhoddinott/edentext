@@ -30,6 +30,7 @@
   import { fontLabel, isAsianFont } from './ribbon/fontList.svelte';
   import AlignIcon, { type AlignValue } from './AlignIcon.svelte';
   import ColorPicker from './ColorPicker.svelte';
+  import BorderWidthBox from './BorderWidthBox.svelte';
 
   // LibreOffice's style manager: pick a style, edit its properties, or make a new one
   // from the cursor's formatting. Edits apply live — every block using the style follows.
@@ -173,7 +174,6 @@
     editOutline(cm ? { indentCm: cm, firstIndentCm: -cm, tabCm: cm } : { indentCm: undefined, firstIndentCm: undefined, tabCm: undefined });
   }
 
-  const BORDER_WIDTHS = ['none', '0.5', '0.75', '1', '1.5', '2.25'];
   // The three border controls; the inner ones fall back to the shared innerBorder.
   type BorderKey = 'border' | 'innerBorderH' | 'innerBorderV';
   const BORDER_FIELDS: { key: BorderKey; label: () => string }[] = [
@@ -881,11 +881,7 @@
           <div class="field">
             <span class="field-label">{label}</span>
             <div class="border-row">
-              <select value={parts.width} onchange={(e) => apply(e.currentTarget.value, parts.color)}>
-                {#each BORDER_WIDTHS as w}
-                  <option value={w}>{w === 'none' ? t().styles.noBorder : t().borders.pt(Number(w))}</option>
-                {/each}
-              </select>
+              <BorderWidthBox value={parts.width} onChange={(w) => apply(w, parts.color)} />
               {#key current + id}
                 <ColorPicker
                   editor={null}
@@ -1042,7 +1038,6 @@
   /* One grid, so the two columns' fields share their rows. */
   .border-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.6rem; }
   .border-grid .pad input::-webkit-inner-spin-button { opacity: 1; }
-  .border-row select { flex: 1; min-width: 0; }
 
   .card {
     width: min(46rem, 92vw);

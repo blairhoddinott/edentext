@@ -520,7 +520,6 @@ const es: Messages = {
     chooseBorderColor: 'Elegir el color del borde',
     noBorder: 'Sin borde',
     borderWidth: 'Grosor del borde',
-    pt: (w) => `${w} pt`,
   },
   bookmark: {
     dialogLabel: 'Marcador',
