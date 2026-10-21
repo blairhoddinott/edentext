@@ -44,8 +44,11 @@ jobs:
       # The Document Foundation's own build, pinned: Ubuntu's 24.2 drops a DOCX section
       # opener's space above and misplaces a bookmark's end, and Launchpad's PPA goes down
       # for hours. Its packages include Math, which builds the formula objects both
-      # importers read back; poppler-utils rasterizes the render-consistency PDFs.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-liberation poppler-utils
+      # importers read back; poppler-utils rasterizes the render-consistency PDFs. The
+      # libraries are what the build links against beyond a bare Ubuntu 24.04.
+      - run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-liberation poppler-utils
+          libx11-6 libx11-xcb1 libxext6 libxinerama1 libcairo2 libcups2t64 libdbus-1-3 libfontconfig1 libfreetype6 libglib2.0-0t64 libnss3
       - env:
           LO: 26.8.1.1
         run: |
