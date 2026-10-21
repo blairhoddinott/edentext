@@ -1014,7 +1014,7 @@
   /* .preview.list-preview outranks .preview's overflow: hidden below. */
   .preview.list-preview {
     display: flex; flex-direction: column; gap: 0.45rem;
-    max-height: 8.75rem; overflow-y: auto; flex-shrink: 0;
+    max-height: 8.75rem; overflow-y: auto;
   }
   .lp-line { display: flex; align-items: center; gap: 0.5rem; }
   .lp-marker { min-width: 1.6rem; font-size: 0.85rem; }
@@ -1155,6 +1155,8 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    /* overflow: hidden lets a flex item shrink to nothing when .fields scrolls. */
+    flex-shrink: 0;
   }
   label {
     display: flex;
