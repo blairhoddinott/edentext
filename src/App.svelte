@@ -768,6 +768,7 @@
   });
   let exportMenuOpen = $state(false);
   let saveFormatOpen = $state(false);
+  let saveFormatKind: DocumentFormat | null = $state(null);
 
   // The editable zones as one section — section 1 of the export.
   function hfSetOfState(): HfSet {
@@ -1249,7 +1250,7 @@
     exportMenuOpen = false;
     // A document with no file behind it has no format yet: ask, the way saving an
     // untitled document does everywhere else, and let Save As do the rest.
-    if (!fileHandle && !documentHasFile) { saveFormatOpen = true; return; }
+    if (!fileHandle && !documentHasFile) { saveFormatKind = null; saveFormatOpen = true; return; }
     if (!(await ensurePassword())) return;
     const json = editor.getJSON() as TiptapNode;
     try {
@@ -1284,9 +1285,12 @@
 
   // Save As is one entry per format: the format has to be settled before the bytes are
   // built (a download cannot read a name back), and it is the document's from then on.
-  async function handleSaveAs(kind: DocumentFormat) {
+  async function handleSaveAs(kind: DocumentFormat, typedName?: string) {
     if (!editor) return;
     exportMenuOpen = false;
+    // A download never reports the name it was saved under, so the dialog asks for it first.
+    if (!fsSupported && typedName === undefined) { saveFormatKind = kind; saveFormatOpen = true; return; }
+    if (typedName !== undefined) documentName = typedName;
     if (!(await ensurePassword())) return;
     const json = editor.getJSON() as TiptapNode;
     const name = kind === 'docx' ? suggestedFilenameDocx(json) : suggestedFilename(json);
@@ -2129,7 +2133,7 @@
        callers only say which family to land on. -->
   <StyleManagerDialog bind:open={styleManagerOpen} family={styleManagerFamily} editor={activeEditor} asianDocument={isAsianTag(tagForLanguage(documentLanguage) ?? '')} scripts={numberingScripts(documentLanguage, documentLanguageOther, locale())} />
   <NoteOptionsDialog bind:open={noteOptionsOpen} />
-  <SaveFormatDialog bind:open={saveFormatOpen} onPick={handleSaveAs} />
+  <SaveFormatDialog bind:open={saveFormatOpen} kind={saveFormatKind} askName={!fsSupported} name={documentName} placeholder={namePlaceholder} onPick={handleSaveAs} />
 </main>
 
 <style>
