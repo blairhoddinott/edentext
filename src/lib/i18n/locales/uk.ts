@@ -313,7 +313,6 @@ const uk: Messages = {
     parent: 'Успадковує від',
     font: 'Шрифт',
     fontAsian: 'Шрифт азійського тексту',
-    size: 'Розмір (пт)',
     color: 'Колір',
     bold: 'Жирний',
     italic: 'Курсив',

@@ -304,7 +304,6 @@ const de: Messages = {
     parent: 'Erbt von',
     font: 'Schriftart',
     fontAsian: 'Schriftart für asiatischen Text',
-    size: 'Größe (pt)',
     color: 'Farbe',
     bold: 'Fett',
     italic: 'Kursiv',

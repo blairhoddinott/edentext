@@ -305,7 +305,6 @@ const es: Messages = {
     parent: 'Hereda de',
     font: 'Tipo de letra',
     fontAsian: 'Fuente de texto asiático',
-    size: 'Tamaño (pt)',
     color: 'Color',
     bold: 'Negrita',
     italic: 'Cursiva',

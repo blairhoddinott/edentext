@@ -31,6 +31,7 @@
   import AlignIcon, { type AlignValue } from './AlignIcon.svelte';
   import ColorPicker from './ColorPicker.svelte';
   import BorderWidthBox from './BorderWidthBox.svelte';
+  import FontSizeField from './FontSizeField.svelte';
 
   // LibreOffice's style manager: pick a style, edit its properties, or make a new one
   // from the cursor's formatting. Edits apply live — every block using the style follows.
@@ -810,40 +811,26 @@
         </label>
         {/if}
 
-        <label>{t().styles.font}
-          <select
-            value={ownText.fontFamily ?? ''}
-            onchange={(e) => editText({ fontFamily: e.currentTarget.value || undefined })}
-          >
-            <option value="">{inherited(parentText.fontFamily) || '—'}</option>
-            {#each fontOptions as font}
-              <option value={font} style="font-family: '{font}'">{font}</option>
-            {/each}
-          </select>
-        </label>
-
-        <!-- The pair's asian half, where the document is East Asian or the style has one. -->
-        {#if asianDocument || resolvedText.fontFamilyAsian}
-          <label>{t().styles.fontAsian}
+        <!-- Font, size and colour share one row; the size needs only its value's width. -->
+        <div class="row">
+          <label class="font-field">{t().styles.font}
             <select
-              value={ownText.fontFamilyAsian ?? ''}
-              onchange={(e) => editText({ fontFamilyAsian: e.currentTarget.value || undefined })}
+              value={ownText.fontFamily ?? ''}
+              onchange={(e) => editText({ fontFamily: e.currentTarget.value || undefined })}
             >
-              <option value="">{inherited(parentText.fontFamilyAsian) || '—'}</option>
-              {#each asianFontOptions as font}
-                <option value={font} style="font-family: '{font}'">{fontLabel(font)}</option>
+              <option value="">{inherited(parentText.fontFamily) || '—'}</option>
+              {#each fontOptions as font}
+                <option value={font} style="font-family: '{font}'">{font}</option>
               {/each}
             </select>
           </label>
-        {/if}
-
-        <div class="row">
-          <label>{t().styles.size}
-            <input type="number" min="1" max="400" step="0.5"
-              value={ownText.fontSizePt ?? ''}
+          <div class="field size-field">
+            <span class="field-label">{t().toolbarExpanded.fontSize}</span>
+            <FontSizeField
+              value={ownText.fontSizePt}
               placeholder={inherited(resolvedText.fontSizePt)}
-              onchange={(e) => editText({ fontSizePt: num(e.currentTarget.value) })} />
-          </label>
+              onChange={(pt) => editText({ fontSizePt: pt })} />
+          </div>
           <div class="field">
             <span class="field-label">{t().styles.color}</span>
             <!-- No editor: the picker sets a style property, not a document range. -->
@@ -867,6 +854,21 @@
             {/key}
           </div>
         </div>
+
+        <!-- The pair's asian half, where the document is East Asian or the style has one. -->
+        {#if asianDocument || resolvedText.fontFamilyAsian}
+          <label>{t().styles.fontAsian}
+            <select
+              value={ownText.fontFamilyAsian ?? ''}
+              onchange={(e) => editText({ fontFamilyAsian: e.currentTarget.value || undefined })}
+            >
+              <option value="">{inherited(parentText.fontFamilyAsian) || '—'}</option>
+              {#each asianFontOptions as font}
+                <option value={font} style="font-family: '{font}'">{fontLabel(font)}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
 
         <div class="row toggles">
           <label class="check"><input type="checkbox" checked={!!resolvedText.bold}
@@ -1184,6 +1186,9 @@
   /* What the parent chain provides while this style sets none of its own. */
   .align-btn.inherit { border-color: var(--color-border); color: var(--color-text-muted); }
   .row > label { flex: 1; }
+  .font-field { min-width: 0; }
+  .font-field select { width: 100%; }
+  .size-field { flex: none; width: 8rem; }
   .toggles { align-items: center; gap: 1rem; }
   .check {
     flex-direction: row;

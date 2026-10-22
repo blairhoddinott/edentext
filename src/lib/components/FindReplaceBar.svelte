@@ -6,6 +6,7 @@
   import { styleSheet } from '../styles/sheet.svelte';
   import { styleLabel, t } from '../i18n/i18n.svelte';
   import { withShortcut } from '../i18n/shortcut';
+  import FontSizeField from './FontSizeField.svelte';
 
   let { editor, tick, mode, focusNonce, onClose }:
     { editor: Editor | null; tick: number; mode: 'find' | 'replace'; focusNonce: number; onClose: () => void } = $props();
@@ -171,15 +172,11 @@
             spellcheck="false"
             onchange={(e) => setFormat(find, { font: e.currentTarget.value.trim() || undefined })}
           />
-          <input
-            class="fb-size"
-            type="number"
-            min="1"
-            max="999"
-            value={spec(find).sizePt ?? ''}
+          <FontSizeField
+            value={spec(find).sizePt}
             placeholder={t().findReplace.sizePt}
-            aria-label={t().findReplace.sizePt}
-            onchange={(e) => setFormat(find, { sizePt: Number(e.currentTarget.value) || undefined })}
+            style="flex: none; width: 4rem; height: 1.7rem"
+            onChange={(pt) => setFormat(find, { sizePt: pt })}
           />
           <input
             class="fb-color"
@@ -257,7 +254,6 @@
   .fb-fmt-underline { text-decoration: underline; }
 
   .fb-font { width: 6rem; }
-  .fb-size { width: 3.4rem; }
   .fb-color {
     width: 1.9rem;
     height: 1.7rem;

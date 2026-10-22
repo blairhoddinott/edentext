@@ -313,7 +313,6 @@ const ru: Messages = {
     parent: 'Наследует от',
     font: 'Шрифт',
     fontAsian: 'Шрифт азиатского текста',
-    size: 'Размер (пт)',
     color: 'Цвет',
     bold: 'Полужирный',
     italic: 'Курсив',

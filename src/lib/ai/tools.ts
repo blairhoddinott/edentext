@@ -16,6 +16,7 @@ import { putStyle, setOutline, styleSheet } from '../styles/sheet.svelte';
 import { decimalOutline, romanOutline } from '../styles/outlineNumbering';
 import { DEFAULT_BORDER_COLOR, DEFAULT_BORDER_WIDTH_PT } from '../editor/extensions/tableCellBorders';
 import { normalizeColor } from '../utils/color';
+import { parseSize } from '../utils/fontSize';
 import { BOX_WRAP_GAP, PICTURE_WRAP_GAP, droppedFrameAttrs, restackFrame, wrapGap, wrapGapAttr, type WrapMode } from '../editor/extensions/image';
 import { CAPTION_STYLE } from '../editor/extensions/caption';
 import { isHeaderStyled } from '../editor/extensions/tableHeaderRow';
@@ -382,6 +383,13 @@ export function applyDocumentParts(html: string, host: AiHost | undefined, dropp
 // Small models send numbers and booleans as strings too.
 const numArg = (v: unknown): number | undefined => (v === '' || v == null || !Number.isFinite(Number(v)) ? undefined : Number(v));
 const gapArg = (v: unknown) => (v == null || v === '' ? undefined : parseMargins(Array.isArray(v) ? v.join(' ') : String(v)));
+// A font size in the size box's 1–400 pt range.
+const sizeArg = (v: unknown): number | undefined => {
+  if (numArg(v) === undefined) return undefined;
+  const pt = parseSize(String(v));
+  if (pt == null) throw new ToolError('size_pt is a font size from 1 to 400');
+  return pt;
+};
 const boolArg = (v: unknown): boolean | undefined => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : undefined);
 const colorArg = (v: unknown, what: string): string | null | undefined => {
   if (v == null || v === '') return undefined;
@@ -744,7 +752,7 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       const spec: FormatSpec = {
         bold: boolArg(a.bold) === true, italic: boolArg(a.italic) === true, underline: boolArg(a.underline) === true,
         font: typeof a.font === 'string' ? a.font : undefined,
-        sizePt: numArg(a.size_pt),
+        sizePt: sizeArg(a.size_pt),
         color: typeof a.color === 'string' ? a.color : undefined,
         style,
       };
@@ -873,7 +881,7 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
       const text = { ...base.text };
       const para = { ...base.para };
       if (typeof a.font === 'string' && a.font) text.fontFamily = a.font;
-      if (numArg(a.size_pt)) text.fontSizePt = numArg(a.size_pt);
+      if (sizeArg(a.size_pt)) text.fontSizePt = sizeArg(a.size_pt);
       if (boolArg(a.bold) != null) text.bold = boolArg(a.bold);
       if (boolArg(a.italic) != null) text.italic = boolArg(a.italic);
       const color = colorArg(a.color, 'color');

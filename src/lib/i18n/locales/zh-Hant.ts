@@ -307,7 +307,6 @@ const zhHant: Messages = {
     parent: '繼承自',
     font: '字型',
     fontAsian: '中文字型',
-    size: '大小（點）',
     color: '色彩',
     bold: '粗體',
     italic: '斜體',

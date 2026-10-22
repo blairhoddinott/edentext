@@ -310,7 +310,6 @@ const fr: Messages = {
     parent: 'Hérite de',
     font: 'Police',
     fontAsian: 'Police de texte asiatique',
-    size: 'Taille (pt)',
     color: 'Couleur',
     bold: 'Gras',
     italic: 'Italique',

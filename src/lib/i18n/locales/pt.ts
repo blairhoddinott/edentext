@@ -304,7 +304,6 @@ const pt: Messages = {
     parent: 'Herda de',
     font: 'Tipo de letra',
     fontAsian: 'Tipo de letra de texto asiático',
-    size: 'Tamanho (pt)',
     color: 'Cor',
     bold: 'Negrito',
     italic: 'Itálico',

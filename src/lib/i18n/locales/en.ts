@@ -312,7 +312,6 @@ const en = {
     parent: 'Inherits from',
     font: 'Font',
     fontAsian: 'Asian text font',
-    size: 'Size (pt)',
     color: 'Color',
     bold: 'Bold',
     italic: 'Italic',
