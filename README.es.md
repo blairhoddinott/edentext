@@ -153,6 +153,11 @@ carpeta: las pestañas abiertas antes de la actualización siguen cargando los a
 versión hasta que se recargan. Un archivo que falta debe responder con 404, no con
 `index.html`, para que esa pestaña pueda pedir que se recargue.
 
+Sírvelo por HTTPS o ábrelo en localhost: por HTTP simple el editor funciona, pero los
+navegadores no permiten el uso sin conexión ni instalarlo como app, guardar directamente
+en el archivo abierto (los archivos se descargan en su lugar) ni los botones del
+portapapeles.
+
 ## Arquitectura
 
 ```mermaid

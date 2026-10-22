@@ -152,6 +152,11 @@ Tabs, die vor dem Update geöffnet wurden, laden bis zum Neuladen weiter die Dat
 Version. Eine fehlende Datei sollte mit 404 antworten, nicht mit `index.html`, damit ein
 solcher Tab zum Neuladen auffordern kann.
 
+Am besten über HTTPS ausliefern oder unter localhost öffnen: Über reines HTTP läuft der
+Editor, aber Browser verweigern dann Offline-Nutzung und Installation als App, das direkte
+Zurückspeichern in die geöffnete Datei (Dateien werden stattdessen heruntergeladen) und
+die Zwischenablage-Schaltflächen.
+
 ## Architektur
 
 ```mermaid

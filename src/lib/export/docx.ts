@@ -2195,7 +2195,9 @@ function applyEmbeddedFontsDocx(bytes: Uint8Array, fonts: EmbeddedFont[]): Uint8
   const byFamily = new Map<string, [number, string][]>();
   fonts.forEach((font, i) => {
     const name = `font${i + 1}.odttf`;
-    const key = `{${crypto.randomUUID().toUpperCase()}}`;
+    // getRandomValues, unlike randomUUID, exists outside a secure context too.
+    const hex = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const key = `{${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}}`;
     files[`word/fonts/${name}`] = deobfuscateOdttf(font.data.slice(), key) as Uint8Array<ArrayBuffer>;
     added.push(`<Relationship Id="rId${next}" Type="${R_NS}/font" Target="fonts/${name}"/>`);
     const rank = font.weight === 'bold' ? (font.style === 'italic' ? 3 : 1) : (font.style === 'italic' ? 2 : 0);

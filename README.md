@@ -150,6 +150,10 @@ To update, copy the new files over the old ones instead of emptying the folder:
 tabs opened before the update keep loading their own build's files until reloaded.
 A missing file should answer 404, not `index.html`, so such a tab can tell it to reload.
 
+Serve it over HTTPS, or open it on localhost: over plain HTTP the editor works,
+but browsers withhold offline use and installing it as an app, saving straight back
+to the opened file (files are downloaded instead) and the clipboard buttons.
+
 ## Architecture
 
 ```mermaid

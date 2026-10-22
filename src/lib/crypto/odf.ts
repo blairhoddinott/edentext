@@ -5,6 +5,7 @@
 import { unzipSync, zipSync, strFromU8, strToU8, deflateSync, inflateSync } from 'fflate';
 import { cbc, gcm } from '@noble/ciphers/aes.js';
 import { argon2idAsync } from '@noble/hashes/argon2.js';
+import { pbkdf2Async } from '@noble/hashes/pbkdf2.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { sha1 } from '@noble/hashes/legacy.js';
 import { encryptionError, UNSUPPORTED_ENCRYPTION, WRONG_PASSWORD } from './errors';
@@ -103,7 +104,9 @@ async function deriveKey(password: string, enc: Encryption): Promise<Uint8Array>
     return argon2idAsync(startKey, enc.salt, { ...enc.argon2, dkLen: enc.keySize });
   }
   if (enc.kdf !== 'PBKDF2') throw encryptionError(UNSUPPORTED_ENCRYPTION);
-  // PBKDF2 with HMAC-SHA-1 as the PRF, as ODF specifies it.
+  // PBKDF2 with HMAC-SHA-1 as the PRF, as ODF specifies it. WebCrypto is faster but
+  // missing outside a secure context (a self-hosted copy over plain HTTP).
+  if (!crypto.subtle) return pbkdf2Async(sha1, startKey, enc.salt, { c: enc.iterations, dkLen: enc.keySize });
   const base = await crypto.subtle.importKey('raw', startKey, 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt: new Uint8Array(enc.salt), iterations: enc.iterations, hash: 'SHA-1' },

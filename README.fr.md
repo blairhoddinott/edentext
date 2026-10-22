@@ -157,6 +157,11 @@ le dossier : les onglets ouverts avant la mise à jour continuent de charger les
 leur version jusqu’au rechargement. Un fichier manquant doit répondre 404, et non
 `index.html`, pour qu’un tel onglet puisse demander un rechargement.
 
+Servez-le en HTTPS ou ouvrez-le sur localhost : en HTTP simple, l’éditeur fonctionne,
+mais les navigateurs refusent l’usage hors ligne et l’installation comme application,
+l’enregistrement direct dans le fichier ouvert (les fichiers sont téléchargés à la place)
+et les boutons du presse-papiers.
+
 ## Architecture
 
 ```mermaid

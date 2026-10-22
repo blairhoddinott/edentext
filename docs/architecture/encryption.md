@@ -10,7 +10,8 @@ the file alone does not say what happens are marked.
 - `odf.ts`, `ooxml.ts`, `cfb.ts` (the compound file OOXML encryption is wrapped in),
   `errors.ts` (the two canonical messages, matched by `i18n/importMessages.ts`).
 
-Crypto comes from `@noble/*` except PBKDF2, which WebCrypto does natively and much faster.
+Crypto comes from `@noble/*` except PBKDF2, which WebCrypto does natively and much faster;
+outside a secure context (plain HTTP), where `crypto.subtle` is missing, it falls back to `@noble/hashes`.
 
 ## Where it sits
 

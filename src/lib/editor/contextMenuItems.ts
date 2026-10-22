@@ -147,7 +147,7 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
   });
   if (onLink) {
     const href = editor.getAttributes('link').href as string | undefined;
-    if (href) entries.push({ kind: 'item', label: m.copyLink, run: () => void navigator.clipboard.writeText(href) });
+    if (href) entries.push({ kind: 'item', label: m.copyLink, run: () => void navigator.clipboard?.writeText(href) });
     entries.push({
       kind: 'item',
       label: m.removeLink,

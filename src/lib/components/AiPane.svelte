@@ -319,7 +319,8 @@
   // The reply as it shows, so a paste elsewhere keeps its formatting.
   async function copy(i: number, from: HTMLElement) {
     const content = from.closest('.msg')?.querySelector<HTMLElement>('.content');
-    if (!content) return;
+    // No clipboard API outside a secure context (a self-hosted copy over plain HTTP).
+    if (!content || !navigator.clipboard) return;
     const html = content.innerHTML, plain = content.innerText;
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })]);

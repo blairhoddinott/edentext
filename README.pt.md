@@ -151,6 +151,11 @@ as abas abertas antes da atualização continuam carregando os arquivos da sua v
 serem recarregadas. Um arquivo ausente deve responder com 404, não com `index.html`, para
 que essa aba possa pedir para recarregar.
 
+Sirva-o por HTTPS ou abra-o em localhost: por HTTP simples o editor funciona, mas os
+navegadores não permitem o uso offline nem a instalação como aplicação, guardar
+diretamente no ficheiro aberto (os ficheiros são descarregados em vez disso) nem os
+botões da área de transferência.
+
 ## Arquitetura
 
 ```mermaid
