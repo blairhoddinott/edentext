@@ -727,6 +727,8 @@
   const fsSupported = supportsFsAccess();
   let recentFiles: RecentFile[] = $state(fsSupported ? loadRecentFiles() : []);
   if (fsSupported) void pruneRecentFiles().then((list) => (recentFiles = list));
+  // With autosave off no file is recorded, so the menus offer none; Settings still clears the old list.
+  const menuRecentFiles = $derived(volatile ? [] : recentFiles);
   // A reload keeps the document's file, as long as the recent list still holds its handle.
   const boundFile = fsSupported ? loadDocFile() : null;
   if (boundFile) void getHandle(boundFile.id).then((h) => {
@@ -1644,7 +1646,7 @@
       onSave={handleSave}
       onSaveAs={handleSaveAs}
       onSaveTemplate={handleSaveTemplate}
-      recentFiles={recentFiles}
+      recentFiles={menuRecentFiles}
       onOpenRecent={(id) => { const f = recentFiles.find((r) => r.id === id); if (f) void handleOpenRecent(f); }}
       onForgetRecent={handleForgetRecent}
       onExportPdf={handleExportPdf}
@@ -1771,16 +1773,18 @@
                 <span>{t().app.vectorPdf}</span>
                 <span class="theme-option-hint">{t().app.vectorHint}</span>
               </button>
-              <button class="theme-option" onclick={() => { exportMenuOpen = false; browserDocsOpen = true; }} role="menuitem">
-                <span>{t().browserDocs.title}</span>
-              </button>
+              {#if !volatile}
+                <button class="theme-option" onclick={() => { exportMenuOpen = false; browserDocsOpen = true; }} role="menuitem">
+                  <span>{t().browserDocs.title}</span>
+                </button>
+              {/if}
               <button class="theme-option" onclick={handleSaveTemplate} role="menuitem">
                 <span>{t().app.template}</span>
                 <span class="theme-option-hint">{t().app.templateHint}</span>
               </button>
-              {#if recentFiles.length}
+              {#if menuRecentFiles.length}
                 <div class="theme-heading">{t().app.recentFiles}</div>
-                {#each recentFiles as f (f.id)}
+                {#each menuRecentFiles as f (f.id)}
                   <button class="theme-option" onclick={() => handleOpenRecent(f)} role="menuitem">
                     <span class="recent-name">{f.name}</span>
                   </button>

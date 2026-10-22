@@ -48,6 +48,7 @@
   import { EMPTY_PAGE_DECOR, type PageDecor } from '../../storage/pageDecor';
   import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../../storage/lineNumbering';
   import { aiEnabled } from '../../storage/ai.svelte';
+  import { volatile } from '../../storage/docScope';
 
   let {
     editor,
@@ -318,7 +319,7 @@
   let searchable = $derived([
     ...RIBBON_COMMANDS,
     ...styleCommands(visibleStyles(styleSheet(), showAllStyles()).map((s) => s.name)),
-  ].filter((c) => (c.tab === null || tabOf(c)) && (aiEnabled() || !c.id.startsWith('ai'))));
+  ].filter((c) => (c.tab === null || tabOf(c)) && (aiEnabled() || !c.id.startsWith('ai')) && !(volatile && c.id === 'browserDocuments')));
 
   // A colour split's own half applies the last colour; its palette is behind the chevron.
   function act(id: string) {
@@ -371,9 +372,12 @@
             <Icon name="folder" size={16} />{t().app.open}
             <span class="menu-key">{shortcutHint('open')}</span>
           </button>
-          <button data-cmd="browserDocuments" onclick={() => run(onBrowserDocuments)}>
-            <Icon name="folder" size={16} />{t().browserDocs.title}
-          </button>
+          <!-- Nothing is kept when autosave is off, so there is no list to open. -->
+          {#if !volatile}
+            <button data-cmd="browserDocuments" onclick={() => run(onBrowserDocuments)}>
+              <Icon name="folder" size={16} />{t().browserDocs.title}
+            </button>
+          {/if}
           <hr />
           <button data-cmd="save" onclick={() => run(onSave)} disabled={!editor || pdfBusy}>
             <Icon name="save" size={16} />{t().app.save}
