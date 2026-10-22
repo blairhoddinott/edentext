@@ -18,6 +18,11 @@ export function stripOdtExtension(name: string): string {
   return name.replace(/\.o[dt]t$/i, '');
 }
 
+// The document name a file gives it, opened or saved under: its name without the extension.
+export function docNameOfFile(fileName: string): string {
+  return stripOdtExtension(fileName).replace(/\.do[ct]x$/i, '');
+}
+
 // The save filename from the first heading that has text (sanitized, 50 chars at
 // most); `document.odt` without one.
 export function deriveFilename(json: { content?: { type?: string; content?: { text?: string }[] }[] }): string {

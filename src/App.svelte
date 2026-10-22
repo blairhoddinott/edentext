@@ -43,7 +43,7 @@
   import { DEFAULT_NOTE_SETTINGS, type NoteSettings } from './lib/storage/noteSettings';
   import { builtinStyleSheet, type StyleFamily, type StyleSheet } from './lib/styles/styleSheet';
   import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, spreadMargins, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, EMPTY_HF_SET, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
-  import { loadDocName, saveDocName, loadDocFormat, saveDocFormat, stripOdtExtension, sanitizeNameForFile, deriveFilename, filenameFor, loadDocProtected, saveDocProtected, loadDocFile, saveDocFile, type DocumentFormat } from './lib/storage/documentName';
+  import { loadDocName, saveDocName, loadDocFormat, saveDocFormat, stripOdtExtension, docNameOfFile, sanitizeNameForFile, deriveFilename, filenameFor, loadDocProtected, saveDocProtected, loadDocFile, saveDocFile, type DocumentFormat } from './lib/storage/documentName';
   import { loadDocProperties, saveDocProperties, EMPTY_DOC_PROPERTIES, type DocProperties } from './lib/storage/docProperties';
   import { loadHyphenation, saveHyphenation } from './lib/storage/hyphenation';
   import { loadPageNumbering, savePageNumbering, DEFAULT_PAGE_NUMBERING, type PageNumbering } from './lib/storage/pageNumbering';
@@ -1042,7 +1042,7 @@
       zoneEpoch++;
       resetHistory();
       // Adopt the opened file's name as the document name (drives the save filename).
-      if (sourceName) documentName = stripOdtExtension(sourceName).replace(/\.do[ct]x$/i, '');
+      if (sourceName) documentName = docNameOfFile(sourceName);
       // Adopt the document's page geometry; the $effects persist it and
       // Editor.svelte re-paginates.
       if (result.margins) pageMargins = result.margins;
@@ -1263,7 +1263,10 @@
       // A document opened as .docx round-trips through the same format, like both
       // reference word processors — not silently rewritten to .odt under its old name.
       const name = documentFormat === 'docx' ? suggestedFilenameDocx(json) : suggestedFilename(json);
+      const picked = !fileHandle;
       fileHandle = await saveDocument(await buildBytes(documentFormat, json), name, documentFormat, fileHandle, docPassword);
+      // A file chosen in the save dialog names the document, as opening it would.
+      if (picked && fileHandle) documentName = docNameOfFile(fileHandle.name);
       recentFiles = await rememberRecentFile(fileHandle?.name ?? name, fileHandle);
       await bindFile();
       documentHasFile = true;
@@ -1290,6 +1293,7 @@
     try {
       fileHandle = await saveDocument(await buildBytes(kind, json), name, kind, null, docPassword);
       documentFormat = kind;
+      if (fileHandle) documentName = docNameOfFile(fileHandle.name);
       recentFiles = await rememberRecentFile(fileHandle?.name ?? name, fileHandle);
       await bindFile();
       documentHasFile = true;
