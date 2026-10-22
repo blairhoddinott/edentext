@@ -75,8 +75,8 @@ EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von
   beantwortet Fragen zum Dokument und bearbeitet es mit Änderungsverfolgung. Lässt sich
   abschalten; Anfragen gehen direkt an den Anbieter, ohne Umweg über einen EdenText-Server
 - **Private by Design** – Dokumente verlassen nie den Rechner, alles läuft lokal; als
-  installierte App auch offline. Die Website zählt anonyme Besuche (GoatCounter, in der EU
-  gehostet, ohne Cookies). Der Editor selbst sendet nichts, außer bei eingeschaltetem
+  installierte App auch offline. edentext.app zählt anonyme Besuche (GoatCounter, in der EU
+  gehostet, ohne Cookies; selbst gehostete Instanzen und die Desktop-App zählen nichts). Der Editor selbst sendet nichts, außer bei eingeschaltetem
   KI-Assistenten an den gewählten Anbieter. Dokumente werden automatisch im Browser
   gesichert; unter „Zuletzt benutzte Dokumente“ lässt sich einstellen, dass geschlossene
   Dokumente beim nächsten Start gelöscht oder gar nicht erst gespeichert werden. Ein

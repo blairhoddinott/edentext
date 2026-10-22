@@ -77,8 +77,8 @@ EdenText est un traitement de texte puissant qui s’utilise dans le navigateur,
   un serveur EdenText
 - **Private by Design** – vos documents ne quittent jamais votre
   ordinateur, tout est traité en local ; fonctionne hors ligne comme application
-  installable. Le site compte les visites de façon anonyme (GoatCounter, hébergé dans
-  l’UE, sans cookies) ; l’éditeur lui-même n’envoie rien, sauf au fournisseur choisi si
+  installable. edentext.app compte les visites de façon anonyme (GoatCounter, hébergé dans
+  l’UE, sans cookies ; les instances auto-hébergées et l’application de bureau ne comptent rien) ; l’éditeur lui-même n’envoie rien, sauf au fournisseur choisi si
   l’assistant IA est activé. Les documents sont enregistrés automatiquement dans le
   navigateur ; dans « Documents récents », on peut choisir de supprimer les documents
   fermés au démarrage suivant ou de ne pas les enregistrer du tout. Une fenêtre de

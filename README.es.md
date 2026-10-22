@@ -75,8 +75,8 @@ EdenText es un potente procesador de textos que funciona en el navegador y sirve
   preguntas sobre el documento y lo edita con control de cambios. Se puede desactivar;
   las solicitudes van directamente al proveedor, sin pasar por ningún servidor de EdenText
 - **Privacidad desde el diseño** — tus documentos nunca salen de tu equipo y todo se
-  procesa en local; funciona sin conexión como app instalable. El sitio web cuenta las
-  visitas de forma anónima (GoatCounter, alojado en la UE, sin cookies); el editor no
+  procesa en local; funciona sin conexión como app instalable. edentext.app cuenta las
+  visitas de forma anónima (GoatCounter, alojado en la UE, sin cookies; las instalaciones propias y la app de escritorio no cuentan nada); el editor no
   envía nada, salvo al proveedor elegido si activas el asistente de IA. Los documentos se
   guardan automáticamente en el navegador; en «Documentos recientes» se puede elegir que
   los documentos cerrados se borren en el siguiente inicio o que no se guarden. Una
