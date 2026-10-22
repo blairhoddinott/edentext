@@ -217,13 +217,15 @@ try {
   check(!reopened && afterRename, `a rename marks the document unsaved (${afterRename})`);
 
   // Without the File System Access API (Brave ships with it off) a save is a download, so
-  // the format is settled before the bytes are built: Save As (.docx) hands over a DOCX
-  // whatever the browser's dialog does with the name.
+  // the format is settled before the bytes are built: Save As (.docx) hands over a DOCX.
+  // An engine without the API from the start asks for the name first, a download being
+  // unable to report one; its dialog offers the document's name.
   await page.evaluate(() => { window.showSaveFilePicker = undefined; });
   await page.click('.ribbon-tab-file');
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 30_000 }),
-    page.locator('.ribbon-menu button', { hasText: '(.docx)' }).first().click(),
+    page.locator('.ribbon-menu button', { hasText: '(.docx)' }).first().click()
+      .then(() => page.locator('dialog[open] button.primary').click({ timeout: 2_000 }).catch(() => {})),
   ]);
   const saved = await readFile(await download.path());
   const isDocx = saved[0] === 0x50 && saved[1] === 0x4b && saved.includes('word/document.xml');

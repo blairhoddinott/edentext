@@ -281,9 +281,11 @@ const saveAs = async (ext, retry = true) => {
     // forces the tab: on a settled document the ribbon no longer moves, and Playwright's
     // own stability sampling is what misses on a busy main thread.
     await page.click('.ribbon-tab-file', { timeout: 15_000, force: !retry });
+    // Without a save picker the app asks for the name first; its dialog offers the document's.
     const [dl] = await Promise.all([
       page.waitForEvent('download', { timeout: 30_000 }),
-      page.locator('.ribbon-menu button', { hasText: `(.${ext})` }).first().click(),
+      page.locator('.ribbon-menu button', { hasText: `(.${ext})` }).first().click()
+        .then(() => page.locator('dialog[open] button.primary').click({ timeout: 2_000 }).catch(() => {})),
     ]);
     await page.keyboard.press('Escape');
     return new Uint8Array(await readFile(await dl.path()));
