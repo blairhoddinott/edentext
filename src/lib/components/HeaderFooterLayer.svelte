@@ -8,6 +8,7 @@
   import { isHistoryTransaction } from '@tiptap/pm/history';
   import { TextSelection, type Transaction } from '@tiptap/pm/state';
   import { plainPastedSpaces, unwrapPastedBoxes } from '../editor/paste';
+  import { readClickCaret } from '../editor/clickCaret';
   import { hfIsEmpty, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, type HfDoc, type HfZone, type HfVariant, type HfDistances, type HfSet, type HfZoneKey } from '../storage/headerFooter';
   import { cmToPx, PX_PER_CM, type PageMargins } from '../storage/pageMargins';
   import { type Orientation } from '../storage/pageOrientation';
@@ -528,6 +529,7 @@
       editorProps: {
         // As in the body: a size-less box a foreign paste wraps blocks in is spilled back.
         transformPasted: (slice) => unwrapPastedBoxes(plainPastedSpaces(slice)),
+        handleDOMEvents: { mousedown: readClickCaret },
         handleKeyDown: (_view, event) => {
           if (event.key === 'Escape') {
             hfActive = null;

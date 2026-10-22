@@ -21,6 +21,7 @@
   import { findTextBox, type ShapeKind } from '../editor/extensions/textBox';
   import { catchUpIndexes } from '../editor/extensions/tableOfContents';
   import { fitPastedSlice } from '../editor/paste';
+  import { readClickCaret } from '../editor/clickCaret';
   import { NodeSelection, Selection, TextSelection } from '@tiptap/pm/state';
   import { EditorView } from '@tiptap/pm/view';
   import ContextMenu from './ContextMenu.svelte';
@@ -1327,6 +1328,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
           return true;
         },
         handleDOMEvents: {
+          mousedown: readClickCaret,
           drop: (view, event) => {
             const e = event as DragEvent;
             const files = imageFilesFrom(e.dataTransfer);

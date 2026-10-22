@@ -7,6 +7,8 @@ editor's `transformPasted` in `Editor.svelte`, the first also from the zone's in
 `HeaderFooterLayer.svelte`). Both also run `plainPastedSpaces`: a block pasted with
 no-break spaces and no ordinary one (a web editor's copy) gets plain spaces back. Per-extension notes live in `extensions/CLAUDE.md`.
 
+`clickCaret.ts` (`readClickCaret`, the body's and the zone's `mousedown`): a click that focuses a view reads its caret in at once, since ProseMirror puts its old selection back 20 ms after a focus that no `selectionchange` has followed yet, which a busy page in Firefox delays past that.
+
 ## Keyboard shortcuts (`shortcuts.ts`, `extensions/shortcuts.ts`)
 
 Word/LibreOffice key bindings. **`editor/shortcuts.ts` is the single source of truth**:
