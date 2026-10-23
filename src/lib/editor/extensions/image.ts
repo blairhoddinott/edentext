@@ -1026,8 +1026,9 @@ class ImageView {
       lastY = e.clientY;
       if (!raf) raf = win.requestAnimationFrame(step);
     };
+    // A release before the pending frame still drops the image where the pointer was last.
     const finish = (): void => {
-      if (raf) win.cancelAnimationFrame(raf);
+      if (raf) { win.cancelAnimationFrame(raf); step(); }
       win.removeEventListener('mousemove', move);
       win.removeEventListener('mouseup', finish);
     };
