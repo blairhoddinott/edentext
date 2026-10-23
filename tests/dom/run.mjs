@@ -1129,21 +1129,29 @@ try {
   const docEnd = process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End';
   const docStart = process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home';
   // Cells are recycled as the grid scrolls and re-aimed a while after it, so the click
-  // waits until a cell on screen sits at the canvas's top left, where page 1 goes.
+  // waits until a cell on screen sits at the canvas's top left, where page 1 goes. Polled
+  // from here: WebKit on macOS let a wait polled in the page time out with the cell in place.
   await page.evaluate(() => document.querySelector('.editor-panes.grid > .editor').scrollTo(0, 0));
-  const firstCell = await page.waitForFunction(() => {
+  const pageOneCell = () => page.evaluate(() => {
     const view = document.querySelector('.editor-panes.grid > .editor').getBoundingClientRect();
     const canvas = document.querySelector('.grid-canvas').getBoundingClientRect();
     const r = [...document.querySelectorAll('.page-cell:not(.empty)')].map((c) => c.getBoundingClientRect())
       .find((q) => Math.abs(q.top - canvas.top) < 1.5 && Math.abs(q.left - canvas.left) < 1.5);
-    return r && r.top >= view.top - 1 && r.top + r.height / 3 < view.bottom && { x: r.left + r.width / 2, y: r.top + r.height / 3 };
-  }, null, { timeout: 15_000 }).then((h) => h.jsonValue()).catch(async (err) => {
-    throw new Error(`no cell shows page 1 on screen: ${await page.evaluate(() => JSON.stringify({
-      scrollTop: document.querySelector('.editor-panes.grid > .editor').scrollTop,
-      canvas: document.querySelector('.grid-canvas').getBoundingClientRect().top,
-      cells: [...document.querySelectorAll('.page-cell:not(.empty)')].map((c) => Math.round(c.getBoundingClientRect().top)),
-    }))} (${err.message.split('\n')[0]})`);
+    return r && r.top >= view.top - 1 && r.top + r.height / 3 < view.bottom ? { x: r.left + r.width / 2, y: r.top + r.height / 3 } : null;
   });
+  let firstCell = await pageOneCell();
+  for (const until = Date.now() + 15_000; !firstCell && Date.now() < until; firstCell = await pageOneCell()) await page.waitForTimeout(100);
+  if (!firstCell) {
+    throw new Error(`no cell shows page 1 on screen: ${await page.evaluate(() => {
+      const at = (el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.bottom].join(','); };
+      return JSON.stringify({
+        scrollTop: document.querySelector('.editor-panes.grid > .editor').scrollTop,
+        view: at(document.querySelector('.editor-panes.grid > .editor')),
+        canvas: at(document.querySelector('.grid-canvas')),
+        cells: [...document.querySelectorAll('.page-cell:not(.empty)')].map(at),
+      });
+    })}`);
+  }
   await page.mouse.click(firstCell.x, firstCell.y);
   await gridStep('click');
   // What the click hit and where it left the selection, for a failure on an engine
