@@ -2,6 +2,40 @@
 
 <!-- Newest release first. New entries go here: ## [x.y.z] — YYYY-MM-DD -->
 
+## [0.12.0] — 2026-10-23
+
+EdenText 0.12.0 takes the document name from the saved file; browsers without a save dialog ask
+for the name instead. The style manager fits its window and offers the toolbar's font
+sizes and a list of line widths. Each page shows its number beside the sheet, the ruler has finer
+marks, and line spacing goes up to 3. Password-protected ODF files and font embedding also work
+on a self-hosted instance served over plain HTTP.
+
+Thanks to @farragoo and @sbvelinga for reporting #17, #16.
+
+### Added
+- **Page numbers beside the sheet**, at each page's bottom right corner; Settings ▸ View turns
+  them off
+- **Line widths from a list or typed in pt** for borders in the style manager, the border pens and
+  text boxes
+- **Line spacing 2.5 and 3**; the paragraph dialog also shows an imported factor such as 1.25
+- **Finer ruler marks** at quarter and half centimetres, thinned out as the zoom leaves room
+
+### Fixed
+- Saving names the document after the chosen file; without a save dialog (Firefox, Safari, Brave)
+  the first Save and every Save As ask for the name
+- The style manager keeps its preview and fits its fields; font sizes come from the toolbar's list
+  in the style manager and the find bar, limited to 1–400 pt, on one row with font and colour
+- A border's No color removes the line, and None on Default text's border removes it
+- A picked No color or Automatic is outlined instead of filled
+- Password-protected ODF files, font embedding and copying work over plain HTTP
+- Only edentext.app counts visits; self-hosted, Docker and desktop builds send no count request
+- With autosave off, the File menus offer no stored documents or recent files
+- A click that focuses the editor keeps its caret, also on a busy page in Firefox
+- A held Enter keeps the caret on the page, also in multi-column sections and the page grid
+- A header or footer taller than the page leaves the body its share of the page
+- The page grid shows the pages a scroll lands on
+- Zooming out leaves no line beside the page
+
 ## [0.11.0] — 2026-10-20
 
 EdenText 0.11.0 brings custom paper sizes: a page takes its own width and height, and a custom
