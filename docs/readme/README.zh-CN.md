@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="">
+  <img src="../../public/favicon.svg" width="80" alt="">
 </p>
 
 <h1 align="center">
-  <img src="public/EdenText.png" height="40" alt="EdenText">
+  <img src="../../public/EdenText.png" height="40" alt="EdenText">
 </h1>
 
 <p align="center">
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/stffnb/edentext/actions/workflows/ci.yml"><img src="https://github.com/stffnb/edentext/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="许可证：AGPL-3.0"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="版本"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="许可证：AGPL-3.0"></a>
+  <a href="../../CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="版本"></a>
   <img src="https://img.shields.io/badge/status-beta-orange" alt="状态：测试版">
 </p>
 
@@ -23,12 +23,12 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <b>简体中文</b> · <a href="README.zh-TW.md">繁體中文</a>
+  <a href="../../README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <b>简体中文</b> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
-  <img src="docs/hero-light.webp" alt="EdenText 正在编辑一份双栏简报，图中标注了各项功能">
+  <source media="(prefers-color-scheme: dark)" srcset="../hero-dark.webp">
+  <img src="../hero-light.webp" alt="EdenText 正在编辑一份双栏简报，图中标注了各项功能">
 </picture>
 
 ---
@@ -46,8 +46,8 @@ EdenText 是一款基于网页、功能强大的文字处理软件，从随手�
 > 附上文件（或删减后的副本），它就会变成一个测试用例。
 
 <a href="https://edentext.app"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="EdenText 正在编辑一篇论文：带编号的章节、公式和页眉">
+  <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
+  <img src="../showcase/thesis.png" alt="EdenText 正在编辑一篇论文：带编号的章节、公式和页眉">
 </picture></a>
 
 ## 功能
@@ -76,22 +76,22 @@ EdenText 是一款基于网页、功能强大的文字处理软件，从随手�
   下载，想自己选保存位置的话，在浏览器设置里打开“下载前询问每个文件的保存位置”
 
 因浏览器限制而无法与 Word 或 LibreOffice 完全一致的地方，见
-[已知限制](CHANGELOG.md#known-limitations)（英文）。
+[已知限制](../../CHANGELOG.md#known-limitations)（英文）。
 
 ## 展示
 
-这些图片背后的文档以 `.odt` 和 `.docx` 格式存放在 [`docs/showcase/`](docs/showcase/) 中，
+这些图片背后的文档以 `.odt` 和 `.docx` 格式存放在 [`docs/showcase/`](../showcase/) 中，
 可直接在 EdenText、LibreOffice 或 Word 中打开。它们由 `scripts/showcase/run.mjs` 生成；
 照片来自 NASA，书籍为刘易斯·卡罗尔的作品，均属公有领域。
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="修订和批注" width="100%"></a><br><b>审阅</b>——修订跟踪、页边的讨论式批注、草稿水印</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="对页显示的书籍" width="100%"></a><br><b>书籍</b>——A5、对称页边距、章节从右页开始、书眉；前置部分之后页码重新开始，因此第 11 页印的页码是 9</td>
+<td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="修订和批注" width="100%"></a><br><b>审阅</b>——修订跟踪、页边的讨论式批注、草稿水印</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="对页显示的书籍" width="100%"></a><br><b>书籍</b>——A5、对称页边距、章节从右页开始、书眉；前置部分之后页码重新开始，因此第 11 页印的页码是 9</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="双栏简报" width="100%"></a><br><b>简报</b>——分栏、带题注的图片、侧栏文本框</td>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="带公式的表格" width="100%"></a><br><b>表格</b>——表格样式和类似电子表格的公式</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="双栏简报" width="100%"></a><br><b>简报</b>——分栏、带题注的图片、侧栏文本框</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter-tables.png"><img src="../showcase/newsletter-tables.png" alt="带公式的表格" width="100%"></a><br><b>表格</b>——表格样式和类似电子表格的公式</td>
 </tr>
 </table>
 
@@ -160,12 +160,12 @@ flowchart TD
 EdenText 完全在浏览器中运行：`App.svelte` 围绕 TipTap 文档模型及其编辑器扩展构建界面。
 样式和排版将该模型转换为可编辑的页面；存储层保存本地状态和恢复副本。导入和导出
 在同一模型与 ODT、DOCX 之间进行转换，浏览器文件 API 负责保存或下载生成的文件。
-格式和排版的细节见[架构文档](docs/architecture/)（英文）。
+格式和排版的细节见[架构文档](../architecture/)（英文）。
 
 ## 参与贡献
 
-欢迎贡献——请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)（英文）。合并前需要签署
-[CLA](CLA.md)，每个拉取请求都会自动检查。
+欢迎贡献——请参阅 [CONTRIBUTING.md](../../CONTRIBUTING.md)（英文）。合并前需要签署
+[CLA](../../CLA.md)，每个拉取请求都会自动检查。
 
 ### 贡献者
 
@@ -187,13 +187,13 @@ Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github
 
 Copyright © 2026 Steffen Becker · 德国制造
 
-[AGPL-3.0](LICENSE)。如果 AGPL 不适合你的用途，可以选择[商业许可证](LICENSE.commercial.md)。
-随附的字体和语言数据保留各自的许可证——参见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
+[AGPL-3.0](../../LICENSE)。如果 AGPL 不适合你的用途，可以选择[商业许可证](../../LICENSE.commercial.md)。
+随附的字体和语言数据保留各自的许可证——参见 [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md)。
 
 *EdenText 是一个独立项目，与 Microsoft 或 The Document Foundation 无关。支持 `.docx`
 和 `.odt` 是为了实现互操作性。*
 
-*本文为英文 [README](README.md) 的翻译；如有出入，以英文版为准。*
+*本文为英文 [README](../../README.md) 的翻译；如有出入，以英文版为准。*
 
 [^1]: 指压缩后的网络传输量：约 0.9 MB 的应用代码，其余为拼写检查器（含浏览器语言对应的
     词典）以及页面显示所需的字体；希腊语和乌克兰语词典分别额外增加约 2.5 MB 和 1.5 MB。

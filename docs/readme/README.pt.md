@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="">
+  <img src="../../public/favicon.svg" width="80" alt="">
 </p>
 
 <h1 align="center">
-  <img src="public/EdenText.png" height="40" alt="EdenText">
+  <img src="../../public/EdenText.png" height="40" alt="EdenText">
 </h1>
 
 <p align="center">
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/stffnb/edentext/actions/workflows/ci.yml"><img src="https://github.com/stffnb/edentext/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Licença: AGPL-3.0"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Versão"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Licença: AGPL-3.0"></a>
+  <a href="../../CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Versão"></a>
   <img src="https://img.shields.io/badge/status-beta-orange" alt="Estado: beta">
 </p>
 
@@ -23,12 +23,12 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <b>Português</b> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
+  <a href="../../README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <b>Português</b> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
-  <img src="docs/hero-light.webp" alt="O EdenText a editar um boletim em duas colunas, com as funcionalidades assinaladas">
+  <source media="(prefers-color-scheme: dark)" srcset="../hero-dark.webp">
+  <img src="../hero-light.webp" alt="O EdenText a editar um boletim em duas colunas, com as funcionalidades assinaladas">
 </picture>
 
 ---
@@ -48,8 +48,8 @@ O EdenText é um processador de texto poderoso que funciona no navegador, das no
 > ser um caso de teste.
 
 <a href="https://edentext.app"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="O EdenText a editar uma tese: capítulos numerados, fórmulas e um cabeçalho">
+  <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
+  <img src="../showcase/thesis.png" alt="O EdenText a editar uma tese: capítulos numerados, fórmulas e um cabeçalho">
 </picture></a>
 
 ## Funcionalidades
@@ -86,23 +86,23 @@ O EdenText é um processador de texto poderoso que funciona no navegador, das no
   definições do navegador a opção de perguntar onde guardar cada ficheiro
 
 Os pontos em que o navegador impede o EdenText de ficar exatamente igual ao Word ou ao
-LibreOffice estão descritos em [Known limitations](CHANGELOG.md#known-limitations) (em inglês).
+LibreOffice estão descritos em [Known limitations](../../CHANGELOG.md#known-limitations) (em inglês).
 
 ## Galeria
 
-Os documentos destas imagens estão em [`docs/showcase/`](docs/showcase/) em `.odt` e
+Os documentos destas imagens estão em [`docs/showcase/`](../showcase/) em `.odt` e
 `.docx`, prontos a abrir no EdenText, no LibreOffice ou no Word. São gerados por
 `scripts/showcase/run.mjs`; as fotografias são da NASA e o livro é de Lewis Carroll,
 ambos do domínio público.
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Controlo de alterações e comentários" width="100%"></a><br><b>Revisão</b> — controlo de alterações, conversas de comentários na margem, marca de água «Rascunho»</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="Um livro em página dupla" width="100%"></a><br><b>Livro</b> — A5, margens espelhadas, capítulos a começar na página ímpar, cabeçalhos correntes; a numeração recomeça depois das páginas preliminares, por isso a página 11 tem o número 9</td>
+<td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Controlo de alterações e comentários" width="100%"></a><br><b>Revisão</b> — controlo de alterações, conversas de comentários na margem, marca de água «Rascunho»</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Um livro em página dupla" width="100%"></a><br><b>Livro</b> — A5, margens espelhadas, capítulos a começar na página ímpar, cabeçalhos correntes; a numeração recomeça depois das páginas preliminares, por isso a página 11 tem o número 9</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="Um boletim em duas colunas" width="100%"></a><br><b>Boletim</b> — colunas, imagens com legenda, uma caixa lateral</td>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="Tabelas com fórmulas" width="100%"></a><br><b>Tabelas</b> — estilos de tabela e fórmulas como numa folha de cálculo</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Um boletim em duas colunas" width="100%"></a><br><b>Boletim</b> — colunas, imagens com legenda, uma caixa lateral</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter-tables.png"><img src="../showcase/newsletter-tables.png" alt="Tabelas com fórmulas" width="100%"></a><br><b>Tabelas</b> — estilos de tabela e fórmulas como numa folha de cálculo</td>
 </tr>
 </table>
 
@@ -176,12 +176,12 @@ modelo de documento do TipTap e das suas extensões. Os estilos e a paginação 
 esse modelo em páginas editáveis; o armazenamento guarda o estado local e as cópias de
 recuperação. A importação e a exportação convertem o mesmo modelo para ODT e DOCX, e as
 APIs de ficheiros do navegador guardam ou descarregam o resultado. Os detalhes sobre
-formatos e paginação estão na [documentação de arquitetura](docs/architecture/) (em inglês).
+formatos e paginação estão na [documentação de arquitetura](../architecture/) (em inglês).
 
 ## Contribuir
 
-As contribuições são bem-vindas: veja [CONTRIBUTING.md](CONTRIBUTING.md) (em inglês).
-Para o merge é preciso ter assinado o [CLA](CLA.md); isso é verificado automaticamente
+As contribuições são bem-vindas: veja [CONTRIBUTING.md](../../CONTRIBUTING.md) (em inglês).
+Para o merge é preciso ter assinado o [CLA](../../CLA.md); isso é verificado automaticamente
 em cada pull request.
 
 ### Agradecimentos
@@ -204,14 +204,14 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 
 Copyright © 2026 Steffen Becker · Feito na Alemanha
 
-[AGPL-3.0](LICENSE). Se a AGPL não servir, há uma [licença comercial](LICENSE.commercial.md).
+[AGPL-3.0](../../LICENSE). Se a AGPL não servir, há uma [licença comercial](../../LICENSE.commercial.md).
 Os tipos de letra e os dados linguísticos incluídos mantêm as suas próprias licenças: veja
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+[THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).
 
 *O EdenText é um projeto independente, sem ligação à Microsoft nem à The Document
 Foundation. `.docx` e `.odt` são suportados por razões de interoperabilidade.*
 
-*Esta é uma tradução do [README](README.md) em inglês; em caso de divergência, prevalece a versão inglesa.*
+*Esta é uma tradução do [README](../../README.md) em inglês; em caso de divergência, prevalece a versão inglesa.*
 
 [^1]: Transferência comprimida: ~0,9 MB de código da aplicação; o resto é o verificador
     ortográfico com o dicionário da língua do navegador e os tipos de letra da página

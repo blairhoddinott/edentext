@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="">
+  <img src="../../public/favicon.svg" width="80" alt="">
 </p>
 
 <h1 align="center">
-  <img src="public/EdenText.png" height="40" alt="EdenText">
+  <img src="../../public/EdenText.png" height="40" alt="EdenText">
 </h1>
 
 <p align="center">
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/stffnb/edentext/actions/workflows/ci.yml"><img src="https://github.com/stffnb/edentext/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Lizenz: AGPL-3.0"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Version"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Lizenz: AGPL-3.0"></a>
+  <a href="../../CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Version"></a>
   <img src="https://img.shields.io/badge/status-beta-orange" alt="Status: Beta">
 </p>
 
@@ -23,12 +23,12 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <b>Deutsch</b> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
+  <a href="../../README.md">English</a> · <b>Deutsch</b> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
-  <img src="docs/hero-light.webp" alt="EdenText bearbeitet einen zweispaltigen Newsletter, die Funktionen sind markiert">
+  <source media="(prefers-color-scheme: dark)" srcset="../hero-dark.webp">
+  <img src="../hero-light.webp" alt="EdenText bearbeitet einen zweispaltigen Newsletter, die Funktionen sind markiert">
 </picture>
 
 ---
@@ -49,8 +49,8 @@ EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von
 > daraus ein Testfall.
 
 <a href="https://edentext.app"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="EdenText bearbeitet eine Abschlussarbeit: nummerierte Kapitel, Formeln und eine Kopfzeile">
+  <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
+  <img src="../showcase/thesis.png" alt="EdenText bearbeitet eine Abschlussarbeit: nummerierte Kapitel, Formeln und eine Kopfzeile">
 </picture></a>
 
 ## Funktionen
@@ -87,23 +87,23 @@ EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von
   will, stellt in den Browsereinstellungen ein, dass vor jedem Download nachgefragt wird
 
 Wo EdenText wegen des Browsers nicht exakt wie Word oder LibreOffice aussehen kann, steht
-unter [Known limitations](CHANGELOG.md#known-limitations) (englisch).
+unter [Known limitations](../../CHANGELOG.md#known-limitations) (englisch).
 
 ## Galerie
 
-Die Dokumente zu diesen Bildern liegen als `.odt` und `.docx` in [`docs/showcase/`](docs/showcase/)
+Die Dokumente zu diesen Bildern liegen als `.odt` und `.docx` in [`docs/showcase/`](../showcase/)
 und lassen sich direkt in EdenText, LibreOffice oder Word öffnen. Erzeugt werden sie von
 `scripts/showcase/run.mjs`; die Fotos stammen von der NASA, das Buch von Lewis Carroll –
 beides gemeinfrei.
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Änderungsverfolgung und Kommentare" width="100%"></a><br><b>Überarbeiten</b> – Änderungsverfolgung, Kommentar-Threads am Rand, Wasserzeichen „Entwurf“</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="Ein Buch als Doppelseite" width="100%"></a><br><b>Buch</b> – A5, gespiegelte Ränder, Kapitel beginnen rechts, lebende Kolumnentitel; nach der Titelei beginnt die Zählung neu, deshalb trägt Seite 11 die Seitenzahl 9</td>
+<td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Änderungsverfolgung und Kommentare" width="100%"></a><br><b>Überarbeiten</b> – Änderungsverfolgung, Kommentar-Threads am Rand, Wasserzeichen „Entwurf“</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Ein Buch als Doppelseite" width="100%"></a><br><b>Buch</b> – A5, gespiegelte Ränder, Kapitel beginnen rechts, lebende Kolumnentitel; nach der Titelei beginnt die Zählung neu, deshalb trägt Seite 11 die Seitenzahl 9</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="Ein zweispaltiger Newsletter" width="100%"></a><br><b>Newsletter</b> – Spalten, Bilder mit Beschriftung, ein Infokasten</td>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="Tabellen mit Formeln" width="100%"></a><br><b>Tabellen</b> – Tabellenvorlagen und Formeln wie in einer Tabellenkalkulation</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Ein zweispaltiger Newsletter" width="100%"></a><br><b>Newsletter</b> – Spalten, Bilder mit Beschriftung, ein Infokasten</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter-tables.png"><img src="../showcase/newsletter-tables.png" alt="Tabellen mit Formeln" width="100%"></a><br><b>Tabellen</b> – Tabellenvorlagen und Formeln wie in einer Tabellenkalkulation</td>
 </tr>
 </table>
 
@@ -177,12 +177,12 @@ TipTap-Dokumentmodell und seine Editor-Erweiterungen zusammen. Formatvorlagen un
 machen aus diesem Modell bearbeitbare Seiten; die Speicherschicht hält den lokalen Zustand
 und die Wiederherstellungskopien. Import und Export übersetzen dasselbe Modell nach ODT und
 DOCX, die Datei-APIs des Browsers speichern die Ergebnisse oder laden sie herunter. Die
-Details zu Formaten und Layout stehen in der [Architektur-Dokumentation](docs/architecture/) (englisch).
+Details zu Formaten und Layout stehen in der [Architektur-Dokumentation](../architecture/) (englisch).
 
 ## Mitmachen
 
-Beiträge sind willkommen – siehe [CONTRIBUTING.md](CONTRIBUTING.md) (englisch). Zum Mergen
-ist ein unterschriebenes [CLA](CLA.md) nötig; das wird bei jedem Pull Request automatisch geprüft.
+Beiträge sind willkommen – siehe [CONTRIBUTING.md](../../CONTRIBUTING.md) (englisch). Zum Mergen
+ist ein unterschriebenes [CLA](../../CLA.md) nötig; das wird bei jedem Pull Request automatisch geprüft.
 
 ### Mitwirkende
 
@@ -204,14 +204,14 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 
 Copyright © 2026 Steffen Becker · Made in Germany
 
-[AGPL-3.0](LICENSE). Wo die AGPL nicht passt, gibt es eine
-[kommerzielle Lizenz](LICENSE.commercial.md). Mitgelieferte Schriften und Sprachdaten
-behalten ihre eigenen Lizenzen – siehe [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+[AGPL-3.0](../../LICENSE). Wo die AGPL nicht passt, gibt es eine
+[kommerzielle Lizenz](../../LICENSE.commercial.md). Mitgelieferte Schriften und Sprachdaten
+behalten ihre eigenen Lizenzen – siehe [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).
 
 *EdenText ist ein unabhängiges Projekt und weder mit Microsoft noch mit The Document
 Foundation verbunden. `.docx` und `.odt` werden aus Gründen der Interoperabilität unterstützt.*
 
-*Dies ist eine Übersetzung der englischen [README](README.md); maßgeblich ist die englische Fassung.*
+*Dies ist eine Übersetzung der englischen [README](../../README.md); maßgeblich ist die englische Fassung.*
 
 [^1]: Komprimiert übertragen: ~0,9 MB App-Code, der Rest ist die Rechtschreibprüfung mit
     dem Wörterbuch für die Sprache des Browsers und die Schriften der angezeigten Seite.

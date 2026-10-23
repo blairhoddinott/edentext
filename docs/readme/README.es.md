@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="">
+  <img src="../../public/favicon.svg" width="80" alt="">
 </p>
 
 <h1 align="center">
-  <img src="public/EdenText.png" height="40" alt="EdenText">
+  <img src="../../public/EdenText.png" height="40" alt="EdenText">
 </h1>
 
 <p align="center">
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/stffnb/edentext/actions/workflows/ci.yml"><img src="https://github.com/stffnb/edentext/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Licencia: AGPL-3.0"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Versión"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Licencia: AGPL-3.0"></a>
+  <a href="../../CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Versión"></a>
   <img src="https://img.shields.io/badge/status-beta-orange" alt="Estado: beta">
 </p>
 
@@ -23,12 +23,12 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · <b>Español</b> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
+  <a href="../../README.md">English</a> · <a href="README.de.md">Deutsch</a> · <b>Español</b> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
-  <img src="docs/hero-light.webp" alt="EdenText editando un boletín a dos columnas, con sus funciones señaladas">
+  <source media="(prefers-color-scheme: dark)" srcset="../hero-dark.webp">
+  <img src="../hero-light.webp" alt="EdenText editando un boletín a dos columnas, con sus funciones señaladas">
 </picture>
 
 ---
@@ -49,8 +49,8 @@ EdenText es un potente procesador de textos que funciona en el navegador y sirve
 > un caso de prueba.
 
 <a href="https://edentext.app"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="EdenText editando una tesis: capítulos numerados, fórmulas y un encabezado">
+  <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
+  <img src="../showcase/thesis.png" alt="EdenText editando una tesis: capítulos numerados, fórmulas y un encabezado">
 </picture></a>
 
 ## Funciones
@@ -87,23 +87,23 @@ EdenText es un potente procesador de textos que funciona en el navegador y sirve
   los ajustes del navegador que pregunte dónde guardar cada descarga
 
 Dónde el navegador impide que EdenText se vea exactamente como Word o LibreOffice se
-explica en [Known limitations](CHANGELOG.md#known-limitations) (en inglés).
+explica en [Known limitations](../../CHANGELOG.md#known-limitations) (en inglés).
 
 ## Galería
 
-Los documentos de estas imágenes están en [`docs/showcase/`](docs/showcase/) en `.odt` y
+Los documentos de estas imágenes están en [`docs/showcase/`](../showcase/) en `.odt` y
 `.docx`, listos para abrir en EdenText, LibreOffice o Word. Los genera
 `scripts/showcase/run.mjs`; las fotografías son de la NASA y el libro es de Lewis Carroll,
 ambos de dominio público.
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Control de cambios y comentarios" width="100%"></a><br><b>Revisión</b> — control de cambios, hilos de comentarios al margen, una marca de agua de borrador</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="Un libro a doble página" width="100%"></a><br><b>Libro</b> — A5, márgenes simétricos, capítulos que empiezan en página impar, titulillos; la numeración se reinicia tras las páginas preliminares, por eso la página 11 lleva el folio 9</td>
+<td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Control de cambios y comentarios" width="100%"></a><br><b>Revisión</b> — control de cambios, hilos de comentarios al margen, una marca de agua de borrador</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Un libro a doble página" width="100%"></a><br><b>Libro</b> — A5, márgenes simétricos, capítulos que empiezan en página impar, titulillos; la numeración se reinicia tras las páginas preliminares, por eso la página 11 lleva el folio 9</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="Un boletín a dos columnas" width="100%"></a><br><b>Boletín</b> — columnas, imágenes con leyenda, un recuadro lateral</td>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="Tablas con fórmulas" width="100%"></a><br><b>Tablas</b> — estilos de tabla y fórmulas como en una hoja de cálculo</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Un boletín a dos columnas" width="100%"></a><br><b>Boletín</b> — columnas, imágenes con leyenda, un recuadro lateral</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter-tables.png"><img src="../showcase/newsletter-tables.png" alt="Tablas con fórmulas" width="100%"></a><br><b>Tablas</b> — estilos de tabla y fórmulas como en una hoja de cálculo</td>
 </tr>
 </table>
 
@@ -178,12 +178,12 @@ al modelo de documento de TipTap y sus extensiones. Los estilos y la maquetació
 ese modelo en páginas editables; el almacenamiento guarda el estado local y las copias de
 recuperación. La importación y la exportación traducen ese mismo modelo a ODT y DOCX, y las
 API de archivos del navegador guardan o descargan los archivos resultantes. Los detalles
-sobre formatos y maquetación están en la [documentación de arquitectura](docs/architecture/) (en inglés).
+sobre formatos y maquetación están en la [documentación de arquitectura](../architecture/) (en inglés).
 
 ## Contribuir
 
-Las contribuciones son bienvenidas: consulta [CONTRIBUTING.md](CONTRIBUTING.md) (en
-inglés). Para fusionar hace falta haber firmado el [CLA](CLA.md), algo que se comprueba
+Las contribuciones son bienvenidas: consulta [CONTRIBUTING.md](../../CONTRIBUTING.md) (en
+inglés). Para fusionar hace falta haber firmado el [CLA](../../CLA.md), algo que se comprueba
 automáticamente en cada pull request.
 
 ### Agradecimientos
@@ -208,13 +208,13 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 
 Copyright © 2026 Steffen Becker · Hecho en Alemania
 
-[AGPL-3.0](LICENSE). Si la AGPL no encaja, hay una [licencia comercial](LICENSE.commercial.md). Las fuentes y los datos lingüísticos incluidos conservan
-sus propias licencias: consulta [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+[AGPL-3.0](../../LICENSE). Si la AGPL no encaja, hay una [licencia comercial](../../LICENSE.commercial.md). Las fuentes y los datos lingüísticos incluidos conservan
+sus propias licencias: consulta [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).
 
 *EdenText es un proyecto independiente, sin relación con Microsoft ni con The Document
 Foundation. `.docx` y `.odt` se admiten por interoperabilidad.*
 
-*Esta es una traducción del [README](README.md) en inglés; en caso de discrepancia, prevalece la versión inglesa.*
+*Esta es una traducción del [README](../../README.md) en inglés; en caso de discrepancia, prevalece la versión inglesa.*
 
 [^1]: Transferencia por red, comprimida: ~0,9 MB de código de la app; el resto es el
     corrector ortográfico con el diccionario del idioma del navegador y las fuentes que

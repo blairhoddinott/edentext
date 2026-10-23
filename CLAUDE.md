@@ -58,7 +58,7 @@ Tests are jsdom Vitest files outside `src/`; `npm test` covers round trips, corp
 
 **Naming** — components are `PascalCase.svelte`; `.ts` modules are `camelCase`; extensions are feature names such as `image.ts`.
 
-**Documentation** — document behavioural features where they load: one line in the nearest directory `CLAUDE.md` or a section in `docs/architecture/`. This file only gains commands, hard rules and top-level directories. A `README.md` change goes into every `README.<lang>.md` in the same commit.
+**Documentation** — document behavioural features where they load: one line in the nearest directory `CLAUDE.md` or a section in `docs/architecture/`. This file only gains commands, hard rules and top-level directories. A `README.md` change goes into every `docs/readme/README.<lang>.md` in the same commit.
 
 ## Source layout
 

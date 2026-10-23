@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="">
+  <img src="../../public/favicon.svg" width="80" alt="">
 </p>
 
 <h1 align="center">
-  <img src="public/EdenText.png" height="40" alt="EdenText">
+  <img src="../../public/EdenText.png" height="40" alt="EdenText">
 </h1>
 
 <p align="center">
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/stffnb/edentext/actions/workflows/ci.yml"><img src="https://github.com/stffnb/edentext/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="ライセンス: AGPL-3.0"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="バージョン"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="ライセンス: AGPL-3.0"></a>
+  <a href="../../CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="バージョン"></a>
   <img src="https://img.shields.io/badge/status-beta-orange" alt="ステータス: ベータ">
 </p>
 
@@ -23,12 +23,12 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <b>日本語</b> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
+  <a href="../../README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <b>日本語</b> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
-  <img src="docs/hero-light.webp" alt="2 段組みのニュースレターを編集中の EdenText。主な機能に印が付いている">
+  <source media="(prefers-color-scheme: dark)" srcset="../hero-dark.webp">
+  <img src="../hero-light.webp" alt="2 段組みのニュースレターを編集中の EdenText。主な機能に印が付いている">
 </picture>
 
 ---
@@ -48,8 +48,8 @@ EdenText はブラウザで動く高機能なワープロです。ちょっと�
 > ケースとして使わせていただきます。
 
 <a href="https://edentext.app"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="論文を編集中の EdenText。番号付きの章、数式、柱が見える">
+  <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
+  <img src="../showcase/thesis.png" alt="論文を編集中の EdenText。番号付きの章、数式、柱が見える">
 </picture></a>
 
 ## 機能
@@ -85,23 +85,23 @@ EdenText はブラウザで動く高機能なワープロです。ちょっと�
   ください
 
 ブラウザの制約で EdenText が Word や LibreOffice と完全には同じにならない点は、
-[Known limitations](CHANGELOG.md#known-limitations)（英語）にまとめています。
+[Known limitations](../../CHANGELOG.md#known-limitations)（英語）にまとめています。
 
 ## ギャラリー
 
-これらの画像の元になった文書は [`docs/showcase/`](docs/showcase/) に `.odt` と `.docx`
+これらの画像の元になった文書は [`docs/showcase/`](../showcase/) に `.odt` と `.docx`
 で置いてあり、EdenText、LibreOffice、Word でそのまま開けます。`scripts/showcase/run.mjs`
 で生成しています。写真は NASA、書籍はルイス・キャロルのもので、どちらもパブリック
 ドメインです。
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="変更履歴とコメント" width="100%"></a><br><b>校閲</b> — 変更履歴、余白のスレッド形式コメント、「下書き」の透かし</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="見開きの書籍" width="100%"></a><br><b>書籍</b> — A5、見開きの余白、右ページ始まりの章、柱。前付けのあとでページ番号を振り直しているので、11 ページ目には 9 と印刷されます</td>
+<td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="変更履歴とコメント" width="100%"></a><br><b>校閲</b> — 変更履歴、余白のスレッド形式コメント、「下書き」の透かし</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="見開きの書籍" width="100%"></a><br><b>書籍</b> — A5、見開きの余白、右ページ始まりの章、柱。前付けのあとでページ番号を振り直しているので、11 ページ目には 9 と印刷されます</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="2 段組みのニュースレター" width="100%"></a><br><b>ニュースレター</b> — 段組み、キャプション付きの画像、サイドバーの囲み</td>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="数式入りの表" width="100%"></a><br><b>表</b> — 表スタイルと表計算のような数式</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="2 段組みのニュースレター" width="100%"></a><br><b>ニュースレター</b> — 段組み、キャプション付きの画像、サイドバーの囲み</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter-tables.png"><img src="../showcase/newsletter-tables.png" alt="数式入りの表" width="100%"></a><br><b>表</b> — 表スタイルと表計算のような数式</td>
 </tr>
 </table>
 
@@ -174,13 +174,13 @@ EdenText は完全にブラウザ内で動きます。`App.svelte` が TipTap �
 拡張を中心に UI を組み立てます。スタイルとレイアウトがそのモデルを編集できるページに
 変え、ストレージ層がローカルの状態と復元用コピーを保持します。インポートとエクスポート
 は同じモデルを ODT や DOCX と相互に変換し、ブラウザのファイル API が結果を保存または
-ダウンロードします。形式やレイアウトの詳細は[アーキテクチャ文書](docs/architecture/)
+ダウンロードします。形式やレイアウトの詳細は[アーキテクチャ文書](../architecture/)
 （英語）をご覧ください。
 
 ## コントリビュート
 
-コントリビューションを歓迎します。[CONTRIBUTING.md](CONTRIBUTING.md)（英語）をご覧
-ください。マージには署名済みの [CLA](CLA.md) が必要で、プルリクエストごとに自動で
+コントリビューションを歓迎します。[CONTRIBUTING.md](../../CONTRIBUTING.md)（英語）をご覧
+ください。マージには署名済みの [CLA](../../CLA.md) が必要で、プルリクエストごとに自動で
 チェックされます。
 
 ### 協力者
@@ -203,14 +203,14 @@ Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github
 
 Copyright © 2026 Steffen Becker · ドイツ製
 
-[AGPL-3.0](LICENSE)。AGPL が合わない用途には[商用ライセンス](LICENSE.commercial.md)
+[AGPL-3.0](../../LICENSE)。AGPL が合わない用途には[商用ライセンス](../../LICENSE.commercial.md)
 もあります。同梱のフォントと言語データにはそれぞれのライセンスが適用されます。詳しくは
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) をご覧ください。
+[THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md) をご覧ください。
 
 *EdenText は独立したプロジェクトで、Microsoft や The Document Foundation とは関係
 ありません。`.docx` と `.odt` には相互運用性のために対応しています。*
 
-*これは英語版 [README](README.md) の翻訳です。内容に食い違いがある場合は英語版が優先されます。*
+*これは英語版 [README](../../README.md) の翻訳です。内容に食い違いがある場合は英語版が優先されます。*
 
 [^1]: 圧縮後の転送量です。アプリ本体のコードが約 0.9 MB、残りはブラウザの言語の辞書を
     含むスペルチェッカーと、表示中のページで使うフォントです。ギリシャ語の辞書では

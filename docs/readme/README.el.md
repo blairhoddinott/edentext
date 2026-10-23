@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="">
+  <img src="../../public/favicon.svg" width="80" alt="">
 </p>
 
 <h1 align="center">
-  <img src="public/EdenText.png" height="40" alt="EdenText">
+  <img src="../../public/EdenText.png" height="40" alt="EdenText">
 </h1>
 
 <p align="center">
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/stffnb/edentext/actions/workflows/ci.yml"><img src="https://github.com/stffnb/edentext/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Άδεια: AGPL-3.0"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Έκδοση"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Άδεια: AGPL-3.0"></a>
+  <a href="../../CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Έκδοση"></a>
   <img src="https://img.shields.io/badge/status-beta-orange" alt="Κατάσταση: beta">
 </p>
 
@@ -23,12 +23,12 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <b>Ελληνικά</b> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
+  <a href="../../README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <b>Ελληνικά</b> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
-  <img src="docs/hero-light.webp" alt="Το EdenText επεξεργάζεται ένα ενημερωτικό δελτίο δύο στηλών, με σημειωμένες τις δυνατότητές του">
+  <source media="(prefers-color-scheme: dark)" srcset="../hero-dark.webp">
+  <img src="../hero-light.webp" alt="Το EdenText επεξεργάζεται ένα ενημερωτικό δελτίο δύο στηλών, με σημειωμένες τις δυνατότητές του">
 </picture>
 
 ---
@@ -49,8 +49,8 @@
 > αντίγραφο) και θα γίνει περίπτωση ελέγχου.
 
 <a href="https://edentext.app"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="Το EdenText επεξεργάζεται μια διπλωματική εργασία: αριθμημένα κεφάλαια, τύποι και κεφαλίδα">
+  <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
+  <img src="../showcase/thesis.png" alt="Το EdenText επεξεργάζεται μια διπλωματική εργασία: αριθμημένα κεφάλαια, τύποι και κεφαλίδα">
 </picture></a>
 
 ## Δυνατότητες
@@ -90,23 +90,23 @@
   την ερώτηση για τη θέση αποθήκευσης πριν από κάθε λήψη
 
 Τα σημεία όπου το πρόγραμμα περιήγησης εμποδίζει το EdenText να δείχνει ακριβώς όπως το
-Word ή το LibreOffice περιγράφονται στα [Known limitations](CHANGELOG.md#known-limitations) (στα αγγλικά).
+Word ή το LibreOffice περιγράφονται στα [Known limitations](../../CHANGELOG.md#known-limitations) (στα αγγλικά).
 
 ## Συλλογή
 
-Τα έγγραφα αυτών των εικόνων βρίσκονται στο [`docs/showcase/`](docs/showcase/) σε `.odt`
+Τα έγγραφα αυτών των εικόνων βρίσκονται στο [`docs/showcase/`](../showcase/) σε `.odt`
 και `.docx` και ανοίγουν απευθείας στο EdenText, στο LibreOffice ή στο Word. Δημιουργούνται
 από το `scripts/showcase/run.mjs`· οι φωτογραφίες είναι της NASA και το βιβλίο του Lewis
 Carroll, όλα κοινό κτήμα.
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Παρακολούθηση αλλαγών και σχόλια" width="100%"></a><br><b>Αναθεώρηση</b> — παρακολούθηση αλλαγών, νήματα σχολίων στο περιθώριο, υδατογράφημα «Πρόχειρο»</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="Ένα βιβλίο σε αντικριστές σελίδες" width="100%"></a><br><b>Βιβλίο</b> — A5, κατοπτρικά περιθώρια, κεφάλαια σε δεξιά σελίδα, τρέχουσες κεφαλίδες· η αρίθμηση ξαναρχίζει μετά τις εισαγωγικές σελίδες, γι’ αυτό η σελίδα 11 έχει τον αριθμό 9</td>
+<td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Παρακολούθηση αλλαγών και σχόλια" width="100%"></a><br><b>Αναθεώρηση</b> — παρακολούθηση αλλαγών, νήματα σχολίων στο περιθώριο, υδατογράφημα «Πρόχειρο»</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Ένα βιβλίο σε αντικριστές σελίδες" width="100%"></a><br><b>Βιβλίο</b> — A5, κατοπτρικά περιθώρια, κεφάλαια σε δεξιά σελίδα, τρέχουσες κεφαλίδες· η αρίθμηση ξαναρχίζει μετά τις εισαγωγικές σελίδες, γι’ αυτό η σελίδα 11 έχει τον αριθμό 9</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="Ένα ενημερωτικό δελτίο σε δύο στήλες" width="100%"></a><br><b>Ενημερωτικό δελτίο</b> — στήλες, εικόνες με λεζάντα, πλαίσιο στο πλάι</td>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="Πίνακες με τύπους" width="100%"></a><br><b>Πίνακες</b> — στυλ πινάκων και τύποι όπως σε υπολογιστικό φύλλο</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Ένα ενημερωτικό δελτίο σε δύο στήλες" width="100%"></a><br><b>Ενημερωτικό δελτίο</b> — στήλες, εικόνες με λεζάντα, πλαίσιο στο πλάι</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter-tables.png"><img src="../showcase/newsletter-tables.png" alt="Πίνακες με τύπους" width="100%"></a><br><b>Πίνακες</b> — στυλ πινάκων και τύποι όπως σε υπολογιστικό φύλλο</td>
 </tr>
 </table>
 
@@ -182,12 +182,12 @@ flowchart TD
 τοπική κατάσταση και τα αντίγραφα ανάκτησης. Η εισαγωγή και η εξαγωγή μεταφράζουν το ίδιο
 μοντέλο σε ODT και DOCX, και τα APIs αρχείων του προγράμματος περιήγησης αποθηκεύουν ή
 κατεβάζουν το αποτέλεσμα. Λεπτομέρειες για τις μορφές και τη διάταξη υπάρχουν στην
-[τεκμηρίωση αρχιτεκτονικής](docs/architecture/) (στα αγγλικά).
+[τεκμηρίωση αρχιτεκτονικής](../architecture/) (στα αγγλικά).
 
 ## Συνεισφορά
 
-Οι συνεισφορές είναι ευπρόσδεκτες: δείτε το [CONTRIBUTING.md](CONTRIBUTING.md) (στα
-αγγλικά). Για το merge χρειάζεται υπογεγραμμένο [CLA](CLA.md)· ελέγχεται αυτόματα σε κάθε
+Οι συνεισφορές είναι ευπρόσδεκτες: δείτε το [CONTRIBUTING.md](../../CONTRIBUTING.md) (στα
+αγγλικά). Για το merge χρειάζεται υπογεγραμμένο [CLA](../../CLA.md)· ελέγχεται αυτόματα σε κάθε
 pull request.
 
 ### Ευχαριστίες
@@ -210,14 +210,14 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 
 Copyright © 2026 Steffen Becker · Φτιαγμένο στη Γερμανία
 
-[AGPL-3.0](LICENSE). Αν η AGPL δεν ταιριάζει, υπάρχει [εμπορική άδεια](LICENSE.commercial.md).
+[AGPL-3.0](../../LICENSE). Αν η AGPL δεν ταιριάζει, υπάρχει [εμπορική άδεια](../../LICENSE.commercial.md).
 Οι ενσωματωμένες γραμματοσειρές και τα γλωσσικά δεδομένα διατηρούν τις δικές τους άδειες:
-δείτε το [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+δείτε το [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).
 
 *Το EdenText είναι ανεξάρτητο έργο, χωρίς σχέση με τη Microsoft ή το The Document
 Foundation. Τα `.docx` και `.odt` υποστηρίζονται για λόγους διαλειτουργικότητας.*
 
-*Αυτή είναι μετάφραση του αγγλικού [README](README.md)· σε περίπτωση απόκλισης ισχύει η αγγλική έκδοση.*
+*Αυτή είναι μετάφραση του αγγλικού [README](../../README.md)· σε περίπτωση απόκλισης ισχύει η αγγλική έκδοση.*
 
 [^1]: Συμπιεσμένη μεταφορά: ~0,9 MB κώδικας εφαρμογής· τα υπόλοιπα είναι ο ορθογραφικός
     έλεγχος με το λεξικό της γλώσσας του προγράμματος περιήγησης και οι γραμματοσειρές της

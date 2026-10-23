@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="">
+  <img src="../../public/favicon.svg" width="80" alt="">
 </p>
 
 <h1 align="center">
-  <img src="public/EdenText.png" height="40" alt="EdenText">
+  <img src="../../public/EdenText.png" height="40" alt="EdenText">
 </h1>
 
 <p align="center">
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/stffnb/edentext/actions/workflows/ci.yml"><img src="https://github.com/stffnb/edentext/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Licence : AGPL-3.0"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Version"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Licence : AGPL-3.0"></a>
+  <a href="../../CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Version"></a>
   <img src="https://img.shields.io/badge/status-beta-orange" alt="Statut : bêta">
 </p>
 
@@ -23,12 +23,12 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <b>Français</b> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
+  <a href="../../README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <b>Français</b> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <a href="README.ru.md">Русский</a> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
-  <img src="docs/hero-light.webp" alt="EdenText en train d’éditer une lettre d’information sur deux colonnes, ses fonctionnalités signalées">
+  <source media="(prefers-color-scheme: dark)" srcset="../hero-dark.webp">
+  <img src="../hero-light.webp" alt="EdenText en train d’éditer une lettre d’information sur deux colonnes, ses fonctionnalités signalées">
 </picture>
 
 ---
@@ -49,8 +49,8 @@ EdenText est un traitement de texte puissant qui s’utilise dans le navigateur,
 > il deviendra un cas de test.
 
 <a href="https://edentext.app"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="EdenText en train d’éditer une thèse : chapitres numérotés, formules et en-tête courant">
+  <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
+  <img src="../showcase/thesis.png" alt="EdenText en train d’éditer une thèse : chapitres numérotés, formules et en-tête courant">
 </picture></a>
 
 ## Fonctionnalités
@@ -90,23 +90,23 @@ EdenText est un traitement de texte puissant qui s’utilise dans le navigateur,
   chaque fichier
 
 Les cas où le navigateur empêche EdenText de reproduire exactement Word ou LibreOffice sont
-décrits dans [Known limitations](CHANGELOG.md#known-limitations) (en anglais).
+décrits dans [Known limitations](../../CHANGELOG.md#known-limitations) (en anglais).
 
 ## Galerie
 
-Les documents de ces images se trouvent dans [`docs/showcase/`](docs/showcase/) en
+Les documents de ces images se trouvent dans [`docs/showcase/`](../showcase/) en
 `.odt` et `.docx`, prêts à être ouverts dans EdenText, LibreOffice ou Word. Ils sont générés
 par `scripts/showcase/run.mjs` ; les photos viennent de la NASA et le livre est de Lewis
 Carroll, tous deux dans le domaine public.
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Suivi des modifications et commentaires" width="100%"></a><br><b>Révision</b> – suivi des modifications, fils de commentaires en marge, filigrane « brouillon »</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="Un livre en double page" width="100%"></a><br><b>Livre</b> – A5, marges en miroir, chapitres qui commencent sur une page de droite, titres courants ; la numérotation reprend après les pages liminaires, si bien que la page 11 porte le folio 9</td>
+<td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Suivi des modifications et commentaires" width="100%"></a><br><b>Révision</b> – suivi des modifications, fils de commentaires en marge, filigrane « brouillon »</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Un livre en double page" width="100%"></a><br><b>Livre</b> – A5, marges en miroir, chapitres qui commencent sur une page de droite, titres courants ; la numérotation reprend après les pages liminaires, si bien que la page 11 porte le folio 9</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="Une lettre d’information sur deux colonnes" width="100%"></a><br><b>Lettre d’information</b> – colonnes, images légendées, encadré latéral</td>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="Tableaux avec formules" width="100%"></a><br><b>Tableaux</b> – styles de tableau et formules façon tableur</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Une lettre d’information sur deux colonnes" width="100%"></a><br><b>Lettre d’information</b> – colonnes, images légendées, encadré latéral</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter-tables.png"><img src="../showcase/newsletter-tables.png" alt="Tableaux avec formules" width="100%"></a><br><b>Tableaux</b> – styles de tableau et formules façon tableur</td>
 </tr>
 </table>
 
@@ -183,12 +183,12 @@ transforment ce modèle en pages modifiables ; le stockage conserve l’état lo
 copies de récupération. L’import et l’export traduisent ce même modèle en ODT et DOCX, et
 les API de fichiers du navigateur enregistrent ou téléchargent les fichiers obtenus. Les
 détails sur les formats et la mise en page se trouvent dans la
-[documentation d’architecture](docs/architecture/) (en anglais).
+[documentation d’architecture](../architecture/) (en anglais).
 
 ## Contribuer
 
-Les contributions sont les bienvenues – voir [CONTRIBUTING.md](CONTRIBUTING.md) (en
-anglais). Pour qu’une pull request soit fusionnée, il faut avoir signé le [CLA](CLA.md) ; c’est
+Les contributions sont les bienvenues – voir [CONTRIBUTING.md](../../CONTRIBUTING.md) (en
+anglais). Pour qu’une pull request soit fusionnée, il faut avoir signé le [CLA](../../CLA.md) ; c’est
 vérifié automatiquement.
 
 ### Remerciements
@@ -213,14 +213,14 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 
 Copyright © 2026 Steffen Becker · Fabriqué en Allemagne
 
-[AGPL-3.0](LICENSE). Si l’AGPL ne convient pas, une
-[licence commerciale](LICENSE.commercial.md) est disponible. Les polices et données linguistiques fournies
-conservent leurs propres licences – voir [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+[AGPL-3.0](../../LICENSE). Si l’AGPL ne convient pas, une
+[licence commerciale](../../LICENSE.commercial.md) est disponible. Les polices et données linguistiques fournies
+conservent leurs propres licences – voir [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).
 
 *EdenText est un projet indépendant, sans lien avec Microsoft ni avec The Document
 Foundation. Les formats `.docx` et `.odt` sont pris en charge à des fins d’interopérabilité.*
 
-*Ceci est une traduction du [README](README.md) anglais ; en cas de divergence, la version anglaise fait foi.*
+*Ceci est une traduction du [README](../../README.md) anglais ; en cas de divergence, la version anglaise fait foi.*
 
 [^1]: Volume transféré, compressé : ~0,9 Mo de code d’application, le reste étant le
     correcteur orthographique avec le dictionnaire de la langue du navigateur et les

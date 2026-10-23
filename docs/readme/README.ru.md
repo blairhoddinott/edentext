@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="">
+  <img src="../../public/favicon.svg" width="80" alt="">
 </p>
 
 <h1 align="center">
-  <img src="public/EdenText.png" height="40" alt="EdenText">
+  <img src="../../public/EdenText.png" height="40" alt="EdenText">
 </h1>
 
 <p align="center">
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/stffnb/edentext/actions/workflows/ci.yml"><img src="https://github.com/stffnb/edentext/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Лицензия: AGPL-3.0"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Версия"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="Лицензия: AGPL-3.0"></a>
+  <a href="../../CHANGELOG.md"><img src="https://img.shields.io/github/package-json/v/stffnb/edentext" alt="Версия"></a>
   <img src="https://img.shields.io/badge/status-beta-orange" alt="Статус: бета">
 </p>
 
@@ -23,12 +23,12 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <b>Русский</b> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
+  <a href="../../README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.pt.md">Português</a> · <a href="README.el.md">Ελληνικά</a> · <b>Русский</b> · <a href="README.uk.md">Українська</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a>
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.webp">
-  <img src="docs/hero-light.webp" alt="EdenText редактирует информационный бюллетень в две колонки, отмечены его возможности">
+  <source media="(prefers-color-scheme: dark)" srcset="../hero-dark.webp">
+  <img src="../hero-light.webp" alt="EdenText редактирует информационный бюллетень в две колонки, отмечены его возможности">
 </picture>
 
 ---
@@ -47,8 +47,8 @@ EdenText — мощный текстовый процессор в браузе�
 > или WPS Office: приложите файл (или сокращённую копию), и он станет тестовым примером.
 
 <a href="https://edentext.app"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="EdenText редактирует диссертацию: нумерованные главы, формулы и колонтитул">
+  <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
+  <img src="../showcase/thesis.png" alt="EdenText редактирует диссертацию: нумерованные главы, формулы и колонтитул">
 </picture></a>
 
 ## Возможности
@@ -86,23 +86,23 @@ EdenText — мощный текстовый процессор в браузе�
   «Всегда указывать место для скачивания»
 
 Где браузер не позволяет EdenText в точности повторить Word или LibreOffice,
-описано в разделе [Known limitations](CHANGELOG.md#known-limitations) (на английском).
+описано в разделе [Known limitations](../../CHANGELOG.md#known-limitations) (на английском).
 
 ## Галерея
 
-Документы, по которым сделаны эти изображения, лежат в [`docs/showcase/`](docs/showcase/)
+Документы, по которым сделаны эти изображения, лежат в [`docs/showcase/`](../showcase/)
 в форматах `.odt` и `.docx` — их можно сразу открыть в EdenText, LibreOffice или Word.
 Они создаются скриптом `scripts/showcase/run.mjs`; фотографии принадлежат NASA, а книга —
 Льюису Кэрроллу, всё это общественное достояние.
 
 <table>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Отслеживание изменений и комментарии" width="100%"></a><br><b>Рецензирование</b> — отслеживание изменений, ветки комментариев на полях, водяной знак «черновик»</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="Книга на развороте" width="100%"></a><br><b>Книга</b> — A5, зеркальные поля, главы с правой страницы, колонтитулы; после вводной части нумерация начинается заново, поэтому на 11-й странице стоит номер 9</td>
+<td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Отслеживание изменений и комментарии" width="100%"></a><br><b>Рецензирование</b> — отслеживание изменений, ветки комментариев на полях, водяной знак «черновик»</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Книга на развороте" width="100%"></a><br><b>Книга</b> — A5, зеркальные поля, главы с правой страницы, колонтитулы; после вводной части нумерация начинается заново, поэтому на 11-й странице стоит номер 9</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="Бюллетень в две колонки" width="100%"></a><br><b>Бюллетень</b> — колонки, изображения с подписями, врезка на полях</td>
-<td width="50%" valign="top"><a href="docs/showcase/newsletter-tables.png"><img src="docs/showcase/newsletter-tables.png" alt="Таблицы с формулами" width="100%"></a><br><b>Таблицы</b> — стили таблиц и формулы как в электронных таблицах</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Бюллетень в две колонки" width="100%"></a><br><b>Бюллетень</b> — колонки, изображения с подписями, врезка на полях</td>
+<td width="50%" valign="top"><a href="../showcase/newsletter-tables.png"><img src="../showcase/newsletter-tables.png" alt="Таблицы с формулами" width="100%"></a><br><b>Таблицы</b> — стили таблиц и формулы как в электронных таблицах</td>
 </tr>
 </table>
 
@@ -175,12 +175,12 @@ EdenText работает целиком в браузере: `App.svelte` ст�
 страницы; хранилище держит локальное состояние и резервные копии. Импорт и экспорт
 переводят ту же модель в ODT и DOCX, а файловые API браузера сохраняют или загружают
 полученные файлы. Подробнее о форматах и вёрстке — в
-[архитектурной документации](docs/architecture/) (на английском).
+[архитектурной документации](../architecture/) (на английском).
 
 ## Участие в разработке
 
-Будем рады вашему участию — см. [CONTRIBUTING.md](CONTRIBUTING.md) (на английском). Для слияния
-нужно подписать [CLA](CLA.md); это автоматически проверяется в каждом pull request.
+Будем рады вашему участию — см. [CONTRIBUTING.md](../../CONTRIBUTING.md) (на английском). Для слияния
+нужно подписать [CLA](../../CLA.md); это автоматически проверяется в каждом pull request.
 
 ### Участники
 
@@ -202,14 +202,14 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 
 Copyright © 2026 Steffen Becker · Сделано в Германии
 
-[AGPL-3.0](LICENSE). Если AGPL не подходит, есть
-[коммерческая лицензия](LICENSE.commercial.md). Входящие в комплект шрифты и языковые
-данные сохраняют свои лицензии — см. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+[AGPL-3.0](../../LICENSE). Если AGPL не подходит, есть
+[коммерческая лицензия](../../LICENSE.commercial.md). Входящие в комплект шрифты и языковые
+данные сохраняют свои лицензии — см. [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).
 
 *EdenText — независимый проект, не связанный с Microsoft или The Document Foundation.
 Форматы `.docx` и `.odt` поддерживаются для совместимости.*
 
-*Это перевод английского [README](README.md); при расхождениях действует английская версия.*
+*Это перевод английского [README](../../README.md); при расхождениях действует английская версия.*
 
 [^1]: Объём передачи по сети в сжатом виде: ~0,9 МБ кода приложения, остальное — модуль
     проверки орфографии со словарём языка браузера и шрифты, которые показывает страница;
