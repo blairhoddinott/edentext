@@ -1362,6 +1362,7 @@ const zhHant: Messages = {
     openedWithLimitations: (list: string) => `開啟時有下列限制：\n• ${list}`,
     couldNotOpen: '無法開啟此檔案。',
     chooseFormat: '要儲存為哪種格式？',
+    saveDocument: '儲存文件',
     couldNotSave: '無法儲存此檔案。',
     fileChangedElsewhere: (name: string) => `「${name}」自上次開啟或儲存後已在 EdenText 之外被修改。仍要覆寫嗎？否則將以新名稱儲存文件。`,
     scriptBlocked: '應用程式的一部分未能載入——指令碼封鎖程式（uBlock Origin、NoScript、嚴格的隱私模式）擋住了它。請為本站台放行後再試一次。',

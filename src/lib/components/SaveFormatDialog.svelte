@@ -18,7 +18,7 @@
   let dialogEl = $state<HTMLDialogElement | null>(null);
   let inputEl = $state<HTMLInputElement | null>(null);
   let value = $state('');
-  let title = $derived(kind ? `${t().ribbon.saveAs} (.${kind})` : t().dialogs.chooseFormat);
+  let title = $derived(kind ? `${t().ribbon.saveAs} (.${kind})` : askName ? t().dialogs.saveDocument : t().dialogs.chooseFormat);
 
   $effect(() => {
     const el = dialogEl;

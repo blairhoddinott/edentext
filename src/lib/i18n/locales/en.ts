@@ -1376,6 +1376,7 @@ const en = {
     openedWithLimitations: (list: string) => `Opened with limitations:\n• ${list}`,
     couldNotOpen: 'Could not open this file.',
     chooseFormat: 'Save in which format?',
+    saveDocument: 'Save document',
     couldNotSave: 'Could not save this file.',
     fileChangedElsewhere: (name: string) => `“${name}” has been changed outside EdenText since it was last opened or saved. Overwrite it anyway? Otherwise the document is saved under a new name.`,
     scriptBlocked: 'Part of the app could not be loaded — a script blocker (uBlock Origin, NoScript, strict privacy mode) is blocking it. Allow this site and try again.',

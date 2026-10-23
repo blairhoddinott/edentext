@@ -1362,6 +1362,7 @@ const es: Messages = {
     openedWithLimitations: (list) => `Abierto con limitaciones:\n• ${list}`,
     couldNotOpen: 'No se ha podido abrir este archivo.',
     chooseFormat: '¿En qué formato quiere guardarlo?',
+    saveDocument: 'Guardar documento',
     couldNotSave: 'No se ha podido guardar este archivo.',
     fileChangedElsewhere: (name: string) => `«${name}» se ha modificado fuera de EdenText desde la última vez que se abrió o guardó. ¿Desea sobrescribirlo de todos modos? De lo contrario, el documento se guardará con otro nombre.`,
     scriptBlocked: 'Una parte de la aplicación no se ha podido cargar: un bloqueador de scripts (uBlock Origin, NoScript, modo de privacidad estricto) lo impide. Permita este sitio e inténtelo de nuevo.',

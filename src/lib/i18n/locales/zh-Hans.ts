@@ -1361,6 +1361,7 @@ const zhHans: Messages = {
     openedWithLimitations: (list: string) => `打开时有以下限制：\n• ${list}`,
     couldNotOpen: '无法打开此文件。',
     chooseFormat: '要保存为哪种格式？',
+    saveDocument: '保存文档',
     couldNotSave: '无法保存此文件。',
     fileChangedElsewhere: (name: string) => `“${name}”自上次打开或保存后已在 EdenText 之外被修改。仍要覆盖吗？否则将以新名称保存文档。`,
     scriptBlocked: '应用的一部分未能载入——脚本拦截器（uBlock Origin、NoScript、严格的隐私模式）拦截了它。请为本站点放行后重试。',
