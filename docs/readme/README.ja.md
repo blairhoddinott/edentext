@@ -49,7 +49,7 @@ EdenText はブラウザで動く高機能なワープロです。ちょっと�
 
 <a href="https://edentext.app"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
-  <img src="../showcase/thesis.png" alt="論文を編集中の EdenText。番号付きの章、数式、柱が見える">
+  <img src="../showcase/thesis.png" alt="論文を編集中の EdenText。番号付きの章、数式、ヘッダーが見える">
 </picture></a>
 
 ## 機能
@@ -59,8 +59,8 @@ EdenText はブラウザで動く高機能なワープロです。ちょっと�
   始める設定も
 - **`.odt` と `.docx` を開いて保存**、PDF 出力にも対応。テンプレート（`.ott`/`.dotx`）
   とレターテンプレート集（DIN 5008）、どちらの形式でもパスワード保護ファイルに対応
-- **Word・LibreOffice と互換** — 3 つのソフトのどれで開いてもレイアウトが同じになる
-  ことを、自動のラウンドトリップテストとレイアウトテストで確認しています
+- **Word・LibreOffice・WPS Office と互換** — 文書のレイアウトはそのまま保たれます。
+  自動のラウンドトリップテストとレイアウトテストで、LibreOffice と比較して確認しています
 - **スタイル** — 段落・文字・表・リストのスタイル（継承あり）、章番号
 - **表** — 表スタイル、並べ替え、表計算のような数式
 - **論文に必要なものがひと通り** — 目次、図表番号、相互参照、引用と参考文献、索引、
@@ -97,7 +97,7 @@ EdenText はブラウザで動く高機能なワープロです。ちょっと�
 <table>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="変更履歴とコメント" width="100%"></a><br><b>校閲</b> — 変更履歴、余白のスレッド形式コメント、「下書き」の透かし</td>
-<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="見開きの書籍" width="100%"></a><br><b>書籍</b> — A5、見開きの余白、右ページ始まりの章、柱。前付けのあとでページ番号を振り直しているので、11 ページ目には 9 と印刷されます</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="見開きの書籍" width="100%"></a><br><b>書籍</b> — A5、見開きで左右対称の余白。各章は右ページから始まり、ヘッダーには左ページに書名、右ページに章名が入ります。ページ番号は第 1 章から振られます</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="2 段組みのニュースレター" width="100%"></a><br><b>ニュースレター</b> — 段組み、キャプション付きの画像、サイドバーの囲み</td>
@@ -134,26 +134,28 @@ Svelte 5、TypeScript、Vite、TipTap 3（ProseMirror）で作られています
 
 ## セルフホスト
 
-バックエンドはなく、サーバー側に状態も持ちません。文書はブラウザの中にとどまります。
+EdenText はバックエンドを必要とせず、サーバーには何も保存しません。
+文書はブラウザーの中にとどまります。
 リリースごとにコンテナイメージ（amd64・arm64）を公開しています。
 
 ```bash
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-Docker を使わなくても構いません。各リリースにはビルド済みアプリの `edentext-<tag>.zip`
-が含まれています（`npm run build` でも `dist/` に同じものができます）。このフォルダーは
-どんな Web サーバーでも配信できます。イメージを手元でビルドするなら
-`docker build -t edentext .` です。
+このほか、各リリースにはビルド済みアプリを収めた `edentext-<tag>.zip` が含まれます。
+`npm run build` を実行すると、同じファイルが `dist/` に作成されます。
+このフォルダーは任意の Web サーバーで公開できます。
+コンテナイメージは `docker build -t edentext .` で手元でもビルドできます。
 
-更新するときは、フォルダーを空にせず新しいファイルを古いファイルの上にコピーしてください。
-更新前に開いたタブは、再読み込みするまで自分のバージョンのファイルを読み込み続けます。
-存在しないファイルには `index.html` ではなく 404 を返すようにすると、そのようなタブが
-再読み込みを促せます。
+更新するときは、フォルダーを空にせず、新しいファイルを古いファイルの上にコピーしてください。
+更新前に開いていたタブは、再読み込みされるまで自分のバージョンのファイルを読み込み続けます。
+存在しないファイルへのリクエストには、`index.html` ではなく 404 を返すようにサーバーを設定してください。
+そうすれば、こうしたタブが再読み込みを促せます。
 
-HTTPS で配信するか、localhost で開いてください。素の HTTP でもエディターは動きますが、
-ブラウザーはオフライン利用とアプリとしてのインストール、開いたファイルへの直接保存
-（代わりにダウンロードになります）、クリップボードのボタンを許可しません。
+EdenText は HTTPS で公開することをおすすめします。HTTP でもエディターは動作しますが、
+ブラウザーによって一部の機能が無効になります。オフラインでの利用、アプリとしてのインストール、
+開いたファイルへの直接保存（代わりにダウンロードされます）、コピーボタンです。
+localhost では HTTPS と同じようにすべて使えます。
 
 ## アーキテクチャ
 
@@ -187,7 +189,7 @@ EdenText は完全にブラウザ内で動きます。`App.svelte` が TipTap �
 
 アイデア、バグ報告、テスト、フィードバックで協力してくださった皆さんに感謝します。GitHub に表示されるコントリビューターに加えて、次の方々にも感謝します。
 
-Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github.com/lukasmwerner)、[@JinJieBeWater](https://github.com/JinJieBeWater)、[@farragoo](https://github.com/farragoo)
+Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github.com/lukasmwerner)、[@JinJieBeWater](https://github.com/JinJieBeWater)、[@farragoo](https://github.com/farragoo), [@sbvelinga](https://github.com/sbvelinga)
 
 <p>
 <a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
@@ -197,6 +199,7 @@ Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github
 <a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
 <a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
 <a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+<a href="https://github.com/sbvelinga"><img src="https://github.com/sbvelinga.png?size=96" width="48" alt="@sbvelinga"/></a>
 </p>
 
 ## ライセンス
@@ -212,7 +215,7 @@ Copyright © 2026 Steffen Becker · ドイツ製
 
 *これは英語版 [README](../../README.md) の翻訳です。内容に食い違いがある場合は英語版が優先されます。*
 
-[^1]: 圧縮後の転送量です。アプリ本体のコードが約 0.9 MB、残りはブラウザの言語の辞書を
+[^1]: 圧縮後の転送量です。アプリ本体のコードが約 1.0 MB、残りはブラウザの言語の辞書を
     含むスペルチェッカーと、表示中のページで使うフォントです。ギリシャ語の辞書では
     約 2.5 MB、ウクライナ語では約 1.5 MB が加わります。それ以外は必要になった時点で
     読み込まれ、オフライン用に保存されます。フォント、辞書、類義語辞典をすべて合わせる

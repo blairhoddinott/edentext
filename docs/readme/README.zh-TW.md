@@ -56,8 +56,8 @@ EdenText 是在瀏覽器中執行、功能強大的文書處理軟體，從隨�
   浮水印；書籍可使用左右對稱的邊界，章節從右頁開始
 - **開啟並儲存 `.odt` 和 `.docx`**，可匯出 PDF；支援範本（`.ott`/`.dotx`）和信函範本庫
   （DIN 5008）；兩種格式都支援密碼保護的檔案
-- **與 Word 和 LibreOffice 相容**——文件在三者中都能維持版面，並經過自動化的往返轉換
-  和排版測試驗證
+- **與 Word、LibreOffice 和 WPS Office 相容**——文件維持原有版面；
+  自動化往返轉換和排版測試以 LibreOffice 為基準進行驗證
 - **樣式**——段落、字元、表格和清單樣式，支援繼承，以及章節編號
 - **表格**——表格樣式、排序，以及類似試算表的公式
 - **論文需要的都有**——目錄、圖表標號、交互參照、引用與參考文獻、索引、數學公式（LaTeX）
@@ -88,7 +88,7 @@ EdenText 是在瀏覽器中執行、功能強大的文書處理軟體，從隨�
 <table>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="追蹤修訂與註解" width="100%"></a><br><b>校閱</b>——追蹤修訂、頁邊的討論串註解、「草稿」浮水印</td>
-<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="跨頁顯示的書籍" width="100%"></a><br><b>書籍</b>——A5、左右對稱邊界、章節從右頁開始、書眉；前置頁面之後頁碼重新起算，因此第 11 頁印的頁碼是 9</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="跨頁顯示的書籍" width="100%"></a><br><b>書籍</b>——A5，左右對稱邊界。每章從右頁開始，頁首在左頁顯示書名、在右頁顯示章名，頁碼從第一章開始編號</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="雙欄電子報" width="100%"></a><br><b>電子報</b>——分欄、附標號的圖片、側欄文字方塊</td>
@@ -125,23 +125,24 @@ cd desktop && npm install && npm start   # 以同一份建置執行桌面應用�
 
 ## 自行架設
 
-沒有後端，伺服器上也不保存任何狀態；文件始終留在瀏覽器中。
+EdenText 不需要後端，也不在伺服器上保存任何內容；文件始終留在瀏覽器中。
 每個版本都會發布容器映像檔（amd64 和 arm64）：
 
 ```bash
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-不用 Docker 也可以：每個版本都附有建置好的 `edentext-<tag>.zip`（`npm run build`
-會在 `dist/` 中產生相同內容），用任何 Web 伺服器提供這個資料夾即可。也可以用
-`docker build -t edentext .` 在本機建置映像檔。
+此外，每個版本都附有包含已建置應用程式的 `edentext-<tag>.zip`；執行 `npm run build` 也會在 `dist/` 中產生相同的檔案。
+任何 Web 伺服器都可以託管這個資料夾。
+也可以用 `docker build -t edentext .` 在本機建置容器映像檔。
 
-更新時請把新檔案複製到舊檔案之上，而不是先清空資料夾：更新前開啟的分頁在重新整理前
-仍會載入其所屬版本的檔案。缺少的檔案應回傳 404 而不是 `index.html`，這樣此類分頁才能
-提示重新整理。
+更新時，請將新檔案覆蓋到舊檔案上，不要先清空資料夾。
+更新前開啟的分頁在重新載入之前，會繼續載入其所屬版本的檔案。
+伺服器應對缺少的檔案回傳 404，而不是 `index.html`，這樣這些分頁才能提示重新載入。
 
-請透過 HTTPS 提供服務，或在 localhost 上開啟：使用純 HTTP 時編輯器可以執行，但瀏覽器
-不允許離線使用和安裝為應用程式、直接存回已開啟的檔案（改為下載檔案）以及剪貼簿按鈕。
+建議透過 HTTPS 部署 EdenText。使用一般 HTTP 時編輯器也能執行，但瀏覽器會停用部分功能：
+離線使用、安裝為應用程式、直接存回已開啟的檔案（改為下載）以及複製按鈕。
+在 localhost 上，所有功能都與 HTTPS 一樣可用。
 
 ## 架構
 
@@ -172,7 +173,7 @@ EdenText 完全在瀏覽器中執行：`App.svelte` 圍繞 TipTap 文件模型�
 
 感謝所有提供想法、問題回報、測試和意見回饋的人。除 GitHub 上列出的貢獻者外，我也要感謝：
 
-Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github.com/lukasmwerner)、[@JinJieBeWater](https://github.com/JinJieBeWater)、[@farragoo](https://github.com/farragoo)
+Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github.com/lukasmwerner)、[@JinJieBeWater](https://github.com/JinJieBeWater)、[@farragoo](https://github.com/farragoo), [@sbvelinga](https://github.com/sbvelinga)
 
 <p>
 <a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
@@ -182,6 +183,7 @@ Patrick R.、[@Deleh](https://github.com/Deleh)、[@lukasmwerner](https://github
 <a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
 <a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
 <a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+<a href="https://github.com/sbvelinga"><img src="https://github.com/sbvelinga.png?size=96" width="48" alt="@sbvelinga"/></a>
 </p>
 
 ## 授權
@@ -196,7 +198,7 @@ Copyright © 2026 Steffen Becker · 德國製造
 
 *本文為英文 [README](../../README.md) 的翻譯；如有出入，以英文版為準。*
 
-[^1]: 指壓縮後的網路傳輸量：約 0.9 MB 的應用程式程式碼，其餘是拼字檢查器（含瀏覽器語言
+[^1]: 指壓縮後的網路傳輸量：約 1.0 MB 的應用程式程式碼，其餘是拼字檢查器（含瀏覽器語言
     對應的字典）以及頁面顯示所需的字型；希臘文和烏克蘭文字典分別再多約 2.5 MB 和 1.5 MB。
     其他所有內容都在第一次需要時才下載，並保留供離線使用；全部字型、字典和同義詞庫合計
     約 18 MB，加上英文文法檢查約 26 MB。

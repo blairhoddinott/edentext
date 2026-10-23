@@ -50,7 +50,7 @@ EdenText est un traitement de texte puissant qui s’utilise dans le navigateur,
 
 <a href="https://edentext.app"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="../showcase/thesis-dark.png">
-  <img src="../showcase/thesis.png" alt="EdenText en train d’éditer une thèse : chapitres numérotés, formules et en-tête courant">
+  <img src="../showcase/thesis.png" alt="EdenText en train d’éditer une thèse : chapitres numérotés, formules et en-tête">
 </picture></a>
 
 ## Fonctionnalités
@@ -60,8 +60,9 @@ EdenText est un traitement de texte puissant qui s’utilise dans le navigateur,
   livres, marges en miroir et chapitres qui commencent sur une page de droite
 - **Ouvre et enregistre `.odt` et `.docx`**, exporte en PDF ; modèles (`.ott`/`.dotx`) et
   galerie de lettres (DIN 5008) ; fichiers protégés par mot de passe dans les deux formats
-- **Compatible avec Word et LibreOffice** – les documents gardent leur mise en page dans
-  les trois, ce que vérifient des tests automatisés d’aller-retour et de mise en page
+- **Compatible avec Word, LibreOffice et WPS Office** – les documents gardent leur mise en
+  page ; des tests automatisés d’aller-retour et de mise en page le vérifient par rapport
+  à LibreOffice
 - **Styles** – styles de paragraphe, de caractère, de tableau et de liste avec héritage,
   numérotation des chapitres
 - **Tableaux** avec styles, tri et formules façon tableur
@@ -102,7 +103,7 @@ Carroll, tous deux dans le domaine public.
 <table>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Suivi des modifications et commentaires" width="100%"></a><br><b>Révision</b> – suivi des modifications, fils de commentaires en marge, filigrane « brouillon »</td>
-<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Un livre en double page" width="100%"></a><br><b>Livre</b> – A5, marges en miroir, chapitres qui commencent sur une page de droite, titres courants ; la numérotation reprend après les pages liminaires, si bien que la page 11 porte le folio 9</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Un livre en double page" width="100%"></a><br><b>Livre</b> – A5 avec marges en miroir. Chaque chapitre commence sur une page de droite, l’en-tête affiche le titre du livre sur les pages de gauche et celui du chapitre sur les pages de droite, et la numérotation commence au premier chapitre</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Une lettre d’information sur deux colonnes" width="100%"></a><br><b>Lettre d’information</b> – colonnes, images légendées, encadré latéral</td>
@@ -140,27 +141,30 @@ Construit avec Svelte 5, TypeScript, Vite et TipTap 3 (ProseMirror).
 
 ## Auto-hébergement
 
-Il n’y a ni backend ni état côté serveur ; les documents restent dans le navigateur.
-Une image de conteneur est publiée pour chaque version (amd64 et arm64) :
+EdenText n’a pas besoin de backend et ne stocke rien sur le serveur ; les documents
+restent dans le navigateur. Une image de conteneur est publiée pour chaque version (amd64
+et arm64) :
 
 ```bash
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-Sans Docker, c’est aussi possible : chaque version contient un `edentext-<tag>.zip` avec
-l’application prête à l’emploi (`npm run build` produit la même chose dans `dist/`).
-N’importe quel serveur web peut servir ce dossier. L’image peut aussi être construite en
-local avec `docker build -t edentext .`.
+Sinon, chaque version contient le fichier `edentext-<tag>.zip` avec l’application compilée
+; `npm run build` produit les mêmes fichiers dans `dist/`. N’importe quel serveur web peut
+héberger ce dossier. L’image de conteneur peut aussi être construite localement avec
+`docker build -t edentext .`.
 
 Pour une mise à jour, copiez les nouveaux fichiers par-dessus les anciens au lieu de vider
-le dossier : les onglets ouverts avant la mise à jour continuent de charger les fichiers de
-leur version jusqu’au rechargement. Un fichier manquant doit répondre 404, et non
-`index.html`, pour qu’un tel onglet puisse demander un rechargement.
+d’abord le dossier. Les onglets ouverts avant la mise à jour continuent de charger les
+fichiers de leur version jusqu’à ce qu’ils soient rechargés. Le serveur doit répondre aux
+fichiers manquants par une erreur 404 et non par `index.html`, afin que ces onglets
+puissent demander à être rechargés.
 
-Servez-le en HTTPS ou ouvrez-le sur localhost : en HTTP simple, l’éditeur fonctionne,
-mais les navigateurs refusent l’usage hors ligne et l’installation comme application,
-l’enregistrement direct dans le fichier ouvert (les fichiers sont téléchargés à la place)
-et les boutons du presse-papiers.
+Nous recommandons de servir EdenText en HTTPS. En HTTP simple, l’éditeur fonctionne aussi,
+mais les navigateurs désactivent alors certaines fonctions : l’usage hors ligne,
+l’installation comme application, l’enregistrement direct dans le fichier ouvert (il est
+téléchargé à la place) et les boutons de copie. Sur localhost, tout fonctionne comme en
+HTTPS.
 
 ## Architecture
 
@@ -197,7 +201,7 @@ Merci à toutes celles et tous ceux qui ont aidé par leurs idées, leurs signal
 bugs, leurs tests et leurs retours. Outre les contributeurs listés sur GitHub, je
 remercie également :
 
-Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo)
+Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo), [@sbvelinga](https://github.com/sbvelinga)
 
 <p>
 <a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
@@ -207,6 +211,7 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 <a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
 <a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
 <a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+<a href="https://github.com/sbvelinga"><img src="https://github.com/sbvelinga.png?size=96" width="48" alt="@sbvelinga"/></a>
 </p>
 
 ## Licence
@@ -222,7 +227,7 @@ Foundation. Les formats `.docx` et `.odt` sont pris en charge à des fins d’in
 
 *Ceci est une traduction du [README](../../README.md) anglais ; en cas de divergence, la version anglaise fait foi.*
 
-[^1]: Volume transféré, compressé : ~0,9 Mo de code d’application, le reste étant le
+[^1]: Volume transféré, compressé : ~1,0 Mo de code d’application, le reste étant le
     correcteur orthographique avec le dictionnaire de la langue du navigateur et les
     polices qu’affiche une page ; les dictionnaires grec et ukrainien ajoutent ~2,5 et
     ~1,5 Mo. Tout le reste est téléchargé à la première utilisation puis conservé pour le

@@ -60,8 +60,8 @@ EdenText ist eine leistungsstarke Textverarbeitung im Browser – für alles von
   und Kapitel, die auf einer rechten Seite beginnen
 - **Öffnet und speichert `.odt` und `.docx`**, exportiert PDF; Vorlagen (`.ott`/`.dotx`)
   und eine Galerie mit Briefvorlagen nach DIN 5008; passwortgeschützte Dateien in beiden Formaten
-- **Kompatibel mit Word und LibreOffice** – Dokumente sehen in allen drei Programmen gleich
-  aus; das prüfen automatisierte Round-Trip- und Layouttests
+- **Kompatibel mit Word, LibreOffice und WPS Office** – Dokumente behalten ihr Layout;
+  automatisierte Round-Trip- und Layouttests prüfen das gegen LibreOffice
 - **Formatvorlagen** – Absatz-, Zeichen-, Tabellen- und Listenvorlagen mit Vererbung,
   Kapitelnummerierung
 - **Tabellen** mit Tabellenvorlagen, Sortierung und Formeln wie in einer Tabellenkalkulation
@@ -99,7 +99,7 @@ beides gemeinfrei.
 <table>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Änderungsverfolgung und Kommentare" width="100%"></a><br><b>Überarbeiten</b> – Änderungsverfolgung, Kommentar-Threads am Rand, Wasserzeichen „Entwurf“</td>
-<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Ein Buch als Doppelseite" width="100%"></a><br><b>Buch</b> – A5, gespiegelte Ränder, Kapitel beginnen rechts, lebende Kolumnentitel; nach der Titelei beginnt die Zählung neu, deshalb trägt Seite 11 die Seitenzahl 9</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Ein Buch als Doppelseite" width="100%"></a><br><b>Buch</b> – A5 mit gespiegelten Rändern. Jedes Kapitel beginnt auf einer rechten Seite, die Kopfzeile zeigt auf den linken Seiten den Buchtitel und auf den rechten den Kapiteltitel, und die Seitenzählung beginnt mit dem ersten Kapitel</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Ein zweispaltiger Newsletter" width="100%"></a><br><b>Newsletter</b> – Spalten, Bilder mit Beschriftung, ein Infokasten</td>
@@ -119,8 +119,9 @@ Zu jedem Release gibt es außerdem unsignierte Desktop-Installer (Electron):
 - **Linux** – `EdenText-<version>.AppImage` (`chmod +x`, dann starten) oder das `.deb`
   (`sudo apt install ./edentext_*.deb`).
 
-Die Desktop-App öffnet Dokumente aus dem Dateimanager und speichert in sie zurück, schreibt
-PDFs direkt ohne Druckdialog und meldet beim Start, wenn es eine neuere Version gibt.
+Die Desktop-App öffnet Dokumente aus dem Dateimanager und speichert Änderungen in dieselbe
+Datei zurück, schreibt PDFs direkt ohne Druckdialog und meldet beim Start, wenn es eine
+neuere Version gibt.
 
 ## Entwicklung
 
@@ -136,26 +137,28 @@ Gebaut mit Svelte 5, TypeScript, Vite und TipTap 3 (ProseMirror).
 
 ## Selbst hosten
 
-Es gibt kein Backend und keinen Zustand auf dem Server; die Dokumente bleiben im Browser.
-Zu jedem Release erscheint ein Container-Image (amd64 und arm64):
+EdenText braucht kein Backend und speichert nichts auf dem Server; die Dokumente bleiben
+im Browser. Zu jedem Release wird ein Container-Image veröffentlicht (amd64 und arm64):
 
 ```bash
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-Es geht auch ohne Docker: Jedes Release enthält ein `edentext-<tag>.zip` mit der fertigen
-App (`npm run build` erzeugt dasselbe in `dist/`). Den Ordner kann jeder Webserver
-ausliefern. Das Image lässt sich auch lokal bauen: `docker build -t edentext .`.
+Alternativ enthält jedes Release die Datei `edentext-<tag>.zip` mit der fertigen App;
+`npm run build` erzeugt dieselben Dateien in `dist/`. Dieser Ordner lässt sich mit jedem
+Webserver bereitstellen. Das Container-Image kann auch lokal mit
+`docker build -t edentext .` gebaut werden.
 
-Für ein Update die neuen Dateien über die alten kopieren, statt den Ordner zu leeren:
-Tabs, die vor dem Update geöffnet wurden, laden bis zum Neuladen weiter die Dateien ihrer
-Version. Eine fehlende Datei sollte mit 404 antworten, nicht mit `index.html`, damit ein
-solcher Tab zum Neuladen auffordern kann.
+Für ein Update empfiehlt es sich, die neuen Dateien über die alten zu kopieren, statt den
+Ordner vorher zu leeren. Tabs, die vor dem Update geöffnet wurden, laden bis zum Neuladen
+weiterhin die Dateien ihrer Version. Fehlende Dateien sollte der Server mit 404
+beantworten und nicht mit `index.html`, damit diese Tabs zum Neuladen auffordern können.
 
-Am besten über HTTPS ausliefern oder unter localhost öffnen: Über reines HTTP läuft der
-Editor, aber Browser verweigern dann Offline-Nutzung und Installation als App, das direkte
-Zurückspeichern in die geöffnete Datei (Dateien werden stattdessen heruntergeladen) und
-die Zwischenablage-Schaltflächen.
+Wir empfehlen, EdenText über HTTPS bereitzustellen. Über einfaches HTTP funktioniert der
+Editor zwar auch, die Browser schalten dann aber einige Funktionen ab: die
+Offline-Nutzung, die Installation als App, das direkte Speichern in die geöffnete Datei
+(sie wird stattdessen heruntergeladen) und die Kopieren-Schaltflächen. Unter localhost
+steht alles wie bei HTTPS zur Verfügung.
 
 ## Architektur
 
@@ -188,7 +191,7 @@ ist ein unterschriebenes [CLA](../../CLA.md) nötig; das wird bei jedem Pull Req
 
 Danke an alle, die mit Ideen, Fehlerberichten, Tests und Rückmeldungen geholfen haben. Neben den auf GitHub gelisteten Mitwirkenden möchte ich außerdem danken:
 
-Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo)
+Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo), [@sbvelinga](https://github.com/sbvelinga)
 
 <p>
 <a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
@@ -198,6 +201,7 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 <a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
 <a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
 <a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+<a href="https://github.com/sbvelinga"><img src="https://github.com/sbvelinga.png?size=96" width="48" alt="@sbvelinga"/></a>
 </p>
 
 ## Lizenz
@@ -213,7 +217,7 @@ Foundation verbunden. `.docx` und `.odt` werden aus Gründen der Interoperabilit
 
 *Dies ist eine Übersetzung der englischen [README](../../README.md); maßgeblich ist die englische Fassung.*
 
-[^1]: Komprimiert übertragen: ~0,9 MB App-Code, der Rest ist die Rechtschreibprüfung mit
+[^1]: Komprimiert übertragen: ~1,0 MB App-Code, der Rest ist die Rechtschreibprüfung mit
     dem Wörterbuch für die Sprache des Browsers und die Schriften der angezeigten Seite.
     Das griechische Wörterbuch bringt ~2,5 MB zusätzlich mit, das ukrainische ~1,5 MB.
     Alles andere wird erst bei Bedarf geladen und danach für die Offline-Nutzung gespeichert; alle

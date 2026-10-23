@@ -60,8 +60,9 @@ EdenText es un potente procesador de textos que funciona en el navegador y sirve
   libros, márgenes simétricos y capítulos que empiezan en página impar
 - **Abre y guarda `.odt` y `.docx`**, exporta a PDF; plantillas (`.ott`/`.dotx`) y una
   galería de cartas (DIN 5008); archivos protegidos con contraseña en ambos formatos
-- **Compatible con Word y LibreOffice** — los documentos conservan su maquetación en los
-  tres, algo que comprueban pruebas automáticas de ida y vuelta y de maquetación
+- **Compatible con Word, LibreOffice y WPS Office** — los documentos conservan su
+  maquetación; pruebas automáticas de ida y vuelta y de maquetación lo comprueban frente a
+  LibreOffice
 - **Estilos** — de párrafo, de carácter, de tabla y de lista, con herencia; numeración de
   capítulos
 - **Tablas** con estilos, ordenación y fórmulas como en una hoja de cálculo
@@ -99,7 +100,7 @@ ambos de dominio público.
 <table>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/thesis-review.png"><img src="../showcase/thesis-review.png" alt="Control de cambios y comentarios" width="100%"></a><br><b>Revisión</b> — control de cambios, hilos de comentarios al margen, una marca de agua de borrador</td>
-<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Un libro a doble página" width="100%"></a><br><b>Libro</b> — A5, márgenes simétricos, capítulos que empiezan en página impar, titulillos; la numeración se reinicia tras las páginas preliminares, por eso la página 11 lleva el folio 9</td>
+<td width="50%" valign="top"><a href="../showcase/book-spread.png"><img src="../showcase/book-spread.png" alt="Un libro a doble página" width="100%"></a><br><b>Libro</b> — A5 con márgenes simétricos. Cada capítulo empieza en una página derecha, el encabezado muestra el título del libro en las páginas izquierdas y el del capítulo en las derechas, y la numeración empieza en el primer capítulo</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="../showcase/newsletter.png"><img src="../showcase/newsletter.png" alt="Un boletín a dos columnas" width="100%"></a><br><b>Boletín</b> — columnas, imágenes con leyenda, un recuadro lateral</td>
@@ -119,9 +120,9 @@ Cada versión incluye además instaladores de escritorio sin firmar, creados con
 - **Linux** — `EdenText-<version>.AppImage` (`chmod +x` y luego ejecútalo) o el `.deb`
   (`sudo apt install ./edentext_*.deb`).
 
-La app de escritorio abre documentos desde el gestor de archivos y guarda en ellos, escribe
-PDF directamente sin el diálogo de impresión y avisa al iniciarse cuando hay una versión más
-reciente.
+La app de escritorio abre documentos desde el gestor de archivos y guarda los cambios en
+el mismo archivo, escribe PDF directamente sin el diálogo de impresión y avisa al
+iniciarse cuando hay una versión más reciente.
 
 ## Desarrollo
 
@@ -137,26 +138,27 @@ Creado con Svelte 5, TypeScript, Vite y TipTap 3 (ProseMirror).
 
 ## Autoalojamiento
 
-No hay backend ni estado en el servidor; los documentos se quedan en el navegador.
-Con cada versión se publica una imagen de contenedor (amd64 y arm64):
+EdenText no necesita backend ni guarda nada en el servidor; los documentos se quedan en el
+navegador. Con cada versión se publica una imagen de contenedor (amd64 y arm64):
 
 ```bash
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-También funciona sin Docker: cada versión incluye un `edentext-<tag>.zip` con la app ya
-compilada (`npm run build` genera lo mismo en `dist/`). Cualquier servidor web puede
-servir esa carpeta. La imagen también se puede crear en local con `docker build -t edentext .`.
+Como alternativa, cada versión incluye el archivo `edentext-<tag>.zip` con la app
+compilada; `npm run build` genera los mismos archivos en `dist/`. Cualquier servidor web
+puede alojar esa carpeta. La imagen de contenedor también se puede crear en local con
+`docker build -t edentext .`.
 
-Para actualizar, copia los archivos nuevos encima de los antiguos en lugar de vaciar la
-carpeta: las pestañas abiertas antes de la actualización siguen cargando los archivos de su
-versión hasta que se recargan. Un archivo que falta debe responder con 404, no con
-`index.html`, para que esa pestaña pueda pedir que se recargue.
+Para actualizar, copia los archivos nuevos sobre los antiguos en lugar de vaciar antes la
+carpeta. Las pestañas abiertas antes de la actualización siguen cargando los archivos de
+su versión hasta que se recargan. El servidor debe responder a los archivos que faltan con
+404 y no con `index.html`, para que esas pestañas puedan pedir que se recarguen.
 
-Sírvelo por HTTPS o ábrelo en localhost: por HTTP simple el editor funciona, pero los
-navegadores no permiten el uso sin conexión ni instalarlo como app, guardar directamente
-en el archivo abierto (los archivos se descargan en su lugar) ni los botones del
-portapapeles.
+Recomendamos servir EdenText por HTTPS. Por HTTP simple el editor también funciona, pero
+los navegadores desactivan entonces algunas funciones: el uso sin conexión, la instalación
+como app, guardar directamente en el archivo abierto (en su lugar se descarga) y los
+botones de copiar. En localhost todo funciona igual que con HTTPS.
 
 ## Arquitectura
 
@@ -192,7 +194,7 @@ Gracias a todas las personas que han ayudado con ideas, informes de errores, pru
 comentarios. Además de los colaboradores que muestra GitHub, también quiero dar las
 gracias a:
 
-Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo)
+Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo), [@sbvelinga](https://github.com/sbvelinga)
 
 <p>
 <a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
@@ -202,6 +204,7 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 <a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
 <a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
 <a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+<a href="https://github.com/sbvelinga"><img src="https://github.com/sbvelinga.png?size=96" width="48" alt="@sbvelinga"/></a>
 </p>
 
 ## Licencia
@@ -216,7 +219,7 @@ Foundation. `.docx` y `.odt` se admiten por interoperabilidad.*
 
 *Esta es una traducción del [README](../../README.md) en inglés; en caso de discrepancia, prevalece la versión inglesa.*
 
-[^1]: Transferencia por red, comprimida: ~0,9 MB de código de la app; el resto es el
+[^1]: Transferencia por red, comprimida: ~1,0 MB de código de la app; el resto es el
     corrector ortográfico con el diccionario del idioma del navegador y las fuentes que
     muestra una página. Los diccionarios de griego y ucraniano añaden ~2,5 y ~1,5 MB.
     Todo lo demás se descarga cuando hace falta y se conserva para usarlo sin conexión;

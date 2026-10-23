@@ -49,7 +49,7 @@ EdenText is a web-based, powerful word processor for everything from quick notes
 
 <a href="https://edentext.app"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/showcase/thesis-dark.png">
-  <img src="docs/showcase/thesis.png" alt="EdenText editing a thesis: numbered chapters, formulas and a running header">
+  <img src="docs/showcase/thesis.png" alt="EdenText editing a thesis: numbered chapters, formulas and a page header">
 </picture></a>
 
 ## Features
@@ -59,8 +59,8 @@ EdenText is a web-based, powerful word processor for everything from quick notes
   opening on a right-hand page for books
 - **Opens and saves `.odt` and `.docx`**, exports PDF; templates (`.ott`/`.dotx`)
   and a letter gallery (DIN 5008); password-protected files in both formats
-- **Compatible with Word and LibreOffice** — documents keep their layout in all
-  three, verified by automated round-trip and layout tests
+- **Compatible with Word, LibreOffice and WPS Office** — documents keep their layout;
+  automated round-trip and layout tests check this against LibreOffice
 - **Styles** — paragraph, character, table and list styles with inheritance,
   chapter numbering
 - **Tables** with styles, sorting and spreadsheet-style formulas
@@ -98,7 +98,7 @@ both public domain.
 <table>
 <tr>
 <td width="50%" valign="top"><a href="docs/showcase/thesis-review.png"><img src="docs/showcase/thesis-review.png" alt="Tracked changes and comments" width="100%"></a><br><b>Review</b> — tracked changes, threaded comments in the margin, a draft watermark</td>
-<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="A book on facing pages" width="100%"></a><br><b>Book</b> — A5, mirrored margins, chapters opening on a right-hand page, running heads; the numbering restarts after the front matter, so page 11 prints the folio 9</td>
+<td width="50%" valign="top"><a href="docs/showcase/book-spread.png"><img src="docs/showcase/book-spread.png" alt="A book on facing pages" width="100%"></a><br><b>Book</b> — A5 with mirrored margins. Each chapter starts on a right-hand page, the header shows the book title on left-hand pages and the chapter title on right-hand pages, and page numbering starts with the first chapter</td>
 </tr>
 <tr>
 <td width="50%" valign="top"><a href="docs/showcase/newsletter.png"><img src="docs/showcase/newsletter.png" alt="A newsletter in two columns" width="100%"></a><br><b>Newsletter</b> — columns, pictures with captions, a sidebar box</td>
@@ -118,8 +118,9 @@ Each release also carries unsigned desktop installers built with Electron:
 - **Linux** — `EdenText-<version>.AppImage` (`chmod +x`, then run it) or the `.deb`
   (`sudo apt install ./edentext_*.deb`).
 
-The desktop app opens documents from the file manager and saves back into them, writes PDFs
-directly without the print dialog and tells you at start when a newer version is out.
+The desktop app opens documents from the file manager and saves changes straight back to
+the same file, writes PDFs directly without the print dialog and tells you at start when a
+newer version is out.
 
 ## Development
 
@@ -135,24 +136,26 @@ Built with Svelte 5, TypeScript, Vite and TipTap 3 (ProseMirror).
 
 ## Self-hosting
 
-There is no backend and no state on the server; documents stay in the browser.
+EdenText needs no backend and stores nothing on the server; documents stay in the browser.
 A container image is published for each release (amd64 and arm64):
 
 ```bash
 docker run -p 8080:80 ghcr.io/stffnb/edentext
 ```
 
-Or serve the files yourself: every release carries an `edentext-<tag>.zip` of
-the built app, and `npm run build` produces the same folder in `dist/` — point
-any web server at it, or build the image locally with `docker build -t edentext .`.
+Alternatively, each release includes `edentext-<tag>.zip` with the built app, and
+`npm run build` creates the same files in `dist/`. Any web server can host this folder.
+The container image can also be built locally with `docker build -t edentext .`.
 
-To update, copy the new files over the old ones instead of emptying the folder:
-tabs opened before the update keep loading their own build's files until reloaded.
-A missing file should answer 404, not `index.html`, so such a tab can tell it to reload.
+For an update, copy the new files over the old ones instead of emptying the folder first.
+Tabs opened before the update keep loading the files of their own version until they are
+reloaded. The server should answer requests for missing files with 404 rather than
+`index.html`, so that these tabs can ask to be reloaded.
 
-Serve it over HTTPS, or open it on localhost: over plain HTTP the editor works,
-but browsers withhold offline use and installing it as an app, saving straight back
-to the opened file (files are downloaded instead) and the clipboard buttons.
+We recommend serving EdenText over HTTPS. The editor also works over plain HTTP, but
+browsers then turn off a few features: offline use, installing it as an app, saving
+straight back to the opened file (it is downloaded instead) and the copy buttons. On
+localhost everything works as it does over HTTPS.
 
 ## Architecture
 
@@ -186,7 +189,7 @@ requires a signed [CLA](CLA.md), checked automatically on every pull request.
 Thanks to everyone who helped — with ideas, bug reports, testing and feedback.
 Besides the contributors listed by GitHub, I also want to thank:
 
-Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo)
+Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.com/lukasmwerner), [@JinJieBeWater](https://github.com/JinJieBeWater), [@farragoo](https://github.com/farragoo), [@sbvelinga](https://github.com/sbvelinga)
 
 <p>
 <a href="https://github.com/stffnb"><img src="https://github.com/stffnb.png?size=96" width="48" alt="@stffnb"/></a>
@@ -196,6 +199,7 @@ Patrick R., [@Deleh](https://github.com/Deleh), [@lukasmwerner](https://github.c
 <a href="https://github.com/lukasmwerner"><img src="https://github.com/lukasmwerner.png?size=96" width="48" alt="@lukasmwerner"/></a>
 <a href="https://github.com/JinJieBeWater"><img src="https://github.com/JinJieBeWater.png?size=96" width="48" alt="@JinJieBeWater"/></a>
 <a href="https://github.com/farragoo"><img src="https://github.com/farragoo.png?size=96" width="48" alt="@farragoo"/></a>
+<a href="https://github.com/sbvelinga"><img src="https://github.com/sbvelinga.png?size=96" width="48" alt="@sbvelinga"/></a>
 </p>
 
 <!-- Append each person to the comma-separated list: name or
@@ -213,7 +217,7 @@ own licenses — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 *EdenText is an independent project, not affiliated with Microsoft or The
 Document Foundation. `.docx` and `.odt` are supported for interoperability.*
 
-[^1]: Over the wire, compressed: ~0.9 MB of app code, the rest the spell checker with
+[^1]: Over the wire, compressed: ~1.0 MB of app code, the rest the spell checker with
     the dictionary for the browser's language and the fonts a page shows; the Greek and
     Ukrainian dictionaries add ~2.5 and ~1.5 MB. Everything else is fetched and kept for
     offline use once it is needed; all fonts, dictionaries and thesauri together are
