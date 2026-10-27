@@ -54,8 +54,10 @@
 
   let balloons = $state<Balloon[]>([]);
   let heights = $state<number[]>([]);
-  // Each card's height while not active: the slot the stack keeps for the opened one.
-  const compactHeights = new Map<string, number>();
+  // A clicked card and where it was: the view scrolls by as much as it moves.
+  let hold: { key: string; top: number } | null = null;
+  // Set for the frame that scroll lands in, so the card does not slide away and back.
+  let instant = $state(false);
   let host = $state<HTMLElement | null>(null);
   let els: (HTMLElement | null)[] = [];
   let scheduled = false;
@@ -89,11 +91,7 @@
   // not computed, and the stack follows.
   $effect(() => {
     const list = balloons;
-    const read = () => els.slice(0, list.length).map((e, i) => {
-      const h = e?.offsetHeight ?? 0;
-      if (!list[i].active) compactHeights.set(list[i].key, h);
-      return h;
-    });
+    const read = () => els.slice(0, list.length).map((e) => e?.offsetHeight ?? 0);
     const ro = new ResizeObserver(() => { heights = read(); });
     for (const e of els.slice(0, list.length)) if (e) ro.observe(e);
     untrack(() => { heights = read(); });
@@ -113,28 +111,42 @@
 
   // Stacked inside the page band: a card pushed down by the ones above it stops at the
   // sheet's bottom edge, and a column too long for its page starts the next one below it.
-  // The active card overlays the stack at its line and keeps its compact slot there.
+  // With a card active the column is one, as in both word processors: that card sits at
+  // its line and every other one stacks around it, past page edges and the top if need be.
   let tops = $derived.by(() => {
+    const pin = balloons.findIndex((b) => b.active);
+    if (pin >= 0) return stackTops(balloons.map((b) => b.want), balloons.map((_, i) => heights[i] ?? 0), STACK_GAP_PX, -Infinity, Infinity, pin);
     const out = new Array<number>(balloons.length).fill(0);
     let floor = -Infinity;
     for (const { box, idx } of groups) {
-      const slot = idx.map((i) => (balloons[i].active ? compactHeights.get(balloons[i].key) : undefined) ?? heights[i] ?? 0);
+      const h = idx.map((i) => heights[i] ?? 0);
       const got = stackTops(
         idx.map((i) => balloons[i].want),
-        slot,
+        h,
         STACK_GAP_PX,
         Math.max(box ? box.top : -Infinity, floor),
         box ? box.top + box.height : Infinity,
       );
       const last = got.length - 1;
-      if (last >= 0) floor = got[last] + slot[last] + STACK_GAP_PX;
-      idx.forEach((i, k) => {
-        const { want, active } = balloons[i];
-        out[i] = !active ? got[k]
-          : box ? Math.max(box.top, Math.min(want, box.top + box.height - (heights[i] ?? 0))) : want;
-      });
+      if (last >= 0) floor = got[last] + h[last] + STACK_GAP_PX;
+      idx.forEach((i, k) => { out[i] = got[k]; });
     }
     return out;
+  });
+
+  // A clicked card stays under the pointer: once the stack has moved it to its line, the
+  // view scrolls by the same amount, which brings its text beside it.
+  $effect(() => {
+    const t = tops;
+    if (!hold) return;
+    const i = balloons.findIndex((b) => b.key === hold?.key);
+    if (i < 0 || !balloons[i].active) return;
+    const delta = ((t[i] - hold.top) * zoom) / 100;
+    hold = null;
+    if (Math.abs(delta) < 0.5) return;
+    instant = true;
+    host?.closest('.editor')?.scrollBy({ top: delta, behavior: 'instant' });
+    requestAnimationFrame(() => { instant = false; });
   });
 
   function measure(): void {
@@ -196,12 +208,15 @@
     balloons = out;
   }
 
-  // Clicking a balloon selects the range it belongs to, as clicking a pane card does.
+  // Clicking a balloon selects the range it belongs to, as clicking a pane card does; the
+  // view follows the card (above) rather than jumping to the text.
   function select(b: Balloon): void {
     const from = b.comment?.from ?? b.revision?.from;
     const to = b.comment?.to ?? b.revision?.to;
     if (!editor || from === undefined || to === undefined) return;
-    selectRange(editor, from, to);
+    const i = balloons.indexOf(b);
+    if (!b.active && i >= 0) hold = { key: b.key, top: tops[i] };
+    selectRange(editor, from, to, false);
   }
 
   // The leader: along the gap under the anchor's line, then eased into the balloon's own
@@ -227,6 +242,7 @@
 
 <div
   class="review-margin-layer"
+  class:layer-instant={instant}
   bind:this={host}
   style="width: {width}px; height: {height}px; transform: scale({zoom / 100});"
 >
@@ -235,6 +251,7 @@
       {#each leaders as l}
         <path
           d={l.d}
+          style:d={`path("${l.d}")`}
           fill="none"
           stroke={l.color}
           stroke-width={l.active ? 1.4 : 1}
@@ -250,6 +267,7 @@
       bind:this={els[i]}
       class="balloon"
       class:active={b.active}
+      class:instant
       style="top: {tops[i] ?? b.want}px; left: {b.left}px; width: {cmToPx(BALLOON_W_CM)}px; border-color: {b.color};"
     >
       {#if b.comment}
@@ -276,6 +294,25 @@
     position: absolute;
     top: 0;
     left: 0;
+  }
+
+  /* The stack slides into place around the active card; its leaders follow where the
+     browser animates a path's geometry. */
+  path,
+  .balloon {
+    transition: d 180ms ease, top 180ms ease;
+  }
+
+  .layer-instant path,
+  .balloon.instant {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    path,
+    .balloon {
+      transition: none;
+    }
   }
 
   .balloon {

@@ -22,6 +22,15 @@ describe('the margin balloon stack', () => {
     expect(stackTops([10, 20], [50, 50], 6, 0, 80)).toEqual([10, 66]);
   });
 
+  it('puts the active balloon at its line and stacks the others around it', () => {
+    expect(stackTops([100, 110, 120], [50, 50, 50], 6, 0, 1000, 2)).toEqual([8, 64, 120]);
+    expect(stackTops([100, 110, 120], [50, 50, 50], 6, 0, 1000, 0)).toEqual([100, 156, 212]);
+  });
+
+  it('moves the active balloon down only as far as the ones above it need the page', () => {
+    expect(stackTops([0, 10, 20], [50, 50, 50], 6, 0, 1000, 2)).toEqual([0, 56, 112]);
+  });
+
   it('holds an empty list', () => {
     expect(stackTops([], [], 6)).toEqual([]);
   });

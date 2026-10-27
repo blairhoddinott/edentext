@@ -21,10 +21,12 @@ export function visibleRevisions(doc: PMNode): Revision[] {
   return markupView().changes ? revisions(doc) : [];
 }
 
-/** Select a marked range and scroll it into view — what a click on any of its cards does. */
-export function selectRange(editor: Editor, from: number, to: number): void {
+/** Select a marked range and scroll it into view — what a click on any of its cards does.
+ *  `scroll: false` for a card beside the page, which stays under the pointer. */
+export function selectRange(editor: Editor, from: number, to: number, scroll = true): void {
   const { state, view } = editor;
-  view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, from, to)).scrollIntoView());
+  const tr = state.tr.setSelection(TextSelection.create(state.doc, from, to));
+  view.dispatch(scroll ? tr.scrollIntoView() : tr);
   view.focus();
 }
 
