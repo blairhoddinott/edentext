@@ -121,7 +121,8 @@
   });
 
   // Stacked inside the page band: a card pushed down by the ones above it stops at the
-  // sheet's bottom edge, where both word processors also end the column.
+  // sheet's bottom edge, where both word processors also end the column. The active card
+  // overlays the stack at its own line and keeps its slot, so the others never move.
   let tops = $derived.by(() => {
     const out = new Array<number>(balloons.length).fill(0);
     for (const { box, idx } of groups) {
@@ -132,15 +133,13 @@
         box ? box.top : -Infinity,
         box ? box.top + box.height : Infinity,
       );
-      idx.forEach((i, k) => { out[i] = got[k]; });
+      idx.forEach((i, k) => {
+        const { want, active } = balloons[i];
+        out[i] = !active ? got[k]
+          : box ? Math.max(box.top, Math.min(want, box.top + box.height - (heights[i] ?? 0))) : want;
+      });
     }
     return out;
-  });
-
-  // The active one is pulled into view, as the pane does with its card.
-  $effect(() => {
-    const i = balloons.findIndex((b) => b.active);
-    if (i >= 0) { void tops; els[i]?.scrollIntoView({ block: 'nearest' }); }
   });
 
   function measure(): void {
@@ -308,6 +307,7 @@
   }
 
   .balloon.active {
+    z-index: 1;
     box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
   }
 
