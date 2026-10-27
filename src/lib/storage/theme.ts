@@ -133,8 +133,14 @@ function resolveMode(mode: ThemeMode): 'light' | 'dark' | 'allBlack' {
   return mode;
 }
 
+// Each theme's --color-bg (global.css), for the browser's own bar.
+const THEME_BG = { light: '#e6e9eb', dark: '#2f2f31', allBlack: '#0d1117' };
+
 export function applyTheme(mode: ThemeMode): void {
-  document.documentElement.setAttribute('data-theme', resolveMode(mode));
+  const resolved = resolveMode(mode);
+  document.documentElement.setAttribute('data-theme', resolved);
+  // The bar follows the picked theme, not the system scheme the tags' media query names.
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', THEME_BG[resolved]));
 }
 
 // The chrome's accent colour; 'slate' is the logo's and stays the stored-nothing default.

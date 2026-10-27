@@ -143,8 +143,11 @@ function createWindow(file) {
     width: 1280,
     height: 900,
     title: 'EdenText',
+    show: false,
     webPreferences: { preload: fileURLToPath(new URL('preload.cjs', import.meta.url)) },
   });
+  // Shown once the page has painted its theme, not as an empty native window first.
+  win.once('ready-to-show', () => win.show());
   if (file) {
     grant(file);
     pending.set(win.webContents.id, file);
