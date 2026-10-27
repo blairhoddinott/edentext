@@ -54,10 +54,17 @@
 
   let balloons = $state<Balloon[]>([]);
   let heights = $state<number[]>([]);
-  // A clicked card and where it was: the view scrolls by as much as it moves.
-  let hold: { key: string; top: number } | null = null;
-  // Set for the frame that scroll lands in, so the card does not slide away and back.
-  let instant = $state(false);
+  // A clicked card and where every card was: the view scrolls by as much as it moves.
+  let hold: { key: string; top: number; from: Map<string, number> } | null = null;
+  // While that scroll runs, each card glides from where it was on the same curve.
+  let glide = $state<{ from: Map<string, number>; p: number } | null>(null);
+  let glideFrame = 0;
+  const GLIDE_MS = 300;
+  // How far the wheel has moved the column on its own, without the page; a card made
+  // active lines the stack up afresh.
+  let shift = $state(0);
+  let wheeling = $state(false);
+  let wheelIdle = 0;
   let host = $state<HTMLElement | null>(null);
   let els: (HTMLElement | null)[] = [];
   let scheduled = false;
@@ -134,19 +141,37 @@
     return out;
   });
 
+  let placed = $derived(tops.map((t) => t + shift));
+  let shown = $derived(glide
+    ? placed.map((t, i) => { const was = glide!.from.get(balloons[i]?.key) ?? t; return t + (was - t) * (1 - glide!.p); })
+    : placed);
+
   // A clicked card stays under the pointer: once the stack has moved it to its line, the
-  // view scrolls by the same amount, which brings its text beside it.
+  // view scrolls smoothly by the same amount and the cards glide on the same curve, so
+  // its text slides up beside it.
   $effect(() => {
-    const t = tops;
+    const t = placed;
     if (!hold) return;
     const i = balloons.findIndex((b) => b.key === hold?.key);
     if (i < 0 || !balloons[i].active) return;
     const delta = ((t[i] - hold.top) * zoom) / 100;
+    const from = hold.from;
     hold = null;
-    if (Math.abs(delta) < 0.5) return;
-    instant = true;
-    host?.closest('.editor')?.scrollBy({ top: delta, behavior: 'instant' });
-    requestAnimationFrame(() => { instant = false; });
+    const scroller = host?.closest('.editor');
+    if (!scroller || Math.abs(delta) < 0.5) return;
+    const start = scroller.scrollTop;
+    const begin = performance.now();
+    const ms = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : GLIDE_MS;
+    cancelAnimationFrame(glideFrame);
+    const step = (now: number) => {
+      const x = ms ? Math.min(1, (now - begin) / ms) : 1;
+      const p = 1 - (1 - x) ** 3;
+      scroller.scrollTop = start + delta * p;
+      glide = x < 1 ? { from, p } : null;
+      if (x < 1) glideFrame = requestAnimationFrame(step);
+    };
+    glide = { from, p: 0 };
+    glideFrame = requestAnimationFrame(step);
   });
 
   function measure(): void {
@@ -205,6 +230,7 @@
       });
     }
     out.sort((a, b) => a.want - b.want);
+    if (out.find((b) => b.active)?.key !== balloons.find((b) => b.active)?.key) shift = 0;
     balloons = out;
   }
 
@@ -215,7 +241,7 @@
     const to = b.comment?.to ?? b.revision?.to;
     if (!editor || from === undefined || to === undefined) return;
     const i = balloons.indexOf(b);
-    if (!b.active && i >= 0) hold = { key: b.key, top: tops[i] };
+    if (!b.active && i >= 0) hold = { key: b.key, top: placed[i], from: new Map(balloons.map((x, k) => [x.key, shown[k]])) };
     selectRange(editor, from, to, false);
   }
 
@@ -223,7 +249,7 @@
   // left edge. It meets the card at the anchor's own height wherever the card reaches
   // that far, so a balloon sitting at its line is joined by one straight line.
   let leaders = $derived(balloons.map((b, i) => {
-    const top = tops[i] ?? b.want;
+    const top = shown[i] ?? b.want;
     const h = heights[i] ?? 0;
     const y = b.anchorY;
     const to = h ? Math.min(Math.max(y, top + 10), top + h - 10) : top + 10;
@@ -236,14 +262,49 @@
     };
   }));
 
+  // The wheel over the column moves the stack, not the page, as a scroll box would: only
+  // as far as its first and last card reach the edges of what is shown of the document.
+  // Ctrl+wheel stays the zoom, sideways stays the page's.
+  function wheel(node: HTMLElement) {
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey || Math.abs(e.deltaX) > Math.abs(e.deltaY) || !balloons.length) return;
+      const scroller = node.closest('.editor');
+      if (!scroller) return;
+      e.preventDefault();
+      cancelAnimationFrame(glideFrame);
+      glide = null;
+      const scale = zoom / 100;
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? scroller.clientHeight : 1;
+      const view = scroller.getBoundingClientRect();
+      const box = node.getBoundingClientRect();
+      const shownTop = Math.max(0, (view.top - box.top) / scale);
+      const shownBottom = Math.min(height, (view.bottom - box.top) / scale);
+      const last = balloons.length - 1;
+      const bottom = tops[last] + (heights[last] ?? 0);
+      const lo = Math.min(0, shownBottom - bottom);
+      // Down no further than the document's end, unless the stack already runs past it.
+      const hi = Math.max(0, Math.min(shownTop - tops[0], height - bottom));
+      shift = Math.min(Math.max(shift - (e.deltaY * unit) / scale, lo), hi);
+      wheeling = true;
+      clearTimeout(wheelIdle);
+      wheelIdle = window.setTimeout(() => { wheeling = false; }, 150);
+    };
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return { destroy: () => node.removeEventListener('wheel', onWheel) };
+  }
+
+  // The column the wheel reaches: under the cards and the gaps between them.
+  let strip = $derived(balloons.length ? Math.min(...balloons.map((b) => b.left)) : 0);
+
   let width = $derived(paperWidth + cmToPx(REVIEW_MARGIN_CM));
   let height = $derived(pageBoxes.length ? pageBoxes[pageBoxes.length - 1].top + pageBoxes[pageBoxes.length - 1].height : 0);
 </script>
 
 <div
   class="review-margin-layer"
-  class:layer-instant={instant}
+  class:layer-instant={!!glide || wheeling}
   bind:this={host}
+  use:wheel
   style="width: {width}px; height: {height}px; transform: scale({zoom / 100});"
 >
   {#if balloons.length}
@@ -261,14 +322,15 @@
         />
       {/each}
     </svg>
+    <div class="wheel-strip" style="left: {strip}px; width: {cmToPx(BALLOON_W_CM)}px; height: {height}px;"></div>
   {/if}
   {#each balloons as b, i (b.key)}
     <div
       bind:this={els[i]}
       class="balloon"
       class:active={b.active}
-      class:instant
-      style="top: {tops[i] ?? b.want}px; left: {b.left}px; width: {cmToPx(BALLOON_W_CM)}px; border-color: {b.color};"
+      class:instant={!!glide || wheeling}
+      style="top: {shown[i] ?? b.want}px; left: {b.left}px; width: {cmToPx(BALLOON_W_CM)}px; border-color: {b.color};"
     >
       {#if b.comment}
         <CommentCard {editor} c={b.comment} {author} compact={!b.active} onSelect={() => select(b)} />
@@ -290,10 +352,18 @@
     pointer-events: none;
   }
 
+  /* Visible past its box: a card stacked beyond the document still gets its leader. */
   svg {
     position: absolute;
     top: 0;
     left: 0;
+    overflow: visible;
+  }
+
+  .wheel-strip {
+    position: absolute;
+    top: 0;
+    pointer-events: auto;
   }
 
   /* The stack slides into place around the active card; its leaders follow where the
