@@ -46,7 +46,8 @@
     cursor: pointer;
   }
 
-  .meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: var(--color-text-muted); }
+  /* Author over date, as on a comment card. */
+  .meta { display: flex; flex-direction: column; color: var(--color-text-muted); }
   .kind { color: var(--color-text-muted); }
 
   .quote {

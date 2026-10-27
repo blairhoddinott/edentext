@@ -36,9 +36,6 @@
 
   const COMMENT_COLOR = 'rgba(200, 140, 0, 0.9)';
   const STACK_GAP_PX = 8;
-  // Below this a card shows nothing of its comment, so it stops shrinking and the column
-  // runs past the page instead.
-  const MIN_BALLOON_H = 56;
 
   type Balloon = {
     key: string;
@@ -57,6 +54,8 @@
 
   let balloons = $state<Balloon[]>([]);
   let heights = $state<number[]>([]);
+  // Each card's height while not active: the slot the stack keeps for the opened one.
+  const compactHeights = new Map<string, number>();
   let host = $state<HTMLElement | null>(null);
   let els: (HTMLElement | null)[] = [];
   let scheduled = false;
@@ -90,7 +89,11 @@
   // not computed, and the stack follows.
   $effect(() => {
     const list = balloons;
-    const read = () => els.slice(0, list.length).map((e) => e?.offsetHeight ?? 0);
+    const read = () => els.slice(0, list.length).map((e, i) => {
+      const h = e?.offsetHeight ?? 0;
+      if (!list[i].active) compactHeights.set(list[i].key, h);
+      return h;
+    });
     const ro = new ResizeObserver(() => { heights = read(); });
     for (const e of els.slice(0, list.length)) if (e) ro.observe(e);
     untrack(() => { heights = read(); });
@@ -108,31 +111,23 @@
     return [...by.entries()].map(([page, idx]) => ({ box: pageBoxes[page], idx }));
   });
 
-  // The cards beside one page share its height, so a comment of any length still leaves
-  // room for the ones under it; what does not fit scrolls inside the card.
-  let caps = $derived.by(() => {
-    const out = new Array<number>(balloons.length).fill(0);
-    for (const { box, idx } of groups) {
-      if (!box) continue;
-      const share = (box.height - (idx.length - 1) * STACK_GAP_PX) / idx.length;
-      for (const i of idx) out[i] = Math.max(MIN_BALLOON_H, Math.floor(share));
-    }
-    return out;
-  });
-
   // Stacked inside the page band: a card pushed down by the ones above it stops at the
-  // sheet's bottom edge, where both word processors also end the column. The active card
-  // overlays the stack at its own line and keeps its slot, so the others never move.
+  // sheet's bottom edge, and a column too long for its page starts the next one below it.
+  // The active card overlays the stack at its line and keeps its compact slot there.
   let tops = $derived.by(() => {
     const out = new Array<number>(balloons.length).fill(0);
+    let floor = -Infinity;
     for (const { box, idx } of groups) {
+      const slot = idx.map((i) => (balloons[i].active ? compactHeights.get(balloons[i].key) : undefined) ?? heights[i] ?? 0);
       const got = stackTops(
         idx.map((i) => balloons[i].want),
-        idx.map((i) => heights[i] ?? 0),
+        slot,
         STACK_GAP_PX,
-        box ? box.top : -Infinity,
+        Math.max(box ? box.top : -Infinity, floor),
         box ? box.top + box.height : Infinity,
       );
+      const last = got.length - 1;
+      if (last >= 0) floor = got[last] + slot[last] + STACK_GAP_PX;
       idx.forEach((i, k) => {
         const { want, active } = balloons[i];
         out[i] = !active ? got[k]
@@ -256,10 +251,9 @@
       class="balloon"
       class:active={b.active}
       style="top: {tops[i] ?? b.want}px; left: {b.left}px; width: {cmToPx(BALLOON_W_CM)}px; border-color: {b.color};"
-      style:max-height={caps[i] ? `${caps[i]}px` : null}
     >
       {#if b.comment}
-        <CommentCard {editor} c={b.comment} {author} onSelect={() => select(b)} />
+        <CommentCard {editor} c={b.comment} {author} compact={!b.active} onSelect={() => select(b)} />
       {:else if b.revision}
         <RevisionCard {editor} r={b.revision} {author} color={b.color} onSelect={() => select(b)} />
       {/if}
@@ -298,12 +292,9 @@
     line-height: 1.35;
     pointer-events: auto;
     /* Nothing may leave the card sideways: a long word in a comment, a wide button row,
-       an author name without spaces. Down the card a comment past its share scrolls. */
-    overflow-x: hidden;
-    overflow-y: auto;
+       an author name without spaces. Down it grows with its text and never scrolls. */
+    overflow: hidden;
     overflow-wrap: anywhere;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
   }
 
   .balloon.active {

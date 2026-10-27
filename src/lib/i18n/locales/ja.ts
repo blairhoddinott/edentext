@@ -237,6 +237,7 @@ const ja: Messages = {
     edit: '編集',
     resolve: '解決',
     reopen: 'もう一度開く',
+    replies: (n: number) => `返信 ${n} 件`,
     prompt: '選択したテキストへのコメント:',
     needsSelection: '先にコメントするテキストを選択してください',
     showPane: 'コメントを表示',

@@ -115,18 +115,18 @@ try {
   const menuSpill = async () => page.evaluate(() => {
     const out = [];
     const cards = [...document.querySelectorAll('.balloon')];
-    // A card taller than its share of the page scrolls; every other overflow is a bug.
+    // No card scrolls: an inactive one cuts its text short, the active one grows.
     const layer = document.querySelector('.review-margin-layer')?.getBoundingClientRect();
     for (const b of cards) {
       const box = b.getBoundingClientRect();
-      const scrolls = b.scrollHeight > b.clientHeight + 1;
+      if (b.scrollHeight > b.clientHeight + 1) out.push('card scrolls inside');
       if (b.scrollWidth > b.clientWidth + 1) out.push('card clips its content sideways');
       for (const el of b.querySelectorAll('*')) {
         const r = el.getBoundingClientRect();
         if (!r.width && !r.height) continue;
         if (r.left < box.left - 0.5 || r.right > box.right + 0.5)
           out.push(`<${el.tagName.toLowerCase()}> "${el.textContent.trim().slice(0, 16)}" outside the card`);
-        if (!scrolls && (r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5))
+        if (r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5)
           out.push(`<${el.tagName.toLowerCase()}> "${el.textContent.trim().slice(0, 16)}" below the card`);
       }
       if (layer && (box.top < layer.top - 0.5 || box.bottom > layer.bottom + 0.5)) out.push('balloon hangs off the page');

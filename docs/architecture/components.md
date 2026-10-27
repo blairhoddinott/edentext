@@ -146,9 +146,10 @@ changes flow.
 
 Margin balloons sit beside `.paper`, inside the scaled canvas, so page content can remain the
 pagination width. Reserve their strip only when visible markup needs it. Group and stack cards
-per page using measured heights; cards scroll internally before a page column may overflow.
-The active card overlays the stack at its own line and keeps its slot, so the others stay put;
-selecting text never scrolls the view to a balloon.
+per page using measured heights; a column too long for its page continues below it on the
+next. No card scrolls: an inactive comment shows six lines and counts its answers, the active
+one shows all of it, overlaying the stack at its own line while its compact slot stays, so the
+others stay put; selecting text never scrolls the view to a balloon.
 Grid view omits balloons because cells clip to page width. The connector shows only the active
 item and is omitted when its geometry cannot be unambiguous.
 

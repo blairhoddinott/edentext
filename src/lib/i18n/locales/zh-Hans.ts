@@ -236,6 +236,7 @@ const zhHans: Messages = {
     edit: '编辑',
     resolve: '标记为已解决',
     reopen: '重新打开',
+    replies: (n: number) => `${n} 条回复`,
     prompt: '对所选文字的批注：',
     needsSelection: '请先选中要批注的文字',
     showPane: '显示批注',

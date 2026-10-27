@@ -235,6 +235,7 @@ const es: Messages = {
     edit: 'Editar',
     resolve: 'Resolver',
     reopen: 'Reabrir',
+    replies: (n: number) => (n === 1 ? '1 respuesta' : `${n} respuestas`),
     prompt: 'Comentario sobre el texto seleccionado:',
     needsSelection: 'Seleccione primero el texto que quiere comentar',
     showPane: 'Mostrar los comentarios',
