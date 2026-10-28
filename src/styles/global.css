@@ -350,6 +350,7 @@
    because they are unreadable on a dark chrome. Only the colours flip — every
    metric above holds, so the two modes are the same ribbon. */
 [data-theme='dark'], [data-theme='allBlack'] {
+  color-scheme: dark;
   --w-accent: #8fb3cd;
   --w-accent-dark: #6e93b0;
   --w-accent-fill: #3c586f;
