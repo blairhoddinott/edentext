@@ -4,7 +4,8 @@
   import { t } from '../i18n/i18n.svelte';
 
   // One recorded change as both reviewing views show it: what it did, to which text, and
-  // accept / reject. Shared by the pane's row and the margin balloon.
+  // accept / reject, which return focus to the text without scrolling there. Shared by the
+  // pane's row and the margin balloon.
   let { editor, r, color, author, onSelect }: {
     editor: Editor | null;
     r: Revision;
@@ -29,8 +30,8 @@
   <div class="quote" class:struck={r.kind === 'deletion'} style:color={color}>{r.text}</div>
 </button>
 <div class="actions">
-  <button onclick={() => editor?.chain().focus().acceptRevision(r.id).run()}>{t().revisions.accept}</button>
-  <button onclick={() => editor?.chain().focus().rejectRevision(r.id).run()}>{t().revisions.reject}</button>
+  <button onclick={() => editor?.chain().focus(null, { scrollIntoView: false }).acceptRevision(r.id).run()}>{t().revisions.accept}</button>
+  <button onclick={() => editor?.chain().focus(null, { scrollIntoView: false }).rejectRevision(r.id).run()}>{t().revisions.reject}</button>
 </div>
 
 <style>

@@ -7,6 +7,7 @@
   import { wordCompletion, setWordCompletion } from '../storage/wordCompletion.svelte';
   import { grammarEnabled, setGrammarEnabled } from '../spell/grammar.svelte';
   import { numberRecognition, setNumberRecognition } from '../storage/tableOptions.svelte';
+  import { balloonWheel, setBalloonWheel } from '../storage/markup.svelte';
   import { ACCENTS, loadAccent, saveAccent, applyAccent, isCustomAccent, parseAccentHex, type Accent, type ChromeMode, type ThemeMode } from '../storage/theme';
   import { LOCALES, LOCALE_LABELS, isLocale } from '../i18n/config';
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
@@ -240,6 +241,10 @@
           <div class="row">
             <div class="info"><div class="name">{t().settings.pageLabels}</div><div class="desc">{t().settings.pageLabelsHint}</div></div>
             <Toggle label={t().settings.pageLabels} checked={showPageLabels} onchange={(on) => (showPageLabels = on)} />
+          </div>
+          <div class="row">
+            <div class="info"><div class="name">{t().settings.balloonWheel}</div><div class="desc">{t().settings.balloonWheelHint}</div></div>
+            <Toggle label={t().settings.balloonWheel} checked={balloonWheel()} onchange={setBalloonWheel} />
           </div>
 
         {:else if section === 'ai'}

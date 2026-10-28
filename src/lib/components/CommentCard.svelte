@@ -4,10 +4,11 @@
   import { t } from '../i18n/i18n.svelte';
   import { aiAnswering, aiEnabled, AI_COMMENT_EVENT } from '../storage/ai.svelte';
   import { mentionsAi } from '../ai/tools';
+  import Icon from './ribbon/Icon.svelte';
 
-  // One comment thread as both reviewing views show it: the quote it hangs on, its text,
-  // the answers to it and a box to add one. Resolve and the ⋯ menu (edit, remove) sit in
-  // the head. Shared by the pane's row and the margin balloon, so the commands exist once.
+  // One comment thread as both reviewing views show it: its quote, text, answers and a reply
+  // box, with resolve, edit and remove in the head. Shared by the pane and the balloon; its
+  // commands return focus to the text without scrolling there, as the reader is at the card.
   let { editor, c, author, onSelect, compact = false }: {
     editor: Editor | null;
     c: CommentRange;
@@ -21,24 +22,22 @@
   let draft = $state('');
   let replying = $state(false);
   let reply = $state('');
-  let menu = $state(false);
   // Anything being done in the card shows all of it.
-  let full = $derived(!compact || editing || replying || menu);
+  let full = $derived(!compact || editing || replying);
 
-  function startEdit() {
+  function toggleEdit() {
     draft = c.text;
-    editing = true;
-    menu = false;
+    editing = !editing;
   }
 
   function commit() {
-    editor?.chain().focus().updateComment(c.id, { text: draft.trim() }).run();
+    editor?.chain().focus(null, { scrollIntoView: false }).updateComment(c.id, { text: draft.trim() }).run();
     editing = false;
   }
 
   function sendReply() {
     if (!reply.trim()) return;
-    editor?.chain().focus().replyToComment(c.id, { author, text: reply }).run();
+    editor?.chain().focus(null, { scrollIntoView: false }).replyToComment(c.id, { author, text: reply }).run();
     if (aiEnabled() && mentionsAi(reply)) window.dispatchEvent(new CustomEvent(AI_COMMENT_EVENT, { detail: { id: c.id } }));
     reply = '';
     replying = false;
@@ -48,20 +47,6 @@
   function when(iso: string): string {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-  }
-
-  // Close the ⋯ menu on an outside click or Escape (as HistoryButton's popover does).
-  function popover(node: HTMLElement) {
-    const onDown = (e: MouseEvent) => { if (!node.contains(e.target as Node)) menu = false; };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') menu = false; };
-    window.addEventListener('mousedown', onDown);
-    window.addEventListener('keydown', onKey);
-    return {
-      destroy() {
-        window.removeEventListener('mousedown', onDown);
-        window.removeEventListener('keydown', onKey);
-      },
-    };
   }
 
   function focus(node: HTMLTextAreaElement) {
@@ -77,7 +62,6 @@
   }
 </script>
 
-<div class="popover" use:popover>
 <div class="head">
   <button class="card" onclick={onSelect}>
     <div class="meta">
@@ -91,24 +75,22 @@
     aria-label={c.resolved ? t().comments.reopen : t().comments.resolve}
     title={c.resolved ? t().comments.reopen : t().comments.resolve}
     aria-pressed={c.resolved}
-    onclick={() => editor?.chain().focus().updateComment(c.id, { resolved: !c.resolved }).run()}
+    onclick={() => editor?.chain().focus(null, { scrollIntoView: false }).updateComment(c.id, { resolved: !c.resolved }).run()}
   >✓</button>
   <button
-    class="tool more"
-    aria-label={t().comments.more}
-    title={t().comments.more}
-    aria-expanded={menu}
-    onclick={() => (menu = !menu)}
-  >⋯</button>
-</div>
-{#if menu}
-  <!-- In the flow, not floating: the balloon clips what leaves it, and a menu of three
-       rows fits under the head in either view. -->
-  <div class="menu">
-    <button onclick={startEdit}>{t().comments.edit}</button>
-    <button onclick={() => { menu = false; editor?.chain().focus().removeComment(c.id).run(); }}>{t().common.remove}</button>
-  </div>
-{/if}
+    class="tool edit"
+    class:on={editing}
+    aria-label={t().comments.edit}
+    title={t().comments.edit}
+    aria-pressed={editing}
+    onclick={toggleEdit}
+  ><Icon name="pencil" size={14} /></button>
+  <button
+    class="tool remove"
+    aria-label={t().common.remove}
+    title={t().common.remove}
+    onclick={() => editor?.chain().focus(null, { scrollIntoView: false }).removeComment(c.id).run()}
+  ><Icon name="trash" size={14} /></button>
 </div>
 <button class="card" onclick={onSelect}>
   <div class="quote">{c.quote}</div>
@@ -173,8 +155,6 @@
   .ai-working { display: flex; align-items: center; gap: 6px; color: var(--color-text-muted); }
   .spinner { width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  /* Head and menu form one popover, so a press on a menu row is not an outside click. */
-  .popover { display: contents; }
   .head { display: flex; align-items: flex-start; gap: 2px; }
   .head .card { flex: 1; min-width: 0; }
 
@@ -198,6 +178,9 @@
   /* Always drawn in the text colour: an action the reader cannot see is not offered. */
   .tool {
     flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 22px;
     height: 22px;
     border: 1px solid var(--color-border);
@@ -210,22 +193,8 @@
     line-height: 1;
     cursor: pointer;
   }
-  .tool.more { font-size: 16px; }
   .tool:hover { background: var(--color-btn-hover); }
   .tool.on { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
-
-  .menu { display: flex; flex-direction: column; align-items: stretch; margin: 2px 0; }
-  .menu button {
-    border: none;
-    border-radius: var(--radius);
-    background: none;
-    color: var(--color-text);
-    padding: 3px 6px;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-  .menu button:hover { background: var(--color-btn-hover); }
 
   .quote {
     margin: 3px 0;

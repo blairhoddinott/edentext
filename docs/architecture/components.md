@@ -138,7 +138,9 @@ The open zone scrolls instead, so the caret stays in view.
 
 Comments and revisions have a pane or margin representation, never both. Panes use shared
 cards and synchronize their active row with the text selection; changes can be accepted or
-rejected and comments answered, resolved, or edited from either representation.
+rejected and comments answered, resolved, or edited from either representation. A comment
+card's head carries its commands as icon buttons (resolve, edit, remove), with no menu. A card's
+command returns focus to the text without scrolling to the caret: the reader is at the card.
 
 `reviewItems.ts` is the only source for markup visibility. CSS hiding and revision decorations
 must change together, and a display-mode change dispatches pagination recalculation because it
@@ -154,7 +156,14 @@ a card scrolls the view smoothly by as much as the card moved, the cards gliding
 curve, so it stays under the pointer while its text slides up beside it. A pane card and the Review
 tab's Previous/Next glide the view to their text the same way (`selectRange`). The
 wheel over the balloon column moves the stack alone, as a scroll box would: until its ends meet
-the edges of what is shown, never past the document's end, and only until a card is made active.
+the edges of what is shown, and only until a card is made active. A gesture begun with the stack
+at that end scrolls the page instead, and one begun inside stays with the stack to its end, as
+nested scroll boxes chain. Settings ▸ View can switch the stack's wheel off
+(`balloonWheel`); the wheel then scrolls the page and a shifted stack returns to its place. A stack that fits the document
+stays within it; a longer one reaches down until its first card meets the document's top, so
+cards stacked above that top stay reachable and the page grows by a bounded amount. A wheel
+notch eases the stack to its new place over a few frames, a trackpad's fine steps follow at
+once; the shift is one transform on the cards' container, so only the leaders are laid out.
 Grid view omits balloons because cells clip to page width. The connector shows only the active
 item and is omitted when its geometry cannot be unambiguous.
 

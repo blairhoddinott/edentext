@@ -111,7 +111,7 @@ try {
   await page.waitForSelector('.tiptap', { timeout: 15_000 });
   await page.waitForFunction(() => document.querySelectorAll('.balloon').length >= 4,
     null, { timeout: 15_000 }).catch(() => {});
-  // The ⋯ menu opens inside the card: floating, it would be clipped by the balloon.
+  // The edit box opens inside the card: floating, it would be clipped by the balloon.
   const menuSpill = async () => page.evaluate(() => {
     const out = [];
     const cards = [...document.querySelectorAll('.balloon')];
@@ -144,7 +144,7 @@ try {
   const settle = () => page.waitForTimeout(300);
   await settle();
   const spill = await menuSpill();
-  await page.click('.balloon .more');
+  await page.click('.balloon .edit');
   await settle();
   const opened = await menuSpill();
   check(spill.count === 4 && spill.out.length === 0 && opened.out.length === 0,
