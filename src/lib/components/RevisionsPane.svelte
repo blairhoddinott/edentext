@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
-  import { revisionIdAt, authorColorIndex, REVISION_AUTHOR_COLORS, type Revision } from '../editor/extensions/trackChanges';
+  import { revisionIdAt, type Revision } from '../editor/extensions/trackChanges';
+  import { authorColor, authorColors } from '../editor/authorColors';
   import { selectRange, visibleRevisions } from './reviewItems';
   import RevisionCard from './RevisionCard.svelte';
   import { t } from '../i18n/i18n.svelte';
@@ -22,7 +23,7 @@
     return visibleRevisions(editor.state.doc).filter((r) => !seen.has(r.id) && seen.add(r.id));
   });
 
-  let colors = $derived(authorColorIndex(list));
+  let colors = $derived.by(() => (tick < 0 || !editor ? new Map<string, string>() : authorColors(editor.state.doc)));
 
   // The change the caret sits in: its card is marked and pulled into view, so the
   // margin bar beside the text and the row here name each other.
@@ -37,7 +38,7 @@
   });
 
   function colorOf(r: Revision): string {
-    return REVISION_AUTHOR_COLORS[colors.get(r.author) ?? 0];
+    return authorColor(colors, r.author);
   }
 
   function jumpTo(r: Revision) {

@@ -1,4 +1,5 @@
-// What the reviewing pane needs: a colour per author, in order of first appearance, and
+// What the reviewing pane needs: a colour per author, in order of first appearance and
+// shared by revisions and comments, and
 // accept/reject by change id — a change split by a paragraph boundary is one row there
 // and must be applied whole. Drives a real editor with just the track-changes extension.
 import { describe, it, expect } from 'vitest';
@@ -6,7 +7,9 @@ import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
-import { TrackChanges, Insertion, Deletion, revisions, authorColorIndex, REVISION_AUTHOR_COLORS } from '../../src/lib/editor/extensions/trackChanges';
+import { TrackChanges, Insertion, Deletion, revisions } from '../../src/lib/editor/extensions/trackChanges';
+import { Comment } from '../../src/lib/editor/extensions/comment';
+import { authorColors } from '../../src/lib/editor/authorColors';
 
 type N = any;
 
@@ -16,7 +19,7 @@ const R = (kind: string, id: string, author: string, text: string): N =>
 function makeEditor(content: N) {
   const el = document.createElement('div');
   document.body.appendChild(el);
-  return new Editor({ element: el, extensions: [Document, Paragraph, Text, Insertion, Deletion, TrackChanges], content });
+  return new Editor({ element: el, extensions: [Document, Paragraph, Text, Insertion, Deletion, TrackChanges, Comment], content });
 }
 
 // One change (r1) split over two paragraphs, plus a second author's deletion.
@@ -29,12 +32,17 @@ const doc: N = {
 };
 
 describe('revisions for the reviewing pane', () => {
-  it('gives each author its own palette slot, in order of appearance', () => {
-    const editor = makeEditor(doc);
-    const order = authorColorIndex(revisions(editor.state.doc));
-    expect(order.get('Ada')).toBe(0);
-    expect(order.get('Grace')).toBe(1);
-    expect(REVISION_AUTHOR_COLORS[0]).not.toBe(REVISION_AUTHOR_COLORS[1]);
+  it('gives each author one colour of its own, revisions and comments alike', () => {
+    // A comment by a new author, answered by one already seen and by another new one.
+    const replies = [{ author: 'Grace', date: '', text: 'yes' }, { author: 'Linus', date: '', text: 'no' }];
+    const commented: N = { ...doc, content: [...doc.content, { type: 'paragraph', content: [
+      { type: 'text', text: 'note', marks: [{ type: 'comment', attrs: { id: 'c1', author: 'Edsger', text: 'why?', replies } }] },
+      R('insertion', 'r3', 'Ada', 'more'),
+    ] }] };
+    const editor = makeEditor(commented);
+    const colors = authorColors(editor.state.doc);
+    expect([...colors.keys()]).toEqual(['Ada', 'Grace', 'Edsger', 'Linus']);
+    expect(new Set(colors.values()).size).toBe(4);
     editor.destroy();
   });
 

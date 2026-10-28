@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import { commentIdAt } from '../editor/extensions/comment';
-  import { revisionIdAt, authorColorIndex, REVISION_AUTHOR_COLORS } from '../editor/extensions/trackChanges';
+  import { revisionIdAt } from '../editor/extensions/trackChanges';
+  import { authorColor, authorColors } from '../editor/authorColors';
   import { visibleCommentRanges, visibleRevisions } from './reviewItems';
   import { markupView } from '../storage/markup.svelte';
 
@@ -9,8 +10,6 @@
   // here from the text to the reviewing pane's card. Only for the one the caret sits in:
   // a line per comment would cross the whole page, and one is what pairs card and text.
   let { editor, tick }: { editor: Editor | null; tick: number } = $props();
-
-  const COMMENT_COLOR = 'rgba(200, 140, 0, 0.9)';
 
   let lines = $state<{ points: string; color: string }[]>([]);
   let host = $state<HTMLElement | null>(null);
@@ -80,12 +79,13 @@
     };
 
     const state = view.state;
+    const colors = authorColors(state.doc);
     const ranges = visibleCommentRanges(state.doc);
     const cid = commentIdAt(state, ranges);
     if (cid) {
       // The last range of the comment: its end is the anchor both products point from.
       const range = ranges.filter((c) => c.id === cid).pop();
-      if (range) add(range.to, document.querySelector('.comments-pane li.active'), COMMENT_COLOR);
+      if (range) add(range.to, document.querySelector('.comments-pane li.active'), authorColor(colors, range.author));
     }
     const list = visibleRevisions(state.doc);
     const rid = revisionIdAt(state, list);
@@ -93,7 +93,7 @@
       const range = list.filter((r) => r.id === rid).pop();
       if (range) {
         add(range.to, document.querySelector('.revisions-pane li.active'),
-          REVISION_AUTHOR_COLORS[authorColorIndex(list).get(range.author) ?? 0]);
+          authorColor(colors, range.author));
       }
     }
     lines = out;

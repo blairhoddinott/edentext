@@ -3,16 +3,16 @@
 // bodies as a list after the document. A comment's text is nowhere on the page, so a bar
 // alone could only say that one exists — never what it says.
 
-import { REVISION_AUTHOR_COLORS } from '../editor/extensions/trackChanges';
+import { AUTHOR_COLORS } from '../editor/authorColors';
 
 /** Gap from the text edge to the bar, and the strip the left page margin gives up for it. */
 export const BAR_GAP_CM = 0.2;
 export const BAR_STRIP_CM = 0.32;
 
-const COMMENT_COLOR = '#c88c00';
-
 export type PrintedComment = {
   id: string; n: number; author: string; date: string; text: string; quote: string;
+  /** The author's colour, as the editor draws it; the list's quote line takes it. */
+  color?: string;
   /** The thread under it — a printout that dropped the answers would misreport it. */
   replies: { author: string; date: string; text: string }[];
   /** The page the anchor sits on, where the caller knows it (the raster paths do). */
@@ -46,6 +46,8 @@ export function printedComments(root: ParentNode): PrintedComment[] {
     byId.set(id, entry);
     out.push(entry);
   }
+  const colors = authorColors(root);
+  for (const c of out) c.color = colors.get(c.author);
   return out;
 }
 
@@ -57,13 +59,18 @@ function parseReplies(json: string | null): { author: string; date: string; text
   } catch { return []; }
 }
 
-// The bar takes the revision author's colour, handed out as the editor's decoration
-// does it: in order of first appearance.
+// Author → colour as the editor's `authorColors` hands it out: revision and comment
+// authors (with the answers') in order of first appearance.
 function authorColors(root: ParentNode): Map<string, string> {
   const order = new Map<string, string>();
-  for (const el of Array.from(root.querySelectorAll('[data-rev-author]'))) {
-    const a = el.getAttribute('data-rev-author') ?? '';
-    if (!order.has(a)) order.set(a, REVISION_AUTHOR_COLORS[order.size % REVISION_AUTHOR_COLORS.length]);
+  const add = (a: string) => {
+    if (!order.has(a)) order.set(a, AUTHOR_COLORS[order.size % AUTHOR_COLORS.length]);
+  };
+  for (const el of Array.from(root.querySelectorAll('[data-rev-author], [data-comment-author]'))) {
+    const rev = el.getAttribute('data-rev-author');
+    if (rev !== null) { add(rev); continue; }
+    add(el.getAttribute('data-comment-author') ?? '');
+    for (const r of parseReplies(el.getAttribute('data-comment-replies'))) add(String(r?.author ?? ''));
   }
   return order;
 }
@@ -78,13 +85,18 @@ export function markReviewBlocks(root: HTMLElement): boolean {
   const colors = authorColors(root);
   let marked = false;
   for (const el of Array.from(root.querySelectorAll(MARKED))) {
+    const author = el.getAttribute('data-rev-author') ?? el.getAttribute('data-comment-author') ?? '';
+    const color = colors.get(author) ?? AUTHOR_COLORS[0];
+    // The tint the editor's decoration draws, which generated HTML does not carry.
+    if (el.hasAttribute('data-comment')) {
+      el.classList.add('pm-comment-tint');
+      (el as HTMLElement).style.setProperty('--comment-author', color);
+    }
     let block: HTMLElement | null = el as HTMLElement;
     while (block?.parentElement && block.parentElement !== root) block = block.parentElement;
     if (!block || block.parentElement !== root || block.hasAttribute('data-review-bar')) continue;
-    const author = el.getAttribute('data-rev-author');
     block.setAttribute('data-review-bar', '');
-    block.style.setProperty('--review-bar',
-      author === null ? COMMENT_COLOR : colors.get(author) ?? REVISION_AUTHOR_COLORS[0]);
+    block.style.setProperty('--review-bar', color);
     marked = true;
   }
   return marked;
@@ -111,7 +123,8 @@ export function commentListHtml(list: PrintedComment[], labels: CommentLabels): 
         + `<span class="cl-text">${esc(r.text)}</span></span>`;
     }).join('');
     return `<li><span class="cl-meta">${meta}</span>`
-      + (c.quote.trim() ? `<span class="cl-quote">${esc(c.quote)}</span>` : '')
+      + (c.quote.trim()
+        ? `<span class="cl-quote"${c.color ? ` style="border-color: ${c.color}"` : ''}>${esc(c.quote)}</span>` : '')
       + `<span class="cl-text">${esc(c.text)}</span>${replies}</li>`;
   }).join('');
   return `<section class="comment-list"><h2>${esc(labels.heading)}</h2><ol>${rows}</ol></section>`;
@@ -123,14 +136,14 @@ export function reviewPrintCss(): string {
 [data-review-bar] { position: relative; }
 [data-review-bar]::before {
   content: ''; position: absolute; left: -${BAR_GAP_CM}cm; top: 0; bottom: 0;
-  width: 2px; border-radius: 1px; background: var(--review-bar, ${COMMENT_COLOR});
+  width: 2px; border-radius: 1px; background: var(--review-bar, ${AUTHOR_COLORS[0]});
 }
 .comment-list { break-before: page; font-family: var(--font-serif); color: #000; }
 .comment-list h2 { font-family: var(--font-sans); font-size: 14pt; margin: 0 0 0.4cm; }
 .comment-list ol { margin: 0; padding-left: 1.1cm; }
 .comment-list li { margin: 0 0 0.35cm; break-inside: avoid; }
 .cl-meta { display: block; font-size: 9pt; color: #555; }
-.cl-quote { display: block; margin: 0.05cm 0; padding-left: 0.2cm; border-left: 2px solid ${COMMENT_COLOR}; color: #555; }
+.cl-quote { display: block; margin: 0.05cm 0; padding-left: 0.2cm; border-left: 2px solid ${AUTHOR_COLORS[0]}; color: #555; }
 .cl-text { display: block; white-space: pre-wrap; }
 .cl-reply { display: block; margin-top: 0.1cm; padding-left: 0.3cm; border-left: 1px solid #bbb; }
 `;

@@ -2,6 +2,7 @@ import { Mark, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode, Mark as PMMark } from '@tiptap/pm/model';
 import { Plugin, type EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { authorColor, authorColors } from '../authorColors';
 
 // A comment: an annotation on a range of text. A mark, like `bookmark` — both formats
 // store a range (ODF office:annotation + office:annotation-end, DOCX
@@ -206,18 +207,25 @@ export const Comment = Mark.create({
   },
 
   addProseMirrorPlugins() {
+    let cache: { doc: PMNode; id: string | null; set: DecorationSet } | null = null;
     return [
       new Plugin({
         props: {
-          // The comment the selection lies in, tinted heavier — the document half of
-          // the pairing the pane draws on its card. A handled one stays grey.
+          // Each open comment tinted in its author's colour, which the mark cannot know;
+          // the one the selection lies in heavier, the document half of the pairing the
+          // pane draws on its card. A handled one keeps the mark's grey underline.
           decorations(state) {
             const ranges = commentRanges(state.doc);
             const id = commentIdAt(state, ranges);
-            const hit = id ? ranges.filter((c) => c.id === id) : [];
-            if (!hit.length || hit[0].resolved) return null;
-            return DecorationSet.create(state.doc,
-              hit.map((c) => Decoration.inline(c.from, c.to, { class: 'pm-comment-active' })));
+            if (cache?.doc === state.doc && cache.id === id) return cache.set;
+            const colors = authorColors(state.doc);
+            const set = DecorationSet.create(state.doc, ranges.filter((c) => !c.resolved).map((c) =>
+              Decoration.inline(c.from, c.to, {
+                class: c.id === id ? 'pm-comment-tint pm-comment-active' : 'pm-comment-tint',
+                style: `--comment-author: ${authorColor(colors, c.author)}`,
+              })));
+            cache = { doc: state.doc, id, set };
+            return set;
           },
         },
       }),

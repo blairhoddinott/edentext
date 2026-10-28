@@ -2,7 +2,8 @@
   import type { Editor } from '@tiptap/core';
   import { cmToPx, type PageMargins } from '../storage/pageMargins';
   import { commentIdAt } from '../editor/extensions/comment';
-  import { revisionIdAt, authorColorIndex, REVISION_AUTHOR_COLORS } from '../editor/extensions/trackChanges';
+  import { revisionIdAt } from '../editor/extensions/trackChanges';
+  import { authorColor, authorColors } from '../editor/authorColors';
   import { visibleCommentRanges, visibleRevisions } from './reviewItems';
   import { markupView } from '../storage/markup.svelte';
 
@@ -20,7 +21,6 @@
 
   // Between the text edge and the bar — inside the line numbers, which sit further out.
   const GAP_CM = 0.2;
-  const COMMENT_COLOR = 'rgba(200, 140, 0, 0.7)';
 
   type Bar = { top: number; height: number; left: number; color: string; active: boolean };
 
@@ -53,22 +53,22 @@
     return () => paper?.removeEventListener('pm-pagecount', schedule);
   });
 
-  // Every marked range with the colour its bar takes: a revision in its author's colour,
-  // a comment in the comment amber. A resolved comment is handled and gets none.
+  // Every marked range with the colour its bar takes, its author's. A resolved comment
+  // is handled and gets none.
   function marked(state: Editor['state']): { from: number; to: number; color: string; active: boolean }[] {
     const revs = visibleRevisions(state.doc);
-    const order = authorColorIndex(revs);
+    const colors = authorColors(state.doc);
     const activeRev = revisionIdAt(state, revs);
     const comments = visibleCommentRanges(state.doc);
     const activeComment = commentIdAt(state, comments);
     return [
       ...revs.map((r) => ({
         from: r.from, to: r.to,
-        color: REVISION_AUTHOR_COLORS[order.get(r.author) ?? 0],
+        color: authorColor(colors, r.author),
         active: r.id === activeRev,
       })),
       ...comments.filter((c) => !c.resolved).map((c) => ({
-        from: c.from, to: c.to, color: COMMENT_COLOR, active: c.id === activeComment,
+        from: c.from, to: c.to, color: authorColor(colors, c.author), active: c.id === activeComment,
       })),
     ];
   }

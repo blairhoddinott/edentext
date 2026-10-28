@@ -3,6 +3,7 @@ import type { Node as PMNode, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { ReplaceStep } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { authorColor, authorColors } from '../authorColors';
 
 // Recorded revisions, as both word processors keep them: an insertion is text marked as
 // added, a deletion is text still in the document but marked as removed — nothing is
@@ -91,27 +92,12 @@ export function revisions(doc: PMNode): Revision[] {
   return out;
 }
 
-// One colour per author, as both word processors draw revisions: LibreOffice's own author
-// palette, handed out in order of first appearance. Beyond nine, authors share again.
-export const REVISION_AUTHOR_COLORS = [
-  '#c69200', '#0646a2', '#579d1c', '#692b9d', '#c5000b', '#008080', '#8c8400', '#35556b', '#d17600',
-];
-
 /** The change the selection lies within — what the pane highlights and the bar thickens. */
 export function revisionIdAt(state: EditorState, list?: Revision[]): string | null {
   const { from, to } = state.selection;
   // By range, not by the marks at the caret: both marks are non-inclusive, so a selection
   // over the whole change — what a click on the pane's card makes — carries none.
   return (list ?? revisions(state.doc)).find((r) => r.from <= from && to <= r.to)?.id ?? null;
-}
-
-/** Author → palette index, in the order the document's revisions first name them. */
-export function authorColorIndex(list: Revision[]): Map<string, number> {
-  const order = new Map<string, number>();
-  for (const r of list) {
-    if (!order.has(r.author)) order.set(r.author, order.size % REVISION_AUTHOR_COLORS.length);
-  }
-  return order;
 }
 
 declare module '@tiptap/core' {
@@ -187,9 +173,9 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
 
   addProseMirrorPlugins() {
     const options = this.options;
-    // The mark cannot know the document's other authors, so the colour is a decoration:
-    // one class per palette slot, keyed by where the author first appears. Cached on the
-    // doc — the walk is the whole document, and this runs on every view update.
+    // The mark cannot know the document's other authors, so the colour is a decoration
+    // (`authorColors`). Cached on the doc — the walk is the whole document, and this runs
+    // on every view update.
     let cache: { doc: PMNode; plain: boolean; set: DecorationSet } | null = null;
     return [
       new Plugin({
@@ -200,10 +186,11 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             const plain = options.plain();
             if (cache?.doc === state.doc && cache.plain === plain) return cache.set;
             const list = plain ? [] : revisions(state.doc);
-            const order = authorColorIndex(list);
+            const colors = authorColors(state.doc);
             const set = DecorationSet.create(state.doc, list.map((r) =>
               Decoration.inline(r.from, r.to, {
-                class: `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'} pm-rev-a${order.get(r.author) ?? 0}`,
+                class: `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}`,
+                style: `color: ${authorColor(colors, r.author)}`,
               })));
             cache = { doc: state.doc, plain, set };
             return set;

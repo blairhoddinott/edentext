@@ -5,14 +5,17 @@
   import { aiAnswering, aiEnabled, AI_COMMENT_EVENT } from '../storage/ai.svelte';
   import { mentionsAi } from '../ai/tools';
   import Icon from './ribbon/Icon.svelte';
+  import { authorColor } from '../editor/authorColors';
 
   // One comment thread as both reviewing views show it: its quote, text, answers and a reply
   // box, with resolve, edit and remove in the head. Shared by the pane and the balloon; its
   // commands return focus to the text without scrolling there, as the reader is at the card.
-  let { editor, c, author, onSelect, compact = false }: {
+  let { editor, c, author, colors, onSelect, compact = false }: {
     editor: Editor | null;
     c: CommentRange;
     author: string;
+    /** Author → colour (`authorColors`): each name, the comment's and its answers', in its own. */
+    colors: Map<string, string>;
     onSelect: () => void;
     /** A balloon not in use: its text cut to a few lines, its answers counted. */
     compact?: boolean;
@@ -65,7 +68,7 @@
 <div class="head">
   <button class="card" onclick={onSelect}>
     <div class="meta">
-      <b>{c.author || author || t().revisions.unknownAuthor}</b>
+      <b style:color={authorColor(colors, c.author)}>{c.author || author || t().revisions.unknownAuthor}</b>
       <span>{when(c.date)}</span>
     </div>
   </button>
@@ -93,7 +96,7 @@
   ><Icon name="trash" size={14} /></button>
 </div>
 <button class="card" onclick={onSelect}>
-  <div class="quote">{c.quote}</div>
+  <div class="quote" style:border-color={authorColor(colors, c.author)}>{c.quote}</div>
 </button>
 {#if editing}
   <textarea
@@ -117,7 +120,7 @@
 {#if full}
   {#each c.replies as r, i (i)}
     <div class="reply">
-      <div class="meta"><b>{r.author || author || t().revisions.unknownAuthor}</b><span>{when(r.date)}</span></div>
+      <div class="meta"><b style:color={authorColor(colors, r.author)}>{r.author || author || t().revisions.unknownAuthor}</b><span>{when(r.date)}</span></div>
       <p class="body">{r.text}</p>
     </div>
   {/each}
@@ -199,7 +202,7 @@
   .quote {
     margin: 3px 0;
     padding-left: 6px;
-    border-left: 2px solid rgba(200, 140, 0, 0.7);
+    border-left: 2px solid;
     color: var(--color-text-muted);
     /* Two lines of the annotated text is enough to recognise it. */
     display: -webkit-box;

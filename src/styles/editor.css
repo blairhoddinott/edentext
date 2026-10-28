@@ -1369,28 +1369,22 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
   text-decoration-skip-ink: none;
 }
 
-/* A commented range, as Word paints it: a tinted band the text still reads through,
-   and a heavier tint on the one the pane has selected. A resolved comment keeps only a
-   faint underline, the way both word processors grey a handled one out. */
-.tiptap .pm-comment {
-  background: rgba(255, 200, 60, 0.28);
-  border-bottom: 1px solid rgba(200, 140, 0, 0.7);
+/* A commented range, as Word paints it: a band in its author's colour the text still
+   reads through (comment.ts paints it on the span nested inside the mark), heavier on the
+   selected one. A resolved comment keeps only a faint underline, greyed out as handled. */
+.tiptap .pm-comment-tint {
+  background: color-mix(in srgb, var(--comment-author, #c69200) 22%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--comment-author, #c69200) 75%, transparent);
 }
 
-/* The one the caret sits in (comment.ts): a heavier tint, so the pane's highlighted
-   card and the annotated text name each other. */
 .tiptap .pm-comment-active {
-  background: rgba(255, 200, 60, 0.5);
+  background: color-mix(in srgb, var(--comment-author, #c69200) 42%, transparent);
 }
 
 .tiptap .pm-comment[data-comment-resolved='true'] {
-  background: none;
-  border-bottom-color: rgba(140, 140, 140, 0.6);
+  border-bottom: 1px solid rgba(140, 140, 140, 0.6);
 }
 
-/* Recorded revisions (trackChanges.ts). Both word processors underline an insertion
-   and strike a deletion, in the reviewer's colour; one colour here, since the editor
-   has a single author. */
 /* An index entry is a place, not text: hidden like other editing aids, and with the
    formatting marks a thin bar whose margins cancel its width, so lines never move. */
 .tiptap .pm-index-entry {
@@ -1438,18 +1432,6 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
 .tiptap .pm-rev-ins { text-decoration: underline; }
 .tiptap .pm-rev-del { text-decoration: line-through; }
 
-/* LibreOffice's author palette, handed out in order of first appearance (trackChanges.ts),
-   so several reviewers stay apart the way both word processors draw them. */
-.tiptap .pm-rev-a0 { color: #c69200; }
-.tiptap .pm-rev-a1 { color: #0646a2; }
-.tiptap .pm-rev-a2 { color: #579d1c; }
-.tiptap .pm-rev-a3 { color: #692b9d; }
-.tiptap .pm-rev-a4 { color: #c5000b; }
-.tiptap .pm-rev-a5 { color: #008080; }
-.tiptap .pm-rev-a6 { color: #8c8400; }
-.tiptap .pm-rev-a7 { color: #35556b; }
-.tiptap .pm-rev-a8 { color: #d17600; }
-
 /* Word's display modes (storage/markup.svelte.ts). The document keeps every change —
    this only takes it off the page, so a final text or the original one can be read. */
 .paper[data-hide-deletions] .tiptap .pm-deletion,
@@ -1461,7 +1443,7 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
 .paper[data-plain-markup] .tiptap .pm-deletion { color: inherit; }
 
 .paper[data-hide-comments] .tiptap .pm-comment,
-.paper[data-hide-comments] .tiptap .pm-comment-active {
+.paper[data-hide-comments] .tiptap .pm-comment-tint {
   background: none;
   border-bottom: none;
 }

@@ -138,7 +138,9 @@ The open zone scrolls instead, so the caret stays in view.
 
 Comments and revisions have a pane or margin representation, never both. Panes use shared
 cards and synchronize their active row with the text selection; changes can be accepted or
-rejected and comments answered, resolved, or edited from either representation. A comment
+rejected and comments answered, resolved, or edited from either representation. Each
+reviewer has one colour (`editor/authorColors.ts`) on the text's tint or change marks, the bar,
+the balloon, its leader and the names on a card, so several reviewers stay apart. A comment
 card's head carries its commands as icon buttons (resolve, edit, remove), with no menu. A card's
 command returns focus to the text without scrolling to the caret: the reader is at the card.
 

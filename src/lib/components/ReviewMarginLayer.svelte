@@ -13,7 +13,8 @@
   import { untrack } from 'svelte';
   import { cmToPx } from '../storage/pageMargins';
   import { commentIdAt, type CommentRange } from '../editor/extensions/comment';
-  import { revisionIdAt, authorColorIndex, REVISION_AUTHOR_COLORS, type Revision } from '../editor/extensions/trackChanges';
+  import { revisionIdAt, type Revision } from '../editor/extensions/trackChanges';
+  import { authorColor, authorColors } from '../editor/authorColors';
   import { selectRange, visibleComments, visibleRevisions } from './reviewItems';
   import { balloonWheel, changesInMargin, commentsInMargin } from '../storage/markup.svelte';
   import { stackTops } from '../utils/balloonStack';
@@ -34,7 +35,6 @@
     author: string;
   } = $props();
 
-  const COMMENT_COLOR = 'rgba(200, 140, 0, 0.9)';
   const STACK_GAP_PX = 8;
 
   type Balloon = {
@@ -53,6 +53,7 @@
   };
 
   let balloons = $state<Balloon[]>([]);
+  let colors = $state(new Map<string, string>());
   let heights = $state<number[]>([]);
   // A clicked card and where every card was: the view scrolls by as much as it moves.
   let hold: { key: string; top: number; from: Map<string, number> } | null = null;
@@ -189,7 +190,7 @@
     const revs = changesInMargin()
       ? visibleRevisions(state.doc).filter((r) => !seen.has(r.id) && seen.add(r.id)) : [];
     if (!open.length && !revs.length) { balloons = []; return; }
-    const order = authorColorIndex(revs);
+    colors = authorColors(state.doc);
     const activeComment = commentIdAt(state);
     const activeRevision = revisionIdAt(state);
     const dom = view.dom as HTMLElement;
@@ -225,12 +226,12 @@
     };
 
     for (const c of open) {
-      add(c.from, c.to, { key: `c${c.id}`, color: COMMENT_COLOR, active: c.id === activeComment, comment: c });
+      add(c.from, c.to, { key: `c${c.id}`, color: authorColor(colors, c.author), active: c.id === activeComment, comment: c });
     }
     for (const r of revs) {
       add(r.from, r.to, {
         key: `r${r.id}`,
-        color: REVISION_AUTHOR_COLORS[order.get(r.author) ?? 0],
+        color: authorColor(colors, r.author),
         active: r.id === activeRevision,
         revision: r,
       });
@@ -380,7 +381,7 @@
       style="top: {shown[i] ?? b.want}px; left: {b.left}px; width: {cmToPx(BALLOON_W_CM)}px; border-color: {b.color};"
     >
       {#if b.comment}
-        <CommentCard {editor} c={b.comment} {author} compact={!b.active} onSelect={() => select(b)} />
+        <CommentCard {editor} c={b.comment} {author} {colors} compact={!b.active} onSelect={() => select(b)} />
       {:else if b.revision}
         <RevisionCard {editor} r={b.revision} {author} color={b.color} onSelect={() => select(b)} />
       {/if}

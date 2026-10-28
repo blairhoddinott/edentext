@@ -3,6 +3,7 @@
   import { commentIdAt, type CommentRange } from '../editor/extensions/comment';
   import { selectRange, visibleComments } from './reviewItems';
   import CommentCard from './CommentCard.svelte';
+  import { authorColor, authorColors } from '../editor/authorColors';
   import { t } from '../i18n/i18n.svelte';
 
   // Word's Reviewing Pane: every comment in document order, click to jump to the text it
@@ -19,6 +20,8 @@
     if (tick < 0 || !editor) return [];
     return visibleComments(editor.state.doc);
   });
+
+  let colors = $derived.by(() => (tick < 0 || !editor ? new Map<string, string>() : authorColors(editor.state.doc)));
 
   // The comment the caret sits in: its card is marked and pulled into view, the other
   // half of the heavier tint the document draws on the annotated text.
@@ -52,8 +55,9 @@
 
   <ul>
     {#each list as c (c.id)}
-      <li bind:this={cards[c.id]} class:resolved={c.resolved} class:active={c.id === activeId}>
-        <CommentCard {editor} {c} {author} onSelect={() => jumpTo(c)} />
+      <li bind:this={cards[c.id]} class:resolved={c.resolved} class:active={c.id === activeId}
+        style:box-shadow={c.id === activeId ? `inset 3px 0 0 ${authorColor(colors, c.author)}` : null}>
+        <CommentCard {editor} {c} {author} {colors} onSelect={() => jumpTo(c)} />
       </li>
     {/each}
   </ul>
@@ -104,5 +108,5 @@
     border-bottom: 1px solid var(--color-border);
   }
   li.resolved { opacity: 0.55; }
-  li.active { background: var(--color-btn-hover); box-shadow: inset 3px 0 0 rgba(200, 140, 0, 0.9); }
+  li.active { background: var(--color-btn-hover); }
 </style>
