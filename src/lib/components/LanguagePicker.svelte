@@ -72,6 +72,8 @@
       <!-- A language we have no dictionary for still shows, so it is not silently lost. -->
       <option value={selected} selected>{atCursor}</option>
     {/if}
+    <!-- Checking off: no language at the cursor and none on the document either. -->
+    <option value="doc:{NO_LANGUAGE}" selected={value === NO_LANGUAGE && !atCursor}>{t().spellPicker.noSpellCheck}</option>
     <optgroup label={t().spellPicker.forSelection}>
       {#each LANGUAGES as l}
         <option value="sel:{l.code}" selected={`sel:${l.code}` === selected}>{label(l)}</option>
@@ -81,8 +83,6 @@
       {#each LANGUAGES as l}
         <option value="doc:{l.code}">{label(l)}</option>
       {/each}
-      <!-- Checking off: no language at the cursor and none on the document either. -->
-      <option value="doc:{NO_LANGUAGE}" selected={value === NO_LANGUAGE && !atCursor}>{t().spellPicker.noSpellCheck}</option>
     </optgroup>
   </select>
 </label>
