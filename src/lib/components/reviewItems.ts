@@ -3,14 +3,17 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import { comments, commentRanges, type CommentRange } from '../editor/extensions/comment';
 import { revisions, type Revision } from '../editor/extensions/trackChanges';
-import { markupView } from '../storage/markup.svelte';
+import { markupView, showResolved } from '../storage/markup.svelte';
 
 // What the review views may show, in one place: bars, balloons, leader line and both
 // panes ask here instead of each carrying its own reading of the markup settings.
-// A resolved comment is not this rule's business — every caller handles it as it did.
+// A resolved comment shows while `showResolved` is on, else only the one the caret is in
+// (`activeId`), so its grey underline still leads to a card that can reopen it.
 
-export function visibleComments(doc: PMNode): CommentRange[] {
-  return markupView().comments ? comments(doc) : [];
+export function visibleComments(doc: PMNode, activeId: string | null = null): CommentRange[] {
+  if (!markupView().comments) return [];
+  const all = comments(doc);
+  return showResolved() ? all : all.filter((c) => !c.resolved || c.id === activeId);
 }
 
 export function visibleCommentRanges(doc: PMNode): CommentRange[] {

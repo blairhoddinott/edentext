@@ -11,6 +11,7 @@ const COMMENTS_KEY = 'edentext-markup-comments';
 const CHANGES_KEY = 'edentext-markup-changes';
 const COMMENT_PLACE_KEY = 'edentext-markup-comment-place';
 const CHANGE_PLACE_KEY = 'edentext-markup-change-place';
+const RESOLVED_KEY = 'edentext-markup-resolved';
 
 export const MARKUP_MODES: MarkupMode[] = ['all', 'simple', 'none', 'original'];
 export const MARKUP_PLACES: MarkupPlace[] = ['balloons', 'pane'];
@@ -23,6 +24,7 @@ let comments = $state(localStorage.getItem(COMMENTS_KEY) !== 'false');
 let changes = $state(localStorage.getItem(CHANGES_KEY) !== 'false');
 let commentAt = $state<MarkupPlace>(place(COMMENT_PLACE_KEY));
 let changeAt = $state<MarkupPlace>(place(CHANGE_PLACE_KEY));
+let resolved = $state(localStorage.getItem(RESOLVED_KEY) !== 'false');
 
 /** Whether a mode has anything to show — the two that read as a finished text have not. */
 const marks = (m: MarkupMode) => m === 'all' || m === 'simple';
@@ -79,6 +81,14 @@ export function changePlace(): MarkupPlace { return changeAt; }
 export function setChangePlace(p: MarkupPlace): void {
   changeAt = p;
   store(CHANGE_PLACE_KEY, p, p === 'balloons');
+}
+
+/** Whether a resolved comment keeps its card, greyed, as in both word processors. */
+export function showResolved(): boolean { return resolved; }
+
+export function setShowResolved(on: boolean): void {
+  resolved = on;
+  store(RESOLVED_KEY, 'false', on);
 }
 
 // Through markupView, so a stored flag can never outvote the mode that hides its kind.

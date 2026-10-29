@@ -34,6 +34,7 @@ import ChangeBarLayer from './ChangeBarLayer.svelte';
   import ReviewMarginLayer, { REVIEW_MARGIN_CM } from './ReviewMarginLayer.svelte';
   import PageLabelLayer from './PageLabelLayer.svelte';
   import { visibleComments, visibleRevisions } from './reviewItems';
+  import { commentIdAt } from '../editor/extensions/comment';
   import { changesInMargin, commentsInMargin, markupView } from '../storage/markup.svelte';
 import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../storage/lineNumbering';
 import { DEFAULT_LINE_GRID, type LineGrid } from '../storage/lineGrid';
@@ -577,7 +578,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     if (tick < 0 || !editor) return false;
     const doc = editor.state.doc;
     return (changesInMargin() && visibleRevisions(doc).length > 0)
-      || (commentsInMargin() && visibleComments(doc).some((c) => !c.resolved));
+      || (commentsInMargin() && visibleComments(doc, commentIdAt(editor.state)).length > 0);
   });
   let reviewArea = $derived(hasReviewMarkup ? cmToPx(REVIEW_MARGIN_CM) : 0);
 

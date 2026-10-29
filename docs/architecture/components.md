@@ -143,6 +143,11 @@ reviewer has one colour (`editor/authorColors.ts`) on the text's tint or change 
 the balloon, its leader and the names on a card, so several reviewers stay apart. A comment
 card's head carries its commands as icon buttons (resolve, edit, remove), with no menu. A card's
 command returns focus to the text without scrolling to the caret: the reader is at the card.
+A resolved comment keeps its card in both views, as in both word processors: greyed, folded
+to its head and first line, opened whole while the caret is in its text. With Show resolved
+off (the comment caret's menu, Settings ▸ Review) only that one shows, so the grey underline
+still leads to a card that reopens it; Previous/Next skip what is hidden (`visibleComments`).
+Bars and printouts leave a resolved comment out: it is handled.
 
 `reviewItems.ts` is the only source for markup visibility. CSS hiding and revision decorations
 must change together, and a display-mode change dispatches pagination recalculation because it

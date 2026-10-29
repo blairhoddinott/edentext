@@ -16,7 +16,7 @@
   import { revisionIdAt, type Revision } from '../editor/extensions/trackChanges';
   import { authorColor, authorColors } from '../editor/authorColors';
   import { selectRange, visibleComments, visibleRevisions } from './reviewItems';
-  import { changesInMargin, commentsInMargin } from '../storage/markup.svelte';
+  import { changesInMargin, commentsInMargin, showResolved } from '../storage/markup.svelte';
   import { deckAround, deckHeights, stackTops } from '../utils/balloonStack';
   import CommentCard from './CommentCard.svelte';
   import RevisionCard from './RevisionCard.svelte';
@@ -81,6 +81,7 @@
     void zoom;
     void commentsInMargin();
     void changesInMargin();
+    void showResolved();
     schedule();
   });
 
@@ -182,13 +183,13 @@
     const view = editor?.view;
     if (!view || !host?.isConnected) { balloons = []; return; }
     const state = view.state;
-    const open = commentsInMargin() ? visibleComments(state.doc).filter((c) => !c.resolved) : [];
+    const activeComment = commentIdAt(state);
+    const open = commentsInMargin() ? visibleComments(state.doc, activeComment) : [];
     const seen = new Set<string>();
     const revs = changesInMargin()
       ? visibleRevisions(state.doc).filter((r) => !seen.has(r.id) && seen.add(r.id)) : [];
     if (!open.length && !revs.length) { balloons = []; return; }
     colors = authorColors(state.doc);
-    const activeComment = commentIdAt(state);
     const activeRevision = revisionIdAt(state);
     const dom = view.dom as HTMLElement;
     const rect = dom.getBoundingClientRect();
@@ -262,6 +263,7 @@
       d: `M ${b.anchorX} ${y} H ${turn} C ${turn + c} ${y} ${b.left - c} ${to} ${b.left} ${to}`,
       color: b.color,
       active: b.active || hovered === b.key,
+      resolved: !!b.comment?.resolved,
     };
   }));
 
@@ -312,7 +314,7 @@
           stroke-width={l.active ? 1.4 : 1}
           stroke-dasharray="3 3"
           stroke-linecap="round"
-          opacity={l.active ? 1 : 0.7}
+          opacity={l.active ? 1 : l.resolved ? 0.35 : 0.7}
         />
       {/each}
     </svg>
@@ -323,6 +325,7 @@
       class="balloon"
       class:active={b.active}
       class:lifted={hovered === b.key && !b.active}
+      class:resolved={!!b.comment?.resolved}
       class:on-deck={i > 0 && stack.reach[i - 1] < (heights[i - 1] ?? 0) && balloons[i - 1]?.page === b.page}
       style="top: {shown[i] ?? b.want}px; left: {b.left}px; width: {cmToPx(BALLOON_W_CM)}px; border-color: {b.color};"
     >
@@ -406,6 +409,12 @@
   .balloon.lifted {
     z-index: 2;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  /* A resolved comment's card, greyed as handled until it is the one in use. */
+  .balloon.resolved:not(.active) {
+    border-style: dashed;
+    color: var(--color-text-muted);
   }
 
   /* The date beside the author is the balloon's second line of information, not its

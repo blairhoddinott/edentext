@@ -16,19 +16,19 @@
     onClose: () => void;
   } = $props();
 
-  let list = $derived.by<CommentRange[]>(() => {
-    if (tick < 0 || !editor) return [];
-    return visibleComments(editor.state.doc);
-  });
-
-  let colors = $derived.by(() => (tick < 0 || !editor ? new Map<string, string>() : authorColors(editor.state.doc)));
-
   // The comment the caret sits in: its card is marked and pulled into view, the other
   // half of the heavier tint the document draws on the annotated text.
   let activeId = $derived.by<string | null>(() => {
     if (tick < 0 || !editor) return null;
     return commentIdAt(editor.state);
   });
+
+  let list = $derived.by<CommentRange[]>(() => {
+    if (tick < 0 || !editor) return [];
+    return visibleComments(editor.state.doc, activeId);
+  });
+
+  let colors = $derived.by(() => (tick < 0 || !editor ? new Map<string, string>() : authorColors(editor.state.doc)));
 
   let cards: Record<string, HTMLElement | null> = {};
   $effect(() => {

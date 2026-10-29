@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
+  import type { Snippet } from 'svelte';
   import RibbonGroup from '../RibbonGroup.svelte';
   import RibbonButton from '../RibbonButton.svelte';
   import Icon from '../Icon.svelte';
@@ -13,7 +14,7 @@
   import {
     MARKUP_MODES, MARKUP_PLACES, markupMode, setMarkupMode,
     showChanges, setShowChanges, showComments, setShowComments,
-    commentPlace, setCommentPlace, changePlace, setChangePlace,
+    commentPlace, setCommentPlace, changePlace, setChangePlace, showResolved, setShowResolved,
     type MarkupMode, type MarkupPlace,
   } from '../../../storage/markup.svelte';
   import { revisions } from '../../../editor/extensions/trackChanges';
@@ -130,7 +131,7 @@
 <!-- One button per kind: the click shows or hides it, the caret says where its cards go.
      What Word splits over Show markup, the balloon modes and the reviewing pane. -->
 {#snippet showKind(id: string, label: string, on: boolean, toggle: () => void,
-                   at: MarkupPlace, setAt: (p: MarkupPlace) => void)}
+                   at: MarkupPlace, setAt: (p: MarkupPlace) => void, more?: Snippet)}
   <div class="rb-menu-wrap" use:clickOutside={id}>
     <RibbonButton
       variant="big"
@@ -152,9 +153,19 @@
             {PLACE_LABEL[p]()}
           </button>
         {/each}
+        {@render more?.()}
       </div>
     {/if}
   </div>
+{/snippet}
+
+<!-- The comment caret's switch for resolved comments, under where their cards go. -->
+{#snippet resolvedItem()}
+  <hr />
+  <button role="menuitemcheckbox" aria-checked={showResolved()} title={t().settings.resolvedHint}
+    onclick={() => { closeMenu(); setShowResolved(!showResolved()); if (!showComments()) setShowComments(true); }}>
+    <span class="menu-check">{showResolved() ? '✓' : ''}</span>{t().comments.showResolved}
+  </button>
 {/snippet}
 
 <RibbonGroup label={t().comments.title}>
@@ -168,7 +179,7 @@
     onclick={() => onNewComment?.()}
   />
   {@render showKind('commentPlace', t().comments.showPane, showComments(),
-    () => setShowComments(!showComments()), commentPlace(), setCommentPlace)}
+    () => setShowComments(!showComments()), commentPlace(), setCommentPlace, resolvedItem)}
   <div class="rb-col">
     <RibbonButton
       variant="small"

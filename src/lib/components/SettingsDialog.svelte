@@ -10,6 +10,7 @@
   import {
     showComments, setShowComments, showChanges, setShowChanges,
     commentPlace, setCommentPlace, changePlace, setChangePlace, MARKUP_PLACES, type MarkupPlace,
+    showResolved, setShowResolved,
   } from '../storage/markup.svelte';
   import { ACCENTS, loadAccent, saveAccent, applyAccent, isCustomAccent, parseAccentHex, type Accent, type ChromeMode, type ThemeMode } from '../storage/theme';
   import { LOCALES, LOCALE_LABELS, isLocale } from '../i18n/config';
@@ -288,6 +289,10 @@
             <Toggle label={t().comments.showPane} checked={showComments()} onchange={setShowComments} />
           </div>
           {@render placeRow(t().settings.commentPlace, commentPlace(), setCommentPlace)}
+          <div class="row">
+            <div class="info"><div class="name">{t().comments.showResolved}</div><div class="desc">{t().settings.resolvedHint}</div></div>
+            <Toggle label={t().comments.showResolved} checked={showResolved()} onchange={setShowResolved} />
+          </div>
           <div class="row">
             <div class="info"><div class="name">{t().revisions.showPane}</div><div class="desc">{t().settings.changesHint}</div></div>
             <Toggle label={t().revisions.showPane} checked={showChanges()} onchange={setShowChanges} />

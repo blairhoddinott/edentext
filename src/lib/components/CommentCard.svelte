@@ -26,8 +26,10 @@
   let draft = $state('');
   let replying = $state(false);
   let reply = $state('');
-  // Anything being done in the card shows all of it.
+  // Anything being done in the card shows all of it; a resolved one not in use only its
+  // head and first line, as both word processors fold a handled comment.
   let full = $derived(!compact || editing || replying);
+  let folded = $derived(!full && c.resolved);
 
   function toggleEdit() {
     draft = c.text;
@@ -92,9 +94,11 @@
     onclick={() => editor?.chain().focus(null, { scrollIntoView: false }).removeComment(c.id).run()}
   ><Icon name="trash" size={14} /></button>
 </div>
-<button class="card" onclick={onSelect}>
-  <div class="quote" style:border-color={authorColor(colors, c.author)}>{c.quote}</div>
-</button>
+{#if !folded}
+  <button class="card" onclick={onSelect}>
+    <div class="quote" style:border-color={authorColor(colors, c.author)}>{c.quote}</div>
+  </button>
+{/if}
 {#if editing}
   <textarea
     rows="2"
@@ -111,7 +115,7 @@
   <p class="body">{c.text}</p>
 {:else}
   <!-- Cut to a few lines; a click opens the card, as clicking its text does. -->
-  <button class="card body clamp" onclick={onSelect}>{c.text}</button>
+  <button class="card body clamp" class:line={folded} onclick={onSelect}>{c.text}</button>
 {/if}
 
 {#if full}
@@ -144,7 +148,7 @@
     <button onclick={() => { replying = false; reply = ''; }}>{t().common.cancel}</button>
     <button class="primary" onclick={sendReply}>{t().comments.reply}</button>
   </div>
-{:else if !editing}
+{:else if !editing && !folded}
   <div class="actions">
     <button onclick={() => (replying = true)}>{t().comments.reply}</button>
   </div>
@@ -217,6 +221,7 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+  .body.clamp.line { -webkit-line-clamp: 1; line-clamp: 1; }
   .replies { margin-top: 2px; color: var(--color-text-muted); }
 
   /* An answer is indented under the comment it belongs to, as in a threaded pane. */
