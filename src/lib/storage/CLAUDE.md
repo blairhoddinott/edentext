@@ -65,6 +65,7 @@ writes its own marker, so no two tabs race over one key.
 - **Document format:** `edentext-doc-format` — `'docx'` while the open document round-trips as .docx; absent = .odt (`documentName.ts`). Set by the format a file was opened in, and by the extension picked in Save As.
 - **Theme:** `edentext-theme` — `'light' | 'dark' | 'allBlack' | 'auto'`.
 - **Accent:** `edentext-accent` — one of `ACCENTS` (`theme.ts`) or a custom `#rrggbb`, which `applyAccent` sets as an inline `--brand-slate` under `data-accent="custom"`; absent = `slate`, the logo's.
+- **Date format:** `edentext-date-format` — absent = `auto`, the UI language's convention; else a region tag of `DATE_FORMATS` or `iso` (`dateFormat.svelte.ts`, Settings ▸ General). `formatMoment` writes every moment a reader sees in the app (comment and change cards, the review print, kept versions, the browser's document list); a date field in the document keeps its own picture.
 - **Toolbar expanded:** `edentext-toolbar-expanded` — boolean string.
 - **Chrome:** `edentext-chrome` — `'modern' | 'ribbon'` ('classic' read as the modern island's legacy stored name); absent = ribbon.
 - **Ribbon collapsed:** `edentext-ribbon-collapsed` — boolean string; absent = expanded.

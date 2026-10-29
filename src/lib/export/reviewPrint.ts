@@ -4,6 +4,7 @@
 // alone could only say that one exists — never what it says.
 
 import { AUTHOR_COLORS } from '../editor/authorColors';
+import { formatMoment } from '../storage/dateFormat.svelte';
 
 /** Gap from the text edge to the bar, and the strip the left page margin gives up for it. */
 export const BAR_GAP_CM = 0.2;
@@ -104,21 +105,16 @@ export function markReviewBlocks(root: HTMLElement): boolean {
 
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] ?? c));
 
-// The stored ISO date, in the reader's locale — an imported file may carry any format.
-function when(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-}
 
 /** The comment bodies, after the document: what the margin bar cannot carry. */
 export function commentListHtml(list: PrintedComment[], labels: CommentLabels): string {
   const rows = list.map((c) => {
     // Page first, as LibreOffice prints its own end-of-document comments: with the
     // quote it is what makes an entry findable in a printout nobody can click.
-    const meta = [c.page ? labels.onPage(c.page) : '', c.author, c.date ? when(c.date) : '']
+    const meta = [c.page ? labels.onPage(c.page) : '', c.author, c.date ? formatMoment(c.date) : '']
       .filter(Boolean).map(esc).join(' · ');
     const replies = c.replies.map((r) => {
-      const rm = [r.author, r.date ? when(r.date) : ''].filter(Boolean).map(esc).join(' · ');
+      const rm = [r.author, r.date ? formatMoment(r.date) : ''].filter(Boolean).map(esc).join(' · ');
       return `<span class="cl-reply"><span class="cl-meta">${rm}</span>`
         + `<span class="cl-text">${esc(r.text)}</span></span>`;
     }).join('');

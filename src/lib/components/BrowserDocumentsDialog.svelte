@@ -1,7 +1,7 @@
 <script lang="ts">
   import { listDocuments, openDocument, deleteDocument, type BrowserDocument } from '../storage/docScope';
-  import { t, locale } from '../i18n/i18n.svelte';
-  import { localeTag } from '../utils/dateTime';
+  import { t } from '../i18n/i18n.svelte';
+  import { formatMoment } from '../storage/dateFormat.svelte';
 
   // The documents this browser autosaves, one per tab slot (`storage/docScope.ts`).
   // Opening one reloads this tab onto it; the open one and those other tabs hold stay.
@@ -17,8 +17,6 @@
     else if (!open && el.open) el.close();
   });
 
-  const when = (at: number) =>
-    new Intl.DateTimeFormat(localeTag(locale()), { dateStyle: 'medium', timeStyle: 'short' }).format(at);
 
   async function remove(id: string) {
     if (!confirm(t().browserDocs.confirmDelete)) return;
@@ -43,7 +41,7 @@
           <div class="info">
             <span class="label">{d.label || t().app.untitled}</span>
             <span class="meta">
-              {when(d.at)}{#if d.mine}{' · '}{t().browserDocs.thisTab}{:else if d.held}{' · '}{t().browserDocs.otherTab}{/if}
+              {formatMoment(d.at)}{#if d.mine}{' · '}{t().browserDocs.thisTab}{:else if d.held}{' · '}{t().browserDocs.otherTab}{/if}
             </span>
           </div>
           <button onclick={() => openDocument(d.id)} disabled={d.mine || d.held}>{t().browserDocs.open}</button>

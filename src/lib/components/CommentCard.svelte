@@ -2,6 +2,7 @@
   import type { Editor } from '@tiptap/core';
   import type { CommentRange } from '../editor/extensions/comment';
   import { t } from '../i18n/i18n.svelte';
+  import { formatMoment } from '../storage/dateFormat.svelte';
   import { aiAnswering, aiEnabled, AI_COMMENT_EVENT } from '../storage/ai.svelte';
   import { mentionsAi } from '../ai/tools';
   import Icon from './ribbon/Icon.svelte';
@@ -47,10 +48,6 @@
   }
 
   // The stored ISO date, in the reader's locale — an imported file may carry any format.
-  function when(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-  }
 
   function focus(node: HTMLTextAreaElement) {
     node.focus();
@@ -69,7 +66,7 @@
   <button class="card" onclick={onSelect}>
     <div class="meta">
       <b style:color={authorColor(colors, c.author)}>{c.author || author || t().revisions.unknownAuthor}</b>
-      <span>{when(c.date)}</span>
+      <span>{formatMoment(c.date)}</span>
     </div>
   </button>
   <button
@@ -120,7 +117,7 @@
 {#if full}
   {#each c.replies as r, i (i)}
     <div class="reply">
-      <div class="meta"><b style:color={authorColor(colors, r.author)}>{r.author || author || t().revisions.unknownAuthor}</b><span>{when(r.date)}</span></div>
+      <div class="meta"><b style:color={authorColor(colors, r.author)}>{r.author || author || t().revisions.unknownAuthor}</b><span>{formatMoment(r.date)}</span></div>
       <p class="body">{r.text}</p>
     </div>
   {/each}

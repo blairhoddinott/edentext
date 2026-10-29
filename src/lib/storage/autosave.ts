@@ -1,4 +1,5 @@
-import { t, locale } from '../i18n/i18n.svelte';
+import { t } from '../i18n/i18n.svelte';
+import { formatMoment } from './dateFormat.svelte';
 import { stashImages, putImages, restoreImages, isStored } from './imageStore';
 import { keepSnapshot, listSnapshots, readSnapshot } from './snapshots';
 import { docKey, docStore, volatile, otherDocumentsStored } from './docScope';
@@ -117,7 +118,7 @@ if (typeof document !== 'undefined') {
 // one question each — the newest may be the one that broke.
 async function offerSnapshot(): Promise<object | null> {
   for (const at of await listSnapshots()) {
-    const when = new Date(at).toLocaleString(locale(), { dateStyle: 'short', timeStyle: 'short' });
+    const when = formatMoment(at);
     if (!confirm(t().dialogs.openSnapshot(when))) continue;
     const doc = await readSnapshot(at);
     if (doc) return doc;

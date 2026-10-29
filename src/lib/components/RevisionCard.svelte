@@ -2,6 +2,7 @@
   import type { Editor } from '@tiptap/core';
   import type { Revision } from '../editor/extensions/trackChanges';
   import { t } from '../i18n/i18n.svelte';
+  import { formatMoment } from '../storage/dateFormat.svelte';
 
   // One recorded change as both reviewing views show it: what it did, to which text, and
   // accept / reject, which return focus to the text without scrolling there. Shared by the
@@ -15,16 +16,12 @@
   } = $props();
 
   // The stored ISO date, in the reader's locale — an imported file may carry any format.
-  function when(iso: string): string {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-  }
 </script>
 
 <button class="card" onclick={onSelect}>
   <div class="meta">
     <b style:color={color}>{r.author || author || t().revisions.unknownAuthor}</b>
-    <span>{when(r.date)}</span>
+    <span>{formatMoment(r.date)}</span>
   </div>
   <div class="kind">{r.kind === 'insertion' ? t().revisions.inserted : t().revisions.deleted}</div>
   <div class="quote" class:struck={r.kind === 'deletion'} style:color={color}>{r.text}</div>

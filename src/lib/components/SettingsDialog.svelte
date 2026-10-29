@@ -14,6 +14,8 @@
   import { ACCENTS, loadAccent, saveAccent, applyAccent, isCustomAccent, parseAccentHex, type Accent, type ChromeMode, type ThemeMode } from '../storage/theme';
   import { LOCALES, LOCALE_LABELS, isLocale } from '../i18n/config';
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
+  import { DATE_FORMATS, dateFormat, formatMoment, setDateFormat, type DateFormat } from '../storage/dateFormat.svelte';
+  import { localeTag } from '../utils/dateTime';
   import Icon from './ribbon/Icon.svelte';
   import Toggle from './Toggle.svelte';
   import { LANGUAGES, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
@@ -55,6 +57,18 @@
     documentLanguage: DocumentLanguage;
     onLanguage: (code: DocumentLanguage) => void;
   } = $props();
+
+  // Each choice named by its region and shown on a day past the 12th, so the order of day
+  // and month reads at a glance.
+  const SAMPLE_MOMENT = new Date(2026, 11, 31, 14, 30);
+  function dateFormatLabel(f: DateFormat): string {
+    const sample = formatMoment(SAMPLE_MOMENT, f);
+    if (f === 'auto') return `${t().settings.dateFormatAuto} – ${sample}`;
+    if (f === 'iso') return `ISO 8601 – ${sample}`;
+    let name: string = f;
+    try { name = new Intl.DisplayNames([localeTag(locale())], { type: 'language' }).of(f) ?? f; } catch { /* the tag itself */ }
+    return `${name} – ${sample}`;
+  }
 
   const SECTIONS: { id: Section; icon: 'settings' | 'autoCorrect' | 'ruler' | 'comment' | 'sparkle' | 'lock' }[] = [
     { id: 'general', icon: 'settings' },
@@ -161,6 +175,12 @@
             <div class="info"><div class="name">{t().appearance.language}</div><div class="desc">{t().settings.languageHint}</div></div>
             <select value={locale()} onchange={(e) => isLocale(e.currentTarget.value) && setLocale(e.currentTarget.value)}>
               {#each LOCALES as l (l)}<option value={l}>{LOCALE_LABELS[l]}</option>{/each}
+            </select>
+          </div>
+          <div class="row">
+            <div class="info"><div class="name">{t().settings.dateFormat}</div><div class="desc">{t().settings.dateFormatHint}</div></div>
+            <select value={dateFormat()} onchange={(e) => setDateFormat(e.currentTarget.value as DateFormat)}>
+              {#each DATE_FORMATS as f (f)}<option value={f}>{dateFormatLabel(f)}</option>{/each}
             </select>
           </div>
           <div class="row stack">
