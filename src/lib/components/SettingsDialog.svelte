@@ -1,5 +1,5 @@
 <script module lang="ts">
-  export type Section = 'general' | 'editing' | 'view' | 'ai' | 'privacy';
+  export type Section = 'general' | 'editing' | 'view' | 'review' | 'ai' | 'privacy';
 </script>
 
 <script lang="ts">
@@ -7,7 +7,10 @@
   import { wordCompletion, setWordCompletion } from '../storage/wordCompletion.svelte';
   import { grammarEnabled, setGrammarEnabled } from '../spell/grammar.svelte';
   import { numberRecognition, setNumberRecognition } from '../storage/tableOptions.svelte';
-  import { balloonWheel, setBalloonWheel } from '../storage/markup.svelte';
+  import {
+    balloonWheel, setBalloonWheel, showComments, setShowComments, showChanges, setShowChanges,
+    commentPlace, setCommentPlace, changePlace, setChangePlace, MARKUP_PLACES, type MarkupPlace,
+  } from '../storage/markup.svelte';
   import { ACCENTS, loadAccent, saveAccent, applyAccent, isCustomAccent, parseAccentHex, type Accent, type ChromeMode, type ThemeMode } from '../storage/theme';
   import { LOCALES, LOCALE_LABELS, isLocale } from '../i18n/config';
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
@@ -53,10 +56,11 @@
     onLanguage: (code: DocumentLanguage) => void;
   } = $props();
 
-  const SECTIONS: { id: Section; icon: 'settings' | 'autoCorrect' | 'ruler' | 'sparkle' | 'lock' }[] = [
+  const SECTIONS: { id: Section; icon: 'settings' | 'autoCorrect' | 'ruler' | 'comment' | 'sparkle' | 'lock' }[] = [
     { id: 'general', icon: 'settings' },
     { id: 'editing', icon: 'autoCorrect' },
     { id: 'view', icon: 'ruler' },
+    { id: 'review', icon: 'comment' },
     { id: 'ai', icon: 'sparkle' },
     { id: 'privacy', icon: 'lock' },
   ];
@@ -112,6 +116,20 @@
     else if (!open && el.open) el.close();
   });
 </script>
+
+<!-- Where one kind's cards go, beside the page or in the pane. -->
+{#snippet placeRow(name: string, at: MarkupPlace, setAt: (p: MarkupPlace) => void)}
+  <div class="row stack">
+    <div class="info"><div class="name">{name}</div><div class="desc">{t().settings.placeHint}</div></div>
+    <div class="segmented two" role="radiogroup" aria-label={name}>
+      {#each MARKUP_PLACES as p (p)}
+        <button role="radio" aria-checked={at === p} class:on={at === p} onclick={() => setAt(p)}>
+          {p === 'balloons' ? t().revisions.placeBalloons : t().revisions.placePane}
+        </button>
+      {/each}
+    </div>
+  </div>
+{/snippet}
 
 <dialog
   bind:this={dialogEl}
@@ -242,6 +260,19 @@
             <div class="info"><div class="name">{t().settings.pageLabels}</div><div class="desc">{t().settings.pageLabelsHint}</div></div>
             <Toggle label={t().settings.pageLabels} checked={showPageLabels} onchange={(on) => (showPageLabels = on)} />
           </div>
+
+        {:else if section === 'review'}
+          <!-- The Review tab's show buttons and their carets, as settings; the same store. -->
+          <div class="row">
+            <div class="info"><div class="name">{t().comments.showPane}</div><div class="desc">{t().settings.commentsHint}</div></div>
+            <Toggle label={t().comments.showPane} checked={showComments()} onchange={setShowComments} />
+          </div>
+          {@render placeRow(t().settings.commentPlace, commentPlace(), setCommentPlace)}
+          <div class="row">
+            <div class="info"><div class="name">{t().revisions.showPane}</div><div class="desc">{t().settings.changesHint}</div></div>
+            <Toggle label={t().revisions.showPane} checked={showChanges()} onchange={setShowChanges} />
+          </div>
+          {@render placeRow(t().settings.changePlace, changePlace(), setChangePlace)}
           <div class="row">
             <div class="info"><div class="name">{t().settings.balloonWheel}</div><div class="desc">{t().settings.balloonWheelHint}</div></div>
             <Toggle label={t().settings.balloonWheel} checked={balloonWheel()} onchange={setBalloonWheel} />

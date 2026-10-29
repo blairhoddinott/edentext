@@ -160,7 +160,7 @@ tab's Previous/Next glide the view to their text the same way (`selectRange`). T
 wheel over the balloon column moves the stack alone, as a scroll box would: until its ends meet
 the edges of what is shown, and only until a card is made active. A gesture begun with the stack
 at that end scrolls the page instead, and one begun inside stays with the stack to its end, as
-nested scroll boxes chain. Settings ▸ View can switch the stack's wheel off
+nested scroll boxes chain. Settings ▸ Review can switch the stack's wheel off
 (`balloonWheel`); the wheel then scrolls the page and a shifted stack returns to its place. A stack that fits the document
 stays within it; a longer one reaches down until its first card meets the document's top, so
 cards stacked above that top stay reachable and the page grows by a bounded amount. A wheel

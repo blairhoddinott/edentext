@@ -101,7 +101,7 @@ export type MarkupView = {
   changes: boolean;
 };
 
-/** Whether the wheel over the balloons moves them instead of the page (Settings ▸ View). */
+/** Whether the wheel over the balloons moves them instead of the page (Settings ▸ Review). */
 export function balloonWheel(): boolean { return wheelOn; }
 
 export function setBalloonWheel(on: boolean): void {
