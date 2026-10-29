@@ -1,34 +1,38 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import type { WrapMode } from '../editor/extensions/image';
+  import FrameMenus from './toolbar/FrameMenus.svelte';
+  import { WRAP_CHOICES, setFrameWrap, wrapChoice, type WrapChoice } from './frameCommands';
   import { t } from '../i18n/i18n.svelte';
 
   let {
     editor,
+    tick,
     top,
     left,
     wrap,
     inFront,
+    wrapDist = null,
+    alt = '',
   }: {
     editor: Editor | null;
+    tick: number;
     top: number;
     left: number;
     wrap: WrapMode;
     inFront: boolean;
+    wrapDist?: unknown;
+    alt?: string;
   } = $props();
 
   // preventDefault on mousedown keeps the image node-selected; .focus() re-anchors
   // to it so setImageWrap targets the right node.
-  function set(m: WrapChoice) {
-    editor?.chain().focus().setImageWrap(m === 'behind' || m === 'front' ? 'through' : m, m === 'front').run();
-  }
+  const set = (m: WrapChoice) => setFrameWrap(editor, 'picture', m, wrap);
 
   // The list Word's layout options offer, without "tight" (no browser wraps text along
-  // a contour). The two run-through entries are one mode, told apart by which side of
-  // the text the frame lands on.
-  type WrapChoice = WrapMode | 'behind' | 'front';
-  const modes: WrapChoice[] = ['inline', 'left', 'right', 'topBottom', 'behind', 'front'];
-  const active = $derived<WrapChoice>(wrap === 'through' ? (inFront ? 'front' : 'behind') : wrap);
+  // a contour).
+  const modes = WRAP_CHOICES;
+  const active = $derived(wrapChoice(wrap, inFront));
   function wrapTitle(m: WrapChoice): string {
     return m === 'inline' ? t().image.wrapInline
       : m === 'left' ? t().image.wrapLeft
@@ -45,13 +49,14 @@
   role="toolbar"
   tabindex="-1"
   aria-label={t().image.wrapToolbar}
-  onmousedown={(e) => e.preventDefault()}
+  onmousedown={(e) => { if (!(e.target as HTMLElement).closest('input')) e.preventDefault(); }}
 >
   {#each modes as m}
     <button
       class="it-btn"
       class:active={active === m}
       title={wrapTitle(m)}
+      data-cmd={`wrap-${m}`}
       aria-label={wrapTitle(m)}
       aria-pressed={active === m}
       onclick={() => set(m)}
@@ -103,10 +108,13 @@
       {/if}
     </button>
   {/each}
+  <span class="it-sep"></span>
+  <FrameMenus {editor} {tick} kind="picture" {wrap} {wrapDist} {alt} />
 </div>
 
 <style>
   .image-toolbar {
+    --toolbar-btn-size: 1.7rem;
     position: absolute;
     transform: translateY(calc(-100% - 6px));
     z-index: 150;
@@ -134,6 +142,13 @@
     color: var(--color-text);
     cursor: pointer;
     transition: background 0.12s, color 0.12s;
+  }
+
+  .it-sep {
+    width: 1px;
+    height: 1.1rem;
+    margin: 0 3px;
+    background: var(--color-border);
   }
 
   .it-btn:hover {

@@ -19,6 +19,13 @@
   import { styleLabel, t } from '../i18n/i18n.svelte';
   import { withShortcut } from '../i18n/shortcut';
   import { shortcutHint, type ShortcutId } from '../editor/shortcuts';
+  import ColorPicker from './ColorPicker.svelte';
+  import FontPicker from './toolbar/FontPicker.svelte';
+  import SizePicker from './toolbar/SizePicker.svelte';
+  import IslandMenu from './toolbar/IslandMenu.svelte';
+  import { clickOutside, closeMenu, isMenuOpen, toggleMenu } from './ribbon/menu.svelte';
+  import { uniformMarkColor } from '../utils/selectionFormat';
+  import { LINE_STYLES, setLineStyle } from './formatCommands';
 
   // Bullet-marker tooltip by char, with the char itself as fallback.
   function bulletName(char: string): string {
@@ -44,7 +51,7 @@
   });
 
   function applyCharStyle(name: string) {
-    stylesOpen = false;
+    closeMenu();
     if (!editor) return;
     // Clicking the active one removes it, like a toggle.
     if (currentCharStyle === name) editor.chain().focus().unsetCharacterStyle().run();
@@ -58,7 +65,7 @@
     return `${Math.min(1.35, Math.max(0.85, pt / 20))}rem`;
   }
 
-  let stylesOpen = $state(false);
+  let stylesOpen = $derived(isMenuOpen('styles'));
 
   // $derived re-evaluates whenever `tick` changes (i.e. on every TipTap transaction)
   let isHeading    = $derived(tick >= 0 && !!editor?.isActive('heading'));
@@ -81,7 +88,7 @@
   }
 
   function applyStyle(name: string) {
-    stylesOpen = false;
+    closeMenu();
     if (!editor) return;
     const level = sheet.paragraph[name]?.outlineLevel;
     // The header/footer schema has no heading node.
@@ -116,8 +123,8 @@
     return effectiveOrderedTypeAt(editor.state);
   });
 
-  let olMenuOpen = $state(false);
-  let blMenuOpen = $state(false);
+  let olMenuOpen = $derived(isMenuOpen('numbering'));
+  let blMenuOpen = $derived(isMenuOpen('bullets'));
 
   // Named list styles, split by their first level's kind so each dropdown lists its own.
   let bulletListStyles = $derived(Object.values(sheet.list ?? {}).filter((s) => s.levels[0]?.kind === 'bullet'));
@@ -140,8 +147,7 @@
   // first if the selection isn't in one.
   function applyListStyle(s: ListStyle, kind: 'bulletList' | 'orderedList') {
     if (!editor) return;
-    blMenuOpen = false;
-    olMenuOpen = false;
+    closeMenu();
     const chain = editor.chain().focus();
     if (!editor.isActive('bulletList') && !editor.isActive('orderedList')) {
       if (kind === 'bulletList') chain.toggleBulletList();
@@ -151,8 +157,7 @@
   }
 
   function manageListStyles() {
-    blMenuOpen = false;
-    olMenuOpen = false;
+    closeMenu();
     onManageStyles?.('list');
   }
 
@@ -165,7 +170,7 @@
 
   // Toggle a plain bullet list — the split button's main half.
   function toggleBulletList() {
-    blMenuOpen = false;
+    closeMenu();
     editor?.chain().focus().toggleBulletList().run();
   }
 
@@ -173,7 +178,7 @@
   // list first if the selection isn't in one.
   function applyBulletChar(char: string | null) {
     if (!editor) return;
-    blMenuOpen = false;
+    closeMenu();
     const chain = editor.chain().focus();
     if (!editor.isActive('bulletList')) chain.toggleBulletList();
     chain.setBulletChar(char).run();
@@ -181,26 +186,23 @@
 
   // Toggle a plain (decimal) ordered list — the split button's main half.
   function toggleOrderedList() {
-    olMenuOpen = false;
+    closeMenu();
     editor?.chain().focus().toggleOrderedList().run();
   }
 
   // Apply a numbering style; creates the list first if the selection isn't in one.
   function applyOrderedType(key: OrderedListType) {
     if (!editor) return;
-    olMenuOpen = false;
+    closeMenu();
     const chain = editor.chain().focus();
     if (!editor.isActive('orderedList')) chain.toggleOrderedList();
     chain.setOrderedListType(key).run();
   }
 
-  function menuClickOutside(node: HTMLElement, close: () => void) {
-    function handler(e: MouseEvent) {
-      if (!node.contains(e.target as Node)) close();
-    }
-    window.addEventListener('mousedown', handler);
-    return { destroy() { window.removeEventListener('mousedown', handler); } };
-  }
+  // Font colour lives on the textStyle mark, highlight on its own mark.
+  let fontColor = $derived(tick >= 0 && editor ? uniformMarkColor(editor.state, 'textStyle') : null);
+  let highlight = $derived(tick >= 0 && editor ? uniformMarkColor(editor.state, 'highlight') : null);
+
 </script>
 
 <div class="toolbar">
@@ -222,6 +224,7 @@
           }
         }}
         title={`${t().toolbar.bold} (${withShortcut('Ctrl+B')})`}
+        data-cmd="bold"
       >
         <strong>{t().toolbar.glyphs.bold}</strong>
       </button>
@@ -229,32 +232,96 @@
         class:active={isItalic}
         onclick={() => editor?.chain().focus().toggleItalic().run()}
         title={`${t().toolbar.italic} (${withShortcut('Ctrl+I')})`}
+        data-cmd="italic"
       >
         <em>{t().toolbar.glyphs.italic}</em>
       </button>
-      <button
-        class:active={isUnderline}
-        onclick={() => editor?.chain().focus().toggleUnderline().run()}
-        title={`${t().toolbar.underline} (${withShortcut('Ctrl+U')})`}
+      <!-- The chevron holds the line styles, as the ribbon's split button does. -->
+      {#snippet lineStyles(mark: 'underline' | 'strike')}
+        {#each LINE_STYLES as style}
+          <button onclick={() => { closeMenu(); if (editor) setLineStyle(editor, mark, style); }}>
+            <span style="text-decoration: {mark === 'underline' ? 'underline' : 'line-through'}; text-decoration-style: {style}; text-underline-offset: 3px">{t().ribbon.lineStyles[style]}</span>
+          </button>
+        {/each}
+      {/snippet}
+      <IslandMenu id="underline" cmd="underline" content={underlineGlyph} title={`${t().toolbar.underline} (${withShortcut('Ctrl+U')})`}
+        active={isUnderline} onclick={() => editor?.chain().focus().toggleUnderline().run()}>
+        {@render lineStyles('underline')}
+      </IslandMenu>
+      <IslandMenu id="strike" cmd="strike" content={strikeGlyph} title={`${t().toolbar.strikethrough} (${withShortcut('Ctrl+Shift+S')})`}
+        active={isStrike} onclick={() => editor?.chain().focus().toggleStrike().run()}>
+        {@render lineStyles('strike')}
+      </IslandMenu>
+    </div>
+
+    <div class="toolbar-separator"></div>
+
+    <div class="toolbar-group">
+      <FontPicker {editor} {tick} />
+      <SizePicker {editor} {tick} />
+    </div>
+
+    <div class="toolbar-separator"></div>
+
+    <div class="toolbar-group">
+      <span class="cmd" data-cmd="fontColor"><ColorPicker
+        {editor}
+        currentColor={fontColor}
+        defaultColor="#C00000"
+        title={t().toolbarExpanded.fontColor}
+        chevronTitle={t().toolbarExpanded.chooseFontColor}
+        onOpen={closeMenu}
+        onApply={(c, r) => editor?.chain().focus().setTextSelection(r).setColor(c).run()}
+        onClear={(r) => editor?.chain().focus().setTextSelection(r).unsetColor().run()}
       >
-        <u>{t().toolbar.glyphs.underline}</u>
-      </button>
-      <button
-        class:active={isStrike}
-        onclick={() => editor?.chain().focus().toggleStrike().run()}
-        title={`${t().toolbar.strikethrough} (${withShortcut('Ctrl+Shift+S')})`}
+        {#snippet icon()}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <text x="8" y="14" text-anchor="middle" font-size="15" font-family="sans-serif" fill="currentColor">A</text>
+          </svg>
+        {/snippet}
+      </ColorPicker></span>
+      <span class="cmd" data-cmd="highlight"><ColorPicker
+        {editor}
+        currentColor={highlight}
+        defaultColor="#FFFF00"
+        title={t().toolbarExpanded.highlightColor}
+        chevronTitle={t().toolbarExpanded.chooseHighlightColor}
+        clearLabel={t().toolbarExpanded.noColor}
+        onOpen={closeMenu}
+        onApply={(c, r) => editor?.chain().focus().setTextSelection(r).setHighlight({ color: c }).run()}
+        onClear={(r) => editor?.chain().focus().setTextSelection(r).unsetHighlight().run()}
       >
-        <s>ab</s>
+        {#snippet icon()}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor" opacity="0.3"/>
+          </svg>
+        {/snippet}
+      </ColorPicker></span>
+      <button
+        onclick={() => editor?.commands.clearDirectFormatting()}
+        title={`${t().toolbarExpanded.clearFormatting} (${shortcutHint('clearFormatting')})`}
+        data-cmd="clearFormatting"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <text x="0" y="12" font-size="12" font-family="var(--font-serif, serif)" font-weight="700" font-style="italic" fill="currentColor">A</text>
+          <line x1="0.5" y1="14.2" x2="7.5" y2="14.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <g transform="rotate(35 10 6)">
+            <rect x="6.5" y="3.4" width="9" height="4.4" rx="1.3" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.4"/>
+            <line x1="9.7" y1="3.4" x2="9.7" y2="7.8" stroke="currentColor" stroke-width="1.2"/>
+          </g>
+        </svg>
       </button>
     </div>
 
     <div class="toolbar-separator"></div>
 
     <div class="toolbar-group">
-      <div class="ol-picker" use:menuClickOutside={() => (stylesOpen = false)}>
+      <div class="ol-picker" use:clickOutside={'styles'}>
         <button
           class="style-button"
-          onclick={() => (stylesOpen = !stylesOpen)}
+          data-cmd="styleGallery"
+          onclick={() => toggleMenu('styles')}
           title={t().toolbar.styles.title}
           aria-haspopup="menu"
           aria-expanded={stylesOpen}
@@ -272,6 +339,7 @@
                 {@const preview = resolveStyle(sheet, s.name)}
                 <button
                   class="ol-option style-option"
+                  data-cmd={`style-${s.name}`}
                   class:active={currentStyle === s.name}
                   onclick={() => applyStyle(s.name)}
                   role="menuitemradio"
@@ -307,7 +375,7 @@
                 {/each}
               {/if}
             </div>
-            <button class="ol-option manage" onclick={() => { stylesOpen = false; onManageStyles?.('paragraph'); }}>
+            <button class="ol-option manage" onclick={() => { closeMenu(); onManageStyles?.('paragraph'); }}>
               <!-- Sliders, as on the Tools button: this opens a settings surface -->
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M2 4.5h8M13 4.5h1M2 11.5h1M6 11.5h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
@@ -324,11 +392,12 @@
     <div class="toolbar-separator"></div>
 
     <div class="toolbar-group">
-      <div class="ol-picker" use:menuClickOutside={() => (blMenuOpen = false)}>
+      <div class="ol-picker" use:clickOutside={'bullets'}>
         <div class="ol-split">
           <button
             class="ol-main"
             class:active={isBulletList}
+            data-cmd="bulletList"
             onclick={toggleBulletList}
             title={t().toolbar.bulletList}
           >
@@ -344,7 +413,7 @@
           <button
             class="ol-chevron"
             class:active={isBulletList}
-            onclick={() => (blMenuOpen = !blMenuOpen)}
+            onclick={() => toggleMenu('bullets')}
             title={t().toolbar.bulletSymbol}
             aria-haspopup="menu"
             aria-expanded={blMenuOpen}
@@ -400,11 +469,12 @@
           </div>
         {/if}
       </div>
-      <div class="ol-picker" use:menuClickOutside={() => (olMenuOpen = false)}>
+      <div class="ol-picker" use:clickOutside={'numbering'}>
         <div class="ol-split">
           <button
             class="ol-main"
             class:active={isOrderedList}
+            data-cmd="orderedList"
             onclick={toggleOrderedList}
             title={t().toolbar.orderedList}
           >
@@ -420,7 +490,7 @@
           <button
             class="ol-chevron"
             class:active={isOrderedList}
-            onclick={() => (olMenuOpen = !olMenuOpen)}
+            onclick={() => toggleMenu('numbering')}
             title={t().toolbar.numberingStyle}
             aria-haspopup="menu"
             aria-expanded={olMenuOpen}
@@ -484,6 +554,8 @@
   {/if}
 </div>
 
+{#snippet underlineGlyph()}<u>{t().toolbar.glyphs.underline}</u>{/snippet}
+{#snippet strikeGlyph()}<s>ab</s>{/snippet}
 
 <style>
   /* Sits inside the header island (which paints the frosted background). Not a
@@ -499,8 +571,12 @@
 
   .toolbar-group {
     display: flex;
+    align-items: center;
     gap: 1px;
   }
+
+  /* Marks a reused picker for the command search without adding a box around it. */
+  .cmd { display: contents; }
 
   .toolbar-separator {
     width: 1px;

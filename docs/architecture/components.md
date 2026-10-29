@@ -2,7 +2,7 @@
 
 `App.svelte` owns persisted document and application state. `Editor.svelte` mounts TipTap
 and owns editor-local layout: pagination wiring, zoom, floating tools, and page layers.
-Read `docs/architecture/pagination.md`, `ribbon.md`, `frames.md`, `tables.md`,
+Read `docs/architecture/pagination.md`, `ribbon.md`, `island.md`, `frames.md`, `tables.md`,
 `formatting.md`, `formulas.md`, and `notes.md` before changing their respective features.
 
 ## Ownership and data flow

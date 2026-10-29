@@ -56,7 +56,7 @@
 </script>
 
 <div class="align-picker" use:alignPickerClickOutside>
-  <button class="align-trigger" onclick={openAlignPicker} title={t().align.title}>
+  <button class="align-trigger" data-cmd="alignMenu" onclick={openAlignPicker} title={t().align.title}>
     <AlignIcon value={currentAlign || 'left'} />
     <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
       <path d="M1 2.5l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -68,6 +68,7 @@
       {#each ALIGNMENTS as a}
         <button
           class="align-option"
+          data-cmd={`align-${a}`}
           class:active={currentAlign === a}
           onclick={() => pickAlign(a)}
           title={`${t().align.alignTo(t().align[a])} (${shortcutHint(ALIGN_SHORTCUTS[a])})`}

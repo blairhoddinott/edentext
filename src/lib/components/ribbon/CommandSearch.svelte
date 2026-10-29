@@ -5,13 +5,18 @@
   import { t } from '../../i18n/i18n.svelte';
   import { shortcutHint } from '../../editor/shortcuts';
   import { loadRecentCommands, saveRecentCommands } from '../../storage/theme';
+  import { keepInView } from '../toolbar/island';
 
-  // Word's search box: type part of a command's name, Enter runs the first hit.
-  let { commands, onRun, onCancel }: {
+  // Word's search box: type part of a command's name, Enter runs the first hit. The
+  // island's variant drops its list in the island's look, inside the island's own flow.
+  let { commands, onRun, onCancel, variant = 'ribbon' }: {
     commands: RibbonCommand[];
     onRun: (cmd: RibbonCommand) => void;
     onCancel?: () => void;
+    variant?: 'ribbon' | 'island';
   } = $props();
+
+  const placeList = (node: HTMLElement) => (variant === 'island' ? keepInView(node) : anchored(node));
 
   let input = $state<HTMLInputElement>();
   let query = $state('');
@@ -60,7 +65,7 @@
   }
 </script>
 
-<div class="cmd-search" use:clickOutside={'search'}>
+<div class="cmd-search" class:island={variant === 'island'} use:clickOutside={'search'}>
   <Icon name="find" size={14} />
   <input
     bind:this={input}
@@ -77,7 +82,7 @@
     {onkeydown}
   />
   {#if open}
-    <div class="ribbon-menu" id="cmd-search-list" role="listbox" use:anchored style="min-width: 260px">
+    <div class={variant === 'island' ? 'island-menu right' : 'ribbon-menu'} id="cmd-search-list" role="listbox" use:placeList style="min-width: 260px">
       {#each hits as cmd, i (cmd.id)}
         <!-- Pressed without taking focus, so the input keeps it and the menu stays open. -->
         <button
@@ -93,7 +98,7 @@
           {cmd.label(t())}<span class="menu-sub">{place(cmd)}</span>
         </button>
       {:else}
-        <div class="rb-menu-label">{t().ribbon.searchNoResults}</div>
+        <div class={variant === 'island' ? 'im-label' : 'rb-menu-label'}>{t().ribbon.searchNoResults}</div>
       {/each}
     </div>
   {/if}
@@ -114,6 +119,27 @@
   }
 
   .cmd-search:focus-within { border-color: var(--w-accent); }
+
+  /* The island's own field look: its tokens, its control height, and narrower until
+     it is used. */
+  .cmd-search.island {
+    height: var(--toolbar-btn-size);
+    margin: 0;
+    border-color: var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+  }
+  .cmd-search.island:hover,
+  .cmd-search.island:focus-within { border-color: var(--color-primary); }
+  .cmd-search.island input {
+    width: 8rem;
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    transition: width 0.15s ease;
+  }
+  .cmd-search.island input:focus { width: 13rem; }
 
   .cmd-search input {
     width: 12rem;

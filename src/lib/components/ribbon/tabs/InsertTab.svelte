@@ -86,7 +86,7 @@
     reader.readAsDataURL(file);
   }
 
-  // The dialogs live in Ribbon.svelte — only the open tab is mounted, so one in here
+  // The dialogs live in EventDialogs.svelte — only the open tab is mounted, so one in here
   // would miss Ctrl+K, the context menu and the double-click on a formula. Same events.
   const open = (name: string) => () => window.dispatchEvent(new CustomEvent(name));
 

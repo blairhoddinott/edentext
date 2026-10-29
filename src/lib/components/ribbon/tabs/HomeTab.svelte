@@ -13,6 +13,7 @@
   import { stepFontSize } from '../../../editor/extensions/shortcuts';
 
   import { clipboardCommand, readClipboard } from '../../../editor/contextMenuItems';
+  import { LINE_STYLES, changeIndent as stepIndent, setLineStyle as applyLineStyle } from '../../formatCommands';
   import { BULLET_TYPES } from '../../../utils/bulletListTypes';
   import { formatOrdinal, orderedTypeDef, orderedTypesFor, type OrderedListType } from '../../../utils/orderedListTypes';
   import { effectiveOrderedTypeAt, inChapterHeading } from '../../../editor/extensions/orderedList';
@@ -100,8 +101,6 @@
     editor?.chain().focus().setMark('textStyle', { caps: mode }).run();
   }
 
-  const LINE_STYLES: LineStyle[] = ['solid', 'double', 'dotted', 'dashed', 'wavy'];
-
   // Chinese sets its emphasis dots below the characters, so that is the button's own.
   const EMPHASES: { mode: Emphasis | null; key: 'none' | 'dotBelow' | 'dotAbove' | 'circle' | 'disc' | 'accent' }[] = [
     { mode: null, key: 'none' },
@@ -117,28 +116,13 @@
     editor?.chain().focus().setMark('textStyle', { emphasis: mode }).run();
   }
 
-  // The mark has to exist before its line style means anything, so turn it on too.
   function setLineStyle(mark: 'underline' | 'strike', style: LineStyle) {
     closeMenu();
-    if (!editor) return;
-    const chain = editor.chain().focus();
-    // A bare caret inside a line restyles that whole run, not just the next typed text.
-    // With no run to extend over (an empty line) the mark is only stored, and moving
-    // the selection would drop it.
-    const caret = editor.state.selection.empty && editor.isActive(mark) ? editor.state.selection.from : null;
-    if (caret !== null) chain.extendMarkRange(mark);
-    chain.setMark(mark, { lineStyle: style });
-    if (caret !== null) chain.command(({ tr, commands }) => tr.selection.empty || commands.setTextSelection(caret));
-    chain.run();
+    if (editor) applyLineStyle(editor, mark, style);
   }
 
-  // Inside a list Tab/Shift-Tab nest instead of shifting the paragraph's indent.
   function changeIndent(dir: 1 | -1) {
-    if (!editor) return;
-    const inList = editor.isActive('bulletList') || editor.isActive('orderedList');
-    const chain = editor.chain().focus();
-    if (inList) (dir > 0 ? chain.indentListForward() : chain.indentListBackward()).run();
-    else (dir > 0 ? chain.indentMore() : chain.indentLess()).run();
+    if (editor) stepIndent(editor, dir);
   }
 
   const LINE_HEIGHTS = ['1', '1.15', '1.5', '2', '2.5', '3'];

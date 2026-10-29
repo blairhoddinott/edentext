@@ -1,7 +1,11 @@
 <script lang="ts">
   import type { Editor, ChainedCommands } from '@tiptap/core';
-  import { CellSelection } from '@tiptap/pm/tables';
   import { isHeaderStyled } from '../editor/extensions/tableHeaderRow';
+  import type { CellPadding } from '../editor/extensions/tableCellPadding';
+  import IslandMenu from './toolbar/IslandMenu.svelte';
+  import CaptionDialog from './CaptionDialog.svelte';
+  import Icon from './ribbon/Icon.svelte';
+  import { cellAttr, cellPadding, repeatsHeader } from './tableCells';
   import type { CellVerticalAlign } from '../editor/extensions/tableCellAlign';
   import ColorPicker from './ColorPicker.svelte';
   import TableBorderPicker from './TableBorderPicker.svelte';
@@ -40,31 +44,20 @@
   const isHeaderRow = $derived(tick >= 0 && !!editor && isHeaderStyled(editor.state, 'row'));
   const isHeaderCol = $derived(tick >= 0 && !!editor && isHeaderStyled(editor.state, 'column'));
 
-  // One attribute over the selected cell(s): the uniform value, '' if they disagree,
-  // null if there is no cell. Re-evaluated per `tick`.
-  function cellAttr(name: string): string | null {
-    if (!editor) return null;
-    const sel = editor.state.selection;
-    const values = new Set<string | null>();
-    if (sel instanceof CellSelection) {
-      sel.forEachCell((cell) => values.add((cell.attrs[name] as string) ?? null));
-    } else {
-      const from = sel.$from;
-      for (let d = from.depth; d > 0; d--) {
-        const role = from.node(d).type.spec.tableRole;
-        if (role === 'cell' || role === 'header_cell') {
-          values.add((from.node(d).attrs[name] as string) ?? null);
-          break;
-        }
-      }
-    }
-    if (values.size === 0) return null;
-    if (values.size > 1) return '';
-    return [...values][0] ?? null;
-  }
-  const currentCellColor = $derived(tick >= 0 ? cellAttr('backgroundColor') : null);
+  const currentCellColor = $derived(tick >= 0 && editor ? cellAttr(editor.state, 'backgroundColor') : null);
   // Where the content sits in the cell box; null = top, the default in both formats.
-  const cellVAlign = $derived(tick >= 0 ? cellAttr('verticalAlign') : null);
+  const cellVAlign = $derived(tick >= 0 && editor ? cellAttr(editor.state, 'verticalAlign') : null);
+  const repeatHeader = $derived(tick >= 0 && !!editor && repeatsHeader(editor.state));
+  const padding = $derived(tick >= 0 && editor ? cellPadding(editor.state) : null);
+  let captionOpen = $state(false);
+
+  function setPaddingEdge(i: number, raw: string) {
+    const v = parseFloat(raw.replace(',', '.'));
+    if (!editor || !padding || isNaN(v)) return;
+    const next = [...padding] as CellPadding;
+    next[i] = Math.max(0, v);
+    editor.chain().focus().setCellAttribute('cellPadding', next).run();
+  }
 
   function setVAlign(v: CellVerticalAlign | null) {
     editor?.chain().focus().setCellAttribute('verticalAlign', v).run();
@@ -84,11 +77,12 @@
   role="toolbar"
   tabindex="-1"
   aria-label={t().table.editing}
-  onmousedown={(e) => { if (!(e.target as HTMLElement).closest('.color-picker')) e.preventDefault(); }}
+  onmousedown={(e) => { if (!(e.target as HTMLElement).closest('.color-picker, input, select')) e.preventDefault(); }}
 >
   <button
     class="tt-btn"
     title={t().table.insertRowAbove}
+    data-cmd="insertAbove"
     aria-label={t().table.insertRowAbove}
     onclick={() => run((c) => c.addRowBefore())}
   >
@@ -102,6 +96,7 @@
   <button
     class="tt-btn"
     title={t().table.insertRowBelow}
+    data-cmd="insertBelow"
     aria-label={t().table.insertRowBelow}
     onclick={() => run((c) => c.addRowAfter())}
   >
@@ -115,6 +110,7 @@
   <button
     class="tt-btn"
     title={t().table.insertColumnLeft}
+    data-cmd="insertLeft"
     aria-label={t().table.insertColumnLeft}
     onclick={() => run((c) => c.addColumnBefore())}
   >
@@ -128,6 +124,7 @@
   <button
     class="tt-btn"
     title={t().table.insertColumnRight}
+    data-cmd="insertRight"
     aria-label={t().table.insertColumnRight}
     onclick={() => run((c) => c.addColumnAfter())}
   >
@@ -143,6 +140,7 @@
   <button
     class="tt-btn tt-danger"
     title={t().table.deleteRow}
+    data-cmd="tableDelete-deleteRow"
     aria-label={t().table.deleteRow}
     onclick={() => run((c) => c.deleteRow())}
   >
@@ -156,6 +154,7 @@
   <button
     class="tt-btn tt-danger"
     title={t().table.deleteColumn}
+    data-cmd="tableDelete-deleteColumn"
     aria-label={t().table.deleteColumn}
     onclick={() => run((c) => c.deleteColumn())}
   >
@@ -169,6 +168,7 @@
   <button
     class="tt-btn tt-danger"
     title={t().table.deleteTable}
+    data-cmd="tableDelete-deleteTable"
     aria-label={t().table.deleteTable}
     onclick={() => run((c) => c.deleteTable())}
   >
@@ -182,6 +182,7 @@
   <button
     class="tt-btn"
     title={t().table.mergeCells}
+    data-cmd="mergeCells"
     aria-label={t().table.mergeCells}
     disabled={!canMerge}
     onclick={() => run((c) => c.mergeCells())}
@@ -196,6 +197,7 @@
   <button
     class="tt-btn"
     title={t().table.splitCells}
+    data-cmd="splitCells"
     aria-label={t().table.splitCellsAria}
     onclick={() => onDialog('split')}
   >
@@ -211,6 +213,7 @@
   <button
     class="tt-btn"
     title={t().table.sort}
+    data-cmd="sort"
     aria-label={t().table.sortAria}
     onclick={() => onDialog('sort')}
   >
@@ -223,6 +226,7 @@
   <button
     class="tt-btn"
     title={t().table.formula}
+    data-cmd="tableFormula"
     aria-label={t().table.formulaAria}
     onclick={() => onDialog('formula')}
   >
@@ -235,6 +239,7 @@
     class="tt-btn"
     class:active={numberRecognition()}
     title={t().table.numberRecognition}
+    data-cmd="numberRecognition"
     aria-label={t().table.numberRecognition}
     aria-pressed={numberRecognition()}
     onclick={() => setNumberRecognition(!numberRecognition())}
@@ -248,14 +253,15 @@
   <span class="tt-sep"></span>
 
   {#each [
-    { v: null, label: t().table.cellAlignTop, d: 'M5 5h8M5 8h5' },
-    { v: 'middle', label: t().table.cellAlignMiddle, d: 'M5 7.5h8M5 10.5h5' },
-    { v: 'bottom', label: t().table.cellAlignBottom, d: 'M5 10h8M5 13h5' },
+    { v: null, key: 'Top', label: t().table.cellAlignTop, d: 'M5 5h8M5 8h5' },
+    { v: 'middle', key: 'Middle', label: t().table.cellAlignMiddle, d: 'M5 7.5h8M5 10.5h5' },
+    { v: 'bottom', key: 'Bottom', label: t().table.cellAlignBottom, d: 'M5 10h8M5 13h5' },
   ] as const as a}
     <button
       class="tt-btn"
       class:active={cellVAlign === a.v}
       title={a.label}
+      data-cmd={`cellAlign-${a.key}`}
       aria-label={a.label}
       aria-pressed={cellVAlign === a.v}
       onclick={() => setVAlign(a.v)}
@@ -269,7 +275,7 @@
 
   <span class="tt-sep"></span>
 
-  <ColorPicker
+  <span class="cmd" data-cmd="cellShading"><ColorPicker
     {editor}
     currentColor={currentCellColor}
     defaultColor="#D9D9D9"
@@ -286,11 +292,11 @@
         <path d="M15 12c0 1-.7 2-1.5 2S12 13 12 12c0-.8 1.5-2.3 1.5-2.3S15 11.2 15 12z" fill="currentColor" stroke="none"/>
       </svg>
     {/snippet}
-  </ColorPicker>
+  </ColorPicker></span>
 
-  <TableBorderPicker {editor} {tick} />
+  <span class="cmd" data-cmd="tableBorders"><TableBorderPicker {editor} {tick} /></span>
 
-  <TableStylePicker {editor} {tick} />
+  <span class="cmd" data-cmd="tableStyle"><TableStylePicker {editor} {tick} /></span>
 
   <span class="tt-sep"></span>
 
@@ -298,6 +304,7 @@
     class="tt-btn"
     class:active={isHeaderRow}
     title={t().styles.regions.headerRow}
+    data-cmd="headerRow"
     aria-label={t().styles.regions.headerRow}
     aria-pressed={isHeaderRow}
     onclick={() => run((c) => c.toggleHeaderRowStyle())}
@@ -315,6 +322,7 @@
     class="tt-btn"
     class:active={isHeaderCol}
     title={t().styles.regions.firstColumn}
+    data-cmd="firstColumn"
     aria-label={t().styles.regions.firstColumn}
     aria-pressed={isHeaderCol}
     onclick={() => run((c) => c.toggleHeaderColumnStyle())}
@@ -327,10 +335,51 @@
       <line x1="6.5" y1="9" x2="16.5" y2="9" stroke="currentColor" stroke-width="1.1"/>
     </svg>
   </button>
+
+  <!-- The structural header: the first row again on every page the table runs on to. -->
+  <button
+    class="tt-btn"
+    class:active={repeatHeader}
+    title={t().ribbon.repeatHeaderRowHint}
+    aria-label={t().ribbon.repeatHeaderRow}
+    aria-pressed={repeatHeader}
+    data-cmd="repeatHeaderRow"
+    onclick={() => run((c) => c.updateAttributes('table', { repeatHeader: repeatHeader ? null : true }))}
+  >
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="15" height="4.5" rx="1" fill="currentColor" opacity="0.85"/>
+      <rect x="1.5" y="10.5" width="15" height="4.5" rx="1" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5"/>
+      <path d="M9 7v2.5M7.5 8.2 9 9.7l1.5-1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <span class="tt-sep"></span>
+
+  <IslandMenu id="cellMargins" icon="cellMargins" cmd="cellMargins" title={t().ribbon.cellMargins} disabled={!padding} minWidth={210}>
+    {#if padding}
+      <div class="im-label">{t().ribbon.cellMargins} (cm)</div>
+      <div class="im-grid">
+        {#each (['top', 'right', 'bottom', 'left'] as const) as edge, i}
+          <label class="im-field">
+            <span>{t().toolbarExpanded.margins[edge]}</span>
+            <input type="text" inputmode="decimal" value={padding[i]} onchange={(e) => setPaddingEdge(i, e.currentTarget.value)} />
+          </label>
+        {/each}
+      </div>
+    {/if}
+  </IslandMenu>
+
+  <button class="tt-btn" title={t().caption.title} aria-label={t().ribbon.insertCaption} onclick={() => (captionOpen = true)}>
+    <Icon name="caption" size={18} />
+  </button>
 </div>
+
+<CaptionDialog bind:open={captionOpen} {editor} />
 
 <style>
   .table-toolbar {
+    /* The island's menu triggers take the floating toolbars' button size. */
+    --toolbar-btn-size: 1.7rem;
     position: absolute;
     /* Sit just above the table's top-left corner. */
     transform: translateY(calc(-100% - 6px));
@@ -381,6 +430,9 @@
     background: #fdecea;
     color: #c0392b;
   }
+
+  /* Marks a reused picker for the command search without adding a box around it. */
+  .cmd { display: contents; }
 
   .tt-sep {
     width: 1px;

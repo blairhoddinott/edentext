@@ -18,13 +18,10 @@
   import UiLanguagePicker from '../UiLanguagePicker.svelte';
   import ParagraphDialog from '../ParagraphDialog.svelte';
   import TabsDialog from '../TabsDialog.svelte';
-  import LinkDialog from '../LinkDialog.svelte';
-  import BookmarkDialog from '../BookmarkDialog.svelte';
-  import CrossRefDialog from '../CrossRefDialog.svelte';
-  import FormulaDialog from '../FormulaDialog.svelte';
   import CommandSearch from './CommandSearch.svelte';
   import { clickOutside, isMenuOpen, pinPanels, toggleMenu, closeMenu, showMenu } from './menu.svelte';
-  import { CONTEXTUAL, RIBBON_COMMANDS, TABS, styleCommands, type RibbonCommand, type Tab } from './commands';
+  import { RIBBON_COMMANDS, TABS, actOnCommand, searchableCommands, styleCommands, tabOf, type RibbonCommand, type Tab } from './commands';
+  import { contextualTabs, inTextBox } from './contextTabs';
   import { visibleStyles } from '../../styles/styleSheet';
   import { showAllStyles, styleSheet } from '../../styles/sheet.svelte';
   import { tick as settled } from 'svelte';
@@ -32,10 +29,6 @@
   import { withShortcut } from '../../i18n/shortcut';
   import { shortcutHint } from '../../editor/shortcuts';
   import { findTextBox } from '../../editor/extensions/textBox';
-  import { OPEN_LINK_DIALOG_EVENT } from '../../editor/extensions/link';
-  import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames, findBookmark } from '../../editor/extensions/bookmark';
-  import { OPEN_CROSS_REF_DIALOG_EVENT } from '../../editor/extensions/crossReference';
-  import { EDIT_FORMULA_EVENT } from '../../editor/extensions/formula';
   import { loadRibbonCollapsed, saveRibbonCollapsed, type ThemeMode } from '../../storage/theme';
   import type { StyleFamily } from '../../styles/styleSheet';
   import { DEFAULT_MARGINS, type PageMargins } from '../../storage/pageMargins';
@@ -167,35 +160,18 @@
   // Word opens on Home every time, so the active tab is not persisted.
   let tab = $state<Tab>('home');
 
-  // Word's contextual tabs: they appear while the caret is in the object and
-  // vanish with it, so a tab that disappears hands the strip back to Home.
-  let inTable = $derived(tick >= 0 && !!editor?.isActive('table'));
-
-  let selectedNode = $derived.by<string | null>(() => {
-    if (tick < 0 || !editor) return null;
-    const sel = editor.state.selection;
-    return sel instanceof NodeSelection ? sel.node.type.name : null;
-  });
-
-  // A text box is worked on with the caret inside it just as often as with the box
-  // selected, so the tab follows the caret — the floating toolbar reads the same box.
+  // A tab that disappears with its object hands the strip back to Home.
   let textBox = $derived.by(() => (tick >= 0 && editor ? findTextBox(editor.state) : null));
-  let inTextBox = $derived(!!textBox && selectedNode !== 'image');
+  let boxed = $derived(tick >= 0 && !!editor && inTextBox(editor));
 
   let frameAttrs = $derived.by<Record<string, unknown> | null>(() => {
     if (tick < 0 || !editor) return null;
     const sel = editor.state.selection;
-    if (sel instanceof NodeSelection && !inTextBox) return sel.node.attrs;
+    if (sel instanceof NodeSelection && !boxed) return sel.node.attrs;
     return textBox?.node.attrs ?? null;
   });
 
-  let shown = $derived([
-    ...TABS,
-    ...(inTable ? (['tableDesign', 'tableLayout'] as const) : []),
-    ...(selectedNode === 'image' ? (['pictureFormat'] as const) : []),
-    ...(inTextBox ? (['shapeFormat'] as const) : []),
-    ...(hfActive ? (['headerFooter'] as const) : []),
-  ] as Tab[]);
+  let shown = $derived([...TABS, ...(tick >= 0 ? contextualTabs(editor, hfActive) : [])] as Tab[]);
 
   // The one contextual tab that opens itself: a zone is entered to work on the zone,
   // and the tab is the only place its fields and options are.
@@ -205,100 +181,6 @@
 
   $effect(() => {
     if (!shown.includes(tab)) tab = 'home';
-  });
-
-  // The four dialogs the Insert tab's buttons, Ctrl+K, the context menu and a
-  // double-click on a formula all open. They live here, not in the tab: the ribbon
-  // mounts only the open tab, and a dialog in a closed one hears no event.
-  let linkOpen = $state(false);
-  let linkUrl = $state('');
-  let bookmarkOpen = $state(false);
-  let crossRefOpen = $state(false);
-  let formulaOpen = $state(false);
-  let formulaLatex = $state('');
-  let formulaDisplay = $state(false);
-  let formulaPos = $state<number | null>(null);
-
-  let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
-  let isLink = $derived(tick >= 0 && !!editor?.isActive('link'));
-  let bmNames = $derived(tick >= 0 && editor ? bookmarkNames(editor.state.doc) : []);
-
-  function openLink() {
-    if (!editor) return;
-    linkUrl = (editor.getAttributes('link').href as string) ?? '';
-    linkOpen = true;
-  }
-
-  // A bare host or e-mail gets a scheme, as in Word and LibreOffice.
-  function normalizeUrl(raw: string): string {
-    const s = raw.trim();
-    if (!s) return '';
-    if (/^(https?:|mailto:|tel:|ftp:|#|\/)/i.test(s)) return s;
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return `mailto:${s}`;
-    return `https://${s}`;
-  }
-
-  function applyLink(raw: string) {
-    linkOpen = false;
-    if (!editor) return;
-    const href = normalizeUrl(raw);
-    if (!href) return;
-    const { empty } = editor.state.selection;
-    // With nothing selected the URL becomes its own link text.
-    if (empty) editor.chain().focus().insertContent({ type: 'text', text: href, marks: [{ type: 'link', attrs: { href } }] }).run();
-    else editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
-  }
-
-  function openBookmark() {
-    if (!editor || !hasSelection) return;
-    crossRefOpen = false;
-    bookmarkOpen = true;
-  }
-
-  function openCrossRef() {
-    if (!editor) return;
-    bookmarkOpen = false;
-    crossRefOpen = true;
-  }
-
-  // The window stays open on a jump: it is modeless and movable, so the point of the
-  // list is to walk the bookmarks without reopening it.
-  function goToBookmark(name: string) {
-    const found = editor && findBookmark(editor.state.doc, name);
-    if (!editor || !found) return;
-    editor.chain().focus().setTextSelection({ from: found.from, to: found.to }).scrollIntoView().run();
-  }
-
-  function applyFormula(latex: string, display: boolean) {
-    if (!editor) return;
-    if (formulaPos != null) editor.chain().focus().updateFormula(formulaPos, { latex, display }).run();
-    else editor.chain().focus().insertFormula({ latex, display }).run();
-    formulaPos = null;
-  }
-
-  $effect(() => {
-    const onLink = () => openLink();
-    const onBm = () => openBookmark();
-    const onXr = () => openCrossRef();
-    // With a formula's position and source: the double-click on an existing one.
-    // Without: the Insert tab's button, which starts an empty dialog.
-    const onFormula = (e: Event) => {
-      const d = (e as CustomEvent<{ pos: number; latex: string; display: boolean }>).detail;
-      formulaPos = d ? d.pos : null;
-      formulaLatex = d ? d.latex : '';
-      formulaDisplay = d ? d.display : false;
-      formulaOpen = true;
-    };
-    window.addEventListener(OPEN_LINK_DIALOG_EVENT, onLink);
-    window.addEventListener(OPEN_BOOKMARK_DIALOG_EVENT, onBm);
-    window.addEventListener(OPEN_CROSS_REF_DIALOG_EVENT, onXr);
-    window.addEventListener(EDIT_FORMULA_EVENT, onFormula);
-    return () => {
-      window.removeEventListener(OPEN_LINK_DIALOG_EVENT, onLink);
-      window.removeEventListener(OPEN_BOOKMARK_DIALOG_EVENT, onBm);
-      window.removeEventListener(OPEN_CROSS_REF_DIALOG_EVENT, onXr);
-      window.removeEventListener(EDIT_FORMULA_EVENT, onFormula);
-    };
   });
 
   let docNameSizerWidth = $state(0);
@@ -315,25 +197,16 @@
 
   // A hit opens its tab (or the File menu) and clicks the control itself, so the user
   // sees where the command lives and a disabled one stays disabled.
-  const tabOf = (c: RibbonCommand) => (c.tab === null ? null : [c.tab].flat().find((x) => shown.includes(x)));
-  let searchable = $derived([
+  let searchable = $derived(searchableCommands([
     ...RIBBON_COMMANDS,
     ...styleCommands(visibleStyles(styleSheet(), showAllStyles()).map((s) => s.name)),
-  ].filter((c) => (c.tab === null || tabOf(c)) && (aiEnabled() || !c.id.startsWith('ai')) && !(volatile && c.id === 'browserDocuments')));
+  ], shown, { ai: aiEnabled(), volatile }));
 
-  // A colour split's own half applies the last colour; its palette is behind the chevron.
-  function act(id: string) {
-    const el = document.querySelector(`.ribbon [data-cmd="${CSS.escape(id)}"]`);
-    const target = el?.matches('button, input, select') ? el : el?.querySelector('.color-chevron') ?? el?.querySelector('button, input, select');
-    if (target instanceof HTMLSelectElement || (target instanceof HTMLInputElement && !['checkbox', 'radio'].includes(target.type))) {
-      target.focus();
-      if (target instanceof HTMLInputElement) target.select();
-    } else (target as HTMLElement | null | undefined)?.click();
-  }
+  const act = (id: string) => actOnCommand(document.querySelector(`.ribbon [data-cmd="${CSS.escape(id)}"]`));
 
   async function runCommand(c: RibbonCommand) {
     closeMenu();
-    const to = tabOf(c);
+    const to = tabOf(c, shown);
     if (to) {
       tab = to;
       collapsed = false;
@@ -567,10 +440,6 @@
   </div>
   {/if}
 
-  <LinkDialog open={linkOpen} initialUrl={linkUrl} canRemove={isLink} onApply={applyLink} onRemove={() => { linkOpen = false; editor?.chain().focus().extendMarkRange('link').unsetLink().run(); }} onClose={() => (linkOpen = false)} />
-  <BookmarkDialog open={bookmarkOpen} names={bmNames} canApply={hasSelection} onApply={(n) => { bookmarkOpen = false; editor?.chain().focus().setBookmark(n).run(); }} onRemove={(n) => editor?.chain().focus().removeBookmark(n).run()} onGoTo={goToBookmark} onClose={() => (bookmarkOpen = false)} />
-  <CrossRefDialog open={crossRefOpen} {editor} {tick} onClose={() => (crossRefOpen = false)} />
-  <FormulaDialog bind:open={formulaOpen} initialLatex={formulaLatex} initialDisplay={formulaDisplay} onApply={applyFormula} />
   <ParagraphDialog bind:open={paragraphDialogOpen} {editor} {tick} onTabs={() => (tabsDialogOpen = true)} />
   <TabsDialog bind:open={tabsDialogOpen} {editor} {tick} bind:tabIntervalCm />
 </div>

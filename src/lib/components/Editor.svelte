@@ -18,7 +18,7 @@
   import ImageToolbar from './ImageToolbar.svelte';
   import TextBoxToolbar from './TextBoxToolbar.svelte';
   import type { WrapMode } from '../editor/extensions/image';
-  import { findTextBox, type ShapeKind } from '../editor/extensions/textBox';
+  import { findTextBox, type ShapeKind, type TextVAlign } from '../editor/extensions/textBox';
   import { catchUpIndexes } from '../editor/extensions/tableOfContents';
   import { fitPastedSlice } from '../editor/paste';
   import { readClickCaret } from '../editor/clickCaret';
@@ -859,7 +859,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
 
   // --- Floating image wrap toolbar ---
   // Shown when a single image node is selected; positioned just above it.
-  let imageUi = $state<{ visible: boolean; top: number; left: number; wrap: WrapMode; inFront: boolean }>({ visible: false, top: 0, left: 0, wrap: 'inline', inFront: false });
+  let imageUi = $state<{ visible: boolean; top: number; left: number; wrap: WrapMode; inFront: boolean; wrapDist: unknown; alt: string }>({ visible: false, top: 0, left: 0, wrap: 'inline', inFront: false, wrapDist: null, alt: '' });
 
   function recomputeImageUi() {
     const ed = uiEditor;
@@ -883,6 +883,8 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
       left: r.left - cRect.left + container.scrollLeft,
       wrap: ((sel as NodeSelection).node.attrs.wrap as WrapMode) || 'inline',
       inFront: (sel as NodeSelection).node.attrs.inFront === true,
+      wrapDist: (sel as NodeSelection).node.attrs.wrapDist ?? null,
+      alt: ((sel as NodeSelection).node.attrs.alt as string) ?? '',
     };
   }
 
@@ -892,8 +894,8 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
   let textBoxUi = $state<{
     visible: boolean; top: number; left: number;
     wrap: WrapMode; inFront: boolean; wrapAlign: string | null; shapeKind: ShapeKind; fillColor: string | null;
-    strokeColor: string | null; strokeWidthPt: number; textVertical: boolean;
-  }>({ visible: false, top: 0, left: 0, wrap: 'inline', inFront: false, wrapAlign: null, shapeKind: 'textbox', fillColor: '#FFFFFF', strokeColor: '#000000', strokeWidthPt: 1, textVertical: false });
+    strokeColor: string | null; strokeWidthPt: number; textVertical: boolean; textVAlign: TextVAlign; wrapDist: unknown;
+  }>({ visible: false, top: 0, left: 0, wrap: 'inline', inFront: false, wrapAlign: null, shapeKind: 'textbox', fillColor: '#FFFFFF', strokeColor: '#000000', strokeWidthPt: 1, textVertical: false, textVAlign: 'top', wrapDist: null });
 
   function recomputeTextBoxUi() {
     const ed = uiEditor;
@@ -920,6 +922,8 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
       strokeColor: (a.strokeColor as string | null) ?? null,
       strokeWidthPt: (a.strokeWidthPt as number) ?? 1,
       textVertical: a.textVertical === true,
+      textVAlign: (a.textVAlign as TextVAlign) || 'top',
+      wrapDist: a.wrapDist ?? null,
     };
   }
 
@@ -1959,7 +1963,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     </div>
   {/if}
   {#if imageUi.visible}
-    <ImageToolbar editor={uiEditor} top={imageUi.top} left={imageUi.left} wrap={imageUi.wrap} inFront={imageUi.inFront} />
+    <ImageToolbar editor={uiEditor} tick={uiTick} top={imageUi.top} left={imageUi.left} wrap={imageUi.wrap} inFront={imageUi.inFront} wrapDist={imageUi.wrapDist} alt={imageUi.alt} />
   {/if}
   {#if textBoxUi.visible}
     <TextBoxToolbar
@@ -1974,6 +1978,9 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
       strokeColor={textBoxUi.strokeColor}
       strokeWidthPt={textBoxUi.strokeWidthPt}
       textVertical={textBoxUi.textVertical}
+      textVAlign={textBoxUi.textVAlign}
+      wrapDist={textBoxUi.wrapDist}
+      tick={uiTick}
     />
   {/if}
   {#if ctxMenu}

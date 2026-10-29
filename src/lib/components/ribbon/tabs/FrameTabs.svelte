@@ -7,7 +7,8 @@
   import ShapePicker from '../../ShapePicker.svelte';
   import BorderWidthBox from '../../BorderWidthBox.svelte';
   import CaptionDialog from '../../CaptionDialog.svelte';
-  import { droppedFrameAttrs, wrapGap, wrapGapAttr, type WrapGap, type WrapMode } from '../../../editor/extensions/image';
+  import { wrapGap, type WrapGap, type WrapMode } from '../../../editor/extensions/image';
+  import { GAP_LABEL, GAP_SIDES, ORDERS, ORDER_ICON, ORDER_LABEL, hasWrapGap, setFrameGap, setFrameWrap, wrapChoice, type WrapChoice } from '../../frameCommands';
   import type { ShapeKind, TextVAlign } from '../../../editor/extensions/textBox';
   import { t } from '../../../i18n/i18n.svelte';
 
@@ -29,9 +30,6 @@
     textVAlign?: TextVAlign;
   } = $props();
 
-  // The two run-through entries are one mode, told apart by which side of the text the
-  // frame lands on — as in Word's layout options, whose "tight" no browser can draw.
-  type WrapChoice = WrapMode | 'behind' | 'front';
   const WRAPS: { key: WrapChoice; icon: 'wrapInline' | 'wrapLeft' | 'wrapRight' | 'wrapTopBottom' | 'wrapBehind' | 'wrapFront'; label: () => string }[] = [
     { key: 'inline', icon: 'wrapInline', label: () => t().image.wrapInline },
     { key: 'left', icon: 'wrapLeft', label: () => t().image.wrapLeft },
@@ -40,7 +38,7 @@
     { key: 'behind', icon: 'wrapBehind', label: () => t().image.wrapBehind },
     { key: 'front', icon: 'wrapFront', label: () => t().image.wrapFront },
   ];
-  const active = $derived<WrapChoice>(wrap === 'through' ? (inFront ? 'front' : 'behind') : wrap);
+  const active = $derived(wrapChoice(wrap, inFront));
 
   const VALIGNS: { key: TextVAlign; icon: 'alignTop' | 'alignMiddle' | 'alignBottom'; label: () => string }[] = [
     { key: 'top', icon: 'alignTop', label: () => t().textBox.vAlignTop },
@@ -48,45 +46,23 @@
     { key: 'bottom', icon: 'alignBottom', label: () => t().textBox.vAlignBottom },
   ];
 
-  // Over or under the other free frames; only those overlap, so a frame in the flow has none.
-  const ORDERS = [
-    { key: 'forward', icon: 'orderForward', label: () => t().image.orderForward },
-    { key: 'backward', icon: 'orderBackward', label: () => t().image.orderBackward },
-    { key: 'front', icon: 'orderFront', label: () => t().image.orderFront },
-    { key: 'back', icon: 'orderBack', label: () => t().image.orderBack },
-  ] as const;
-  const canOrder = $derived(tick >= 0 && !!editor ? Object.fromEntries(ORDERS.map((o) => [o.key, editor.can().restackFrame(o.key)])) : {});
+  const ORDER_ITEMS = ORDERS.map((key) => ({ key, icon: ORDER_ICON[key], label: ORDER_LABEL[key] }));
+  const canOrder = $derived(tick >= 0 && !!editor ? Object.fromEntries(ORDERS.map((o) => [o, editor.can().restackFrame(o)])) : {});
 
-  // The space the frame keeps to the text, per side: only a frame the text wraps has one.
   const gap = $derived(wrapGap(wrapDist));
-  const GAP_SIDES: { key: keyof WrapGap; label: () => string }[] = [
-    { key: 'top', label: () => t().image.gapTop },
-    { key: 'bottom', label: () => t().image.gapBottom },
-    { key: 'left', label: () => t().image.gapLeft },
-    { key: 'right', label: () => t().image.gapRight },
-  ];
-  function setGap(side: keyof WrapGap, raw: string) {
-    const v = parseFloat(raw.replace(',', '.'));
-    if (isNaN(v)) return;
-    const wrapDist = wrapGapAttr({ ...gap, [side]: Math.max(0, Math.min(10, v)) });
-    if (which === 'picture') editor?.chain().focus().setImageAttrs({ wrapDist }).run();
-    else editor?.chain().focus().setTextBoxAttrs({ wrapDist }).run();
-  }
+  const GAPS = GAP_SIDES.map((key) => ({ key, label: GAP_LABEL[key] }));
+  const setGap = (side: keyof WrapGap, raw: string) => setFrameGap(editor, which, wrapDist, side, raw);
 
   let captionOpen = $state(false);
 
-  function setWrap(w: WrapChoice) {
-    const mode: WrapMode = w === 'behind' || w === 'front' ? 'through' : w;
-    if (which === 'picture') editor?.chain().focus().setImageWrap(mode, w === 'front').run();
-    else editor?.chain().focus().setTextBoxAttrs({ wrap: mode, ...droppedFrameAttrs(mode, w === 'front', wrap) }).run();
-  }
+  const setWrap = (w: WrapChoice) => setFrameWrap(editor, which, w, wrap);
 </script>
 
 <RibbonGroup label={t().ribbon.groups.arrange}>
   {#each WRAPS as w}
     <RibbonButton variant="big" icon={w.icon} cmd={`wrap-${w.key}`} label={w.label()} title={w.label()} active={active === w.key} onclick={() => setWrap(w.key)} />
   {/each}
-  {#each [ORDERS.slice(0, 2), ORDERS.slice(2)] as col}
+  {#each [ORDER_ITEMS.slice(0, 2), ORDER_ITEMS.slice(2)] as col}
     <div class="rb-col">
       {#each col as o}
         <RibbonButton variant="small" icon={o.icon} cmd={`order-${o.key}`} label={o.label()} title={o.label()} disabled={!canOrder[o.key]} onclick={() => editor?.chain().focus().restackFrame(o.key).run()} />
@@ -100,7 +76,7 @@
 <RibbonGroup label={t().image.wrapGap}>
   <div class="gap-grid">
     {#each [0, 2, 1, 3] as i}
-      {@const side = GAP_SIDES[i]}
+      {@const side = GAPS[i]}
       <label class="field" data-cmd={`wrapGap-${side.key}`}>
         <span>{t().toolbarExpanded.hfField(side.label())}</span>
         <input
@@ -109,7 +85,7 @@
           max="10"
           step="0.1"
           value={gap[side.key]}
-          disabled={wrap === 'inline' || wrap === 'through'}
+          disabled={!hasWrapGap(wrap)}
           onchange={(e) => setGap(side.key, (e.currentTarget as HTMLInputElement).value)}
         />
       </label>

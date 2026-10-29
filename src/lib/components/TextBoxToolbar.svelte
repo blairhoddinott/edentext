@@ -1,7 +1,10 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
-  import { droppedFrameAttrs, type WrapMode } from '../editor/extensions/image';
-  import type { ShapeKind, TextBoxAttrs } from '../editor/extensions/textBox';
+  import type { WrapMode } from '../editor/extensions/image';
+  import type { ShapeKind, TextBoxAttrs, TextVAlign } from '../editor/extensions/textBox';
+  import FrameMenus from './toolbar/FrameMenus.svelte';
+  import Icon from './ribbon/Icon.svelte';
+  import { WRAP_CHOICES, setFrameWrap, wrapChoice, type WrapChoice } from './frameCommands';
   import ColorPicker from './ColorPicker.svelte';
   import ShapePicker from './ShapePicker.svelte';
   import BorderWidthBox from './BorderWidthBox.svelte';
@@ -19,6 +22,9 @@
     strokeColor,
     strokeWidthPt,
     textVertical,
+    textVAlign = 'top',
+    wrapDist = null,
+    tick,
   }: {
     editor: Editor | null;
     top: number;
@@ -31,7 +37,16 @@
     strokeColor: string | null;
     strokeWidthPt: number;
     textVertical: boolean;
+    textVAlign?: TextVAlign;
+    wrapDist?: unknown;
+    tick: number;
   } = $props();
+
+  const VALIGNS: { key: TextVAlign; icon: 'alignTop' | 'alignMiddle' | 'alignBottom'; label: () => string }[] = [
+    { key: 'top', icon: 'alignTop', label: () => t().textBox.vAlignTop },
+    { key: 'middle', icon: 'alignMiddle', label: () => t().textBox.vAlignMiddle },
+    { key: 'bottom', icon: 'alignBottom', label: () => t().textBox.vAlignBottom },
+  ];
 
   let fillOpen = $state(false);
   let strokeOpen = $state(false);
@@ -40,15 +55,10 @@
     editor?.chain().focus().setTextBoxAttrs(attrs).run();
   }
 
-  // As on an image: the two run-through entries are one mode told apart by inFront,
-  // and picking any mode by hand drops the offsets of the one it replaces.
-  type WrapChoice = WrapMode | 'behind' | 'front';
-  const wrapModes: WrapChoice[] = ['inline', 'left', 'right', 'topBottom', 'behind', 'front'];
-  const activeWrap = $derived<WrapChoice>(wrap === 'through' ? (inFront ? 'front' : 'behind') : wrap);
-  function setWrap(m: WrapChoice) {
-    const mode: WrapMode = m === 'behind' || m === 'front' ? 'through' : m;
-    set({ wrap: mode, ...droppedFrameAttrs(mode, m === 'front', wrap) });
-  }
+  // As on an image: the two run-through entries are one mode told apart by inFront.
+  const wrapModes = WRAP_CHOICES;
+  const activeWrap = $derived(wrapChoice(wrap, inFront));
+  const setWrap = (m: WrapChoice) => setFrameWrap(editor, 'shape', m, wrap);
   function wrapTitle(m: WrapChoice): string {
     return m === 'inline' ? t().textBox.wrapInline
       : m === 'left' ? t().textBox.wrapLeft
@@ -87,7 +97,7 @@
   aria-label={t().textBox.toolbar}
   onmousedown={(e) => {
     // Keep the box selection/caret; buttons work via click.
-    if ((e.target as HTMLElement).closest('select') === null) e.preventDefault();
+    if ((e.target as HTMLElement).closest('select, input') === null) e.preventDefault();
   }}
 >
   {#each wrapModes as m}
@@ -95,6 +105,7 @@
       class="tb-btn"
       class:active={activeWrap === m}
       title={wrapTitle(m)}
+      data-cmd={`wrap-${m}`}
       aria-label={wrapTitle(m)}
       aria-pressed={activeWrap === m}
       onclick={() => setWrap(m)}
@@ -172,8 +183,9 @@
 
   <button
     class="tb-btn"
-    class:on={textVertical}
+    class:active={textVertical}
     title={t().textBox.verticalText}
+    data-cmd="verticalText"
     aria-pressed={textVertical}
     onclick={() => set({ textVertical: !textVertical })}
   >
@@ -183,11 +195,23 @@
     </svg>
   </button>
 
-  <ShapePicker value={shapeKind} onPick={(k) => set({ shapeKind: k })} compact />
+  {#each VALIGNS as v}
+    <button
+      class="tb-btn"
+      class:active={textVAlign === v.key}
+      title={v.label()}
+      aria-label={v.label()}
+      aria-pressed={textVAlign === v.key}
+      data-cmd={`textAlign-${v.icon.slice(5)}`}
+      onclick={() => set({ textVAlign: v.key })}
+    ><Icon name={v.icon} size={16} /></button>
+  {/each}
+
+  <span class="cmd" data-cmd="shape"><ShapePicker value={shapeKind} onPick={(k) => set({ shapeKind: k })} compact /></span>
 
   <span class="tb-sep"></span>
 
-  <ColorPicker
+  <span class="cmd" data-cmd="fillColor"><ColorPicker
     {editor}
     bind:open={fillOpen}
     currentColor={fillColor}
@@ -206,9 +230,9 @@
         <path d="M15 12c0 1-.7 2-1.5 2S12 13 12 12c0-.8 1.5-2.3 1.5-2.3S15 11.2 15 12z" fill="currentColor" stroke="none"/>
       </svg>
     {/snippet}
-  </ColorPicker>
+  </ColorPicker></span>
 
-  <ColorPicker
+  <span class="cmd" data-cmd="borderColor"><ColorPicker
     {editor}
     bind:open={strokeOpen}
     currentColor={strokeColor}
@@ -226,14 +250,19 @@
         <rect x="6.5" y="6.5" width="5" height="5" stroke="currentColor" stroke-width="0.9" stroke-dasharray="1.6 1.2" />
       </svg>
     {/snippet}
-  </ColorPicker>
+  </ColorPicker></span>
 
-  <BorderWidthBox value={String(strokeWidthPt)} presets={strokeWidths} none={false} style="flex: none; width: 4.5rem; height: 1.7rem"
-    onChange={(w) => set({ strokeWidthPt: Number(w) })} />
+  <span class="cmd" data-cmd="borderWidth"><BorderWidthBox value={String(strokeWidthPt)} presets={strokeWidths} none={false} style="flex: none; width: 4.5rem; height: 1.7rem"
+    onChange={(w) => set({ strokeWidthPt: Number(w) })} /></span>
+
+  <span class="tb-sep"></span>
+
+  <FrameMenus {editor} {tick} kind="shape" {wrap} {wrapDist} />
 </div>
 
 <style>
   .tb-toolbar {
+    --toolbar-btn-size: 1.7rem;
     position: absolute;
     transform: translateY(calc(-100% - 6px));
     z-index: 150;
@@ -271,6 +300,8 @@
     background: var(--color-btn-active, var(--color-btn-hover));
     color: var(--color-accent, #3b82f6);
   }
+
+  .cmd { display: contents; }
 
   .tb-sep {
     width: 1px;

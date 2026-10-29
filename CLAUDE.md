@@ -88,7 +88,7 @@ Read directory-level `CLAUDE.md` files when touching that directory; read archit
 | Styles | `src/lib/styles/CLAUDE.md`, `docs/architecture/styles.md` |
 | localStorage, margins, themes | `src/lib/storage/CLAUDE.md` |
 | UI languages and catalogs | `src/lib/i18n/CLAUDE.md` |
-| Ribbon | `docs/architecture/ribbon.md` |
+| Ribbon, floating island | `docs/architecture/ribbon.md`, `docs/architecture/island.md` |
 | AI assistant, kill switch, tracked tool edits | `docs/architecture/ai.md` |
 | Pagination, columns | `docs/architecture/pagination.md` |
 | Images, text boxes, wrap | `docs/architecture/frames.md` |

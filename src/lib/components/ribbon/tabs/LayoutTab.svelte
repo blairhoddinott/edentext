@@ -4,11 +4,11 @@
   import RibbonButton from '../RibbonButton.svelte';
   import { anchored, clickOutside, isMenuOpen, toggleMenu, closeMenu } from '../menu.svelte';
   import { uniformBlockAttr } from '../../../utils/selectionFormat';
-  import { findColumns, DEFAULT_COLUMN_GAP_CM } from '../../../editor/extensions/columns';
+  import { MARGIN_PRESETS, columnState, sectionAt, sectionValue, withSectionProps } from '../../sectionSetup';
   import { PAGE_FORMAT_CM, formatDimsCm, isNamedFormat, pageDimsCm, sizeSetup, type NamedPageFormat, type PageFormat } from '../../../storage/pageFormat';
   import { DEFAULT_MARGINS, marginAxisLabel, withMirrored, type PageMargins } from '../../../storage/pageMargins';
   import type { Orientation } from '../../../storage/pageOrientation';
-  import { EMPTY_HF_SET, spreadMargins, type HfSet, type HfZone, type PageSide } from '../../../storage/headerFooter';
+  import { spreadMargins, type HfSet, type HfZone, type PageSide } from '../../../storage/headerFooter';
   import { DEFAULT_PAGE_NUMBERING, PAGE_NUM_FORMATS, clampPageStart, type PageNumbering } from '../../../storage/pageNumbering';
   import { EMPTY_PAGE_DECOR, type PageDecor } from '../../../storage/pageDecor';
   import { DEFAULT_LINE_NUMBERING, type LineNumbering } from '../../../storage/lineNumbering';
@@ -53,60 +53,27 @@
   // and export on the same condition.
   const foldMarksFit = $derived(pageFormat === 'A4' && pageOrientation === 'portrait');
 
-  // The section the cursor is in: every top-level block carrying `sectionBreak` opens
-  // the next one, so counting them up to the cursor is the index. 0 = the document's
-  // own first section, which has no HfSet of its own.
-  let currentSection = $derived.by(() => {
-    if (tick < 0 || !editor) return 0;
-    const at = editor.state.selection.from;
-    let n = 0;
-    editor.state.doc.forEach((node, pos) => {
-      if (pos < at && node.attrs?.sectionBreak === true) n++;
-    });
-    return n;
-  });
+  let currentSection = $derived(tick >= 0 && editor ? sectionAt(editor.state) : 0);
   // The paper and orientation the section sets itself — null where it takes the
   // document's, so the menu can mark that row instead of one it never chose.
-  let sectionFormat = $derived(
-    currentSection > 0 ? extraHfSections[currentSection - 1]?.format ?? null : null,
-  );
-  let sectionOrientation = $derived(
-    currentSection > 0 ? extraHfSections[currentSection - 1]?.orientation ?? null : null,
-  );
+  let sectionFormat = $derived(sectionValue(extraHfSections, currentSection, 'format'));
+  let sectionOrientation = $derived(sectionValue(extraHfSections, currentSection, 'orientation'));
 
-  // Word's "apply to this section": the paper rides the section's own page setup, so
-  // every other section keeps the document's.
   function setSectionOrientation(o: Orientation | null): void {
     setSectionProp({ orientation: o });
   }
 
   function setSectionProp(props: Partial<HfSet>): void {
-    if (currentSection < 1) return;
-    const out = extraHfSections.slice();
-    while (out.length < currentSection) out.push({ ...EMPTY_HF_SET });
-    out[currentSection - 1] = { ...out[currentSection - 1], ...props };
-    extraHfSections = out;
+    extraHfSections = withSectionProps(extraHfSections, currentSection, props);
   }
 
   // The side this section must open on, if it must (Word's Layout ▸ Section start).
-  let sectionStartsOn = $derived(
-    currentSection > 0 ? extraHfSections[currentSection - 1]?.startsOn ?? null : null,
-  );
-
+  let sectionStartsOn = $derived(sectionValue(extraHfSections, currentSection, 'startsOn'));
   // Where this section restarts the numbering, if it does (Word's "Start at").
-  let sectionPageStart = $derived(
-    currentSection > 0 ? extraHfSections[currentSection - 1]?.pageNumberStart ?? null : null,
-  );
+  let sectionPageStart = $derived(sectionValue(extraHfSections, currentSection, 'pageNumberStart'));
 
   const FORMATS = Object.keys(PAGE_FORMAT_CM) as NamedPageFormat[];
   const EDGES = ['top', 'bottom', 'left', 'right'] as const;
-
-  // Named after the value they set, so no preset hides what it does.
-  const MARGIN_PRESETS: { key: 'normal' | 'narrow' | 'wide'; m: PageMargins }[] = [
-    { key: 'normal', m: { top: 2, bottom: 2, left: 2, right: 2 } },
-    { key: 'narrow', m: { top: 1.27, bottom: 1.27, left: 1.27, right: 1.27 } },
-    { key: 'wide', m: { top: 2.54, bottom: 2.54, left: 5.08, right: 5.08 } },
-  ];
 
   const fmtCm = (v: number) => (Math.round(v * 100) / 100).toString().replace('.', ',');
 
@@ -132,14 +99,7 @@
     pageMargins = next;
   }
 
-  // --- Columns ---
-  let colState = $derived.by(() => {
-    if (tick < 0 || !editor) return { count: 1, gap: DEFAULT_COLUMN_GAP_CM, inColumns: false };
-    const found = findColumns(editor.state);
-    return found
-      ? { count: found.node.attrs.count as number, gap: found.node.attrs.gap as number, inColumns: true }
-      : { count: 1, gap: DEFAULT_COLUMN_GAP_CM, inColumns: false };
-  });
+  let colState = $derived(tick >= 0 && editor ? columnState(editor.state) : columnState(null));
 
   function setColumns(n: number) {
     closeMenu();
@@ -307,7 +267,7 @@
           <input
             type="text"
             inputmode="decimal"
-            value={fmtCm(colState.gap)}
+            value={fmtCm(colState.gapCm)}
             disabled={!colState.inColumns}
             onchange={(e) => apply((v) => editor?.chain().focus().setColumnGap(v).run(), (e.currentTarget as HTMLInputElement).value)}
           />

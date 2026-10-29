@@ -7,6 +7,7 @@ export type ChromeMode = 'modern' | 'ribbon';
 const THEME_KEY = 'edentext-theme';
 const ACCENT_KEY = 'edentext-accent';
 const TOOLBAR_KEY = 'edentext-toolbar-expanded';
+const TOOLBAR_CATEGORY_KEY = 'edentext-toolbar-category';
 const CHROME_KEY = 'edentext-chrome';
 const RIBBON_COLLAPSED_KEY = 'edentext-ribbon-collapsed';
 const FORMATTING_MARKS_KEY = 'edentext-formatting-marks';
@@ -37,6 +38,15 @@ export function loadToolbarExpanded(): boolean {
 
 export function saveToolbarExpanded(expanded: boolean): void {
     localStorage.setItem(TOOLBAR_KEY, String(expanded));
+}
+
+// The island's Tools category; the caller checks it is one it knows.
+export function loadToolbarCategory(): string | null {
+    return localStorage.getItem(TOOLBAR_CATEGORY_KEY);
+}
+
+export function saveToolbarCategory(category: string): void {
+    localStorage.setItem(TOOLBAR_CATEGORY_KEY, category);
 }
 
 export function loadChromeMode(): ChromeMode {

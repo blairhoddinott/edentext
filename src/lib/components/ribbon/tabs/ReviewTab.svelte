@@ -19,7 +19,7 @@
   } from '../../../storage/markup.svelte';
   import { revisions } from '../../../editor/extensions/trackChanges';
   import { comments } from '../../../editor/extensions/comment';
-  import { selectRange, step, visibleComments, visibleRevisions } from '../../reviewItems';
+  import { goToMarkup } from '../../reviewItems';
   import { OPEN_THESAURUS_EVENT } from '../../../spell/thesaurus';
   import { shortcutHint } from '../../../editor/shortcuts';
   import { t } from '../../../i18n/i18n.svelte';
@@ -51,14 +51,8 @@
     original: () => ({ label: t().revisions.displayOriginal, hint: t().revisions.displayOriginalHint }),
   };
 
-  // Only what the view shows is walked: a hidden change is not a place to jump to.
   function go(kind: 'comment' | 'revision', dir: 1 | -1): void {
-    if (!editor) return;
-    const doc = editor.state.doc;
-    const list: { from: number; to: number }[] =
-      kind === 'comment' ? visibleComments(doc) : visibleRevisions(doc);
-    const hit = step(list, editor.state.selection.from, dir);
-    if (hit) selectRange(editor, hit.from, hit.to);
+    if (editor) goToMarkup(editor, kind, dir);
   }
 
   let stats = $derived.by<TextStats>(() => {

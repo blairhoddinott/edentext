@@ -59,3 +59,12 @@ export function step<T extends { from: number; to: number }>(
     : [...sorted].reverse().find((r) => r.from < pos);
   return hit ?? (dir === 1 ? sorted[0] : sorted[sorted.length - 1]);
 }
+
+/** Selects the next or previous comment or change; only what the view shows is a place
+ *  to jump to. */
+export function goToMarkup(editor: Editor, kind: 'comment' | 'revision', dir: 1 | -1): void {
+  const doc = editor.state.doc;
+  const list: { from: number; to: number }[] = kind === 'comment' ? visibleComments(doc) : visibleRevisions(doc);
+  const hit = step(list, editor.state.selection.from, dir);
+  if (hit) selectRange(editor, hit.from, hit.to);
+}

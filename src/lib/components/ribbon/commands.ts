@@ -186,6 +186,30 @@ export const RIBBON_COMMANDS: RibbonCommand[] = [
   c('headerFooter', 'closeHf', (m) => m.ribbon.closeHf),
 ];
 
+/** The shown tab a command lives on: null for the File menu, undefined while none of its
+ *  tabs is shown. */
+export function tabOf(cmd: RibbonCommand, shown: readonly Tab[]): Tab | null | undefined {
+  return cmd.tab === null ? null : [cmd.tab].flat().find((x) => shown.includes(x));
+}
+
+/** What the search offers: commands on a shown tab or in the File menu, the assistant
+ *  only while it is on, and the kept-documents list only when documents are kept. */
+export function searchableCommands(cmds: RibbonCommand[], shown: readonly Tab[], opts: { ai: boolean; volatile: boolean }): RibbonCommand[] {
+  return cmds.filter((c) => tabOf(c, shown) !== undefined
+    && (opts.ai || !c.id.startsWith('ai'))
+    && !(opts.volatile && c.id === 'browserDocuments'));
+}
+
+/** Runs a hit's control: a field is focused, anything else clicked. A colour split's own
+ *  half applies the last colour, so its palette is opened through the chevron. */
+export function actOnCommand(el: Element | null): void {
+  const target = el?.matches('button, input, select') ? el : el?.querySelector('.color-chevron') ?? el?.querySelector('button, input, select');
+  if (target instanceof HTMLSelectElement || (target instanceof HTMLInputElement && !['checkbox', 'radio'].includes(target.type))) {
+    target.focus();
+    if (target instanceof HTMLInputElement) target.select();
+  } else (target as HTMLElement | null | undefined)?.click();
+}
+
 // The paragraph styles the Home gallery shows, under their translated names.
 export function styleCommands(names: string[]): RibbonCommand[] {
   return names.map((n) => c('home', `style-${n}`, (m) => m.styleNames[n] ?? n));

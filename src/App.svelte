@@ -8,6 +8,13 @@
   import Toolbar from './lib/components/Toolbar.svelte';
   import ToolbarExpanded from './lib/components/ToolbarExpanded.svelte';
   import Ribbon from './lib/components/ribbon/Ribbon.svelte';
+  import EventDialogs from './lib/components/EventDialogs.svelte';
+  import CommandSearch from './lib/components/ribbon/CommandSearch.svelte';
+  import Icon from './lib/components/ribbon/Icon.svelte';
+  import { RIBBON_COMMANDS, TABS, actOnCommand, searchableCommands, styleCommands, tabOf, type RibbonCommand, type Tab } from './lib/components/ribbon/commands';
+  import { contextualTabs } from './lib/components/ribbon/contextTabs';
+  import { closeMenu } from './lib/components/ribbon/menu.svelte';
+  import { ISLAND_PLACE, RIBBON_ONLY, categoryOf, isCategory, islandVia, type Category } from './lib/components/toolbar/island';
   import FindReplaceBar from './lib/components/FindReplaceBar.svelte';
   import type { TiptapNode } from 'odf-kit';
   import { exportPdf, printPdf, printRaster } from './lib/export/pdf';
@@ -30,18 +37,18 @@
   import { countText, type TextStats } from './lib/utils/wordCount';
   import type { Node as PmNode } from 'prosemirror-model';
   import { clampZoom, wheelZoomFactor, MIN_ZOOM, MAX_ZOOM } from './lib/utils/zoom';
-  import { loadTheme, saveTheme, applyTheme, loadToolbarExpanded, saveToolbarExpanded, loadChromeMode, saveChromeMode, loadFormattingMarks, saveFormattingMarks, loadFieldShading, saveFieldShading, loadPageLabels, savePageLabels, loadRuler, saveRuler, loadSplitView, saveSplitView, loadPageColumns, savePageColumns, type ThemeMode, type ChromeMode } from './lib/storage/theme';
+  import { loadTheme, saveTheme, applyTheme, loadToolbarExpanded, saveToolbarExpanded, loadToolbarCategory, saveToolbarCategory, loadChromeMode, saveChromeMode, loadFormattingMarks, saveFormattingMarks, loadFieldShading, saveFieldShading, loadPageLabels, savePageLabels, loadRuler, saveRuler, loadSplitView, saveSplitView, loadPageColumns, savePageColumns, type ThemeMode, type ChromeMode } from './lib/storage/theme';
   import { loadPageMargins, savePageMargins, fitMargins, DEFAULT_MARGINS, type PageMargins } from './lib/storage/pageMargins';
   import { loadOrientation, saveOrientation, type Orientation } from './lib/storage/pageOrientation';
   import { loadTabInterval, saveTabInterval, applyTabIntervalVar, DEFAULT_TAB_INTERVAL_CM } from './lib/storage/tabInterval';
   import { loadSpacingModel, saveSpacingModel, loadSpacingAtPageStart, saveSpacingAtPageStart, type SpacingModel } from './lib/storage/spacingModel';
   import { loadPageRtl, savePageRtl } from './lib/storage/writingMode';
   import { loadPageFormat, savePageFormat, pageDimsCm, type PageFormat } from './lib/storage/pageFormat';
-  import { setStyleSheet, styleSheet } from './lib/styles/sheet.svelte';
+  import { setStyleSheet, showAllStyles, styleSheet } from './lib/styles/sheet.svelte';
   import { noteSettings, setNoteSettings } from './lib/storage/notes.svelte';
   import { recordChanges, setRecordChanges } from './lib/storage/trackChanges.svelte';
   import { DEFAULT_NOTE_SETTINGS, type NoteSettings } from './lib/storage/noteSettings';
-  import { builtinStyleSheet, type StyleFamily, type StyleSheet } from './lib/styles/styleSheet';
+  import { builtinStyleSheet, visibleStyles, type StyleFamily, type StyleSheet } from './lib/styles/styleSheet';
   import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, spreadMargins, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, EMPTY_HF_SET, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
   import { loadDocName, saveDocName, loadDocFormat, saveDocFormat, stripOdtExtension, docNameOfFile, sanitizeNameForFile, deriveFilename, filenameFor, loadDocProtected, saveDocProtected, loadDocFile, saveDocFile, type DocumentFormat } from './lib/storage/documentName';
   import { loadDocProperties, saveDocProperties, EMPTY_DOC_PROPERTIES, type DocProperties } from './lib/storage/docProperties';
@@ -92,9 +99,6 @@
   import { fnv1a } from './lib/utils/hash';
   import { withShortcut } from './lib/i18n/shortcut';
   import { DEFAULT_SHORTCUTS, matchesEvent, shortcutHint } from './lib/editor/shortcuts';
-  import { OPEN_LINK_DIALOG_EVENT } from './lib/editor/extensions/link';
-  import { OPEN_BOOKMARK_DIALOG_EVENT } from './lib/editor/extensions/bookmark';
-  import { OPEN_CROSS_REF_DIALOG_EVENT } from './lib/editor/extensions/crossReference';
   import { localizeImportMessage } from './lib/i18n/importMessages';
   import { unavailableFonts } from './lib/utils/fontDetect';
   import { registerEmbeddedFonts, clearEmbeddedFonts, embeddedFonts } from './lib/fonts/embeddedFonts';
@@ -572,20 +576,49 @@
     saveToolbarExpanded(toolbarExpanded);
   }
 
-  // The link, bookmark and cross-reference dialogs live in ToolbarExpanded, which isn't
-  // mounted while the secondary toolbar is collapsed — Ctrl+K and the context menu's
-  // entries would go nowhere. Expand it (not persisted) and re-fire once the dialog's
-  // own listener exists.
-  $effect(() => {
-    const events = [OPEN_LINK_DIALOG_EVENT, OPEN_BOOKMARK_DIALOG_EVENT, OPEN_CROSS_REF_DIALOG_EVENT];
-    const open = (e: Event) => {
-      if (chromeMode === 'ribbon' || toolbarExpanded) return;
+  // The island's Tools category, kept across sessions like the row's open state.
+  const storedCategory = loadToolbarCategory();
+  let toolbarCategory = $state<Category>(isCategory(storedCategory) ? storedCategory : 'home');
+  $effect(() => saveToolbarCategory(toolbarCategory));
+
+  // The island's command search: the ribbon's index, offered while the control is there —
+  // a contextual tab's commands while its floating toolbar is shown.
+  let islandShown = $derived([...TABS, ...(activeTick >= 0 ? contextualTabs(activeEditor, hfActive) : [])] as Tab[]);
+  let islandCommands = $derived(searchableCommands([
+    ...RIBBON_COMMANDS,
+    ...styleCommands(visibleStyles(styleSheet(), showAllStyles()).map((s) => s.name)),
+  ], islandShown, { ai: aiEnabled(), volatile }).filter((c) => !RIBBON_ONLY.has(c.id)));
+
+  // Where the island keeps a command: its own place if it moved one, the ribbon's tab otherwise.
+  function islandPlace(c: RibbonCommand): { category: Category | null; via?: string } {
+    const tab = c.id in ISLAND_PLACE ? ISLAND_PLACE[c.id].tab : tabOf(c, islandShown);
+    return { category: tab ? categoryOf(tab) : null, via: islandVia(c) };
+  }
+
+  const focusActiveEditor = () => (activeEditor as Editor | null)?.commands.focus();
+
+  const findCommand = (id: string) => document.querySelector(`main [data-cmd="${CSS.escape(id)}"]`);
+
+  // A hit is clicked where it lives, so the user sees the place and a disabled one stays
+  // disabled: the File commands in the Save menu, the rest in their Tools category unless
+  // the first row or a floating toolbar already shows them.
+  async function runIslandCommand(c: RibbonCommand) {
+    closeMenu();
+    themeOpen = false;
+    const { category, via } = islandPlace(c);
+    if (c.tab === null && !findCommand(c.id)) exportMenuOpen = true;
+    else if (!findCommand(via ?? c.id) && category) {
       toolbarExpanded = true;
-      domUpdated().then(() => window.dispatchEvent(new CustomEvent(e.type)));
-    };
-    for (const name of events) window.addEventListener(name, open);
-    return () => { for (const name of events) window.removeEventListener(name, open); };
-  });
+      saveToolbarExpanded(true);
+      toolbarCategory = category;
+    }
+    await domUpdated();
+    if (via) {
+      actOnCommand(findCommand(via));
+      await domUpdated();
+    }
+    actOnCommand(findCommand(c.id));
+  }
 
   // Horizontal toolbar scrolling: when too narrow for all buttons, the toolbar stack
   // is translated left via a custom scrollbar (a native one auto-hides on macOS), so
@@ -1680,11 +1713,12 @@
     <div class="toolbar-clip" id="primary-toolbar" bind:this={toolbarClipEl} onwheel={onToolbarWheel}>
       <div class="toolbar-stack" bind:this={toolbarStackEl} style="transform: translateX(-{tbScroll}px);">
   <header class:expanded={toolbarExpanded}>
-    <button class="logo-btn" onclick={() => (aboutOpen = true)} aria-label={t().about.label} title={t().about.label}>
+    <button class="logo-btn" data-cmd="about" onclick={() => (aboutOpen = true)} aria-label={t().about.label} title={t().about.label}>
       <img src="EdenText.png" alt="EdenText" class="app-logo" />
     </button>
     <Toolbar editor={activeEditor} tick={activeTick} onManageStyles={openStyleManager} scripts={numberingScripts(documentLanguage, documentLanguageOther, locale())} />
     <div class="header-actions">
+      <CommandSearch variant="island" commands={islandCommands} onRun={runIslandCommand} onCancel={focusActiveEditor} />
       {#snippet saveIcon()}
         <!-- Floppy disk -->
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -1719,7 +1753,7 @@
         </svg>
       </div>
       <div class="file-actions">
-        <button class="file-action-btn" onclick={handleNew} disabled={!editor} title={t().app.newDocument}>
+        <button class="file-action-btn" data-cmd="newDocument" onclick={handleNew} disabled={!editor} title={t().app.newDocument}>
           <!-- Page with folded corner + plus -->
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M9 1.75H4.5A1.25 1.25 0 0 0 3.25 3v10A1.25 1.25 0 0 0 4.5 14.25h7A1.25 1.25 0 0 0 12.75 13V5.5L9 1.75z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
@@ -1727,7 +1761,7 @@
             <path d="M8 8v3.5M6.25 9.75h3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
           </svg>
         </button>
-        <button class="file-action-btn" onclick={() => (templateGalleryOpen = true)} disabled={!editor} title={t().templates.title}>
+        <button class="file-action-btn" data-cmd="newFromTemplate" onclick={() => (templateGalleryOpen = true)} disabled={!editor} title={t().templates.title}>
           <!-- Page with folded corner + text lines: new from template -->
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M9 1.75H4.5A1.25 1.25 0 0 0 3.25 3v10A1.25 1.25 0 0 0 4.5 14.25h7A1.25 1.25 0 0 0 12.75 13V5.5L9 1.75z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
@@ -1735,7 +1769,7 @@
             <path d="M5.5 8.5h5M5.5 10.5h5M5.5 12.5h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
           </svg>
         </button>
-        <button class="file-action-btn" onclick={handleOpen} disabled={!editor} title={`${t().app.open} (${shortcutHint('open')})`}>
+        <button class="file-action-btn" data-cmd="open" onclick={handleOpen} disabled={!editor} title={`${t().app.open} (${shortcutHint('open')})`}>
           <!-- Folder -->
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M1.75 12.5V4a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .8.4l.7.95a1 1 0 0 0 .8.4h4.2a1 1 0 0 1 1 1v6.75a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
@@ -1744,7 +1778,7 @@
         <!-- Single Save / Export button → ODT, Raster PDF, or Vector PDF (beta). -->
         <div class="save-split" use:exportMenuClickOutside>
           <div class="save-control">
-            <button class="file-action-btn save-main" onclick={handleSave} disabled={!editor || pdfBusy} title={`${t().app.save} (${withShortcut('Ctrl+S')})`}>
+            <button class="file-action-btn save-main" data-cmd="save" onclick={handleSave} disabled={!editor || pdfBusy} title={`${t().app.save} (${withShortcut('Ctrl+S')})`}>
               {@render saveIcon()}
             </button>
             <button
@@ -1767,26 +1801,26 @@
                 <span>{t().app.odt}</span>
                 <span class="theme-option-hint">{t().app.openDocument}</span>
               </button>
-              <button class="theme-option" onclick={() => handleSaveAs('odt')} role="menuitem">
+              <button class="theme-option" data-cmd="saveAsOdt" onclick={() => handleSaveAs('odt')} role="menuitem">
                 <span>{t().ribbon.saveAs} (.odt)</span>
               </button>
-              <button class="theme-option" onclick={() => handleSaveAs('docx')} role="menuitem">
+              <button class="theme-option" data-cmd="saveAsDocx" onclick={() => handleSaveAs('docx')} role="menuitem">
                 <span>{t().ribbon.saveAs} (.docx)</span>
               </button>
-              <button class="theme-option" onclick={handleExportPdf} disabled={pdfBusy} role="menuitem">
+              <button class="theme-option" data-cmd="rasterPdf" onclick={handleExportPdf} disabled={pdfBusy} role="menuitem">
                 <span>{pdfBusy ? t().app.exporting : t().app.rasterPdf}</span>
                 <span class="theme-option-hint">{t().app.rasterHint}</span>
               </button>
-              <button class="theme-option" onclick={handlePrintPdf} role="menuitem">
+              <button class="theme-option" data-cmd="vectorPdf" onclick={handlePrintPdf} role="menuitem">
                 <span>{t().app.vectorPdf}</span>
                 <span class="theme-option-hint">{t().app.vectorHint}</span>
               </button>
               {#if !volatile}
-                <button class="theme-option" onclick={() => { exportMenuOpen = false; browserDocsOpen = true; }} role="menuitem">
+                <button class="theme-option" data-cmd="browserDocuments" onclick={() => { exportMenuOpen = false; browserDocsOpen = true; }} role="menuitem">
                   <span>{t().browserDocs.title}</span>
                 </button>
               {/if}
-              <button class="theme-option" onclick={handleSaveTemplate} role="menuitem">
+              <button class="theme-option" data-cmd="saveTemplate" onclick={handleSaveTemplate} role="menuitem">
                 <span>{t().app.template}</span>
                 <span class="theme-option-hint">{t().app.templateHint}</span>
               </button>
@@ -1801,18 +1835,18 @@
                   <span class="theme-option-hint">{t().app.clearRecentFiles}</span>
                 </button>
               {/if}
-              <button class="theme-option" onclick={() => { exportMenuOpen = false; passwordSetOpen = true; }} role="menuitem">
+              <button class="theme-option" data-cmd="protect" onclick={() => { exportMenuOpen = false; passwordSetOpen = true; }} role="menuitem">
                 <span>{t().password.menu}</span>
                 {#if docProtected}<span class="theme-option-hint">{t().password.menuOn}</span>{/if}
               </button>
               <div class="theme-heading">{t().docProps.title}</div>
-              <button class="theme-option" onclick={() => { exportMenuOpen = false; docPropsOpen = true; }} role="menuitem">
+              <button class="theme-option" data-cmd="docProperties" onclick={() => { exportMenuOpen = false; docPropsOpen = true; }} role="menuitem">
                 <span>{t().docProps.title}</span>
               </button>
             </div>
           {/if}
         </div>
-        <button class="file-action-btn" onclick={handlePrint} disabled={!editor || pdfBusy} title={`${t().app.print} (${withShortcut('Ctrl+P')})`}>
+        <button class="file-action-btn" data-cmd="print" onclick={handlePrint} disabled={!editor || pdfBusy} title={`${t().app.print} (${withShortcut('Ctrl+P')})`}>
           <!-- Printer -->
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M4.5 6V2.25h7V6" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
@@ -1821,6 +1855,11 @@
           </svg>
         </button>
       </div>
+      {#if aiEnabled()}
+        <button class="theme-btn" class:active={aiOpen} data-cmd="aiPane" onclick={() => (aiOpen = !aiOpen)} title={t().ai.chatTitle} aria-pressed={aiOpen}>
+          <Icon name="sparkle" size={16} />
+        </button>
+      {/if}
       <div class="theme-wrap" use:clickOutside>
         <button
           class="theme-btn"
@@ -1920,28 +1959,45 @@
     {#if toolbarExpanded}
       <div class="extended-wrap" transition:expand>
         <ToolbarExpanded
-          {navigatorOpen}
-          onToggleNavigator={() => (navigatorOpen = !navigatorOpen)}
           editor={activeEditor}
           tick={activeTick}
+          bind:category={toolbarCategory}
           bind:showFormattingMarks
+          bind:showFieldShading
           bind:showRuler
           bind:splitView
           bind:pageColumns
+          bind:tabIntervalCm
           bind:pageMargins
-          bind:extraHfSections
           bind:pageOrientation
           bind:pageFormat
-          bind:hyphenate
-          bind:pageNumbering
+          bind:extraHfSections
           bind:hfDistances
           bind:differentFirstPage
           bind:differentOddEven
-          hfActive={hfActive}
+          bind:hyphenate
+          bind:pageNumbering
+          bind:pageDecor
+          bind:lineNumbering
+          bind:foldMarks
+          {hfActive}
+          asianDocument={isAsianTag(tagForLanguage(documentLanguage) ?? '') || isAsianTag(locale())}
+          {documentLanguage}
+          {documentLanguageOther}
+          onLanguage={setDocumentLanguage}
+          {zoom}
+          onZoom={setZoom}
+          {navigatorOpen}
+          onToggleNavigator={() => (navigatorOpen = !navigatorOpen)}
           onEditZone={(zone) => (hfActive = zone)}
-          onDebugDump={handleDebugDump}
+          onDebugDump={import.meta.env.DEV ? handleDebugDump : undefined}
           onManageTableStyles={() => openStyleManager('table')}
           onNoteOptions={() => (noteOptionsOpen = true)}
+          onHeadingNumbering={() => openStyleManager('outline')}
+          onFind={openFind}
+          onAutoCorrect={() => (autoCorrectOpen = true)}
+          onAutoText={() => (autoTextOpen = true)}
+          onNewComment={addComment}
         />
       </div>
       {@render toolbarScrollbar()}
@@ -1951,6 +2007,7 @@
     </div>
   </div>
   {/if}
+  <EventDialogs editor={activeEditor} tick={activeTick} />
   <!-- Outside the chrome fork: `handleOpen` clicks it wherever the File System
        Access API is missing, and both chromes reach that path. -->
   <input
@@ -2624,6 +2681,11 @@
   .theme-btn:hover {
     background: var(--color-btn-hover);
     border-color: var(--color-primary);
+  }
+
+  .theme-btn.active {
+    background: var(--color-primary);
+    color: white;
   }
 
   .theme-dropdown {

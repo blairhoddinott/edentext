@@ -10,16 +10,16 @@ compared. Everything the ribbon drives is the same editor, through the same comm
 (`edentext-chrome`, default `'ribbon'`). `App.svelte` forks on it: the ribbon docks as a plain
 flex child, the island keeps its absolute overlay. The choice sits in *Settings ▸ General*
 (`SettingsDialog.svelte`), reachable from both chromes, and only behind `import.meta.env.DEV`
-until the island offers the same features — a production build offers no way in, but a stored `'modern'`
-pref still loads it.
+while the island is a beta — a production build offers no way in, but a stored `'modern'` pref
+still loads it. The island reaches every ribbon command too; see `docs/architecture/island.md`.
 
 `--toolbar-overlay-h` is written **only** in modern mode. `editor.css` reads it as
 `var(--toolbar-overlay-h, 0px)`, so the ribbon's docked layout needs no second rule.
 
-**The modern chrome is the baseline the ribbon is measured against, so it stays untouched.** Where a shared
-helper would improve both, the ribbon takes it and the modern chrome keeps its copy; where a dialog is
-mounted inside `ToolbarExpanded`, the ribbon mounts its own rather than hoisting it. Only one
-chrome is mounted at a time, so the two sets never coexist.
+Logic a tab holds beyond a one-line command lives in a framework-free module both chromes import
+(`components/sectionSetup.ts`, `referenceState.ts`, `frameCommands.ts`, `tableCells.ts`,
+`formatCommands.ts`, `reviewItems.ts`, `ribbon/contextTabs.ts`); a tab and its island category
+differ only in markup. Only one chrome is mounted at a time.
 
 ## Palette
 
@@ -166,17 +166,18 @@ picture and shape tabs lists both and runs in whichever is shown.
 Matching folds case and diacritics and ranks a label prefix over a word start over a substring. The
 English label always matches too, so "table" works under every UI language. An empty query lists the
 last five commands used (`edentext-recent-commands`). Contextual-tab commands are offered only while
-their tab is shown. `tests/unit/command-search.test.ts` fails when an indexed id has no control.
+their tab is shown. `tests/unit/command-search.test.ts` fails when an indexed id has no control,
+in the ribbon or in the island.
 
 ## Dialogs
 
 `ParagraphDialog` and `TabsDialog` open from Word's ↘ launcher in a group's corner. They are
-chrome-agnostic, so the modern chrome could add launchers of its own without changing them.
+chrome-agnostic; the island opens them from its own launchers.
 
 Every dialog opened by an **event** — link (Ctrl+K, the context menu), bookmark, cross-reference,
-formula (a double-click on one) — is mounted in `Ribbon.svelte`, not in the Insert tab whose
-buttons also open it: only the open tab is mounted, so a listener in a closed one hears nothing
-and the double-click did nothing unless Insert happened to be up. The tab's buttons fire the same
+formula (a double-click on one) — is mounted once by `EventDialogs.svelte` in `App.svelte`,
+outside both chromes, not in the Insert tab or category whose buttons also open it: only the open
+one is mounted, so a listener there would hear nothing while another is up. The tab's buttons fire the same
 events; a formula event without a position starts an empty dialog. The bookmark and
 cross-reference windows are modeless and movable, and both are top-layer popovers: a fixed one
 resolves against the modern chrome's transformed toolbar stack (`docs/architecture/formatting.md`).
@@ -189,9 +190,7 @@ they belong.
 
 ## What retiring the modern chrome would free
 
-Recorded so the option stays visible, not as a plan: `Toolbar.svelte` and
-`ToolbarExpanded.svelte` (~3200 lines), the overlay island and its hand-rolled horizontal
-scrollbar in `App.svelte` (~120 lines plus CSS), the `pointer-events` opt-ins,
-`--toolbar-overlay-h`, the collapsed-toolbar re-fire shim, `loadToolbarExpanded` /
-`saveToolbarExpanded`, the duplicate dialog mounts, and `ToolbarExpanded`'s own copies of the
-selection readers.
+Recorded so the option stays visible, not as a plan: `Toolbar.svelte`, `ToolbarExpanded.svelte`
+and `toolbar/`, the overlay island and its hand-rolled horizontal scrollbar in `App.svelte`, the
+`pointer-events` opt-ins, `--toolbar-overlay-h`, `loadToolbarExpanded`/`loadToolbarCategory`
+and their savers. The shared modules and `EventDialogs.svelte` would stay.

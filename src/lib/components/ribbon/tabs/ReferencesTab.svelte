@@ -11,8 +11,8 @@
   import { t } from '../../../i18n/i18n.svelte';
   import { shortcutHint } from '../../../editor/shortcuts';
   import { HEADING_LEVELS } from '../../../styles/headings';
-  import { CITATION_STYLES, isCitationStyle, type CitationStyle } from '../../../utils/citationStyle';
-  import { askText } from '../../PromptDialog.svelte';
+  import { CITATION_STYLES, type CitationStyle } from '../../../utils/citationStyle';
+  import { findBibliography, findToc, hasIndex as hasAnyIndex, markIndexEntry, setIndexAttrs } from '../../referenceState';
 
   let { editor, tick, hfActive = null, onNoteOptions, onHeadingNumbering }: {
     editor: Editor | null;
@@ -23,22 +23,8 @@
   } = $props();
 
   // The levels button drives a table of contents only — a caption index has one level.
-  // The document holds at most one, so the first hit is it.
-  let toc = $derived.by<{ pos: number; maxLevel: number; pageNumbers: boolean } | null>(() => {
-    if (tick < 0 || !editor) return null;
-    let found: { pos: number; maxLevel: number; pageNumbers: boolean } | null = null;
-    editor.state.doc.descendants((node, pos) => {
-      if (found || node.type.name !== 'tableOfContents' || node.attrs.index !== 'toc') return;
-      found = { pos, maxLevel: (node.attrs.maxLevel ?? 5) as number, pageNumbers: node.attrs.pageNumbers !== false };
-    });
-    return found;
-  });
-  let hasIndex = $derived.by(() => {
-    if (tick < 0 || !editor) return false;
-    let found = false;
-    editor.state.doc.descendants((node) => { if (node.type.name === 'tableOfContents') found = true; return !found; });
-    return found;
-  });
+  let toc = $derived(tick >= 0 && editor ? findToc(editor.state.doc) : null);
+  let hasIndex = $derived(tick >= 0 && !!editor && hasAnyIndex(editor.state.doc));
   const LEVELS = HEADING_LEVELS;
   const INDEX_KINDS: IndexKind[] = ['toc', 'figures', 'tables', 'alphabetical', 'bibliography'];
   let captionOpen = $state(false);
@@ -46,46 +32,23 @@
   let updateOpen = $state(false);
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
 
-  // The selected text is the term unless the reader gives another — the same prompt
-  // both word processors open, which fills itself from the selection.
-  async function markIndexEntry() {
-    if (!editor) return;
-    const { from, to } = editor.state.selection;
-    const term = await askText(t().ribbon.indexEntryPrompt, editor.state.doc.textBetween(from, to, ' '));
-    if (term?.trim()) editor.chain().focus().setTextSelection(to).insertIndexEntry(term).run();
-  }
-
   function setMaxLevel(level: number) {
     closeMenu();
-    if (!editor || !toc) return;
-    editor.chain().focus().setNodeSelection(toc.pos).updateAttributes('tableOfContents', { maxLevel: level }).run();
+    if (editor && toc) setIndexAttrs(editor, toc.pos, { maxLevel: level });
   }
 
   // Word's "Show page numbers" — and what a file's own TOC \n switches off. The menu
   // stays open, as it does for the Layout tab's checkboxes.
   function setPageNumbers(on: boolean) {
-    if (!editor || !toc) return;
-    editor.chain().focus().setNodeSelection(toc.pos)
-      .updateAttributes('tableOfContents', { pageNumbers: on }).run();
+    if (editor && toc) setIndexAttrs(editor, toc.pos, { pageNumbers: on });
   }
 
-  // The document's bibliography, whose attrs hold the citation style — both formats keep
-  // it there too, so a document without one cites by key and the button stays disabled.
-  let bibliography = $derived.by<{ pos: number; style: CitationStyle } | null>(() => {
-    if (tick < 0 || !editor) return null;
-    let found: { pos: number; style: CitationStyle } | null = null;
-    editor.state.doc.descendants((node, pos) => {
-      if (found || node.type.name !== 'tableOfContents' || node.attrs.index !== 'bibliography') return;
-      found = { pos, style: isCitationStyle(node.attrs.citationStyle) ? node.attrs.citationStyle : 'key' };
-    });
-    return found;
-  });
+  // Without a bibliography a document cites by key, and the button stays disabled.
+  let bibliography = $derived(tick >= 0 && editor ? findBibliography(editor.state.doc) : null);
 
   function setCitationStyle(style: CitationStyle) {
     closeMenu();
-    if (!editor || !bibliography) return;
-    editor.chain().focus().setNodeSelection(bibliography.pos)
-      .updateAttributes('tableOfContents', { citationStyle: style }).run();
+    if (editor && bibliography) setIndexAttrs(editor, bibliography.pos, { citationStyle: style });
   }
 </script>
 
@@ -257,7 +220,7 @@
     label={t().ribbon.indexEntry}
     title={hasSelection ? t().ribbon.indexEntry : t().ribbon.indexEntryNeedsSelection}
     disabled={!editor || !!hfActive || !hasSelection}
-    onclick={markIndexEntry}
+    onclick={() => editor && markIndexEntry(editor)}
   />
 </RibbonGroup>
 

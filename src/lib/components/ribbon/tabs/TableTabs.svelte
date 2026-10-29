@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Editor, ChainedCommands } from '@tiptap/core';
-  import { CellSelection, isInTable, selectedRect } from '@tiptap/pm/tables';
+  import { isInTable, selectedRect } from '@tiptap/pm/tables';
+  import { cellAttr, cellPadding, repeatsHeader } from '../../tableCells';
   import RibbonGroup from '../RibbonGroup.svelte';
   import RibbonButton from '../RibbonButton.svelte';
   import Icon from '../Icon.svelte';
@@ -14,7 +15,7 @@
   import CaptionDialog from '../../CaptionDialog.svelte';
   import { captionClicks, anchored, clickOutside, isMenuOpen, toggleMenu, closeMenu } from '../menu.svelte';
   import { isHeaderStyled } from '../../../editor/extensions/tableHeaderRow';
-  import { DEFAULT_CELL_PADDING, parseCellPadding, type CellPadding } from '../../../editor/extensions/tableCellPadding';
+  import type { CellPadding } from '../../../editor/extensions/tableCellPadding';
   import type { CellVerticalAlign } from '../../../editor/extensions/tableCellAlign';
   import { currentCellFormat, currentCellFormula, currentCellName, guessFormula } from '../../../editor/extensions/tableFormula';
   import type { CellFormat } from '../../../utils/cellFormat';
@@ -55,41 +56,10 @@
   });
   const isHeaderRow = $derived(tick >= 0 && !!editor && isHeaderStyled(editor.state, 'row'));
   const isHeaderCol = $derived(tick >= 0 && !!editor && isHeaderStyled(editor.state, 'column'));
-  // The structural header: the first row repeated on every page the table continues on.
-  const repeatsHeader = $derived.by(() => {
-    if (tick < 0 || !editor || !isInTable(editor.state)) return false;
-    return selectedRect(editor.state).table.attrs.repeatHeader === true;
-  });
-
-  // One attribute over the selected cells: the shared value, '' if they disagree.
-  function cellAttr(name: string): string | null {
-    if (!editor) return null;
-    const sel = editor.state.selection;
-    const values = new Set<string | null>();
-    if (sel instanceof CellSelection) {
-      sel.forEachCell((cell) => values.add((cell.attrs[name] as string) ?? null));
-    } else {
-      const from = sel.$from;
-      for (let d = from.depth; d > 0; d--) {
-        const role = from.node(d).type.spec.tableRole;
-        if (role === 'cell' || role === 'header_cell') {
-          values.add((from.node(d).attrs[name] as string) ?? null);
-          break;
-        }
-      }
-    }
-    if (values.size === 0) return null;
-    return values.size > 1 ? '' : ([...values][0] ?? null);
-  }
-
-  const cellColor = $derived(tick >= 0 ? cellAttr('backgroundColor') : null);
-  const vAlign = $derived(tick >= 0 ? cellAttr('verticalAlign') : null);
-  // The cell's margins in cm, [top, right, bottom, left]; null outside a table.
-  const padding = $derived.by<CellPadding | null>(() => {
-    if (tick < 0 || !editor || !editor.isActive('table')) return null;
-    // A cell that never set its margins reports none, and shows the format default.
-    return parseCellPadding(cellAttr('cellPadding')) ?? DEFAULT_CELL_PADDING;
-  });
+  const repeatHeader = $derived(tick >= 0 && !!editor && repeatsHeader(editor.state));
+  const cellColor = $derived(tick >= 0 && editor ? cellAttr(editor.state, 'backgroundColor') : null);
+  const vAlign = $derived(tick >= 0 && editor ? cellAttr(editor.state, 'verticalAlign') : null);
+  const padding = $derived(tick >= 0 && editor ? cellPadding(editor.state) : null);
 
   function setPaddingEdge(i: number, cm: number) {
     if (!editor || !padding) return;
@@ -156,8 +126,8 @@
         cmd="repeatHeaderRow"
         label={t().ribbon.repeatHeaderRow}
         title={t().ribbon.repeatHeaderRowHint}
-        active={repeatsHeader}
-        onclick={() => run((c) => c.updateAttributes('table', { repeatHeader: repeatsHeader ? null : true }))}
+        active={repeatHeader}
+        onclick={() => run((c) => c.updateAttributes('table', { repeatHeader: repeatHeader ? null : true }))}
       />
     </div>
   </RibbonGroup>
