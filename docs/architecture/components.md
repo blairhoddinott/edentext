@@ -150,22 +150,18 @@ changes flow.
 
 Margin balloons sit beside `.paper`, inside the scaled canvas, so page content can remain the
 pagination width. Reserve their strip only when visible markup needs it. Group and stack cards
-per page using measured heights; a column too long for its page continues below it on the
-next. No card scrolls: an inactive comment shows six lines and counts its answers, the active
-one shows all of it. With a card active the column is one: it sits at its line and the others
-slide into a stack around it, past page edges if need be. Clicking text never scrolls; clicking
+per page using measured heights; a column too long for its page becomes a deck beside it
+(`deckHeights`): each card covers the one before it, the tallest cut first and none below its
+head (author, time), so the column never runs on past its page. Under the pointer a covered
+card rises whole, chosen by the strips the deck shows so the pointer walks down the heads, and
+nothing moves. No card scrolls: an inactive comment shows six lines and counts its answers, the
+active one shows all of it, lying whole at its line with its page's others stacked or decked
+around it (`deckAround`): those before it share the room above that line, those after it the
+room below, so it leaves its line only as far as the heads above it need. Clicking text never scrolls; clicking
 a card scrolls the view smoothly by as much as the card moved, the cards gliding on the same
 curve, so it stays under the pointer while its text slides up beside it. A pane card and the Review
-tab's Previous/Next glide the view to their text the same way (`selectRange`). The
-wheel over the balloon column moves the stack alone, as a scroll box would: until its ends meet
-the edges of what is shown, and only until a card is made active. A gesture begun with the stack
-at that end scrolls the page instead, and one begun inside stays with the stack to its end, as
-nested scroll boxes chain. Settings ▸ Review can switch the stack's wheel off
-(`balloonWheel`); the wheel then scrolls the page and a shifted stack returns to its place. A stack that fits the document
-stays within it; a longer one reaches down until its first card meets the document's top, so
-cards stacked above that top stay reachable and the page grows by a bounded amount. A wheel
-notch eases the stack to its new place over a few frames, a trackpad's fine steps follow at
-once; the shift is one transform on the cards' container, so only the leaders are laid out.
+tab's Previous/Next glide the view to their text the same way (`selectRange`). The wheel over
+the balloons scrolls the page, as anywhere else: the deck keeps every card beside its page.
 Grid view omits balloons because cells clip to page width. The connector shows only the active
 item and is omitted when its geometry cannot be unambiguous.
 

@@ -8,7 +8,7 @@
   import { grammarEnabled, setGrammarEnabled } from '../spell/grammar.svelte';
   import { numberRecognition, setNumberRecognition } from '../storage/tableOptions.svelte';
   import {
-    balloonWheel, setBalloonWheel, showComments, setShowComments, showChanges, setShowChanges,
+    showComments, setShowComments, showChanges, setShowChanges,
     commentPlace, setCommentPlace, changePlace, setChangePlace, MARKUP_PLACES, type MarkupPlace,
   } from '../storage/markup.svelte';
   import { ACCENTS, loadAccent, saveAccent, applyAccent, isCustomAccent, parseAccentHex, type Accent, type ChromeMode, type ThemeMode } from '../storage/theme';
@@ -273,10 +273,6 @@
             <Toggle label={t().revisions.showPane} checked={showChanges()} onchange={setShowChanges} />
           </div>
           {@render placeRow(t().settings.changePlace, changePlace(), setChangePlace)}
-          <div class="row">
-            <div class="info"><div class="name">{t().settings.balloonWheel}</div><div class="desc">{t().settings.balloonWheelHint}</div></div>
-            <Toggle label={t().settings.balloonWheel} checked={balloonWheel()} onchange={setBalloonWheel} />
-          </div>
 
         {:else if section === 'ai'}
           <div class="row">

@@ -49,8 +49,6 @@ const en = {
     placeHint: 'Beside the page in balloons, or listed in the pane',
     changesHint: 'Mark recorded changes in the text and show them',
     changePlace: 'Where changes go',
-    balloonWheel: 'Scroll comment and change balloons with the wheel',
-    balloonWheelHint: 'Over the comment and change balloons beside the page, the mouse wheel moves the balloons instead of the page',
     recentFilesHint: 'The files listed in the File menu; the files themselves stay',
     retention: { keep: 'Keep documents', closed: 'Only while they are open', none: 'Off' },
     retentionHint: { keep: 'Closed documents stay under File ▸ Recent documents.', closed: 'A closed document is deleted from the browser at the next start.', none: 'Nothing is saved in the browser: a reload or a crash loses the document. Word completion and the user dictionary are off as well.' },

@@ -63,3 +63,39 @@ function stackAround(desired: number[], heights: number[], gap: number, bandTop:
   }
   return out;
 }
+
+/** Heights to stack by where the full ones overrun the band: every card but those in
+ *  `whole` is cut to one cap, the highest that fits and never below `least`, and the card
+ *  after it covers the rest, so the column stays beside its page as a deck of cards. */
+export function deckHeights(heights: number[], gap: number, band: number, least: number, whole: number[] = [heights.length - 1]): number[] {
+  const n = heights.length;
+  const total = heights.reduce((s, h) => s + h, 0) + Math.max(0, n - 1) * gap;
+  if (total <= band) return heights.slice();
+  let room = band - Math.max(0, n - 1) * gap - whole.reduce((s, i) => s + (heights[i] ?? 0), 0);
+  const cut = heights.filter((_, i) => !whole.includes(i)).sort((a, b) => a - b);
+  // Water-filling: the short cards stay whole, the tall ones share what is left alike.
+  let cap = Infinity;
+  for (const [k, h] of cut.entries()) {
+    const rest = cut.length - k;
+    if (h * rest > room) { cap = room / rest; break; }
+    room -= h;
+  }
+  cap = Math.max(cap, least);
+  return heights.map((h, i) => (whole.includes(i) ? h : Math.min(h, cap)));
+}
+
+/** The deck around an active card at its line: the cards before it share the band above
+ *  that line, the ones after it the band below, so neither side pushes it off its line. */
+export function deckAround(desired: number[], heights: number[], gap: number, bandTop: number, bandBottom: number, least: number, pin: number): number[] {
+  const n = heights.length;
+  const h = (i: number) => heights[i] ?? 0;
+  const peek = (i: number) => Math.min(h(i), least) + gap;
+  let above = 0;
+  for (let i = 0; i < pin; i++) above += peek(i);
+  let below = 0;
+  for (let i = pin + 1; i < n; i++) below += i === n - 1 ? gap + h(i) : peek(i);
+  const top = Math.max(Math.min(desired[pin], bandBottom - h(pin) - below), bandTop + above);
+  const before = deckHeights(heights.slice(0, pin), gap, top - gap - bandTop, least, []);
+  const after = deckHeights(heights.slice(pin + 1), gap, bandBottom - top - h(pin) - gap, least);
+  return [...before, h(pin), ...after];
+}

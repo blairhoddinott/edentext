@@ -16,8 +16,8 @@
   import { revisionIdAt, type Revision } from '../editor/extensions/trackChanges';
   import { authorColor, authorColors } from '../editor/authorColors';
   import { selectRange, visibleComments, visibleRevisions } from './reviewItems';
-  import { balloonWheel, changesInMargin, commentsInMargin } from '../storage/markup.svelte';
-  import { stackTops } from '../utils/balloonStack';
+  import { changesInMargin, commentsInMargin } from '../storage/markup.svelte';
+  import { deckAround, deckHeights, stackTops } from '../utils/balloonStack';
   import CommentCard from './CommentCard.svelte';
   import RevisionCard from './RevisionCard.svelte';
 
@@ -36,6 +36,8 @@
   } = $props();
 
   const STACK_GAP_PX = 8;
+  // What a covered card in a deck still shows: its head, colour bar, author and time.
+  const PEEK_PX = 24;
 
   type Balloon = {
     key: string;
@@ -61,16 +63,6 @@
   let glide = $state<{ from: Map<string, number>; p: number } | null>(null);
   let glideFrame = 0;
   const GLIDE_MS = 300;
-  // How far the wheel has moved the column on its own, without the page; a card made
-  // active lines the stack up afresh.
-  let shift = $state(0);
-  let wheeling = $state(false);
-  let wheelIdle = 0;
-  // A wheel notch sets where the stack is heading; it eases there as the page would.
-  let target = 0;
-  let wheelFrame = 0;
-  let wheelLast = 0;
-  const WHEEL_EASE_MS = 50;
   let host = $state<HTMLElement | null>(null);
   let els: (HTMLElement | null)[] = [];
   let scheduled = false;
@@ -123,32 +115,37 @@
   });
 
   // Stacked inside the page band: a card pushed down by the ones above it stops at the
-  // sheet's bottom edge, and a column too long for its page starts the next one below it.
-  // With a card active the column is one, as in both word processors: that card sits at
-  // its line and every other one stacks around it, past page edges and the top if need be.
-  let tops = $derived.by(() => {
-    const pin = balloons.findIndex((b) => b.active);
-    if (pin >= 0) return stackTops(balloons.map((b) => b.want), balloons.map((_, i) => heights[i] ?? 0), STACK_GAP_PX, -Infinity, Infinity, pin);
+  // sheet's bottom edge. A column too long for its page becomes a deck, each card covering
+  // the one before it down to its head; the active card lies whole at its line among them.
+  let stack = $derived.by(() => {
     const out = new Array<number>(balloons.length).fill(0);
+    const reach = balloons.map((_, i) => heights[i] ?? 0);
     let floor = -Infinity;
     for (const { box, idx } of groups) {
       const h = idx.map((i) => heights[i] ?? 0);
-      const got = stackTops(
-        idx.map((i) => balloons[i].want),
-        h,
-        STACK_GAP_PX,
-        Math.max(box ? box.top : -Infinity, floor),
-        box ? box.top + box.height : Infinity,
-      );
+      const k = idx.findIndex((i) => balloons[i].active);
+      const pin = k < 0 ? undefined : k;
+      const bandTop = Math.max(box ? box.top : -Infinity, floor);
+      const bandBottom = box ? box.top + box.height : Infinity;
+      const want = idx.map((i) => balloons[i].want);
+      const least = PEEK_PX - STACK_GAP_PX;
+      const deck = pin === undefined
+        ? deckHeights(h, STACK_GAP_PX, bandBottom - bandTop, least)
+        : deckAround(want, h, STACK_GAP_PX, bandTop, bandBottom, least, pin);
+      const got = stackTops(want, deck, STACK_GAP_PX, bandTop, bandBottom, pin);
       const last = got.length - 1;
       if (last >= 0) floor = got[last] + h[last] + STACK_GAP_PX;
-      idx.forEach((i, k) => { out[i] = got[k]; });
+      idx.forEach((i, j) => { out[i] = got[j]; });
+      idx.forEach((i, j) => { if (j < last) reach[i] = Math.min(h[j], got[j + 1] - got[j]); });
     }
-    return out;
+    return { tops: out, reach };
   });
+  let tops = $derived(stack.tops);
+  // The card the pointer reads: by the strips the deck shows, so a lifted card never hides
+  // the heads below it from the pointer moving down the deck.
+  let hovered = $state<string | null>(null);
 
-  let placed = $derived(tops.map((t) => t + shift));
-  // Where each card's `top` stands in the stack; the wheel's shift moves the stack.
+  // Where each card's `top` stands while a click's scroll glides the stack.
   let shown = $derived(glide
     ? tops.map((t, i) => { const was = glide!.from.get(balloons[i]?.key) ?? t; return t + (was - t) * (1 - glide!.p); })
     : tops);
@@ -157,7 +154,7 @@
   // view scrolls smoothly by the same amount and the cards glide on the same curve, so
   // its text slides up beside it.
   $effect(() => {
-    const t = placed;
+    const t = tops;
     if (!hold) return;
     const i = balloons.findIndex((b) => b.key === hold?.key);
     if (i < 0 || !balloons[i].active) return;
@@ -237,11 +234,6 @@
       });
     }
     out.sort((a, b) => a.want - b.want);
-    if (out.find((b) => b.active)?.key !== balloons.find((b) => b.active)?.key) {
-      cancelAnimationFrame(wheelFrame);
-      wheelFrame = 0;
-      shift = target = 0;
-    }
     balloons = out;
   }
 
@@ -252,7 +244,7 @@
     const to = b.comment?.to ?? b.revision?.to;
     if (!editor || from === undefined || to === undefined) return;
     const i = balloons.indexOf(b);
-    if (!b.active && i >= 0) hold = { key: b.key, top: placed[i], from: new Map(balloons.map((x, k) => [x.key, shown[k] + shift])) };
+    if (!b.active && i >= 0) hold = { key: b.key, top: tops[i], from: new Map(balloons.map((x, k) => [x.key, shown[k]])) };
     selectRange(editor, from, to, false);
   }
 
@@ -260,8 +252,8 @@
   // left edge. It meets the card at the anchor's own height wherever the card reaches
   // that far, so a balloon sitting at its line is joined by one straight line.
   let leaders = $derived(balloons.map((b, i) => {
-    const top = (shown[i] ?? b.want) + shift;
-    const h = heights[i] ?? 0;
+    const top = shown[i] ?? b.want;
+    const h = hovered === b.key ? heights[i] ?? 0 : stack.reach[i] ?? 0;
     const y = b.anchorY;
     const to = h ? Math.min(Math.max(y, top + 10), top + h - 10) : top + 10;
     const turn = Math.max(b.anchorX + 6, b.left - 30);
@@ -269,80 +261,34 @@
     return {
       d: `M ${b.anchorX} ${y} H ${turn} C ${turn + c} ${y} ${b.left - c} ${to} ${b.left} ${to}`,
       color: b.color,
-      active: b.active,
+      active: b.active || hovered === b.key,
     };
   }));
 
-  function follow(now: number): void {
-    shift += (target - shift) * (1 - Math.exp(-(now - wheelLast) / WHEEL_EASE_MS));
-    wheelLast = now;
-    if (Math.abs(target - shift) < 0.25) {
-      shift = target;
-      wheelFrame = 0;
-      if (!wheelIdle) wheeling = false;
-      return;
-    }
-    wheelFrame = requestAnimationFrame(follow);
+  function point(e: PointerEvent): void {
+    const box = host?.getBoundingClientRect();
+    if (!box) return;
+    const y = (e.clientY - box.top) / (zoom / 100);
+    let found: string | null = null;
+    balloons.forEach((b, i) => {
+      const top = shown[i] ?? b.want;
+      if (top <= y && y < top + (heights[i] ?? 0)) found = b.key;
+    });
+    hovered = found;
   }
 
-  // The wheel over the column moves the stack, not the page, as a scroll box would: only
-  // as far as its first and last card reach the edges of what is shown of the document.
-  // A gesture begun with the stack at that end scrolls the page; Ctrl+wheel stays the zoom.
-  function wheel(node: HTMLElement) {
-    let toPage = false;
-    const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey || Math.abs(e.deltaX) > Math.abs(e.deltaY) || !balloons.length || !balloonWheel()) return;
-      const scroller = node.closest('.editor');
-      if (!scroller) return;
-      const fresh = !wheelIdle;
-      clearTimeout(wheelIdle);
-      wheelIdle = window.setTimeout(() => { wheelIdle = 0; if (!wheelFrame) wheeling = false; }, 150);
-      const scale = zoom / 100;
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? scroller.clientHeight : 1;
-      const view = scroller.getBoundingClientRect();
-      const box = node.getBoundingClientRect();
-      const shownTop = Math.max(0, (view.top - box.top) / scale);
-      const shownBottom = Math.min(height, (view.bottom - box.top) / scale);
-      const last = balloons.length - 1;
-      const bottom = tops[last] + (heights[last] ?? 0);
-      const lo = Math.min(0, shownBottom - bottom);
-      // Down until the last card meets the document's end, or for a stack longer than the
-      // document until the first meets its top: every card stays reachable, the page finite.
-      const hi = Math.max(0, Math.min(shownTop - tops[0], Math.max(height - bottom, -tops[0])));
-      const next = Math.min(Math.max(target - (e.deltaY * unit) / scale, lo), hi);
-      // The whole gesture goes where it began, so the page never takes over halfway.
-      if (fresh) toPage = Math.abs(next - target) < 0.5;
-      if (toPage) return;
-      e.preventDefault();
-      cancelAnimationFrame(glideFrame);
-      glide = null;
-      target = next;
-      wheeling = true;
-      // A trackpad's fine steps are already smooth; easing them would only lag.
-      const notch = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 50;
-      if (!notch || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        cancelAnimationFrame(wheelFrame);
-        wheelFrame = 0;
-        shift = target;
-      } else if (!wheelFrame) {
-        wheelLast = performance.now();
-        wheelFrame = requestAnimationFrame(follow);
-      }
+  // The pointer over the cards picks the one to lift.
+  function hover(node: HTMLElement) {
+    const off = () => { hovered = null; };
+    node.addEventListener('pointermove', point);
+    node.addEventListener('pointerleave', off);
+    return {
+      destroy: () => {
+        node.removeEventListener('pointermove', point);
+        node.removeEventListener('pointerleave', off);
+      },
     };
-    node.addEventListener('wheel', onWheel, { passive: false });
-    return { destroy: () => node.removeEventListener('wheel', onWheel) };
   }
-
-  // Switched off in Settings, the stack goes back to where its cards belong.
-  $effect(() => {
-    if (balloonWheel()) return;
-    cancelAnimationFrame(wheelFrame);
-    wheelFrame = 0;
-    untrack(() => { shift = target = 0; });
-  });
-
-  // The column the wheel reaches: under the cards and the gaps between them.
-  let strip = $derived(balloons.length ? Math.min(...balloons.map((b) => b.left)) : 0);
 
   let width = $derived(paperWidth + cmToPx(REVIEW_MARGIN_CM));
   let height = $derived(pageBoxes.length ? pageBoxes[pageBoxes.length - 1].top + pageBoxes[pageBoxes.length - 1].height : 0);
@@ -350,9 +296,9 @@
 
 <div
   class="review-margin-layer"
-  class:layer-instant={!!glide || wheeling}
+  class:layer-instant={!!glide}
   bind:this={host}
-  use:wheel
+  use:hover
   style="width: {width}px; height: {height}px; transform: scale({zoom / 100});"
 >
   {#if balloons.length}
@@ -370,14 +316,14 @@
         />
       {/each}
     </svg>
-    {#if balloonWheel()}<div class="wheel-strip" style="left: {strip}px; width: {cmToPx(BALLOON_W_CM)}px; height: {height}px;"></div>{/if}
   {/if}
-  <div class="stack" style:transform="translateY({shift}px)">
   {#each balloons as b, i (b.key)}
     <div
       bind:this={els[i]}
       class="balloon"
       class:active={b.active}
+      class:lifted={hovered === b.key && !b.active}
+      class:on-deck={i > 0 && stack.reach[i - 1] < (heights[i - 1] ?? 0) && balloons[i - 1]?.page === b.page}
       style="top: {shown[i] ?? b.want}px; left: {b.left}px; width: {cmToPx(BALLOON_W_CM)}px; border-color: {b.color};"
     >
       {#if b.comment}
@@ -387,7 +333,6 @@
       {/if}
     </div>
   {/each}
-  </div>
 </div>
 
 <style>
@@ -409,39 +354,23 @@
     overflow: visible;
   }
 
-  .wheel-strip {
-    position: absolute;
-    top: 0;
-    pointer-events: auto;
-  }
-
   /* The stack slides into place around the active card; its leaders follow where the
      browser animates a path's geometry. */
   path,
-  .balloon,
-  .stack {
-    transition: d 180ms ease, top 180ms ease, transform 180ms ease;
+  .balloon {
+    transition: d 180ms ease, top 180ms ease;
   }
 
   .layer-instant path,
-  .layer-instant .balloon,
-  .layer-instant .stack {
+  .layer-instant .balloon {
     transition: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
     path,
-    .balloon,
-    .stack {
+    .balloon {
       transition: none;
     }
-  }
-
-  /* The wheel moves the stack as one: a single transform, no card laid out again. */
-  .stack {
-    position: absolute;
-    top: 0;
-    left: 0;
   }
 
   .balloon {
@@ -466,6 +395,17 @@
   .balloon.active {
     z-index: 1;
     box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+  }
+
+  /* A card lying on the one before it casts a faint shadow up, so the deck reads as one. */
+  .balloon.on-deck {
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Under the pointer a covered card rises out of the deck whole; nothing else moves. */
+  .balloon.lifted {
+    z-index: 2;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   }
 
   /* The date beside the author is the balloon's second line of information, not its

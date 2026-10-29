@@ -48,8 +48,6 @@ const es: Messages = {
     placeHint: 'Junto a la página en globos o en una lista en el panel',
     changesHint: 'Marcar los cambios registrados en el texto y mostrarlos',
     changePlace: 'Dónde van los cambios',
-    balloonWheel: 'Desplazar los globos de comentarios y cambios con la rueda',
-    balloonWheelHint: 'Sobre los globos de comentarios y cambios junto a la página, la rueda del ratón mueve los globos en lugar de la página',
     recentFilesHint: 'Los archivos del menú Archivo; los archivos no se tocan',
     retention: { keep: 'Conservar los documentos', closed: 'Solo mientras estén abiertos', none: 'Desactivado' },
     retentionHint: { keep: 'Los documentos cerrados siguen en Archivo ▸ Documentos recientes.', closed: 'Un documento cerrado se elimina del navegador en el próximo inicio.', none: 'No se guarda nada en el navegador: recargar o un bloqueo hacen perder el documento. El autocompletado de palabras y el diccionario de usuario también se desactivan.' },

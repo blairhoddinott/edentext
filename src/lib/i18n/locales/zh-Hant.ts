@@ -50,8 +50,6 @@ const zhHant: Messages = {
     placeHint: '在頁面旁的註解方塊中，或在窗格中列出',
     changesHint: '在文字中醒目提示記錄的修訂並顯示',
     changePlace: '修訂位置',
-    balloonWheel: '用滾輪捲動註解與修訂方塊',
-    balloonWheelHint: '在頁面旁的註解與修訂方塊上方，滑鼠滾輪移動這些方塊而非頁面',
     recentFilesHint: '「檔案」選單中的檔案清單；檔案本身保留',
     retention: { keep: '保留文件', closed: '僅在開啟期間', none: '關閉' },
     retentionHint: { keep: '已關閉的文件保留在「檔案 ▸ 最近使用的文件」中。', closed: '已關閉的文件會在下次啟動時從瀏覽器中刪除。', none: '瀏覽器中不儲存任何內容：重新載入或當機會遺失文件。字詞自動完成與使用者字典也會關閉。' },

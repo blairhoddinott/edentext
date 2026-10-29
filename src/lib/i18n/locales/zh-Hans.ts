@@ -49,8 +49,6 @@ const zhHans: Messages = {
     placeHint: '在页面旁的批注框中，或在窗格中列出',
     changesHint: '在文字中突出显示记录的修订并显示它们',
     changePlace: '修订位置',
-    balloonWheel: '用滚轮滚动批注和修订框',
-    balloonWheelHint: '在页面旁的批注和修订框上方，鼠标滚轮移动这些框而不是页面',
     recentFilesHint: '“文件”菜单中的文件列表；文件本身保留',
     retention: { keep: '保留文档', closed: '仅在打开期间', none: '关闭' },
     retentionHint: { keep: '已关闭的文档保留在“文件 ▸ 最近使用的文档”中。', closed: '已关闭的文档会在下次启动时从浏览器中删除。', none: '浏览器中不保存任何内容：重新加载或崩溃会丢失文档。单词补全和用户词典也会关闭。' },

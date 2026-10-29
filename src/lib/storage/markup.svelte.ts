@@ -11,7 +11,6 @@ const COMMENTS_KEY = 'edentext-markup-comments';
 const CHANGES_KEY = 'edentext-markup-changes';
 const COMMENT_PLACE_KEY = 'edentext-markup-comment-place';
 const CHANGE_PLACE_KEY = 'edentext-markup-change-place';
-const BALLOON_WHEEL_KEY = 'edentext-balloon-wheel';
 
 export const MARKUP_MODES: MarkupMode[] = ['all', 'simple', 'none', 'original'];
 export const MARKUP_PLACES: MarkupPlace[] = ['balloons', 'pane'];
@@ -24,7 +23,6 @@ let comments = $state(localStorage.getItem(COMMENTS_KEY) !== 'false');
 let changes = $state(localStorage.getItem(CHANGES_KEY) !== 'false');
 let commentAt = $state<MarkupPlace>(place(COMMENT_PLACE_KEY));
 let changeAt = $state<MarkupPlace>(place(CHANGE_PLACE_KEY));
-let wheelOn = $state(localStorage.getItem(BALLOON_WHEEL_KEY) !== 'false');
 
 /** Whether a mode has anything to show — the two that read as a finished text have not. */
 const marks = (m: MarkupMode) => m === 'all' || m === 'simple';
@@ -100,14 +98,6 @@ export type MarkupView = {
   comments: boolean;
   changes: boolean;
 };
-
-/** Whether the wheel over the balloons moves them instead of the page (Settings ▸ Review). */
-export function balloonWheel(): boolean { return wheelOn; }
-
-export function setBalloonWheel(on: boolean): void {
-  wheelOn = on;
-  store(BALLOON_WHEEL_KEY, 'false', on);
-}
 
 export function markupView(): MarkupView {
   // Only the full view leaves a change marked up; the other three show a finished text.

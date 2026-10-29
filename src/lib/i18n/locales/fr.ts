@@ -48,8 +48,6 @@ const fr: Messages = {
     placeHint: 'À côté de la page dans des bulles ou en liste dans le volet',
     changesHint: 'Marquer les modifications enregistrées dans le texte et les afficher',
     changePlace: 'Emplacement des modifications',
-    balloonWheel: 'Faire défiler les bulles de commentaires et de modifications avec la molette',
-    balloonWheelHint: 'Au-dessus des bulles de commentaires et de modifications à côté de la page, la molette déplace les bulles plutôt que la page',
     recentFilesHint: 'Les fichiers du menu Fichier ; les fichiers eux-mêmes restent',
     retention: { keep: 'Conserver les documents', closed: 'Seulement tant qu’ils sont ouverts', none: 'Désactivé' },
     retentionHint: { keep: 'Les documents fermés restent dans Fichier ▸ Documents récents.', closed: 'Un document fermé est supprimé du navigateur au prochain démarrage.', none: 'Rien n’est enregistré dans le navigateur : un rechargement ou un plantage fait perdre le document. La saisie semi-automatique et le dictionnaire personnel sont aussi désactivés.' },

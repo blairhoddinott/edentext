@@ -48,8 +48,6 @@ const pt: Messages = {
     placeHint: 'Ao lado da página em bolhas ou numa lista no painel',
     changesHint: 'Marcar as alterações registadas no texto e mostrá-las',
     changePlace: 'Onde ficam as alterações',
-    balloonWheel: 'Deslocar as bolhas de comentários e alterações com a roda',
-    balloonWheelHint: 'Sobre as bolhas de comentários e alterações ao lado da página, a roda do rato move as bolhas em vez da página',
     recentFilesHint: 'Os ficheiros no menu Ficheiro; os ficheiros em si ficam',
     retention: { keep: 'Manter os documentos', closed: 'Só enquanto estiverem abertos', none: 'Desativado' },
     retentionHint: { keep: 'Os documentos fechados ficam em Ficheiro ▸ Documentos recentes.', closed: 'Um documento fechado é eliminado do navegador no próximo arranque.', none: 'Nada é guardado no navegador: recarregar ou uma falha fazem perder o documento. O preenchimento automático de palavras e o dicionário do utilizador também ficam desativados.' },

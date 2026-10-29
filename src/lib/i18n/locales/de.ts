@@ -48,8 +48,6 @@ const de: Messages = {
     placeHint: 'Neben der Seite in Sprechblasen oder als Liste in der Leiste',
     changesHint: 'Aufgezeichnete Änderungen im Text markieren und zeigen',
     changePlace: 'Ort der Änderungen',
-    balloonWheel: 'Sprechblasen für Kommentare und Änderungen mit dem Mausrad scrollen',
-    balloonWheelHint: 'Über den Sprechblasen der Kommentare und Änderungen neben der Seite bewegt das Mausrad die Sprechblasen statt der Seite',
     recentFilesHint: 'Die Dateien im Menü Datei; die Dateien selbst bleiben',
     retention: { keep: 'Dokumente behalten', closed: 'Nur solange sie geöffnet sind', none: 'Aus' },
     retentionHint: { keep: 'Geschlossene Dokumente bleiben unter Datei ▸ Zuletzt benutzte Dokumente.', closed: 'Ein geschlossenes Dokument wird beim nächsten Start aus dem Browser gelöscht.', none: 'Im Browser wird nichts gespeichert: Neuladen oder ein Absturz verwirft das Dokument. Auch Wortergänzung und Benutzerwörterbuch sind dann aus.' },
