@@ -21,6 +21,8 @@ onto the runs too: DOCX via `runForce`, ODT cells via `emitSegment` (the body's 
 
 A shape's text is drawing text to LibreOffice, where a link holds plain text: `shapeLinks` writes a span outside `text:a`, since one inside comes back empty (probed).
 
+Recorded changes: an ODF deletion region is one stretch of one paragraph, since the import puts its text back at its marker, so the runs of one change that other text or a block boundary separates go out as regions of their own. Text one author inserted and another struck goes out as LibreOffice writes it (probed): the deletion region with the insertion's `text:insertion` after it; in DOCX, the `w:del` inside the `w:ins` (`applyStackedRevisionsDocx`).
+
 Read `docs/architecture/export.md` before changing ODF/DOCX export, post-pack passes,
 sentinels, heading defaults, review printing, or header/footer export. Read the focused
 architecture document for tables, frames, formulas, formatting, notes, or encryption.

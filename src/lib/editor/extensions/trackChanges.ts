@@ -2,7 +2,8 @@ import { Extension, Mark, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode, Slice } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
-import { ReplaceStep, type Step } from '@tiptap/pm/transform';
+import { CellSelection } from '@tiptap/pm/tables';
+import { AddMarkStep, RemoveMarkStep, ReplaceStep, type Step } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 
@@ -37,6 +38,8 @@ export function newRevisionId(): string {
 // Track Changes ▸ Record; the extension reads it through this option so the toolbar can
 // flip it without rebuilding the editor.
 export const RECORDING = new PluginKey<boolean>('trackChangesRecording');
+// Set on an edit that passed unrecorded because it only moves content, so none is marked.
+const MOVED = 'trackChangesMoved';
 
 function revisionMark(name: RevisionKind, attr: string) {
   return Mark.create({
@@ -66,30 +69,31 @@ function revisionMark(name: RevisionKind, attr: string) {
 export const Insertion = revisionMark('insertion', 'data-insertion');
 export const Deletion = revisionMark('deletion', 'data-deletion');
 
-// Every recorded change in document order, adjacent runs of one id merged.
+// Every recorded change in document order, adjacent runs of one id merged. Text one author
+// inserted and another struck through is in both: the insertion and its deletion.
 export function revisions(doc: PMNode): Revision[] {
   const out: Revision[] = [];
-  let last: Revision | null = null;
+  const last: Record<RevisionKind, Revision | null> = { insertion: null, deletion: null };
   doc.descendants((node, pos) => {
     // A line break or field is inline as text is, and a recorded one goes with its change.
-    if (!(node.isInline && node.isLeaf)) { last = null; return true; }
-    const mark = node.marks.find((m) => m.type.name === 'insertion' || m.type.name === 'deletion');
-    if (!mark) { last = null; return false; }
-    const kind = mark.type.name as RevisionKind;
-    const id = String(mark.attrs.id ?? '');
-    if (last && last.id === id && last.kind === kind && last.to === pos) {
-      last.to = pos + node.nodeSize;
-      last.text += node.text ?? '';
-      return false;
+    const inline = node.isInline && node.isLeaf;
+    for (const kind of ['insertion', 'deletion'] as const) {
+      const mark = inline ? node.marks.find((m) => m.type.name === kind) : undefined;
+      if (!mark) { last[kind] = null; continue; }
+      const id = String(mark.attrs.id ?? ''), prev = last[kind];
+      if (prev && prev.id === id && prev.to === pos) {
+        prev.to = pos + node.nodeSize;
+        prev.text += node.text ?? '';
+        continue;
+      }
+      out.push(last[kind] = {
+        kind, id,
+        author: String(mark.attrs.author ?? ''),
+        date: String(mark.attrs.date ?? ''),
+        from: pos, to: pos + node.nodeSize, text: node.text ?? '',
+      });
     }
-    last = {
-      kind, id,
-      author: String(mark.attrs.author ?? ''),
-      date: String(mark.attrs.date ?? ''),
-      from: pos, to: pos + node.nodeSize, text: node.text ?? '',
-    };
-    out.push(last);
-    return false;
+    return !inline;
   });
   return out;
 }
@@ -126,9 +130,8 @@ function targets(state: EditorState, all: boolean): Revision[] {
   return list.filter((r) => (from === to ? r.from <= from && from <= r.to : r.from < to && from < r.to));
 }
 
-// Applying a change is one pass from the end, so earlier positions stay valid. The
-// RECORDING meta keeps the plugin's hands off it: without it the delete below is read
-// as a fresh user deletion and marked up again instead of running.
+// Applying changes runs from the end, mapped. The RECORDING meta keeps the plugin's hands
+// off it: without it the delete below is read as a fresh user deletion and marked up again.
 // One change by id — every range of it, which is what a paragraph boundary splits a
 // change into and what the pane lists as a single revision.
 function byId(state: EditorState, tr: Transaction, dispatch: unknown, id: string, accept: boolean): boolean {
@@ -138,11 +141,14 @@ function byId(state: EditorState, tr: Transaction, dispatch: unknown, id: string
   return true;
 }
 
+// An insertion and the deletion struck through it share their range, hence the mapping.
 function apply(state: EditorState, tr: Transaction, list: Revision[], accept: boolean): void {
   const drop = accept ? 'deletion' : 'insertion';
   for (const r of [...list].sort((a, b) => b.from - a.from)) {
-    if (r.kind === drop) tr.delete(r.from, r.to);
-    else tr.removeMark(r.from, r.to, state.schema.marks[r.kind]);
+    const from = tr.mapping.map(r.from, 1), to = tr.mapping.map(r.to, -1);
+    if (to <= from) continue;
+    if (r.kind === drop) tr.delete(from, to);
+    else tr.removeMark(from, to, state.schema.marks[r.kind]);
   }
   tr.setMeta(RECORDING, true);
 }
@@ -236,8 +242,11 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           // It is filtered against the state the edit made, not the view's.
           if (state !== this.editor.view.state) return true;
           const author = options.author();
-          const marked = replayTracked(tr, state, author) ?? replaceSelection(tr, state, author) ?? markPureDelete(tr, state, author);
-          if (!marked) return true;
+          const marked = replayTracked(tr, state, author) ?? clearCells(tr, state, author)
+            ?? replaceSelection(tr, state, author) ?? markPureDelete(tr, state, author);
+          // What passes and removes content only moves or rebuilds it (a sort, merged
+          // cells): its output is no insertion either.
+          if (!marked) { if (removes(tr)) tr.setMeta(MOVED, true); return true; }
           queueMicrotask(() => this.editor.view.dispatch(marked.setMeta(RECORDING, true)));
           return false;
         },
@@ -258,7 +267,7 @@ function fromHistory(tr: Transaction): boolean {
 function insertedRanges(transactions: readonly Transaction[]): [number, number][] {
   const out: [number, number][] = [];
   transactions.forEach((t, ti) => {
-    if (t.getMeta('appendedTransaction')) return;
+    if (t.getMeta('appendedTransaction') || t.getMeta(MOVED)) return;
     const later = transactions.slice(ti + 1).map((u) => u.mapping);
     for (let [from, to] of newRanges(t)) {
       for (const m of later) { from = m.map(from, 1); to = m.map(to, -1); }
@@ -272,6 +281,7 @@ function insertedRanges(transactions: readonly Transaction[]): [number, number][
 function newRanges(tr: Transaction, first = 0): [number, number][] {
   const out: [number, number][] = [];
   for (let i = first; i < tr.steps.length; i++) {
+    if (restyled(tr.steps[i], tr.docs[i])) continue;
     const rest = tr.mapping.slice(i + 1);
     tr.steps[i].getMap().forEach((_os, _oe, ns, ne) => {
       const from = rest.map(ns, 1), to = rest.map(ne, -1);
@@ -281,22 +291,76 @@ function newRanges(tr: Transaction, first = 0): [number, number][] {
   return out;
 }
 
+// The node a step swaps whole for one of its type, and its replacement: a setNodeMarkup
+// on a picture or a formula, or a command rebuilding a block (a sorted table).
+function swap(step: Step, doc: PMNode): [PMNode, PMNode] | null {
+  if (!(step instanceof ReplaceStep) || step.slice.openStart || step.slice.openEnd || step.slice.content.childCount !== 1) return null;
+  const old = doc.nodeAt(step.from), next = step.slice.content.firstChild!;
+  // Text is content itself: a run swapped for another is an edit, never a restyle.
+  return old && !old.isText && step.from + old.nodeSize === step.to && old.type === next.type ? [old, next] : null;
+}
+
+// A container rebuilt whole (a sorted table, an updated index): its content only moves.
+function rebuilt(step: Step, doc: PMNode): boolean {
+  const pair = swap(step, doc);
+  return !!pair && !pair[0].isTextblock && !pair[0].isLeaf;
+}
+
+// A swap with other attributes only: no content changes hands.
+function restyled(step: Step, doc: PMNode): boolean {
+  const pair = swap(step, doc);
+  return !!pair && pair[0].content.eq(pair[1].content);
+}
+
+// Whether a transaction takes anything out of the document, restyled nodes aside.
+function removes(tr: Transaction): boolean {
+  let gone = false;
+  tr.steps.forEach((s, i) => { if (!restyled(s, tr.docs[i])) s.getMap().forEach((os, oe) => { if (oe > os) gone = true; }); });
+  return gone;
+}
+
+// [from,to) is text of one textblock: what a replace command (find & replace, AutoText,
+// a spelling suggestion) takes out, unlike a command moving blocks.
+function inlineOnly(doc: PMNode, from: number, to: number): boolean {
+  const $from = doc.resolve(from);
+  return $from.parent.isTextblock && $from.sameParent(doc.resolve(to));
+}
+
 // A user edit that removes text — a delete, typing or pasting over a selection, Enter over
 // one, a drop — replayed step by step: each removed range is struck through and stays, and
 // what the step inserts lands after it as an insertion. Null for anything else.
 function replayTracked(tr: Transaction, state: EditorState, author: string): Transaction | null {
-  const steps = tr.steps;
-  if (!steps.every((s): s is ReplaceStep => s instanceof ReplaceStep) || !steps.some((s) => s.to > s.from)) return null;
+  // Formatting steps ride along (find & replace with a format): applied, not recorded.
+  const steps = tr.steps.filter((s): s is ReplaceStep => s instanceof ReplaceStep);
+  if (tr.steps.some((s) => !(s instanceof ReplaceStep || s instanceof AddMarkStep || s instanceof RemoveMarkStep))) return null;
+  const docs = tr.steps.flatMap((s, i) => (s instanceof ReplaceStep ? [tr.docs[i]] : []));
+  const swapped = steps.map((s, i) => restyled(s, docs[i]));
+  if (!steps.some((s, i) => !swapped[i] && s.to > s.from)) return null;
   const sel = state.selection, ui = tr.getMeta('uiEvent');
-  const user = steps.length === 1 || isPureDelete(tr, state) || ui === 'paste' || ui === 'drop' || ui === 'cut'
-    || (!sel.empty && steps[0].from === sel.from && steps[0].to === sel.to);
+  // One step is the user's edit over the selection, unless it rebuilds a block whole.
+  const user = (steps.length === 1 && !rebuilt(steps[0], docs[0])) || isPureDelete(tr, state) || ui === 'paste' || ui === 'drop' || ui === 'cut'
+    || (!sel.empty && steps[0].from === sel.from && steps[0].to === sel.to)
+    || steps.every((s, i) => swapped[i] || s.to === s.from || inlineOnly(docs[i], s.from, s.to));
   if (!user) return null;
   const marked = state.tr;
   // A position of the document before the current step, in the marked one as it stands.
   let at: (p: number, assoc: number) => number = (p, a) => marked.mapping.map(p, a);
   let back: { pos: number; steps: number } | null = null;
-  for (const step of steps) {
+  let i = -1;
+  for (const step of tr.steps) {
     const prev = at;
+    if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
+      const from = prev(step.from, 1), to = prev(step.to, -1);
+      if (to > from) step instanceof AddMarkStep ? marked.addMark(from, to, step.mark) : marked.removeMark(from, to, step.mark);
+      continue;
+    }
+    if (!(step instanceof ReplaceStep)) continue;
+    if (swapped[++i]) {
+      const before = marked.steps.length;
+      marked.replace(prev(step.from, 1), prev(step.to, -1), step.slice);
+      at = (p, a) => marked.mapping.slice(before).map(prev(p, a), a);
+      continue;
+    }
     let end = prev(step.to, -1);
     if (step.to > step.from) {
       const from = prev(step.from, 1), before = marked.steps.length;
@@ -319,6 +383,19 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
   const caret = backspace && back ? marked.mapping.slice(back.steps).map(back.pos, -1) : at(tr.selection.head, 1);
   marked.setSelection(TextSelection.near(marked.doc.resolve(caret)));
   if (tr.scrolledIntoView) marked.scrollIntoView();
+  return marked;
+}
+
+// Delete over a cell selection empties each cell: its text is struck through instead.
+function clearCells(tr: Transaction, state: EditorState, author: string): Transaction | null {
+  const sel = state.selection;
+  if (!(sel instanceof CellSelection) || tr.doc.textContent.length >= state.doc.textContent.length) return null;
+  if (!tr.steps.every((s) => s instanceof ReplaceStep && !s.slice.content.textBetween(0, s.slice.content.size))) return null;
+  const marked = state.tr, attrs = revisionAttrs(author);
+  sel.forEachCell((cell, pos) => {
+    const from = marked.mapping.map(pos + 1), to = marked.mapping.map(pos + cell.nodeSize - 1);
+    if (to > from) markDeleted(marked, from, to, attrs);
+  });
   return marked;
 }
 

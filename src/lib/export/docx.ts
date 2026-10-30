@@ -647,9 +647,9 @@ function textNodeToRuns(node: TiptapNode, force: TextProps): Inline[] {
 // A recorded revision wraps the run: w:ins keeps its text, w:del turns it into
 // w:delText — the package's own two run kinds. A line break takes its mark the same way.
 function revisedRun(node: TiptapNode, opts: IRunOptions): TextRun | InsertedTextRun | DeletedTextRun {
-  const rev = revisionOf(node);
+  const rev = revisionOf(node), under = stackedOf(node);
   if (!rev) return new TextRun(opts);
-  const attrs = { id: docRevisionId(rev.attrs.id), author: rev.attrs.author, date: rev.attrs.date };
+  const attrs = { id: under ? stackedDelId(rev, under) : docRevisionId(rev.attrs.id), author: rev.attrs.author, date: rev.attrs.date };
   return rev.kind === 'insertion'
     ? new InsertedTextRun({ ...opts, ...attrs })
     : new DeletedTextRun({ ...opts, ...attrs });
@@ -664,10 +664,20 @@ function tabbedChildren(text: string): (string | Tab)[] {
   return children;
 }
 
-// The insertion/deletion mark on a run, if any (trackChanges.ts).
+// The insertion/deletion mark on a run, if any (trackChanges.ts); the deletion where one
+// author struck what another inserted, the insertion then lying under it (`stackedOf`).
 function revisionOf(node: TiptapNode): { kind: 'insertion' | 'deletion'; attrs: { id: string; author: string; date: string } } | null {
-  const m = node.marks?.find((x) => x.type === 'insertion' || x.type === 'deletion');
+  const m = node.marks?.find((x) => x.type === 'deletion') ?? node.marks?.find((x) => x.type === 'insertion');
   if (!m) return null;
+  return revisionAttrsOf(m);
+}
+
+function stackedOf(node: TiptapNode): ReturnType<typeof revisionOf> {
+  const m = node.marks?.some((x) => x.type === 'deletion') ? node.marks.find((x) => x.type === 'insertion') : undefined;
+  return m ? revisionAttrsOf(m) : null;
+}
+
+function revisionAttrsOf(m: NonNullable<TiptapNode['marks']>[number]): NonNullable<ReturnType<typeof revisionOf>> {
   const a = m.attrs ?? {};
   return {
     kind: m.type as 'insertion' | 'deletion',
@@ -683,6 +693,25 @@ function revisionOf(node: TiptapNode): { kind: 'insertion' | 'deletion'; attrs: 
 // Word numbers its revisions; the editor's ids are strings, so they are handed out in
 // first-seen order and every run of one change keeps the same number.
 let docRevisionIds = new Map<string, number>();
+// Word nests the deletion of another's insertion in that w:ins; the package cannot, so each
+// such w:del gets an id of its own and `applyStackedRevisionsDocx` wraps it.
+let docStacked = new Map<number, { id: number; author: string; date: string }>();
+
+function stackedDelId(rev: NonNullable<ReturnType<typeof revisionOf>>, under: NonNullable<ReturnType<typeof revisionOf>>): number {
+  const id = docRevisionId(`${rev.attrs.id} ${under.attrs.id}`);
+  docStacked.set(id, { id: docRevisionId(under.attrs.id), author: under.attrs.author, date: under.attrs.date });
+  return id;
+}
+
+// A run as raw XML in its w:ins or w:del — the w:del inside the w:ins it struck through.
+function wrapRevisionXml(run: string, rev: NonNullable<ReturnType<typeof revisionOf>>, under: ReturnType<typeof revisionOf>): string {
+  const el = rev.kind === 'insertion' ? 'w:ins' : 'w:del';
+  const open = (tag: string, r: NonNullable<ReturnType<typeof revisionOf>>, id: number) =>
+    `<${tag} w:id="${id}" w:author="${escapeXml(r.attrs.author)}" w:date="${escapeXml(r.attrs.date)}">`;
+  const wrapped = `${open(el, rev, docRevisionId(rev.attrs.id))}${run}</${el}>`;
+  return under ? `${open('w:ins', under, docRevisionId(under.attrs.id))}${wrapped}</w:ins>` : wrapped;
+}
+
 function docRevisionId(id: string): number {
   const seen = docRevisionIds.get(id);
   if (seen != null) return seen;
@@ -1452,11 +1481,7 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
         if (seg) inner += `<${tag} xml:space="preserve">${escapeXml(seg)}</${tag}>`;
       });
       let run = `<w:r>${rPr}${inner}</w:r>`;
-      if (rev) {
-        const el = rev.kind === 'insertion' ? 'w:ins' : 'w:del';
-        run = `<${el} w:id="${docRevisionId(rev.attrs.id)}" w:author="${escapeXml(rev.attrs.author)}"` +
-          ` w:date="${escapeXml(rev.attrs.date)}">${run}</${el}>`;
-      }
+      if (rev) run = wrapRevisionXml(run, rev, stackedOf(child));
       const href = child.marks?.find((m) => m.type === 'link')?.attrs?.href;
       const link = href ? String(href) : '';
       if (link.startsWith('#')) {
@@ -1471,9 +1496,7 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
     } else if (child.type === 'hardBreak') {
       const rev = revisionOf(child);
       const run = `<w:r>${runProps(child.marks)}<w:br/></w:r>`;
-      const el = rev?.kind === 'insertion' ? 'w:ins' : 'w:del';
-      runs += rev ? `<${el} w:id="${docRevisionId(rev.attrs.id)}" w:author="${escapeXml(rev.attrs.author)}"` +
-        ` w:date="${escapeXml(rev.attrs.date)}">${run}</${el}>` : run;
+      runs += rev ? wrapRevisionXml(run, rev, stackedOf(child)) : run;
     }
   }
   closeBookmark();
@@ -1996,6 +2019,22 @@ const W15_NS = 'http://schemas.microsoft.com/office/word/2012/wordml';
 // comment is handled (w15:done) and an answer names its comment (w15:paraIdParent).
 // Both are keyed by the w14:paraId of a comment body's last paragraph, and the package
 // writes neither part.
+// Post-pack pass: each w:del struck through another's insertion goes into that w:ins.
+function applyStackedRevisionsDocx(bytes: Uint8Array): Uint8Array {
+  if (!docStacked.size) return bytes;
+  const files = unzipSync(bytes);
+  for (const path of ['word/document.xml', 'word/footnotes.xml', 'word/endnotes.xml']) {
+    if (!files[path]) continue;
+    files[path] = strToU8(strFromU8(files[path]).replace(/<w:del w:id="(\d+)"[^>]*>[\s\S]*?<\/w:del>/g, (m, id: string) => {
+      const ins = docStacked.get(Number(id));
+      return ins ? `<w:ins w:id="${ins.id}" w:author="${escapeXml(ins.author)}" w:date="${escapeXml(ins.date)}">${m}</w:ins>` : m;
+    }));
+  }
+  const out: Record<string, [Uint8Array, { level: 6 }]> = {};
+  for (const [path, data] of Object.entries(files)) out[path] = [data, { level: 6 }];
+  return zipSync(out);
+}
+
 function applyCommentsExtendedDocx(bytes: Uint8Array): Uint8Array {
   const threaded = docComments.filter((c) => c.resolved || c.parent !== undefined);
   if (!threaded.length) return bytes;
@@ -3465,6 +3504,7 @@ export async function buildDocx(
   docCommentIds = new Map();
   docCommentReplies = new Map();
   docRevisionIds = new Map();
+  docStacked = new Map();
   collectComments(docJson);
   const notesByClass: Record<NoteKind, Record<string, { children: Paragraph[] }>> = { footnote: {}, endnote: {} };
   for (const note of noteBlocks) {
@@ -3697,7 +3737,7 @@ export async function buildDocx(
   // own in settings.xml — a document numbering its first footnote from 3 must still say so.
   const withNotePr = applyNotePrDocx(cited, notesSettings);
   const withNotes = docNoteIds.size ? applyEndnoteImagesDocx(applyNoteMarksDocx(applyNoteBookmarksDocx(withNotePr))) : withNotePr;
-  const threaded = applyCommentsExtendedDocx(withNotes);
+  const threaded = applyStackedRevisionsDocx(applyCommentsExtendedDocx(withNotes));
   // Word mirrors the whole document or nothing: any mirrored section mirrors it.
   const mirrorAny = margins.mirrored || !!hf?.sections?.some((s) => s.margins?.mirrored);
   const mirrored = mirrorAny ? applyMirrorMarginsDocx(threaded) : threaded;

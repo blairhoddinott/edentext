@@ -91,6 +91,8 @@ item's further sub-list, which goes back on the item before.
 
 `utils/shapePresets.json` is generated (`scripts/make-shape-presets.mjs`, MPL-2.0 from LibreOffice): never edit it by hand.
 
+A recorded change carries its mark onto line breaks as onto text. A deletion region with a `text:insertion` after it, or a `w:del` inside a `w:ins`, is text one author inserted and another struck: it takes both marks.
+
 Read `docs/architecture/import.md` before changing parsing, style resolution, default
 suppression, image conversion, headers/footers, or format-specific edge cases. Read the
 focused architecture document for tables, frames, formulas, formatting, notes, or encryption.

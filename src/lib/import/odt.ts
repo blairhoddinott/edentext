@@ -206,7 +206,7 @@ type Ctx = {
   commentReplies: Map<string, { author: string; date: string; text: string }[]>;
   // Recorded revisions: the <text:tracked-changes> registry by change id, and the
   // insertions whose <text:change-start> has been seen but not their end.
-  revisions: Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[] }>;
+  revisions: Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[]; under?: { author: string; date: string } }>;
   openInsertions: Map<string, Record<string, unknown>>;
   // Footnotes/endnotes in anchor order: the file stores each note's text at its anchor,
   // the editor keeps them in one section at the document end (notes.ts).
@@ -2471,21 +2471,30 @@ function odfRecordChanges(body: Element): boolean {
 
 // The <text:tracked-changes> registry: one entry per change id. A deletion carries the
 // text it removed (the body has only a point marker), an insertion only who and when.
-function odfRevisions(body: Element): Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[] }> {
-  const out = new Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[] }>();
+function odfRevisions(body: Element): Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[]; under?: { author: string; date: string } }> {
+  const out = new Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[]; under?: { author: string; date: string } }>();
   const registry = body.getElementsByTagNameNS(NS.text, 'tracked-changes')[0];
   for (const region of Array.from(registry?.children ?? [])) {
     const id = region.getAttributeNS(NS.text, 'id') ?? region.getAttribute('xml:id');
     const kindEl = Array.from(region.children).find((c) => c.localName === 'insertion' || c.localName === 'deletion');
     if (!id || !kindEl) continue;
-    const info = kindEl.getElementsByTagNameNS(NS.office, 'change-info')[0];
+    const who = (el: Element) => {
+      const info = el.getElementsByTagNameNS(NS.office, 'change-info')[0];
+      return {
+        author: info?.getElementsByTagNameNS(NS.dc, 'creator')[0]?.textContent?.trim() ?? '',
+        date: info?.getElementsByTagNameNS(NS.dc, 'date')[0]?.textContent?.trim() ?? '',
+      };
+    };
     const paras = Array.from(kindEl.children).filter((c): c is Element => c.namespaceURI === NS.text && c.localName === 'p');
+    // A deletion of another's insertion carries that insertion after it, in the same region.
+    const under = kindEl.localName === 'deletion'
+      ? Array.from(region.children).find((c) => c.localName === 'insertion') : undefined;
     out.set(id, {
       kind: kindEl.localName === 'deletion' ? 'deletion' : 'insertion',
-      author: info?.getElementsByTagNameNS(NS.dc, 'creator')[0]?.textContent?.trim() ?? '',
-      date: info?.getElementsByTagNameNS(NS.dc, 'date')[0]?.textContent?.trim() ?? '',
+      ...who(kindEl),
       text: paras.map((n) => n.textContent ?? '').join('\n'),
       paras,
+      ...(under ? { under: who(under) } : {}),
     });
   }
   return out;
@@ -2763,15 +2772,16 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             const id = e.getAttributeNS(NS.text, 'change-id');
             const rev = id ? ctx.revisions.get(id) : undefined;
             if (!ctx.zone && id && rev?.kind === 'deletion' && (rev.paras.length || rev.text)) {
-              const del = { type: 'deletion', attrs: { id, author: rev.author, date: rev.date } };
+              const del = [{ type: 'deletion', attrs: { id, author: rev.author, date: rev.date } },
+                ...(rev.under ? [{ type: 'insertion', attrs: { id: `${id}-ins`, ...rev.under } }] : [])];
               if (!rev.paras.length) {
-                out.push({ type: 'text', text: rev.text, marks: [...marksFor(props, ctx.resolver, defaults), del] });
+                out.push({ type: 'text', text: rev.text, marks: [...marksFor(props, ctx.resolver, defaults), ...del] });
                 continue;
               }
               rev.paras.forEach((p, i) => {
-                if (i) out.push({ type: 'text', text: '\n', marks: [del] });
+                if (i) out.push({ type: 'text', text: '\n', marks: del });
                 for (const n of convertInline(p, ctx, props, defaults)) {
-                  if (n.type === 'text' || n.type === 'hardBreak') n.marks = [...(n.marks ?? []), del];
+                  if (n.type === 'text' || n.type === 'hardBreak') n.marks = [...(n.marks ?? []), ...del];
                   out.push(n);
                 }
               });

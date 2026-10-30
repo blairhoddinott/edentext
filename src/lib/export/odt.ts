@@ -672,43 +672,62 @@ function replacePlaceholderFields(node: TiptapNode, labels: string[]): TiptapNod
 
 // One recorded revision. Runs of the same change share an id, so the registry holds one
 // entry per id and a deletion's text is the concatenation of its runs.
-type RevisionExport = { kind: 'insertion' | 'deletion'; id: string; author: string; date: string; text: string; nodes: TiptapNode[] };
+type RevisionExport = { kind: 'insertion' | 'deletion'; id: string; author: string; date: string; text: string; nodes: TiptapNode[];
+  /** The insertion a deletion struck through, which LibreOffice stacks in the same region. */
+  under?: { author: string; date: string } };
 
 // Bracket every insertion run with TCI sentinels and cut every deletion run out, leaving
 // a TCD sentinel where it was — ODF keeps a deletion's text in the registry, not inline.
 // The deleted runs are hoisted into a marker paragraph at document end so they ride every
 // serialization pass (styles, tabs, effects); applyRevisions splices them into the
 // registry, which is how the deleted text keeps its formatting (LibreOffice does the same).
-function replaceRevisions(node: TiptapNode, out: Map<string, RevisionExport>): TiptapNode {
+// A region is one stretch of one paragraph — LibreOffice reads one stretch per id, and a
+// deletion's text all comes back at its marker — so each run of a change that other text or
+// a block boundary separates goes out as a region of its own.
+function replaceRevisions(node: TiptapNode, out: Map<string, RevisionExport>, part = new Map<string, string>()): TiptapNode {
   if (!node.content?.length) return node;
   const content: TiptapNode[] = [];
+  let prev: string | null = null;
   for (const child of node.content) {
     const mark = child.type === 'text'
-      ? child.marks?.find((m) => m.type === 'insertion' || m.type === 'deletion')
+      ? child.marks?.find((m) => m.type === 'deletion') ?? child.marks?.find((m) => m.type === 'insertion')
       : undefined;
-    if (!mark) { content.push(replaceRevisions(child, out)); continue; }
+    const under = mark?.type === 'deletion' ? child.marks?.find((m) => m.type === 'insertion') : undefined;
+    const run = prev;
+    prev = null;
+    if (!mark) { content.push(replaceRevisions(child, out, part)); continue; }
     const a = mark.attrs ?? {};
-    const id = String(a.id ?? '');
     const kind = mark.type as 'insertion' | 'deletion';
+    let id = String(a.id ?? '');
+    const key = `${kind} ${id} ${under?.attrs?.id ?? ''}`, own = part.get(key);
+    const goesOn = !!own && run === own;
+    if (!goesOn) part.set(key, out.has(id) ? `${id}-${out.size}` : id);
+    id = prev = part.get(key)!;
     const known = out.has(id);
     const entry = out.get(id) ?? {
       kind, id,
       author: String(a.author ?? '') || GENERATOR,
       date: typeof a.date === 'string' && a.date ? a.date : new Date().toISOString(),
       text: '', nodes: [],
+      ...(under ? { under: {
+        author: String(under.attrs?.author ?? '') || GENERATOR,
+        date: typeof under.attrs?.date === 'string' && under.attrs.date ? under.attrs.date : new Date().toISOString(),
+      } } : {}),
     };
     entry.text += child.text ?? '';
     out.set(id, entry);
     // The marks stay off the sentinel runs: a change is not formatting, and odf-kit
     // would otherwise split the paragraph's runs around it.
-    const rest = child.marks?.filter((m) => m !== mark);
+    const rest = child.marks?.filter((m) => m.type !== 'insertion' && m.type !== 'deletion');
     if (kind === 'deletion') {
       entry.nodes.push({ ...child, ...(rest?.length ? { marks: rest } : { marks: undefined }) });
-      // One point marker per change: its registry region holds every fragment.
+      // One point marker per region: its registry entry holds the region's runs.
       if (!known) content.push({ type: 'text', text: `${TCD}${id}${TCD}` });
       continue;
     }
-    content.push({ type: 'text', text: `${TCI}${id}${TCI}` });
+    // A run going on with the region moves its closing marker past itself.
+    if (goesOn) content.pop();
+    else content.push({ type: 'text', text: `${TCI}${id}${TCI}` });
     content.push({ ...child, ...(rest?.length ? { marks: rest } : { marks: undefined }) });
     content.push({ type: 'text', text: `${TCI}${id}${TCI}` });
   }
@@ -759,12 +778,13 @@ function applyRevisions(odtBytes: Uint8Array, list: Map<string, RevisionExport>,
 
   const regions = [...list.values()].map((r) => {
     const ct = odfId.get(r.id)!;
-    const info = `<office:change-info><dc:creator>${escapeXml(r.author)}</dc:creator>`
-      + `<dc:date>${escapeXml(r.date.replace(/\.\d+Z?$/, ''))}</dc:date></office:change-info>`;
+    const info = (c: { author: string; date: string }) => `<office:change-info><dc:creator>${escapeXml(c.author)}</dc:creator>`
+      + `<dc:date>${escapeXml(c.date.replace(/\.\d+Z?$/, ''))}</dc:date></office:change-info>`;
     const runs = hoisted.get(r.id) ?? escapeXml(r.text);
     const body = r.kind === 'deletion'
-      ? `<text:deletion>${info}<text:p text:style-name="Standard">${runs}</text:p></text:deletion>`
-      : `<text:insertion>${info}</text:insertion>`;
+      ? `<text:deletion>${info(r)}<text:p text:style-name="Standard">${runs}</text:p></text:deletion>`
+        + (r.under ? `<text:insertion>${info(r.under)}</text:insertion>` : '')
+      : `<text:insertion>${info(r)}</text:insertion>`;
     return `<text:changed-region xml:id="${ct}" text:id="${ct}">${body}</text:changed-region>`;
   }).join('');
   content = content.replace(
