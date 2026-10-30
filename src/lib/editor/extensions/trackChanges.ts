@@ -1,10 +1,10 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core';
-import type { Node as PMNode, Slice } from '@tiptap/pm/model';
+import { Slice, type Fragment, type Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { CellSelection } from '@tiptap/pm/tables';
-import { AddMarkStep, RemoveMarkStep, ReplaceStep, type Step } from '@tiptap/pm/transform';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceStep, type Step, type StepMap } from '@tiptap/pm/transform';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 
 // Recorded revisions, as both word processors keep them: an insertion is text marked as
@@ -185,6 +185,22 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
     // (`authorColors`). Cached on the doc — the walk is the whole document, and this runs
     // on every view update.
     let cache: { doc: PMNode; plain: boolean; set: DecorationSet } | null = null;
+    // An IME composes over a selection in place: that composition's steps (ProseMirror's
+    // `composition` meta) pass unrecorded, and once it ends what it took out of the selection
+    // (`kept` is the rest) goes back struck through, in the same history event.
+    let composed: { pos: number; slice: Slice; kept: [number, number]; id: unknown; changed: boolean } | null = null;
+    const settle = (view: EditorView) => {
+      if (!composed || view.composing) return;
+      const { pos, slice, kept: [from, to], id, changed } = composed;
+      composed = null;
+      if (!changed || to - from === slice.size) return;
+      const tr = view.state.tr;
+      if (to > from) tr.delete(from, to);
+      const at = tr.mapping.map(pos, -1);
+      tr.insert(at, slice.content);
+      markDeleted(tr, at, at + slice.size, revisionAttrs(options.author()));
+      view.dispatch(tr.setMeta(RECORDING, true).setMeta('composition', id));
+    };
     return [
       new Plugin({
         props: {
@@ -207,10 +223,27 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
       }),
       new Plugin({
         key: RECORDING,
+        props: {
+          handleDOMEvents: {
+            compositionstart: (view) => {
+              settle(view);
+              const sel = view.state.selection;
+              if (!options.recording() || sel.empty || !inlineOnly(view.state.doc, sel.from, sel.to)) return false;
+              composed = { pos: sel.from, slice: view.state.doc.slice(sel.from, sel.to), kept: [sel.from, sel.to], id: null, changed: false };
+              return false;
+            },
+            // After ProseMirror has read the composition's last change (a microtask).
+            compositionend: (view) => { setTimeout(() => settle(view)); return false; },
+          },
+        },
         // Typing is intercepted here rather than by a keymap: every path that inserts
         // text — a paste, an input rule, a drop — goes through appendTransaction, and
         // each would otherwise need its own hook.
         appendTransaction: (transactions, _oldState, newState) => {
+          if (composed) for (const t of transactions) {
+            composed.pos = t.mapping.map(composed.pos, -1);
+            for (const map of t.mapping.maps) composed.kept = keptThrough(map, composed.kept);
+          }
           if (!options.recording()) return null;
           if (!transactions.some((t) => t.docChanged)) return null;
           // Our own accept/reject and the mark pass below must not recurse, and undo/redo
@@ -241,8 +274,17 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           // the user's; replayed, the repair would run again on the replay, without end.
           // It is filtered against the state the edit made, not the view's.
           if (state !== this.editor.view.state) return true;
+          const composition = tr.getMeta('composition');
+          if (composed && composition != null && (composed.id ?? composition) === composition) {
+            composed.id = composition;
+            composed.changed = true;
+            return true;
+          }
           const author = options.author();
-          const marked = replayTracked(tr, state, author) ?? clearCells(tr, state, author)
+          // Taking back one's own pending text goes as it is (appendTransaction marks what
+          // replaces it): a replay a microtask later would break an IME's running composition.
+          if (ownOnly(tr, author)) return true;
+          const marked = pasteCells(tr, state, author) ?? replayTracked(tr, state, author) ?? clearCells(tr, state, author)
             ?? replaceSelection(tr, state, author) ?? markPureDelete(tr, state, author);
           // What passes and removes content only moves or rebuilds it (a sort, merged
           // cells): its output is no insertion either.
@@ -326,6 +368,34 @@ function inlineOnly(doc: PMNode, from: number, to: number): boolean {
   return $from.parent.isTextblock && $from.sameParent(doc.resolve(to));
 }
 
+// What is left of [from,to) after a step: an end whose character the step replaced moves to
+// that replacement's far side, so nothing the step put in counts as left.
+function keptThrough(map: StepMap, [from, to]: [number, number]): [number, number] {
+  let start = map.map(from, 1), end = map.map(to, -1);
+  map.forEach((os, oe, ns, ne) => {
+    if (from >= os && from < oe) start = ne;
+    if (to > os && to <= oe) end = ns;
+  });
+  return [start, Math.max(start, end)];
+}
+
+// Every step removes only text of one textblock that `author` inserted and nobody struck.
+function ownOnly(tr: Transaction, author: string): boolean {
+  return tr.steps.length > 0 && tr.steps.every((step, i) => {
+    if (!(step instanceof ReplaceStep)) return false;
+    if (step.to === step.from) return true;
+    if (!inlineOnly(tr.docs[i], step.from, step.to)) return false;
+    let own = true;
+    tr.docs[i].nodesBetween(step.from, step.to, (node) => {
+      if (!node.isInline) return true;
+      const ins = node.marks.find((m) => m.type.name === 'insertion');
+      if (!ins || String(ins.attrs.author ?? '') !== author || node.marks.some((m) => m.type.name === 'deletion')) own = false;
+      return false;
+    });
+    return own;
+  }) && tr.steps.some((s) => (s as ReplaceStep).to > (s as ReplaceStep).from);
+}
+
 // A user edit that removes text — a delete, typing or pasting over a selection, Enter over
 // one, a drop — replayed step by step: each removed range is struck through and stays, and
 // what the step inserts lands after it as an insertion. Null for anything else.
@@ -386,6 +456,63 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
   return marked;
 }
 
+// A paste over cells replaces each row's run of them whole (prosemirror-tables'
+// insertCells): each new cell takes, struck through before the pasted content, what the old
+// cell at its column held. The table growing or merged cells splitting to fit is structure.
+function pasteCells(tr: Transaction, state: EditorState, author: string): Transaction | null {
+  const isCell = (n: PMNode) => n.type.spec.tableRole === 'cell' || n.type.spec.tableRole === 'header_cell';
+  const cellsOnly = (f: Fragment) => {
+    let all = f.childCount > 0;
+    f.forEach((n) => { all &&= isCell(n); });
+    return all;
+  };
+  const isRow = (step: Step, doc: PMNode): step is ReplaceStep => {
+    if (!(step instanceof ReplaceStep) || step.slice.openStart || step.slice.openEnd || step.to <= step.from) return false;
+    const $from = doc.resolve(step.from);
+    return $from.parent.type.spec.tableRole === 'row' && $from.sameParent(doc.resolve(step.to))
+      && cellsOnly(step.slice.content) && cellsOnly(doc.slice(step.from, step.to).content);
+  };
+  if (!tr.steps.some((s, i) => isRow(s, tr.docs[i]))) return null;
+  const marked = state.tr, attrs = revisionAttrs(author), { insertion, deletion } = state.schema.marks;
+  const span = (n: PMNode) => Number(n.attrs.colspan ?? 1) || 1;
+  // From the document before tr's next step to the marked one as it stands.
+  let toMarked = new Mapping();
+  for (const [i, step] of tr.steps.entries()) {
+    const before = marked.steps.length, mapped = step.map(toMarked);
+    if (!mapped || marked.maybeStep(mapped).failed) return null;
+    if (isRow(step, tr.docs[i])) {
+      const old = new Map<number, PMNode>();
+      let col = 0;
+      tr.docs[i].slice(step.from, step.to).content.forEach((n) => { old.set(col, n); col += span(n); });
+      const cells: [number, PMNode | undefined][] = [];
+      let pos = (mapped as ReplaceStep).from;
+      col = 0;
+      step.slice.content.forEach((n) => { cells.push([pos, old.get(col)]); pos += n.nodeSize; col += span(n); });
+      // Back to front, so each cell's position holds while the ones after it change.
+      for (const [at, gone] of cells.reverse()) {
+        const end = at + marked.doc.nodeAt(at)!.nodeSize - 1;
+        marked.removeMark(at + 1, end, deletion).removeMark(at + 1, end, insertion).addMark(at + 1, end, insertion.create(attrs));
+        let inline = false;
+        gone?.descendants((n) => { inline ||= n.isInline; return !inline; });
+        if (!gone || !inline) continue;
+        // The struck text runs on into the pasted paragraph, as typing over it would.
+        const open = gone.lastChild?.isTextblock && marked.doc.nodeAt(at)!.firstChild?.isTextblock ? 1 : 0;
+        const from = marked.steps.length;
+        marked.replace(at + 1, at + 1 + open, new Slice(gone.content, 0, open));
+        markDeleted(marked, at + 1, marked.mapping.slice(from).map(at + 1 + open, 1), attrs);
+      }
+    }
+    // A position in what the step put in maps to its copy in the marked document (mirror).
+    const next = new Mapping();
+    next.appendMap(step.getMap().invert());
+    next.appendMapping(toMarked);
+    marked.mapping.maps.slice(before).forEach((m, k) => next.appendMap(m, k ? undefined : 0));
+    toMarked = next;
+  }
+  marked.setSelection(TextSelection.near(marked.doc.resolve(toMarked.map(tr.selection.to, -1)), -1));
+  return marked;
+}
+
 // Delete over a cell selection empties each cell: its text is struck through instead.
 function clearCells(tr: Transaction, state: EditorState, author: string): Transaction | null {
   const sel = state.selection;
@@ -431,20 +558,27 @@ function editedContent(doc: PMNode, from: number, to: number): Slice | null {
   return first >= 0 && doc.resolve(first).sameParent(doc.resolve(last)) ? doc.slice(first, last) : doc.slice(from, to);
 }
 
-// A delete made of other steps (a lift, a join): its ranges struck through, in the
-// document it started from. Null when the transaction inserts as well.
+// A delete made of other steps (a join): its ranges struck through, in the document it
+// started from. Null when the transaction inserts as well, or takes out no inline content
+// (a lift only unwraps blocks: structure, which passes unrecorded).
 function markPureDelete(tr: Transaction, state: EditorState, author: string): Transaction | null {
   if (!isPureDelete(tr, state)) return null;
   const marked = state.tr;
   const attrs = revisionAttrs(author);
+  let content = false;
   tr.steps.forEach((step, i) => {
-    const back = tr.mapping.slice(0, i).invert();
+    // Mapping.invert ignores a slice's bounds: the maps before this step, copied.
+    const back = new Mapping(tr.mapping.maps.slice(0, i)).invert();
     step.getMap().forEach((oldStart, oldEnd) => {
       const from = marked.mapping.map(back.map(oldStart, 1), 1), to = marked.mapping.map(back.map(oldEnd, -1), -1);
-      if (to > from) markDeleted(marked, from, to, attrs);
+      let inline = false;
+      if (to > from) marked.doc.nodesBetween(from, to, (n) => { inline ||= n.isInline; return !inline; });
+      if (!inline) return;
+      content = true;
+      markDeleted(marked, from, to, attrs);
     });
   });
-  return marked;
+  return content ? marked : null;
 }
 
 // The attrs of the insertion the text just before `pos` belongs to, when the same author

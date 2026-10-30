@@ -2485,7 +2485,10 @@ function odfRevisions(body: Element): Map<string, { kind: 'insertion' | 'deletio
         date: info?.getElementsByTagNameNS(NS.dc, 'date')[0]?.textContent?.trim() ?? '',
       };
     };
-    const paras = Array.from(kindEl.children).filter((c): c is Element => c.namespaceURI === NS.text && c.localName === 'p');
+    // LibreOffice keeps a heading's deleted text a text:h, and a list item's inside its list.
+    const blocks = (el: Element): Element[] => Array.from(el.children).flatMap((c) => c.namespaceURI !== NS.text ? []
+      : c.localName === 'p' || c.localName === 'h' ? [c] : /^list(-item|-header)?$/.test(c.localName) ? blocks(c) : []);
+    const paras = blocks(kindEl);
     // A deletion of another's insertion carries that insertion after it, in the same region.
     const under = kindEl.localName === 'deletion'
       ? Array.from(region.children).find((c) => c.localName === 'insertion') : undefined;
@@ -2640,8 +2643,25 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
     out.push(node);
   };
 
+  // An atom met inside a recorded insertion takes its mark as text does (pushText). Each
+  // child's nodes are settled by the innermost walk that pushed them, under the insertion
+  // open while it did; a note anchor takes no marks and a box is no single character.
+  const settled = new WeakSet<Node>();
   const walk = (el: Element, props: PropMap, linkHref?: string) => {
+    let from = out.length, insertion = ctx.openInsertions.values().next().value;
+    const settle = () => {
+      for (const n of out.slice(from)) {
+        if (settled.has(n)) continue;
+        settled.add(n);
+        if (insertion && !n.content && n.type !== 'noteRef' && !n.marks?.some((m) => m.type === 'insertion')) {
+          n.marks = [...(n.marks ?? []), { type: 'insertion', attrs: insertion }];
+        }
+      }
+      from = out.length;
+      insertion = ctx.openInsertions.values().next().value;
+    };
     for (const child of Array.from(el.childNodes)) {
+      settle();
       if (child.nodeType === 3 /* text */) {
         pushText(child.nodeValue ?? '', props, linkHref);
         continue;
@@ -2781,7 +2801,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
               rev.paras.forEach((p, i) => {
                 if (i) out.push({ type: 'text', text: '\n', marks: del });
                 for (const n of convertInline(p, ctx, props, defaults)) {
-                  if (n.type === 'text' || n.type === 'hardBreak') n.marks = [...(n.marks ?? []), ...del];
+                  if (!n.content && n.type !== 'noteRef') n.marks = [...(n.marks ?? []), ...del];
                   out.push(n);
                 }
               });
@@ -2930,6 +2950,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
         continue;
       }
     }
+    settle();
   };
 
   walk(root, baseProps);

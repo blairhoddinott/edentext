@@ -312,6 +312,24 @@ const INDC = '\uE025';
 // <a:srcRect/>, which a post-pack pass fills from it. Its colour mode rides the same way.
 const CROP = '\uE030';
 const COLOR = '\uE031';
+
+// Brackets the runs of a recorded atom (picture, formula, field): the package's revision
+// runs hold only text, so applyAtomRevisionsDocx swaps each pair for its w:ins or w:del.
+const ARV = '\uE032';
+type AtomRevisionDocx = { el: 'w:ins' | 'w:del'; id: number; author: string; date: string };
+let docAtomRevisions: AtomRevisionDocx[] = [];
+
+// The two bracket texts for an atom carrying a recorded change, else null. A note anchor
+// takes no marks and a box is no single character.
+function atomRevisionMarks(node: TiptapNode): [string, string] | null {
+  if (node.type === 'text' || node.type === 'hardBreak' || node.type === 'textBox' || node.type === 'noteRef') return null;
+  const rev = revisionOf(node), under = stackedOf(node);
+  if (!rev) return null;
+  docAtomRevisions.push({ el: rev.kind === 'insertion' ? 'w:ins' : 'w:del',
+    id: under ? stackedDelId(rev, under) : docRevisionId(rev.attrs.id), author: rev.attrs.author, date: rev.attrs.date });
+  const i = docAtomRevisions.length - 1;
+  return [`${ARV}o${i}${ARV}`, `${ARV}c${i}${ARV}`];
+}
 let docPictureMarks = false;
 const srcRectXml = (c: Crop | null) => c
   ? `<a:srcRect l="${Math.round(c.l * 100000)}" t="${Math.round(c.t * 100000)}" r="${Math.round(c.r * 100000)}" b="${Math.round(c.b * 100000)}"/>`
@@ -904,9 +922,14 @@ function inlineToRuns(content: TiptapNode[] = [], force: TextProps = {}): Inline
     if (id !== null) { out.push(new CommentRangeStart(id)); openComment = id; }
   };
 
+  let closeAtom: string | null = null;
   for (const node of content) {
+    if (closeAtom) out.push(new TextRun({ text: closeAtom }));
     openCommentAt(commentIdOf(node));
     openFor(bookmarkNamesOf(node));
+    const atom = atomRevisionMarks(node);
+    if (atom) out.push(new TextRun({ text: atom[0] }));
+    closeAtom = atom?.[1] ?? null;
     if (node.type === 'text' && node.text) {
       const runs = textNodeToRuns(node, force);
       const href = node.marks?.find((m) => m.type === 'link')?.attrs?.href;
@@ -996,6 +1019,7 @@ function inlineToRuns(content: TiptapNode[] = [], force: TextProps = {}): Inline
       }
     }
   }
+  if (closeAtom) out.push(new TextRun({ text: closeAtom }));
   closeComment();
   flush(); // a bookmark still open at the paragraph's end would drop its runs
   return out;
@@ -1414,6 +1438,8 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
     if (cid !== openComment) closeComment();
     if (cid !== null && cid !== openComment) { runs += `<w:commentRangeStart w:id="${cid}"/>`; openComment = cid; }
     openBookmarksFor(bookmarkNamesOf(child));
+    const atom = atomRevisionMarks(child);
+    if (atom) runs += `<w:r><w:t>${atom[0]}</w:t></w:r>`;
     if (child.type === 'image') {
       const drawing = txbxImageXml(child, parts);
       if (drawing) runs += `<w:r>${drawing}</w:r>`;
@@ -1498,6 +1524,7 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
       const run = `<w:r>${runProps(child.marks)}<w:br/></w:r>`;
       runs += rev ? wrapRevisionXml(run, rev, stackedOf(child)) : run;
     }
+    if (atom) runs += `<w:r><w:t>${atom[1]}</w:t></w:r>`;
   }
   closeBookmark();
   closeComment();
@@ -2019,6 +2046,28 @@ const W15_NS = 'http://schemas.microsoft.com/office/word/2012/wordml';
 // comment is handled (w15:done) and an answer names its comment (w15:paraIdParent).
 // Both are keyed by the w14:paraId of a comment body's last paragraph, and the package
 // writes neither part.
+// Post-pack pass: each bracketed atom goes into its w:ins or w:del, after the passes that
+// swap a formula, ruby or placeholder in. A field there is a complex one, as w:fldSimple
+// may not sit in a revision; deleted, its text and instruction are w:delText/w:delInstrText.
+function applyAtomRevisionsDocx(bytes: Uint8Array): Uint8Array {
+  if (!docAtomRevisions.length) return bytes;
+  const files = unzipSync(bytes);
+  const run = (tag: string) => `<w:r\\b[^>]*?>(?:(?!</?w:r[\\s>])[\\s\\S])*?${ARV}${tag}${ARV}(?:(?!</?w:r[\\s>])[\\s\\S])*?</w:r>`;
+  const pattern = new RegExp(`${run('o(\\d+)')}([\\s\\S]*?)${run('c\\1')}`, 'g');
+  for (const part of textParts(files)) files[part] = strToU8(strFromU8(files[part]).replace(pattern, (_m, idx: string, inner: string) => {
+    const r = docAtomRevisions[Number(idx)];
+    if (!r) return inner;
+    let xml = inner.replace(/<w:fldSimple w:instr="([^"]*)"[^>]*>([\s\S]*?)<\/w:fldSimple>/g, (_f, instr: string, result: string) =>
+      `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve">${instr}</w:instrText></w:r>`
+      + `<w:r><w:fldChar w:fldCharType="separate"/></w:r>${result}<w:r><w:fldChar w:fldCharType="end"/></w:r>`);
+    if (r.el === 'w:del') xml = xml.replace(/<(\/?)w:t\b/g, '<$1w:delText').replace(/<(\/?)w:instrText\b/g, '<$1w:delInstrText');
+    return `<${r.el} w:id="${r.id}" w:author="${escapeXml(r.author)}" w:date="${escapeXml(r.date)}">${xml}</${r.el}>`;
+  }));
+  const out: Record<string, [Uint8Array, { level: 6 }]> = {};
+  for (const [path, data] of Object.entries(files)) out[path] = [data, { level: 6 }];
+  return zipSync(out);
+}
+
 // Post-pack pass: each w:del struck through another's insertion goes into that w:ins.
 function applyStackedRevisionsDocx(bytes: Uint8Array): Uint8Array {
   if (!docStacked.size) return bytes;
@@ -3481,6 +3530,7 @@ export async function buildDocx(
   nextBookmarkId = 0;
   docxBookmarkNames = new Map();
   docRubies = [];
+  docAtomRevisions = [];
   docPictureMarks = false;
   frameSeq = 0;
   docPlaceholders = [];
@@ -3737,7 +3787,7 @@ export async function buildDocx(
   // own in settings.xml — a document numbering its first footnote from 3 must still say so.
   const withNotePr = applyNotePrDocx(cited, notesSettings);
   const withNotes = docNoteIds.size ? applyEndnoteImagesDocx(applyNoteMarksDocx(applyNoteBookmarksDocx(withNotePr))) : withNotePr;
-  const threaded = applyStackedRevisionsDocx(applyCommentsExtendedDocx(withNotes));
+  const threaded = applyStackedRevisionsDocx(applyAtomRevisionsDocx(applyCommentsExtendedDocx(withNotes)));
   // Word mirrors the whole document or nothing: any mirrored section mirrors it.
   const mirrorAny = margins.mirrored || !!hf?.sections?.some((s) => s.margins?.mirrored);
   const mirrored = mirrorAny ? applyMirrorMarginsDocx(threaded) : threaded;

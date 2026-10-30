@@ -573,8 +573,10 @@ function tocIndexKind(instr: string): IndexKind {
   return cat === 'table' ? 'tables' : cat === 'figure' ? 'figures' : 'toc';
 }
 
+// A recorded deletion keeps a field's instruction in w:delInstrText, read the same.
 const instrTextOf = (el: Element): string =>
-  Array.from(el.getElementsByTagNameNS(W, 'instrText')).map(i => i.textContent ?? '').join('');
+  Array.from(el.getElementsByTagNameNS(W, '*')).filter(i => i.localName === 'instrText' || i.localName === 'delInstrText')
+    .map(i => i.textContent ?? '').join('');
 
 // A cell's own formula field: `=SUM(ABOVE)`, written either way a field can be. Its
 // picture switch is the number format (`\@` for a date), not part of the formula.
@@ -2075,8 +2077,9 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     for (const c of inlineChildren(el)) handleInline(c, linkHref);
   };
 
-  // A recorded revision (w:ins/w:del, a move's two ends w:moveFrom/w:moveTo). Its runs keep
-  // their formatting and take the mark; deleted text sits in w:delText, read as ordinary text.
+  // A recorded revision (w:ins/w:del, a move's two ends w:moveFrom/w:moveTo). Its runs and
+  // atoms keep their formatting and take the mark; deleted text sits in w:delText, read as
+  // ordinary text. A note anchor takes no marks and a box is no single character.
   const handleRevision = (el: Element, linkHref?: string) => {
     const kind = el.localName === 'del' || el.localName === 'moveFrom' ? 'deletion' : 'insertion';
     const attrs = {
@@ -2089,7 +2092,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     // The zone schema records no revisions.
     if (!ctx.zone) {
       for (let i = before; i < out.length; i++) {
-        if (out[i].type !== 'text' && out[i].type !== 'hardBreak') continue;
+        if (out[i].content || out[i].type === 'noteRef') continue;
         out[i].marks = [...(out[i].marks ?? []), { type: kind, attrs }];
       }
     }
@@ -2167,7 +2170,8 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
           }
           break;
         }
-        case 'instrText': if (fieldMode === 'instr') fieldInstr += child.textContent ?? ''; break;
+        case 'instrText':
+        case 'delInstrText': if (fieldMode === 'instr') fieldInstr += child.textContent ?? ''; break;
         // w:delText is a deleted run's text — the same content, kept because the
         // revision is only recorded, not applied.
         case 'delText':

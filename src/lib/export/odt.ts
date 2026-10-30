@@ -472,11 +472,11 @@ function applyNestedListItems(odtBytes: Uint8Array): Uint8Array {
   return rezipOdt(files);
 }
 
-// odf-kit writes a list item's first paragraph and nothing else, so the item's further
-// blocks ride it SEG-separated, and an opening heading rides as that paragraph;
-// applyListItemBlocks re-emits them as their own.
+// odf-kit writes a list item's first paragraph only, so its further blocks ride it SEG-separated
+// (an opening heading as that paragraph) and applyListItemBlocks re-emits them. Not in a cell:
+// buildCellContent rebuilds its lists from SEG-separated paragraphs already.
 function mergeListItemBlocks(node: TiptapNode): TiptapNode {
-  if (!node.content?.length) return node;
+  if (!node.content?.length || node.type === 'tableCell' || node.type === 'tableHeader') return node;
   const kids = node.content;
   if (node.type === 'listItem' && (kids[0]?.type === 'paragraph' || kids[0]?.type === 'heading')) {
     const extras = kids.slice(1).filter(b => b.type === 'paragraph' || b.type === 'heading');
@@ -583,9 +583,9 @@ function foClip(c: Crop | null, bytes: Uint8Array): string | null {
   return `rect(${cm(c.t * size.h)}, ${cm(c.r * size.w)}, ${cm(c.b * size.h)}, ${cm(c.l * size.w)})`;
 }
 
-// Replace every inline `image` node with an IMG-sentinel text node and collect its
-// bytes/geometry. Runs before odf-kit serialization so the sentinel rides through
-// both the native paragraph path and our cell path; applyImages resolves it later.
+// Replace every inline `image` node with an IMG-sentinel text node (carrying a recorded
+// change on it) and collect its bytes/geometry. Runs before odf-kit serialization so the
+// sentinel rides every path; applyImages resolves it later.
 function replaceImages(node: TiptapNode, images: ImageExport[]): TiptapNode {
   if (!node.content?.length) return node;
   const content: TiptapNode[] = [];
@@ -594,7 +594,8 @@ function replaceImages(node: TiptapNode, images: ImageExport[]): TiptapNode {
       const desc = imageDescriptor(child, images.length);
       if (desc) {
         images.push(desc);
-        content.push({ type: 'text', text: `${IMG}${images.length - 1}${IMG}` });
+        const revision = child.marks?.filter((m) => m.type === 'insertion' || m.type === 'deletion');
+        content.push({ type: 'text', text: `${IMG}${images.length - 1}${IMG}`, ...(revision?.length ? { marks: revision } : {}) });
       }
       continue; // invalid image → dropped
     }
@@ -674,7 +675,9 @@ function replacePlaceholderFields(node: TiptapNode, labels: string[]): TiptapNod
 // entry per id and a deletion's text is the concatenation of its runs.
 type RevisionExport = { kind: 'insertion' | 'deletion'; id: string; author: string; date: string; text: string; nodes: TiptapNode[];
   /** The insertion a deletion struck through, which LibreOffice stacks in the same region. */
-  under?: { author: string; date: string } };
+  under?: { author: string; date: string };
+  /** The outline level of the heading a deletion was cut from. */
+  level?: number };
 
 // Bracket every insertion run with TCI sentinels and cut every deletion run out, leaving
 // a TCD sentinel where it was — ODF keeps a deletion's text in the registry, not inline.
@@ -709,6 +712,7 @@ function replaceRevisions(node: TiptapNode, out: Map<string, RevisionExport>, pa
       author: String(a.author ?? '') || GENERATOR,
       date: typeof a.date === 'string' && a.date ? a.date : new Date().toISOString(),
       text: '', nodes: [],
+      ...(node.type === 'heading' ? { level: Number(node.attrs?.level ?? 1) } : {}),
       ...(under ? { under: {
         author: String(under.attrs?.author ?? '') || GENERATOR,
         date: typeof under.attrs?.date === 'string' && under.attrs.date ? under.attrs.date : new Date().toISOString(),
@@ -739,6 +743,26 @@ function replaceRevisions(node: TiptapNode, out: Map<string, RevisionExport>, pa
     }
   }
   return { ...node, content };
+}
+
+// A registry paragraph's runs were serialized behind its marker, so a space opening them
+// went out bare; ODF drops a paragraph's leading space and folds runs of them (<text:s/>).
+function registrySpaces(xml: string): string {
+  let after = true; // a space here would follow the paragraph start or another space
+  return xml.replace(/<[^>]*>|[^<]+/g, (part) => {
+    if (part.startsWith('<')) { if (/^<text:(s|tab|line-break)\b/.test(part)) after = false; return part; }
+    let out = '';
+    for (const ch of part) { out += ch === ' ' && after ? '<text:s/>' : ch; after = ch === ' '; }
+    return out;
+  });
+}
+
+// A sentinel was text when odf-kit wrote the spaces around it: as an empty `element` it joins
+// them, and a space after it that follows a space or opens the paragraph is folded away on
+// reading (probed), so that one is written as <text:s/>.
+function keepSpacesAcross(content: string, element: string): string {
+  const span = '<\\/?text:span\\b[^>]*>';
+  return content.replace(new RegExp(`(?<= |<text:[ph]\\b[^>]*>)((?:${span})*(?:<${element} [^>]*\\/>(?:${span})*)+) `, 'g'), '$1<text:s/>');
 }
 
 // Resolve the revision sentinels and prepend the registry the body points into. The
@@ -775,14 +799,19 @@ function applyRevisions(odtBytes: Uint8Array, list: Map<string, RevisionExport>,
       const ct = odfId.get(id);
       return ct ? `<text:change text:change-id="${ct}"/>` : '';
     });
+  content = keepSpacesAcross(content, 'text:change(?:-start|-end)?');
 
   const regions = [...list.values()].map((r) => {
     const ct = odfId.get(r.id)!;
     const info = (c: { author: string; date: string }) => `<office:change-info><dc:creator>${escapeXml(c.author)}</dc:creator>`
       + `<dc:date>${escapeXml(c.date.replace(/\.\d+Z?$/, ''))}</dc:date></office:change-info>`;
-    const runs = hoisted.get(r.id) ?? escapeXml(r.text);
+    const runs = registrySpaces(hoisted.get(r.id) ?? escapeXml(r.text));
+    // The deleted text goes back as the block it was cut from, as LibreOffice writes it (probed).
+    const block = r.level
+      ? `<text:h text:style-name="Heading_20_${r.level}" text:outline-level="${r.level}">${runs}</text:h>`
+      : `<text:p text:style-name="Standard">${runs}</text:p>`;
     const body = r.kind === 'deletion'
-      ? `<text:deletion>${info(r)}<text:p text:style-name="Standard">${runs}</text:p></text:deletion>`
+      ? `<text:deletion>${info(r)}${block}</text:deletion>`
         + (r.under ? `<text:insertion>${info(r.under)}</text:insertion>` : '')
       : `<text:insertion>${info(r)}</text:insertion>`;
     return `<text:changed-region xml:id="${ct}" text:id="${ct}">${body}</text:changed-region>`;
@@ -898,7 +927,7 @@ function applyIndexEntries(odtBytes: Uint8Array, marks: IndexEntryExport[]): Uin
     return `<text:alphabetical-index-mark text:string-value="${escapeXml(m.term)}"`
       + (m.key1 ? ` text:key1="${escapeXml(m.key1)}"` : '') + '/>';
   });
-  files['content.xml'] = strToU8(content);
+  files['content.xml'] = strToU8(keepSpacesAcross(content, 'text:alphabetical-index-mark'));
   return rezipOdt(files);
 }
 
@@ -1643,7 +1672,8 @@ function paraStyleProps(style: ParaStyle): string[] {
 // Per-cell block descriptors, built in exportTable and consumed in document order by
 // applyCellBlocks to rebuild real <text:h>/<text:p>/<text:list> from the SEG-segmented
 // <text:p> odf-kit emits. Each paragraph/heading/list item is one segment, in DFS order.
-type CellListItem = { style: ParaStyle; nested: CellListBlock | null; labelless?: boolean };
+// An item's paragraphs and sub-lists in order; one opening with a sub-list has no label.
+type CellListItem = { parts: ({ kind: 'paragraph'; style: ParaStyle } | CellListBlock)[]; labelless?: boolean };
 // listStyleType is the ordered list's raw attr (null = depth default / inherited
 // multilevel chain); bulletChar the bullet list's marker attr (null = default cycle).
 type CellListBlock = { kind: 'list'; ordered: boolean; start: number | null; continues: boolean; listStyleType: string | null; bulletChar: string | null; items: CellListItem[] };
@@ -3347,9 +3377,11 @@ function applyCellBlocks(odtBytes: Uint8Array, cellBlocks: CellBlock[][]): Uint8
     const continued = link.includes('text:continue-list');
     list.items.forEach((item, idx) => {
       const startAttr = !isBullet && idx === 0 && list.start != null && !continued ? ` text:start-value="${list.start}"` : '';
-      if (item.labelless) out += `<text:list-item${startAttr}>`;
-      else out += `<text:list-item${startAttr}><text:p text:style-name="${styleNameFor(paraParent, item.style)}">${segments[cur.i++] ?? ''}</text:p>`;
-      if (item.nested) out += buildList(item.nested, segments, cur, depth + 1, ml, cChild);
+      out += `<text:list-item${startAttr}>`;
+      for (const part of item.parts) {
+        out += part.kind === 'list' ? buildList(part, segments, cur, depth + 1, ml, cChild)
+          : `<text:p text:style-name="${styleNameFor(paraParent, part.style)}">${segments[cur.i++] ?? ''}</text:p>`;
+      }
       out += '</text:list-item>';
     });
     return out + '</text:list>';
@@ -4220,15 +4252,15 @@ function buildCellContent(cell: TiptapNode, c: CellBuilder, force: TextProps = {
     const items: CellListItem[] = [];
     for (const item of listNode.content ?? []) {
       if (item.type !== 'listItem') continue;
-      const nested = item.content?.find(x => x.type === 'bulletList' || x.type === 'orderedList');
-      // An item of sub-lists only has no paragraph, so no segment either.
-      if (nested && item.content?.[0] === nested) {
-        items.push({ style: paraStyleFromAttrs(undefined, false), nested: walkList(nested), labelless: true });
-        continue;
+      const parts: CellListItem['parts'] = [];
+      for (const child of item.content ?? []) {
+        if (child.type === 'bulletList' || child.type === 'orderedList') parts.push(walkList(child));
+        else if (child.type === 'paragraph' || child.type === 'heading') {
+          emitSegment(child.content, child.attrs); // one segment per paragraph, in DFS order
+          parts.push({ kind: 'paragraph', style: paraStyleFromAttrs(child.attrs, false) });
+        }
       }
-      const firstPara = item.content?.find(x => x.type === 'paragraph');
-      emitSegment(firstPara?.content, firstPara?.attrs); // one segment per item, in DFS order
-      items.push({ style: paraStyleFromAttrs(firstPara?.attrs, false), nested: nested ? walkList(nested) : null });
+      items.push({ parts, labelless: parts[0]?.kind === 'list' });
     }
     // Raw attrs; applyCellBlocks resolves the depth defaults when it knows the depth.
     const listStyleType = ordered && typeof listNode.attrs?.listStyleType === 'string' ? (listNode.attrs.listStyleType as string) : null;
