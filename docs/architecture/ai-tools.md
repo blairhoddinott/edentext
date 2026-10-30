@@ -12,7 +12,7 @@ The assistant as a whole: `docs/architecture/ai.md`.
   `delete_paragraphs`) go through `trackedReplace` (`trackChanges.ts`). Each edit becomes
   a revision by the localized author `t().ai.author`, whether or not recording is on.
   The Review pane accepts or rejects it. An edit over another author's pending change
-  is refused: `markDeleted` would delete their insertion outright. Track changes has no
+  is refused: `markDeleted` would strike their insertion through under the AI's name. Track changes has no
   paragraph removal, so a paragraph `delete_paragraphs` leaves empty goes directly (a cell
   or frame keeps its last one).
 - **`format`** uses `applyFormat`, the search-replace formatting, plus mark removal and the

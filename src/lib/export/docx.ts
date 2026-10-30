@@ -10,6 +10,7 @@ import {
   TableAnchorType, RelativeHorizontalPosition,
   TextWrappingType, TextWrappingSide, TabStopType, LeaderType,
 } from 'docx';
+import type { IRunOptions } from 'docx';
 import type { TiptapNode } from 'odf-kit';
 import type {
   IRunStylePropertiesOptions, IFontAttributesProperties, ISpacingProperties, IIndentAttributesProperties,
@@ -640,16 +641,18 @@ function textNodeToRuns(node: TiptapNode, force: TextProps): Inline[] {
   const opts = text.includes('\t')
     ? { children: tabbedChildren(text), ...props }
     : { text, ...props };
-  // A recorded revision wraps the run: w:ins keeps its text, w:del turns it into
-  // w:delText — the package's own two run kinds.
+  return [revisedRun(node, opts)];
+}
+
+// A recorded revision wraps the run: w:ins keeps its text, w:del turns it into
+// w:delText — the package's own two run kinds. A line break takes its mark the same way.
+function revisedRun(node: TiptapNode, opts: IRunOptions): TextRun | InsertedTextRun | DeletedTextRun {
   const rev = revisionOf(node);
-  if (rev) {
-    const attrs = { id: docRevisionId(rev.attrs.id), author: rev.attrs.author, date: rev.attrs.date };
-    return [rev.kind === 'insertion'
-      ? new InsertedTextRun({ ...opts, ...attrs })
-      : new DeletedTextRun({ ...opts, ...attrs })];
-  }
-  return [new TextRun(opts)];
+  if (!rev) return new TextRun(opts);
+  const attrs = { id: docRevisionId(rev.attrs.id), author: rev.attrs.author, date: rev.attrs.date };
+  return rev.kind === 'insertion'
+    ? new InsertedTextRun({ ...opts, ...attrs })
+    : new DeletedTextRun({ ...opts, ...attrs });
 }
 
 function tabbedChildren(text: string): (string | Tab)[] {
@@ -895,7 +898,7 @@ function inlineToRuns(content: TiptapNode[] = [], force: TextProps = {}): Inline
     }
     if (node.type === 'hardBreak') {
       // Carry the run's props so an empty line between two breaks keeps its font size.
-      out.push(new TextRun({ break: 1, ...runPropsFromMarks(node.marks) }));
+      out.push(revisedRun(node, { break: 1, ...runPropsFromMarks(node.marks) }));
     } else if (node.type === 'image') {
       const img = imageRun(node);
       if (img) out.push(img);
@@ -1466,7 +1469,11 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
         runs += run;
       }
     } else if (child.type === 'hardBreak') {
-      runs += `<w:r>${runProps(child.marks)}<w:br/></w:r>`;
+      const rev = revisionOf(child);
+      const run = `<w:r>${runProps(child.marks)}<w:br/></w:r>`;
+      const el = rev?.kind === 'insertion' ? 'w:ins' : 'w:del';
+      runs += rev ? `<${el} w:id="${docRevisionId(rev.attrs.id)}" w:author="${escapeXml(rev.attrs.author)}"` +
+        ` w:date="${escapeXml(rev.attrs.date)}">${run}</${el}>` : run;
     }
   }
   closeBookmark();

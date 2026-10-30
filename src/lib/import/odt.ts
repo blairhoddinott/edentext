@@ -2663,6 +2663,8 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
           case 'line-break': {
             // Carry the run's marks so an empty line between two breaks keeps its font size.
             const marks = marksFor(props, ctx.resolver, defaults);
+            const insertion = ctx.openInsertions.values().next().value;
+            if (insertion) marks.push({ type: 'insertion', attrs: insertion });
             const br: Node = { type: 'hardBreak' };
             if (marks.length) br.marks = marks;
             out.push(br);
@@ -2769,7 +2771,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
               rev.paras.forEach((p, i) => {
                 if (i) out.push({ type: 'text', text: '\n', marks: [del] });
                 for (const n of convertInline(p, ctx, props, defaults)) {
-                  if (n.type === 'text') n.marks = [...(n.marks ?? []), del];
+                  if (n.type === 'text' || n.type === 'hardBreak') n.marks = [...(n.marks ?? []), del];
                   out.push(n);
                 }
               });

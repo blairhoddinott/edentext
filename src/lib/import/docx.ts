@@ -2089,7 +2089,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     // The zone schema records no revisions.
     if (!ctx.zone) {
       for (let i = before; i < out.length; i++) {
-        if (out[i].type !== 'text') continue;
+        if (out[i].type !== 'text' && out[i].type !== 'hardBreak') continue;
         out[i].marks = [...(out[i].marks ?? []), { type: kind, attrs }];
       }
     }

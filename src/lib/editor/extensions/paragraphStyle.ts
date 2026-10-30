@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core';
 import { headingStyleName, type StyleSheet } from '../../styles/styleSheet';
 import { DEFAULT_SHORTCUTS } from '../shortcuts';
+import { inNote } from './notes';
 
 // The named paragraph style a block uses (LibreOffice's style:style / Word's w:pStyle).
 // Rendered as data-style so the generated document stylesheet (styleCss) can target it;
@@ -16,7 +17,7 @@ const DIRECT_ATTRS = [
 ];
 
 // Marks Ctrl+M keeps: they carry content, not formatting.
-const KEPT_MARKS = new Set(['link', 'bookmark', 'comment']);
+const KEPT_MARKS = new Set(['link', 'bookmark', 'comment', 'insertion', 'deletion']);
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -60,6 +61,9 @@ export const ParagraphStyle = Extension.create<{ types: string[]; sheet: () => S
       setParagraphStyle: (name: string) => ({ editor, chain }) => {
         const level = this.options.sheet().paragraph[name]?.outlineLevel;
         const heading = !!level && !!editor.schema.nodes.heading;
+        // A note is its own text block, so it takes the style itself: setNode would fit
+        // the note into a paragraph and drop its text.
+        if (inNote(editor.state)) return chain().focus().updateAttributes('note', { styleName: name }).run();
         return chain()
           .focus()
           .setNode(heading ? 'heading' : 'paragraph', heading ? { level, styleName: name } : { styleName: name })
@@ -74,8 +78,8 @@ export const ParagraphStyle = Extension.create<{ types: string[]; sheet: () => S
         const start = state.selection.$from.start();
         const end = state.selection.$to.end();
         const run = chain().focus().setTextSelection({ from: start, to: end });
-        // Formatting only: a link, a bookmark and a comment are content, not formatting,
-        // and neither word processor drops them here.
+        // Formatting only: a link, a bookmark, a comment and a tracked change are content,
+        // not formatting, and neither word processor drops them here.
         for (const mark of Object.keys(editor.schema.marks)) {
           if (!KEPT_MARKS.has(mark)) run.unsetMark(mark);
         }

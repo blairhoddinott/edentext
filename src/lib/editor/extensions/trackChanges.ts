@@ -1,7 +1,8 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode, Slice } from '@tiptap/pm/model';
+import { isHistoryTransaction } from '@tiptap/pm/history';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
-import { ReplaceStep } from '@tiptap/pm/transform';
+import { ReplaceStep, type Step } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 
@@ -70,7 +71,8 @@ export function revisions(doc: PMNode): Revision[] {
   const out: Revision[] = [];
   let last: Revision | null = null;
   doc.descendants((node, pos) => {
-    if (!node.isText) { last = null; return true; }
+    // A line break or field is inline as text is, and a recorded one goes with its change.
+    if (!(node.isInline && node.isLeaf)) { last = null; return true; }
     const mark = node.marks.find((m) => m.type.name === 'insertion' || m.type.name === 'deletion');
     if (!mark) { last = null; return false; }
     const kind = mark.type.name as RevisionKind;
@@ -202,63 +204,40 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
         // Typing is intercepted here rather than by a keymap: every path that inserts
         // text — a paste, an input rule, a drop — goes through appendTransaction, and
         // each would otherwise need its own hook.
-        appendTransaction: (transactions, oldState, newState) => {
+        appendTransaction: (transactions, _oldState, newState) => {
           if (!options.recording()) return null;
           if (!transactions.some((t) => t.docChanged)) return null;
-          // Our own accept/reject and the mark pass below must not recurse.
-          if (transactions.some((t) => t.getMeta(RECORDING))) return null;
+          // Our own accept/reject and the mark pass below must not recurse, and undo/redo
+          // restore a recorded state: the history carries the marks along.
+          if (transactions.some((t) => t.getMeta(RECORDING) || fromHistory(t))) return null;
+          const ranges = insertedRanges(transactions);
+          if (!ranges.length) return null;
           const tr = newState.tr;
-          let touched = false;
           const author = options.author();
-          for (const t of transactions) {
-            if (!t.docChanged) continue;
-            for (const step of t.steps) {
-              const map = step.getMap();
-              map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
-                if (newEnd <= newStart) return;
-                const from = tr.mapping.map(newStart);
-                const to = tr.mapping.map(newEnd);
-                // Anything freshly in the document is an insertion; a delete never gets
-                // this far, because it was turned into a mark before it ran (below).
-                // Typing joins the run it continues, so a sentence is one change and not
-                // one per keystroke.
-                tr.addMark(from, to, newState.schema.marks.insertion.create(
-                  adjacentInsertion(newState, from, author) ?? { id: newRevisionId(), author, date: new Date().toISOString() },
-                ));
-                touched = true;
-              });
-            }
+          const { insertion, deletion } = newState.schema.marks;
+          for (const [from, to] of ranges) {
+            // Anything freshly in the document is this author's insertion — never struck
+            // through or another's, which typing inside such a run would inherit. Typing
+            // joins the run it continues, so a sentence is one change.
+            tr.removeMark(from, to, deletion).removeMark(from, to, insertion);
+            tr.addMark(from, to, insertion.create(adjacentInsertion(tr.doc, from, author) ?? revisionAttrs(author)));
           }
-          return touched ? tr.setMeta(RECORDING, true).setMeta('addToHistory', false) : null;
+          // In the history with the edit it marks, so undo and redo take both together.
+          return tr.setMeta(RECORDING, true);
         },
 
         // A deletion must not reach the document: mark the range instead. Text already
-        // marked as an insertion is the author's own and is simply removed, which is
-        // what both word processors do.
+        // marked as the author's own insertion is simply removed, which is what both
+        // word processors do.
         filterTransaction: (tr, state) => {
-          if (!options.recording() || tr.getMeta(RECORDING)) return true;
-          if (!tr.docChanged) return true;
-          // A replacement — typing or pasting over a selection — is a deletion and an
-          // insertion at once; without this its half of the text would just be dropped.
-          const swap = replacedRange(tr);
-          if (!isPureDelete(tr, state) && !swap) return true;
-          const ranges: [number, number][] = [];
-          if (swap) ranges.push([swap.from, swap.to]);
-          else for (const step of tr.steps) {
-            const map = step.getMap();
-            map.forEach((oldStart, oldEnd) => { if (oldEnd > oldStart) ranges.push([oldStart, oldEnd]); });
-          }
-          if (!ranges.length) return true;
-          const marked = state.tr;
-          const attrs = revisionAttrs(options.author());
-          let any = false;
-          for (const [from, to] of ranges) any = markDeleted(marked, marked.mapping.map(from), marked.mapping.map(to), attrs) || any;
-          if (swap) {
-            const end = insertTracked(marked, marked.mapping.map(swap.to), swap.slice, { ...attrs, id: newRevisionId() });
-            marked.setSelection(TextSelection.near(marked.doc.resolve(end)));
-            any = true;
-          }
-          if (!any && !marked.docChanged) return true;
+          if (!options.recording() || tr.getMeta(RECORDING) || !tr.docChanged || fromHistory(tr)) return true;
+          // A plugin's repair after an edit (the notes' own section, say) is no edit of
+          // the user's; replayed, the repair would run again on the replay, without end.
+          // It is filtered against the state the edit made, not the view's.
+          if (state !== this.editor.view.state) return true;
+          const author = options.author();
+          const marked = replayTracked(tr, state, author) ?? replaceSelection(tr, state, author) ?? markPureDelete(tr, state, author);
+          if (!marked) return true;
           queueMicrotask(() => this.editor.view.dispatch(marked.setMeta(RECORDING, true)));
           return false;
         },
@@ -267,22 +246,147 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
   },
 });
 
+// Undo and redo, and what other plugins append to them.
+function fromHistory(tr: Transaction): boolean {
+  const root = tr.getMeta('appendedTransaction') as Transaction | undefined;
+  return isHistoryTransaction(tr) || (!!root && isHistoryTransaction(root));
+}
+
+// What the edits inserted, in the last transaction's coordinates: each step's range mapped
+// through the steps and transactions after it. A plugin's repair only moves what is there
+// (the notes rebuild their section), so what it puts back is no insertion of the user's.
+function insertedRanges(transactions: readonly Transaction[]): [number, number][] {
+  const out: [number, number][] = [];
+  transactions.forEach((t, ti) => {
+    if (t.getMeta('appendedTransaction')) return;
+    const later = transactions.slice(ti + 1).map((u) => u.mapping);
+    for (let [from, to] of newRanges(t)) {
+      for (const m of later) { from = m.map(from, 1); to = m.map(to, -1); }
+      if (to > from) out.push([from, to]);
+    }
+  });
+  return out;
+}
+
+// What the steps of `tr` from `first` on inserted, in its final document.
+function newRanges(tr: Transaction, first = 0): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = first; i < tr.steps.length; i++) {
+    const rest = tr.mapping.slice(i + 1);
+    tr.steps[i].getMap().forEach((_os, _oe, ns, ne) => {
+      const from = rest.map(ns, 1), to = rest.map(ne, -1);
+      if (to > from) out.push([from, to]);
+    });
+  }
+  return out;
+}
+
+// A user edit that removes text — a delete, typing or pasting over a selection, Enter over
+// one, a drop — replayed step by step: each removed range is struck through and stays, and
+// what the step inserts lands after it as an insertion. Null for anything else.
+function replayTracked(tr: Transaction, state: EditorState, author: string): Transaction | null {
+  const steps = tr.steps;
+  if (!steps.every((s): s is ReplaceStep => s instanceof ReplaceStep) || !steps.some((s) => s.to > s.from)) return null;
+  const sel = state.selection, ui = tr.getMeta('uiEvent');
+  const user = steps.length === 1 || isPureDelete(tr, state) || ui === 'paste' || ui === 'drop' || ui === 'cut'
+    || (!sel.empty && steps[0].from === sel.from && steps[0].to === sel.to);
+  if (!user) return null;
+  const marked = state.tr;
+  // A position of the document before the current step, in the marked one as it stands.
+  let at: (p: number, assoc: number) => number = (p, a) => marked.mapping.map(p, a);
+  let back: { pos: number; steps: number } | null = null;
+  for (const step of steps) {
+    const prev = at;
+    let end = prev(step.to, -1);
+    if (step.to > step.from) {
+      const from = prev(step.from, 1), before = marked.steps.length;
+      if (end > from) markDeleted(marked, from, end, adjacentDeletion(marked.doc, from, end, author) ?? revisionAttrs(author));
+      end = marked.mapping.slice(before).map(end, -1);
+      back = { pos: marked.mapping.slice(before).map(from, 1), steps: marked.steps.length };
+    }
+    const start = end;
+    if (step.slice.size) end = insertTracked(marked, start, step.slice, revisionAttrs(author));
+    const steady = marked.steps.length, { from, to } = step, size = step.slice.size;
+    at = (p, a) => {
+      if (p < from) return prev(p, a);
+      if (p > from + size) return prev(p - size + (to - from), a);
+      return marked.mapping.slice(steady).map(size ? Math.min(start + (p - from), end) : end, a);
+    };
+  }
+  // Backspace leaves the caret before the text it struck, so the next one strikes on;
+  // everything else leaves it after, where the edit continues.
+  const backspace = steps.length === 1 && !steps[0].slice.size && sel.empty && sel.head === steps[0].to;
+  const caret = backspace && back ? marked.mapping.slice(back.steps).map(back.pos, -1) : at(tr.selection.head, 1);
+  marked.setSelection(TextSelection.near(marked.doc.resolve(caret)));
+  if (tr.scrolledIntoView) marked.scrollIntoView();
+  return marked;
+}
+
+// Typing, Enter or a paste over a selection reaching across list items or cells: one
+// step that merges the blocks around the new content. The selection is struck through and
+// what the edit left in its place lands after it, the merge left out.
+function replaceSelection(tr: Transaction, state: EditorState, author: string): Transaction | null {
+  const sel = state.selection;
+  const first = tr.steps[0] as Step & { from?: number };
+  // Only an edit that removes the selected content: a mark or a block attribute set over
+  // the selection starts there too.
+  if (sel.empty || first.from !== sel.from || isPureDelete(tr, state) || !tr.mapping.mapResult(sel.from, 1).deletedAfter) return null;
+  const slice = editedContent(tr.doc, tr.mapping.map(sel.from, -1), tr.mapping.map(sel.to, 1));
+  const marked = state.tr;
+  trackedReplace(marked, sel.from, sel.to, slice, author);
+  const end = marked.mapping.map(sel.to, 1);
+  marked.setSelection(TextSelection.near(marked.doc.resolve(end), -1));
+  if (tr.scrolledIntoView) marked.scrollIntoView();
+  return marked;
+}
+
+// What an edit left in [from,to): the inline content alone where it sits in one block —
+// the blocks it merged are no part of it — else the whole range, splits included.
+function editedContent(doc: PMNode, from: number, to: number): Slice | null {
+  if (to <= from) return null;
+  let first = -1, last = -1;
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.isInline) return true;
+    if (first < 0) first = Math.max(pos, from);
+    last = Math.min(pos + node.nodeSize, to);
+    return false;
+  });
+  return first >= 0 && doc.resolve(first).sameParent(doc.resolve(last)) ? doc.slice(first, last) : doc.slice(from, to);
+}
+
+// A delete made of other steps (a lift, a join): its ranges struck through, in the
+// document it started from. Null when the transaction inserts as well.
+function markPureDelete(tr: Transaction, state: EditorState, author: string): Transaction | null {
+  if (!isPureDelete(tr, state)) return null;
+  const marked = state.tr;
+  const attrs = revisionAttrs(author);
+  tr.steps.forEach((step, i) => {
+    const back = tr.mapping.slice(0, i).invert();
+    step.getMap().forEach((oldStart, oldEnd) => {
+      const from = marked.mapping.map(back.map(oldStart, 1), 1), to = marked.mapping.map(back.map(oldEnd, -1), -1);
+      if (to > from) markDeleted(marked, from, to, attrs);
+    });
+  });
+  return marked;
+}
+
 // The attrs of the insertion the text just before `pos` belongs to, when the same author
 // made it — what makes consecutive typing one change rather than one per keystroke.
-function adjacentInsertion(state: EditorState, pos: number, author: string): Record<string, string> | null {
-  const before = pos > 0 ? state.doc.resolve(pos).nodeBefore : null;
+function adjacentInsertion(doc: PMNode, pos: number, author: string): Record<string, string> | null {
+  const before = pos > 0 ? doc.resolve(pos).nodeBefore : null;
   const mark = before?.marks.find((m) => m.type.name === 'insertion');
   if (!mark || String(mark.attrs.author ?? '') !== author) return null;
   return { id: String(mark.attrs.id), author, date: String(mark.attrs.date) };
 }
 
-// The one step that replaces a range with new content (typing or pasting over a
-// selection). Anything more involved is left to run as it is.
-function replacedRange(tr: Transaction): { from: number; to: number; slice: Slice } | null {
-  if (tr.steps.length !== 1) return null;
-  const step = tr.steps[0];
-  if (!(step instanceof ReplaceStep) || step.to <= step.from || step.slice.size === 0) return null;
-  return { from: step.from, to: step.to, slice: step.slice };
+// The attrs of the deletion right beside [from,to), when the same author made it — what
+// makes a run of Backspace or Delete one change rather than one per key.
+function adjacentDeletion(doc: PMNode, from: number, to: number, author: string): Record<string, string> | null {
+  for (const node of [doc.resolve(from).nodeBefore, doc.resolve(to).nodeAfter]) {
+    const mark = node?.marks.find((m) => m.type.name === 'deletion');
+    if (mark && String(mark.attrs.author ?? '') === author) return { id: String(mark.attrs.id), author, date: String(mark.attrs.date) };
+  }
+  return null;
 }
 
 // A transaction that only removes content (backspace, delete, cut) — a replacement
@@ -301,23 +405,26 @@ function revisionAttrs(author: string) {
   return { id: newRevisionId(), author, date: new Date().toISOString() };
 }
 
-// Strike [from,to) through as one change; a pending insertion inside goes for real.
-// Returns whether anything was marked.
-function markDeleted(tr: Transaction, from: number, to: number, attrs: Record<string, string>): boolean {
-  const kept = keptRanges(tr.doc, from, to);
+// Strike [from,to) through as one change; the author's own pending insertion inside goes
+// for real, and text already struck through stays as it is.
+function markDeleted(tr: Transaction, from: number, to: number, attrs: Record<string, string>): void {
+  const { kept, own } = deleteRanges(tr.doc, from, to, attrs.author);
   for (const keep of kept) tr.addMark(keep[0], keep[1], tr.doc.type.schema.marks.deletion.create(attrs));
-  for (const own of [...ownInsertions(tr.doc, from, to)].reverse()) tr.delete(own[0], own[1]);
-  return kept.length > 0;
+  for (const range of [...own].reverse()) tr.delete(range[0], range[1]);
 }
 
 // The new content lands at `at` (after any text it replaces, which stays struck out),
 // marked as an insertion. Returns where it ends.
 function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: Record<string, string>): number {
-  const before = tr.doc.content.size;
+  const before = tr.steps.length;
   tr.replace(at, at, slice);
-  const end = at + (tr.doc.content.size - before);
-  tr.addMark(at, end, tr.doc.type.schema.marks.insertion.create(attrs));
-  return end;
+  // The ranges the fitted replace actually inserted: it may close and reopen blocks
+  // around the slice, so its size says nothing about where the new content lies.
+  const { insertion, deletion } = tr.doc.type.schema.marks;
+  for (const [from, to] of newRanges(tr, before)) {
+    tr.removeMark(from, to, deletion).removeMark(from, to, insertion).addMark(from, to, insertion.create(attrs));
+  }
+  return tr.mapping.slice(before).map(at, 1);
 }
 
 /**
@@ -331,28 +438,25 @@ export function trackedReplace(tr: Transaction, from: number, to: number, slice:
   return tr.setMeta(RECORDING, true);
 }
 
-// The parts of [from,to) that are not the author's own pending insertion — the ones a
-// delete turns into a deletion mark.
-function keptRanges(doc: PMNode, from: number, to: number): [number, number][] {
-  const own = ownInsertions(doc, from, to);
-  const out: [number, number][] = [];
+// The parts of [from,to) a delete strikes through, and the author's own pending insertions
+// it removes outright; text already struck through is in neither.
+function deleteRanges(doc: PMNode, from: number, to: number, author: string): { kept: [number, number][]; own: [number, number][] } {
+  const kept: [number, number][] = [], own: [number, number][] = [];
   let cursor = from;
-  for (const [s, e] of own) {
-    if (s > cursor) out.push([cursor, s]);
-    cursor = Math.max(cursor, e);
-  }
-  if (cursor < to) out.push([cursor, to]);
-  return out;
-}
-
-function ownInsertions(doc: PMNode, from: number, to: number): [number, number][] {
-  const out: [number, number][] = [];
   doc.nodesBetween(from, to, (node, pos) => {
     // A picture or field is inline as text is: one still pending goes as its text would.
     if (!node.isInline) return true;
-    if (!node.marks.some((m) => m.type.name === 'insertion')) return false;
-    out.push([Math.max(from, pos), Math.min(to, pos + node.nodeSize)]);
+    const s = Math.max(from, pos), e = Math.min(to, pos + node.nodeSize);
+    const ins = node.marks.find((m) => m.type.name === 'insertion');
+    const skip = ins && String(ins.attrs.author ?? '') === author ? own
+      : node.marks.some((m) => m.type.name === 'deletion') ? [] : null;
+    if (skip) {
+      if (s > cursor) kept.push([cursor, s]);
+      skip.push([s, e]);
+      cursor = e;
+    }
     return false;
   });
-  return out;
+  if (cursor < to) kept.push([cursor, to]);
+  return { kept, own };
 }

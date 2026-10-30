@@ -477,8 +477,8 @@ function findAll(p: { text: string; map: number[] }, find: string): [number, num
   return out;
 }
 
-// A pending change by someone else in the range would be swallowed by a tracked edit
-// over it (an insertion deleted outright, a deletion re-attributed), so it is refused.
+// A tracked edit over someone else's pending change would strike their insertion through
+// under the assistant's name; the user decides on theirs first, so it is refused.
 function guardRevisions(ctx: TurnContext, from: number, to: number): void {
   let foreign = false;
   ctx.editor.state.doc.nodesBetween(from, to, (node) => {

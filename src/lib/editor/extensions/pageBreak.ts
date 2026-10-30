@@ -1,5 +1,5 @@
 import { Extension, commands as core } from '@tiptap/core';
-import { Plugin } from '@tiptap/pm/state';
+import { Plugin, TextSelection } from '@tiptap/pm/state';
 import { DEFAULT_SHORTCUTS } from '../shortcuts';
 
 // The text-flow attrs of a paragraph/heading, null = default: breakBefore 'page', widow
@@ -151,6 +151,14 @@ export const PageBreak = Extension.create({
       // formatting a successor inherits, so the block below the cut gives it up again.
       splitBlock: (options) => (props) => {
         const carried = props.state.selection.$from.parent.attrs?.breakBefore === 'page';
+        // TipTap checks the split before it deletes the selection, whose delete takes a block
+        // the selection only enters whole, and the split then lands between blocks. A plain
+        // delete keeps the selection's start where the split goes.
+        const sel = props.tr.selection;
+        if (props.dispatch && sel instanceof TextSelection && !sel.empty) {
+          props.tr.delete(sel.from, sel.to);
+          props.tr.setSelection(TextSelection.near(props.tr.doc.resolve(sel.from)));
+        }
         const split = core.splitBlock(options)(props);
         if (carried && split) props.commands.unsetPageBreakBefore();
         return split;
