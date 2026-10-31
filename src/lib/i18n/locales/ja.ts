@@ -1131,6 +1131,7 @@ const ja: Messages = {
     inserted: '挿入',
     deleted: '削除',
     moved: '移動',
+    comment: 'コメント',
     filterAuthor: '作成者',
     filterKind: '種類',
     filterSince: '以降',

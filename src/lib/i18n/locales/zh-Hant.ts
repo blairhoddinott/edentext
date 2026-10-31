@@ -1130,6 +1130,7 @@ const zhHant: Messages = {
     inserted: '插入',
     deleted: '刪除',
     moved: '已移動',
+    comment: '註解',
     filterAuthor: '作者',
     filterKind: '類型',
     filterSince: '起始日期',

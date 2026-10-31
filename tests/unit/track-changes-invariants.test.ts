@@ -161,6 +161,21 @@ describe('recording keeps its promise', () => {
     expect(e.getJSON()).toEqual(plain.getJSON());
   });
 
+  it.each([...CASES, ...FORMAT_CASES, ...MOVE_CASES])('a comment stays on the change through ODT: %s', async (_name, html, steps) => {
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, steps);
+    setRecordChanges(false);
+    const start = revisions(e.state.doc);
+    for (const r of start) e.commands.commentRevision(r.id, 'first\nsecond');
+    const pending = e.getJSON();
+    expect(revisions(e.state.doc).map((r) => r.comment)).toEqual(start.map(() => 'first\nsecond'));
+    expect(revisions(open(await FORMATS[1][1](pending)).state.doc).every((r) => r.comment === 'first\nsecond')).toBe(true);
+    // Taken off, nothing but the change is left.
+    for (const r of start) e.commands.commentRevision(r.id, '');
+    expect(revisions(e.state.doc).map((r) => [r.id, r.comment])).toEqual(start.map((r) => [r.id, undefined]));
+  });
+
   // A header goes through both files by its own path: the same promise, there.
   it.each(CASES)('in a header: %s', async (_name, html, steps) => {
     const zone = (content: unknown, live = false) => {

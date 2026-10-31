@@ -1144,6 +1144,7 @@ const ru: Messages = {
     inserted: 'Добавлено',
     deleted: 'Удалено',
     moved: 'Перемещено',
+    comment: 'Комментарий',
     filterAuthor: 'Автор',
     filterKind: 'Тип',
     filterSince: 'С даты',

@@ -1144,6 +1144,7 @@ const en = {
     inserted: 'Inserted',
     deleted: 'Deleted',
     moved: 'Moved',
+    comment: 'Comment',
     filterAuthor: 'Author',
     filterKind: 'Type',
     filterSince: 'Since',

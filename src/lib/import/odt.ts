@@ -2540,7 +2540,11 @@ function odfRecordChanges(body: Element): boolean {
   return !!registry && registry.getAttributeNS(NS.text, 'track-changes') !== 'false';
 }
 
-type OdfRevision = { kind: 'insertion' | 'deletion' | 'formatChange'; author: string; date: string; moveId?: string; text: string; paras: Element[]; under?: { author: string; date: string } };
+type OdfRevision = { kind: 'insertion' | 'deletion' | 'formatChange'; author: string; date: string; moveId?: string; comment?: string; text: string; paras: Element[]; under?: { author: string; date: string; comment?: string } };
+
+// The attrs of a change's mark; what its paragraphs share goes on the paragraph marks too.
+const revisionAttrs = (id: string, { author, date, moveId, comment }: OdfRevision) =>
+  ({ id, author, date, ...(moveId ? { moveId } : {}), ...(comment ? { comment } : {}) });
 
 // The <text:tracked-changes> registry: one entry per change id. A deletion carries the
 // text it removed (the body has only a point marker), an insertion only who and when.
@@ -2553,9 +2557,12 @@ function odfRevisions(body: Element): Map<string, OdfRevision> {
     if (!id || !kindEl) continue;
     const who = (el: Element) => {
       const info = el.getElementsByTagNameNS(NS.office, 'change-info')[0];
+      // LibreOffice ends each paragraph with a newline it reads, and writes that as an empty last one.
+      const comment = Array.from(info?.children ?? []).filter((c) => c.namespaceURI === NS.text && c.localName === 'p').map((p) => p.textContent).join('\n').trimEnd();
       return {
         author: info?.getElementsByTagNameNS(NS.dc, 'creator')[0]?.textContent?.trim() ?? '',
         date: info?.getElementsByTagNameNS(NS.dc, 'date')[0]?.textContent?.trim() ?? '',
+        ...(comment ? { comment } : {}),
       };
     };
     // LibreOffice keeps a heading's deleted text a text:h, and a list item's inside its list.
@@ -2858,11 +2865,11 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             const id = e.getAttributeNS(NS.text, 'change-id');
             const rev = id ? ctx.revisions.get(id) : undefined;
             if (id && rev?.kind === 'insertion') {
-              if (e.localName === 'change-start') ctx.openInsertions.set(id, { id, author: rev.author, date: rev.date, ...(rev.moveId ? { moveId: rev.moveId } : {}) });
+              if (e.localName === 'change-start') ctx.openInsertions.set(id, revisionAttrs(id, rev));
               else ctx.openInsertions.delete(id);
             }
             if (id && rev?.kind === 'formatChange') {
-              if (e.localName === 'change-start') ctx.openFormats.set(id, { id, author: rev.author, date: rev.date, old: null });
+              if (e.localName === 'change-start') ctx.openFormats.set(id, { ...revisionAttrs(id, rev), old: null });
               else ctx.openFormats.delete(id);
             }
             continue;
@@ -2874,7 +2881,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             const id = e.getAttributeNS(NS.text, 'change-id');
             const rev = id ? ctx.revisions.get(id) : undefined;
             if (id && rev?.kind === 'deletion' && (rev.paras.length || rev.text)) {
-              const del = [{ type: 'deletion', attrs: { id, author: rev.author, date: rev.date, ...(rev.moveId ? { moveId: rev.moveId } : {}) } },
+              const del = [{ type: 'deletion', attrs: revisionAttrs(id, rev) },
                 ...(rev.under ? [{ type: 'insertion', attrs: { id: `${id}-ins`, ...rev.under } }] : [])];
               if (!rev.paras.length) {
                 out.push({ type: 'text', text: rev.text, marks: [...marksFor(props, ctx.resolver, defaults), ...del] });

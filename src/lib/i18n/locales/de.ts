@@ -1135,6 +1135,7 @@ const de: Messages = {
     inserted: 'Eingefügt',
     deleted: 'Gelöscht',
     moved: 'Verschoben',
+    comment: 'Kommentar',
     filterAuthor: 'Autor',
     filterKind: 'Art',
     filterSince: 'Seit',

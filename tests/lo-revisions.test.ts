@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { strFromU8, unzipSync } from 'fflate';
 import type { Editor } from '@tiptap/core';
 import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, MOVE_CASES, TABLE_CASES, edit, open } from './trackChangesCases';
+import { revisions } from '../src/lib/editor/extensions/trackChanges';
 import { setRecordChanges } from '../src/lib/storage/trackChanges.svelte';
 import { buildOdt } from '../src/lib/export/odt';
 import { buildDocx } from '../src/lib/export/docx';
@@ -30,6 +31,8 @@ const paragraphs = (e: Editor) => {
   return out;
 };
 
+const NOTE = 'a reviewer wrote this';
+
 afterEach(() => setRecordChanges(false));
 
 describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () => {
@@ -45,6 +48,7 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
       const recorded = open(html);
       await edit(recorded, steps);
       setRecordChanges(false);
+      for (const r of revisions(recorded.state.doc)) recorded.commands.commentRevision(r.id, NOTE);
       const json = recorded.getJSON() as any;
       writeFileSync(`${DIR}/c${i}.odt`, await buildOdt(json, DEFAULT_MARGINS));
       writeFileSync(`${DIR}/c${i}.docx`, await buildDocx(json, DEFAULT_MARGINS));
@@ -114,5 +118,11 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
       return ids.length >= 2 && ids.every((id) => ids.filter((o) => o === id).length >= 2) ? [] : [`${name}, ${ext}: ${ids}`];
     }));
     expect(unpaired).toEqual([]);
+    // LibreOffice read a comment on a change: saved again, the file holds it.
+    const silent = CASES.flatMap(([name], i) => {
+      const saved = strFromU8(unzipSync(readFileSync(`${DIR}/c${i}.odt.resaved.odt`))['content.xml']);
+      return saved.includes(`</dc:date><text:p>${NOTE}</text:p>`) ? [] : [name];
+    });
+    expect(silent).toEqual([]);
   });
 });

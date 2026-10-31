@@ -1130,6 +1130,7 @@ const es: Messages = {
     inserted: 'Insertado',
     deleted: 'Eliminado',
     moved: 'Movido',
+    comment: 'Comentario',
     filterAuthor: 'Autor',
     filterKind: 'Tipo',
     filterSince: 'Desde',

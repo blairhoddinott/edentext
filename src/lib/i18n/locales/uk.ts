@@ -1144,6 +1144,7 @@ const uk: Messages = {
     inserted: 'Додано',
     deleted: 'Видалено',
     moved: 'Переміщено',
+    comment: 'Коментар',
     filterAuthor: 'Автор',
     filterKind: 'Тип',
     filterSince: 'Від дати',

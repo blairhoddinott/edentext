@@ -6,7 +6,7 @@ import type { HfDoc } from '../storage/headerFooter';
 import { shareAuthors } from './authorColors';
 import { zoneExtensions } from './extensions';
 import { StateStep } from './extensions/stateHistory';
-import { RECORDING, revisions, settledDoc, type Revision } from './extensions/trackChanges';
+import { RECORDING, commentedDoc, revisions, settledDoc, type Revision } from './extensions/trackChanges';
 
 // A header's or footer's changes belong to the document's review, though most zones have no
 // editor: they are read from the stored docs, and settled on the body's undo stack.
@@ -61,6 +61,15 @@ export function settleZones(tr: Transaction, accept: boolean, id?: string | stri
     const node = nodeOf(zone.doc);
     if (!node || !revisions(node).some((r) => id == null || [id].flat().includes(r.id))) continue;
     tr.step(new StateStep(zone.id, zone.doc, settledDoc(node, accept, id).toJSON()));
+  }
+  tr.setMeta(RECORDING, true).setMeta(ZONE_SETTLED, true);
+}
+
+/** Writes one change's comment in every zone that holds it, within a body transaction. */
+export function commentZones(tr: Transaction, id: string, comment: string): void {
+  for (const zone of host?.list() ?? []) {
+    const node = nodeOf(zone.doc);
+    if (node && revisions(node).some((r) => r.id === id)) tr.step(new StateStep(zone.id, zone.doc, commentedDoc(node, id, comment).toJSON()));
   }
   tr.setMeta(RECORDING, true).setMeta(ZONE_SETTLED, true);
 }

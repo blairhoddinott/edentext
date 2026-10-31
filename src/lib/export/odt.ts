@@ -678,8 +678,9 @@ function replacePlaceholderFields(node: TiptapNode, labels: string[]): TiptapNod
 type RevisionExport = { kind: 'insertion' | 'deletion' | 'formatChange'; id: string; author: string; date: string; text: string; nodes: TiptapNode[];
   /** Shared by a move's two halves. */
   moveId?: string;
+  comment?: string;
   /** The insertion a deletion struck through, which LibreOffice stacks in the same region. */
-  under?: { author: string; date: string };
+  under?: { author: string; date: string; comment?: string };
   /** The outline level of the heading a deletion was cut from. */
   level?: number;
   /** The two blocks a struck paragraph mark joined, which the region spans. */
@@ -774,8 +775,8 @@ function formatRegion(run: TiptapNode, out: Map<string, RevisionExport>): Tiptap
   return [edge, { ...run, marks: marks.length ? marks : undefined }, edge];
 }
 
-function revisionOwner(a: Record<string, unknown>): { author: string; date: string } {
-  return { author: String(a.author ?? '') || GENERATOR, date: typeof a.date === 'string' && a.date ? a.date : new Date().toISOString() };
+function revisionOwner(a: Record<string, unknown>): { author: string; date: string; comment?: string } {
+  return { author: String(a.author ?? '') || GENERATOR, date: typeof a.date === 'string' && a.date ? a.date : new Date().toISOString(), ...(a.comment ? { comment: String(a.comment) } : {}) };
 }
 
 function revisionEntry(kind: RevisionExport['kind'], id: string, a: Record<string, unknown>, block: TiptapNode): RevisionExport {
@@ -942,8 +943,9 @@ function applyRevisions(odtBytes: Uint8Array, list: Map<string, RevisionExport>,
   const moves = new Map([...new Set([...list.values()].flatMap((r) => r.moveId ?? []))].map((id, i) => [id, i + 2]));
   const regions = [...list.values()].map((r) => {
     const ct = odfId.get(r.id)!;
-    const info = (c: { author: string; date: string; moveId?: string }) => `<office:change-info><dc:creator>${escapeXml(c.author)}</dc:creator>`
-      + (c.moveId ? `<loext:move-id>${moves.get(c.moveId)}</loext:move-id>` : '') + `<dc:date>${escapeXml(c.date.replace(/\.\d+Z?$/, ''))}</dc:date></office:change-info>`;
+    const info = (c: { author: string; date: string; moveId?: string; comment?: string }) => `<office:change-info><dc:creator>${escapeXml(c.author)}</dc:creator>`
+      + (c.moveId ? `<loext:move-id>${moves.get(c.moveId)}</loext:move-id>` : '') + `<dc:date>${escapeXml(c.date.replace(/\.\d+Z?$/, ''))}</dc:date>`
+      + (c.comment?.split('\n').map((line) => `<text:p>${escapeXml(line)}</text:p>`).join('') ?? '') + '</office:change-info>';
     const runs = registrySpaces(hoisted.get(r.id) ?? escapeXml(r.text));
     // The deleted text goes back as the block it was cut from, as LibreOffice writes it (probed).
     const side = (i: number) => {

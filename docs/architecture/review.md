@@ -59,6 +59,8 @@ A drop and a chapter moved in the navigator are recorded (`MOVING`, `replayTrack
 
 The pane filters by author, kind and day (`filterRevisions`), a move counting as a kind of its own; with a filter set it accepts or rejects what it shows, in one undo step (`settleRevisions`). The filter is the pane's alone: the page and the ribbon's "all" go on covering everything.
 
+A change can carry a reviewer's comment (`comment` on its mark, paragraph mark or `revFormat`), written on the card. A comment is part of a change: stretches with different ones are different rows. ODF holds it as `text:p` in `office:change-info` after the date, one per line, on either half of a move; LibreOffice saves one more empty, which the import drops (probed). DOCX has no form for it and a block's format change no ODF form, so there it goes on save.
+
 ## Views
 
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.

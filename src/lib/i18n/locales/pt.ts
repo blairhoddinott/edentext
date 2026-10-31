@@ -1128,6 +1128,7 @@ const pt: Messages = {
     inserted: 'Inserido',
     deleted: 'Eliminado',
     moved: 'Movido',
+    comment: 'Comentário',
     filterAuthor: 'Autor',
     filterKind: 'Tipo',
     filterSince: 'Desde',

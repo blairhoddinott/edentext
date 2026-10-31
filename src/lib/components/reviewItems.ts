@@ -4,7 +4,7 @@ import { TextSelection } from '@tiptap/pm/state';
 import { comments, commentRanges, type CommentRange } from '../editor/extensions/comment';
 import { revisions, type Revision, type RevisionKind } from '../editor/extensions/trackChanges';
 import { flushPending } from '../editor/extensions/stateHistory';
-import { bodyEditor, settleZones, zoneRevisions } from '../editor/zoneReview';
+import { bodyEditor, commentZones, settleZones, zoneRevisions } from '../editor/zoneReview';
 import { markupView, showResolved } from '../storage/markup.svelte';
 
 // What the review views may show, in one place: bars, balloons, leader line and both
@@ -52,6 +52,14 @@ export function settleRevisions(editor: Editor, list: Revision[], accept: boolea
   if (zones.length) chain = chain.command(({ tr }) => { settleZones(tr, accept, zones); return true; });
   if (inBody.length) chain = accept ? chain.acceptRevision(inBody) : chain.rejectRevision(inBody);
   chain.run();
+}
+
+/** Writes what a reviewer says on a change, wherever it is. */
+export function commentRevision(editor: Editor, r: Revision, comment: string): void {
+  flushPending();
+  const body = bodyEditor() ?? editor;
+  if (r.zone) body.chain().command(({ tr }) => { commentZones(tr, r.id, comment); return true; }).run();
+  else body.commands.commentRevision(r.id, comment);
 }
 
 /** What the pane's filter asks for; null and '' ask for nothing. `since` is a day, YYYY-MM-DD. */

@@ -1134,6 +1134,7 @@ const fr: Messages = {
     inserted: 'Inséré',
     deleted: 'Supprimé',
     moved: 'Déplacé',
+    comment: 'Commentaire',
     filterAuthor: 'Auteur',
     filterKind: 'Type',
     filterSince: 'Depuis',

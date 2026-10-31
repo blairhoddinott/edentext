@@ -1145,6 +1145,7 @@ const el: Messages = {
     inserted: "Εισαγάχθηκε",
     deleted: "Διαγράφηκε",
     moved: 'Μετακινήθηκε',
+    comment: 'Σχόλιο',
     filterAuthor: 'Συντάκτης',
     filterKind: 'Είδος',
     filterSince: 'Από',

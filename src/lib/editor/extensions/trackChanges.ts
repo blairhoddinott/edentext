@@ -52,9 +52,11 @@ export type Revision = {
   moveId?: string;
   /** Both halves are in the document: they show, and settle, as one change. */
   moved?: boolean;
+  /** What a reviewer wrote on the change. */
+  comment?: string;
 };
 
-export type RevisionAttrs = { id: string; author: string; date: string; moveId?: string };
+export type RevisionAttrs = { id: string; author: string; date: string; moveId?: string; comment?: string };
 export type RevMark = { insertion?: RevisionAttrs; deletion?: RevisionAttrs };
 /** One list around a block, outermost first. */
 export type ListLevel = { type: string; attrs: Record<string, unknown> };
@@ -89,6 +91,7 @@ function revisionMark(name: RevisionKind, attr: string) {
         author: { default: '', parseHTML: (el) => el.getAttribute('data-rev-author') || '', renderHTML: (a) => ({ 'data-rev-author': String(a.author ?? '') }) },
         date: { default: '', parseHTML: (el) => el.getAttribute('data-rev-date') || '', renderHTML: (a) => ({ 'data-rev-date': String(a.date ?? '') }) },
         moveId: { default: null, parseHTML: (el) => el.getAttribute('data-rev-move'), renderHTML: (a) => (a.moveId ? { 'data-rev-move': String(a.moveId) } : {}) },
+        comment: { default: null, parseHTML: (el) => el.getAttribute('data-rev-comment'), renderHTML: (a) => (a.comment ? { 'data-rev-comment': String(a.comment) } : {}) },
       };
     },
 
@@ -144,7 +147,7 @@ export const sameBlockFormat = (a: BlockFormat, b: BlockFormat) => a.type === b.
 // A file numbers each run and paragraph mark of one edit on its own: touching stretches
 // by one author at one moment are one change, as both word processors show them.
 function sameChange(prev: Revision, attrs: RevisionAttrs): boolean {
-  if ((prev.moveId ?? null) !== (attrs.moveId ?? null)) return false;
+  if ((prev.moveId ?? null) !== (attrs.moveId ?? null) || (prev.comment ?? null) !== (attrs.comment ?? null)) return false;
   return prev.id === String(attrs.id ?? '') || (!!prev.date && prev.date === attrs.date && prev.author === attrs.author);
 }
 
@@ -182,6 +185,7 @@ export function revisions(doc: PMNode): Revision[] {
         from: pos, to: pos + node.nodeSize, text: node.text ?? '',
         spans: [[pos, pos + node.nodeSize]], marks: [],
         ...(mark.attrs.moveId ? { moveId: String(mark.attrs.moveId) } : {}),
+        ...(mark.attrs.comment ? { comment: String(mark.attrs.comment) } : {}),
         ...(kind === 'formatChange' ? { changed: changedMarks(node, mark) } : {}),
       });
     }
@@ -199,8 +203,8 @@ export function revisions(doc: PMNode): Revision[] {
     bridging = [];
     const format = node.attrs.revFormat as RevFormat | null | undefined;
     if (format) {
-      const { id, author, date } = format;
-      out.push({ kind: 'formatChange', id, author, date, from: pos + 1, to: pos + node.nodeSize - 1, text: node.textContent, spans: [], marks: [pos], changed: [] });
+      const { id, author, date, comment } = format;
+      out.push({ kind: 'formatChange', id, author, date, ...(comment ? { comment } : {}), from: pos + 1, to: pos + node.nodeSize - 1, text: node.textContent, spans: [], marks: [pos], changed: [] });
     }
     node.forEach((child, offset) => {
       const at = pos + 1 + offset;
@@ -284,6 +288,8 @@ declare module '@tiptap/core' {
       acceptRevision: (id: string | string[]) => ReturnType;
       /** Reject every range of one change or several. */
       rejectRevision: (id: string | string[]) => ReturnType;
+      /** Write what a reviewer says on a change; empty takes it off. */
+      commentRevision: (id: string, comment: string) => ReturnType;
     };
   }
 }
@@ -466,6 +472,37 @@ function goneBlocks(doc: PMNode): { pos: number; size: number; kind: RevisionKin
   return out;
 }
 
+// Every piece of each change takes the comment. A mark of this kind excludes nothing, so the
+// old one has to go first, and a mark step does not reach a text box.
+function writeComment(tr: Transaction, list: Revision[], comment: string): void {
+  const value = comment || null;
+  for (const r of list) {
+    if (r.kind === 'formatChange') for (const pos of r.marks) {
+      const format = tr.doc.nodeAt(pos)!.attrs.revFormat as RevFormat;
+      tr.setNodeAttribute(pos, 'revFormat', { ...format, comment: value ?? undefined });
+    } else for (const pos of r.marks) {
+      const rev = tr.doc.nodeAt(pos)!.attrs.revMark as RevMark;
+      tr.setNodeAttribute(pos, 'revMark', { ...rev, [r.kind]: { ...rev[r.kind], comment: value ?? undefined } });
+    }
+    for (const [from, to] of r.spans) tr.doc.nodesBetween(from, to, (node, pos) => {
+      const old = node.marks.find((m) => m.type.name === r.kind);
+      if (!old) return !node.isInline;
+      const mark = old.type.create({ ...old.attrs, comment: value });
+      if (node.isLeaf || node.isText) tr.removeMark(pos, pos + node.nodeSize, old).addMark(pos, pos + node.nodeSize, mark);
+      else tr.setNodeMarkup(pos, null, node.attrs, mark.addToSet(old.removeFromSet(node.marks)));
+      return false;
+    });
+  }
+  tr.setMeta(RECORDING, true);
+}
+
+/** The document with one change's comment written. */
+export function commentedDoc(doc: PMNode, id: string, comment: string): PMNode {
+  const tr = EditorState.create({ doc }).tr;
+  writeComment(tr, withIds(revisions(doc), id), comment);
+  return tr.doc;
+}
+
 /** The document with the changes named, or every one, accepted or rejected. */
 export function settledDoc(doc: PMNode, accept: boolean, id?: string | string[]): PMNode {
   const state = EditorState.create({ doc }), tr = state.tr;
@@ -538,6 +575,11 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
       },
       acceptRevision: (id) => ({ state, tr, dispatch }) => byId(state, tr, dispatch, id, true),
       rejectRevision: (id) => ({ state, tr, dispatch }) => byId(state, tr, dispatch, id, false),
+      commentRevision: (id, comment) => ({ state, tr, dispatch }) => {
+        const list = withIds(revisions(state.doc), id);
+        if (list.length && dispatch) writeComment(tr, list, comment);
+        return list.length > 0;
+      },
     };
   },
 
