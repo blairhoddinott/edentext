@@ -95,7 +95,8 @@ const drawRecorded = (r, size) => {
   const x = r();
   if (x < 0.3) return { type: pick(r, WORDS) };
   if (x < 0.8) return { key: pick(r, RECORDED_KEYS) };
-  if (x < 0.88) return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
+  if (x < 0.85) return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
+  if (x < 0.88) return { drop: [r(), r(), r()] };
   return pick(r, [{ cmd: 'toggleBold' }, { cmd: 'toggleItalic' }, { cmd: 'setFontSize', args: ['18pt'] }, { cmd: 'setTextAlign', args: ['center'] },
     { cmd: 'toggleBulletList' }, { cmd: 'toggleOrderedList' }, { cmd: 'sinkListItem', args: ['listItem'] }, { cmd: 'liftListItem', args: ['listItem'] },
     { cmd: 'setParagraphStyle', args: ['Heading 2'] }, { cmd: 'insertNote', args: ['footnote'] }, { cmd: 'insertTextBox' }, { cmd: 'addRowAfter' }, { cmd: 'addColumnBefore' }, { cmd: 'deleteRow' }, { cmd: 'deleteColumn' }, { cmd: 'deleteTable' },
@@ -158,6 +159,24 @@ const runCmd = (op) => ed(({ cmd, args }) => {
 const docCheck = () => ed(() => {
   try { document.querySelector('.tiptap-host .tiptap').editor.state.doc.check(); return null; } catch (e) { return String(e); }
 });
+// What a drop of a selection does: ProseMirror reads where it lands from the event and
+// what moves from `view.dragging`. Fractions of the document, snapped to text.
+const dropText = ([a, b, c]) => ed(([a, b, c]) => {
+  const { view, state } = document.querySelector('.tiptap-host .tiptap').editor;
+  const at = (f) => {
+    const size = state.doc.content.size;
+    for (let n = Math.floor(f * size); n <= size; n++) if (state.doc.resolve(n).parent.inlineContent) return n;
+    return null;
+  };
+  const [from, to] = [at(Math.min(a, b)), at(Math.max(a, b))], target = at(c);
+  if (from == null || to == null || target == null || from === to || (target >= from && target <= to)) return;
+  document.querySelector('.tiptap-host .tiptap').editor.commands.setTextSelection({ from, to });
+  view.dragging = { slice: view.state.selection.content(), move: true };
+  const { left, top } = view.coordsAtPos(target);
+  const dataTransfer = new DataTransfer();
+  dataTransfer.setData('text/plain', view.state.doc.textBetween(from, to, '\n'));
+  view.dom.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, clientX: left, clientY: top + 1, dataTransfer }));
+}, [a, b, c]);
 const docJson = () => ed(() => JSON.stringify(document.querySelector('.tiptap-host .tiptap').editor.getJSON()));
 // The key the history is held against, and the count of the columns flow's own rewrites:
 // the flow changes the document outside the history (`FLOW_TX`, columnsFlow.ts), so undo
@@ -258,13 +277,13 @@ async function flipUnderEdit(mark) {
 // A zone edited the way a user reaches it: double-click in, edit, leave by Done. Pages
 // 1 to 3 in turn — with the two variant flags on that is one session per variant, the
 // title page's, an even page's and a running one's. Only the round trip reports on it.
-async function editZone(r, zone) {
+async function editZone(r, zone, pages = 3) {
   const zones = page.locator(`.hf-zone.hf-${zone}`);
   const n = await zones.count();
   if (!n) return { ops: [], broken: `no ${zone} zone on the page` };
   const ops = [];
   let broken = null;
-  for (let p = 0; p < Math.min(3, n) && !broken; p++) {
+  for (let p = 0; p < Math.min(pages, n) && !broken; p++) {
     await clickish(zones.nth(p), 'dblclick');
     await page.waitForSelector(HF_LIVE, { timeout: 5000 });
     // The mount focuses itself a tick later; typing before that loses its first keys.
@@ -288,6 +307,12 @@ async function editZone(r, zone) {
   }
   return { ops, broken };
 }
+
+// The zones the review reaches without an editor, against which recording in one is held.
+const zoneKeys = () => ed(async () => {
+  const { loadHfDoc } = await import('/src/lib/storage/headerFooter.ts');
+  return JSON.stringify(['header', 'footer'].map((z) => loadHfDoc(z)));
+});
 
 const saveAs = async (ext, retry = true) => {
   try {
@@ -330,7 +355,7 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
   // named style resolves to, and bold in a header cell.
   const { resolveStyle } = await import('/src/lib/styles/styleSheet.ts');
   const sheet = editor.extensionManager.extensions.find((e) => e.name === 'paragraphStyle')?.options.sheet();
-  const styled = (n, header = false, framed = false, text = {}) => {
+  const styled = (n, header = false, framed = false, text = {}, nested = false) => {
     // A heading's level already names its style, so neither importer writes one out —
     // and the style it resolves to is the one whose values are suppressed.
     const style = n.attrs?.styleName ?? (n.type === 'heading' ? `Heading ${n.attrs?.level ?? 1}` : null);
@@ -338,6 +363,8 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
       const own = resolveStyle(sheet, style, 'paragraph');
       for (const [k, v] of Object.entries(n.attrs)) if (k !== 'styleName' && own.para?.[k] === v) delete n.attrs[k];
       text = own.text ?? {};
+      // A block in a list or a cell loses the name to its effect (import/CLAUDE.md).
+      if (nested && n.attrs?.styleName) for (const k of ['spaceBefore', 'spaceAfter', 'lineHeight']) if (own.para?.[k] != null) n.attrs[k] ??= own.para[k];
     }
     if (header && n.type === 'text' && n.marks) n.marks = n.marks.filter((m) => m.type !== 'bold');
     // A formula alone in its block is a display formula to both files — a note holds its
@@ -367,7 +394,7 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
     // is baked in and a heading there reads back bold instead of styled.
     if (framed && n.type === 'heading') for (const c of n.content ?? []) if (c.marks) c.marks = c.marks.filter((m) => m.type !== 'bold');
     const inFrame = framed || n.type === 'textBox' || n.type === 'tableCell' || n.type === 'tableHeader';
-    for (const c of n.content ?? []) styled(c, header || n.type === 'tableHeader', inFrame, text);
+    for (const c of n.content ?? []) styled(c, header || n.type === 'tableHeader', inFrame, text, nested || inFrame || n.type === 'listItem');
     return n;
   };
   // The exporter folds a columns section's page-split chain back into one node and merges
@@ -426,7 +453,14 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
     }
     return { ...n, content: out };
   };
-  const flat = (n) => stripFontHoist(normalize(ext === 'docx' ? stripBreakSpace(stripBoxGrowth(flatLists(n))) : n));
+  // A DOCX cell ends in a paragraph, so one follows a table that ends it.
+  const cellTail = (n) => {
+    const kids = n.content ?? [], last = kids[kids.length - 1];
+    if (/^table(Cell|Header)$/.test(n.type) && last?.type === 'paragraph' && !last.content?.length && kids[kids.length - 2]?.type === 'table') kids.pop();
+    kids.forEach(cellTail);
+    return n;
+  };
+  const flat = (n) => stripFontHoist(normalize(ext === 'docx' ? cellTail(stripBreakSpace(stripBoxGrowth(flatLists(n)))) : n));
   // The zones the app holds (its own storage is what it exports from) against the ones
   // the file gives back — a zone is no part of the document compared above.
   const { loadHfDoc, loadExtraHfSections, loadDifferentFirstPage, loadDifferentOddEven, hfIsEmpty, EMPTY_HF_SET } = hfStore;
@@ -560,7 +594,7 @@ try {
   }
 
   for (let run = 0; run < RUNS; run++) {
-    const seed = SEED + 100 + run, doc = ['02-blocks.odt', '08-lists.odt', '04-table.odt', '15-chapters.odt'][run % 4], r = mulberry32(seed);
+    const seed = SEED + 100 + run, doc = ['02-blocks.odt', '08-lists.odt', '04-table.odt', '15-chapters.odt', '16-hf-variants.odt'][run % 5], r = mulberry32(seed);
     const before = await docJson();
     await page.setInputFiles('input.file-input[accept*=".odt"]', join(ROOT, 'tests/corpus', doc));
     await page.waitForFunction((b) => JSON.stringify(document.querySelector('.tiptap-host .tiptap').editor.getJSON()) !== b, before, { timeout: 30_000 });
@@ -583,32 +617,46 @@ try {
       else {
         const err = await focused();
         if (err) broken = `focus threw: ${err}`;
+        else if (op.drop) await dropText(op.drop);
         else if (op.type) await page.keyboard.type(op.type);
         else await press(op.key);
       }
       await page.waitForTimeout(5);
       broken ??= await docCheck();
     }
-    const left = await ed(async (initial) => {
+    const zonesBefore = await zoneKeys();
+    if (!broken) {
+      const pass = await editZone(r, 'header', 1);
+      log.push(...pass.ops);
+      broken = pass.broken;
+    }
+    const left = await ed(async ({ initial, zonesBefore }) => {
       const { firstDiff } = await import('/tests/normalize.ts');
       (await import('/src/lib/storage/trackChanges.svelte.ts')).setRecordChanges(false);
       const { revisions } = await import('/src/lib/editor/extensions/trackChanges.ts');
       const editor = document.querySelector('.tiptap-host .tiptap').editor;
-      const made = revisions(editor.state.doc).length;
-      editor.commands.rejectRevisions(true);
+      const { settleAll } = await import('/src/lib/components/reviewItems.ts');
+      const { loadHfDoc } = await import('/src/lib/storage/headerFooter.ts');
+      const { zoneRevisions } = await import('/src/lib/editor/zoneReview.ts');
+      const zones = () => JSON.stringify(['header', 'footer'].map((z) => loadHfDoc(z)));
+      const made = revisions(editor.state.doc).length, inZones = zoneRevisions().length;
+      const moves = revisions(editor.state.doc).filter((c) => c.moved).length;
+      settleAll(editor, false);
+      await new Promise((done) => setTimeout(done, 1200)); // zones are stored after a tick
       // An attr at its default may be spelled out or absent: a rebuilt block spells it. Widths
       // rescale by a rounding error as columns come and go.
       const plain = (key) => JSON.parse(JSON.stringify(JSON.parse(key), (k, v) => (v === null || k === 'colwidth' ? undefined : v)));
-      const diff = firstDiff({ type: 'doc', content: plain(initial) }, { type: 'doc', content: plain(window.__docKey()) });
+      const diff = firstDiff({ type: 'doc', content: plain(initial) }, { type: 'doc', content: plain(window.__docKey()) })
+        ?? firstDiff({ zones: plain(zonesBefore) }, { zones: plain(zones()) });
       const rejected = window.__docKey();
       editor.commands.undo();
-      editor.commands.acceptRevisions(true);
-      const after = revisions(editor.state.doc).length;
+      settleAll(editor, true);
+      const after = revisions(editor.state.doc).length + zoneRevisions().length;
       editor.state.doc.check();
-      return { made, diff, after, rejected };
-    }, initial);
+      return { made, moves, inZones, diff, after, rejected };
+    }, { initial, zonesBefore });
     const bad = broken ?? left.diff ?? (left.after ? `${left.after} changes left after accepting all` : null);
-    check(!bad, `seed ${seed} on ${doc}: ${left.made} recorded changes${bad ? ` — ${bad}` : ', all rejected and accepted'}`);
+    check(!bad, `seed ${seed} on ${doc}: ${left.made} recorded changes, ${left.moves} moved, ${left.inZones} in the header${bad ? ` — ${bad}` : ', all rejected and accepted'}`);
     if (bad) { await writeFile(join(tmpdir(), `monkey-${seed}-recorded.json`), JSON.stringify(log)); await writeFile(join(tmpdir(), `monkey-${seed}-initial.json`), initial); await writeFile(join(tmpdir(), `monkey-${seed}-rejected.json`), left.rejected ?? ''); for (const op of log.slice(-14)) console.log('    ', JSON.stringify(op)); }
   }
 } catch (err) {
