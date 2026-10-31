@@ -115,7 +115,7 @@
 <div class="toolbar-separator"></div>
 
 <div class="toolbar-group">
-  <IslandButton icon="trackChanges" cmd="trackChanges" title={t().revisions.recordHint} active={recordChanges()} onclick={() => setRecordChanges(!recordChanges())} />
+  <IslandButton icon="trackChanges" cmd="trackChanges" title={`${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`} active={recordChanges()} onclick={() => setRecordChanges(!recordChanges())} />
   <IslandMenu id="markupDisplay" label={MODE_LABEL[markupMode()]().label} cmd="markupDisplay" title={t().revisions.display}>
     {#each MARKUP_MODES as m}
       <button class:selected={markupMode() === m} onclick={() => { closeMenu(); setMarkupMode(m); }}>

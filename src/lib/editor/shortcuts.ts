@@ -62,6 +62,8 @@ export const DEFAULT_SHORTCUTS = {
   zoomIn: 'Mod-+',
   zoomOut: 'Mod--',
   zoomReset: 'Mod-0',
+  // LibreOffice's key: Word's Ctrl+Shift+E is the centring TipTap binds.
+  recordChanges: 'Mod-Shift-c',
   // Word's key for its command search.
   commandSearch: 'Alt-q',
   // Copilot's key for drafting at the cursor.

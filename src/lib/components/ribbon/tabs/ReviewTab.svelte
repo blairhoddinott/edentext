@@ -201,7 +201,7 @@
     icon="trackChanges"
     cmd="trackChanges"
     label={t().revisions.record}
-    title={t().revisions.recordHint}
+    title={`${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`}
     active={recordChanges()}
     onclick={() => setRecordChanges(!recordChanges())}
   />

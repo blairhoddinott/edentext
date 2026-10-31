@@ -1551,6 +1551,7 @@
       [DEFAULT_SHORTCUTS.navigator, () => (navigatorOpen = !navigatorOpen)],
       [DEFAULT_SHORTCUTS.thesaurus, () => (thesaurusOpen = true)],
       [DEFAULT_SHORTCUTS.splitView, () => (splitView = !splitView)],
+      [DEFAULT_SHORTCUTS.recordChanges, () => setRecordChanges(!recordChanges())],
       [DEFAULT_SHORTCUTS.zoomIn, () => setZoom(zoom + 10)],
       [DEFAULT_SHORTCUTS.zoomOut, () => setZoom(zoom - 10)],
       [DEFAULT_SHORTCUTS.zoomReset, () => setZoom(100)],
