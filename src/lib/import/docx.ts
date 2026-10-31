@@ -1565,6 +1565,8 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
     for (const key of ['spaceBefore', 'spaceAfter', 'lineHeight']) if (attrs[key] === def[key]) delete attrs[key];
   }
   applyContextualSpacing(el, ppr, ctx, styleId, attrs);
+  const revMark = kind === 'zone' ? undefined : paragraphMarkRevisions(ppr);
+  if (revMark) attrs.revMark = revMark;
   // A direct left indent of 0 still overrides the style's own one.
   const ind = kind !== 'list' && !baked ? fc(ppr, 'ind') : null;
   const directLeft = ind && !intAttr(ind, W, 'leftChars') ? intAttr(ind, W, 'left') ?? intAttr(ind, W, 'start') : null;
@@ -1712,6 +1714,16 @@ function keepRunDefault(content: Node[], key: 'fontSize' | 'fontFamily', value: 
     if (!ts) n.marks.push({ type: 'textStyle', attrs: { [key]: value } });
     else if (ts.attrs?.[key] == null) ts.attrs = { ...ts.attrs, [key]: value };
   }
+}
+
+// A recorded paragraph mark (w:pPr/w:rPr/w:ins|del, a move's two ends w:moveFrom|moveTo).
+function paragraphMarkRevisions(ppr: Element | null): Record<string, { id: string; author: string; date: string }> | undefined {
+  const rPr = fc(ppr, 'rPr'), out: Record<string, { id: string; author: string; date: string }> = {};
+  for (const [name, kind] of [['ins', 'insertion'], ['moveTo', 'insertion'], ['del', 'deletion'], ['moveFrom', 'deletion']]) {
+    const el = fc(rPr, name);
+    if (el) out[kind] = { id: el.getAttributeNS(W, 'id') ?? '', author: el.getAttributeNS(W, 'author') ?? '', date: el.getAttributeNS(W, 'date') ?? '' };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 // The paragraph mark's resolved font size (w:pPr/w:rPr, incl. its rStyle), as a CSS

@@ -15,9 +15,13 @@ import { authorColor, authorColors } from '../authorColors';
 // ODF stores the pair in a <text:tracked-changes> registry and points at it from the
 // body; a deletion's text lives in the registry, an insertion's stays inline. Word wraps
 // runs in <w:ins>/<w:del> instead, keeping a deletion's text in <w:delText>. Both are
-// probed — see src/lib/export/CLAUDE.md.
+// probed — see docs/architecture/review.md.
+//
+// A paragraph mark is no text, so a mark cannot carry its change: the `revMark` attr of the
+// block it ends does, holding the insertion, the deletion or both.
 
 export type RevisionKind = 'insertion' | 'deletion';
+const KINDS = ['insertion', 'deletion'] as const;
 
 export type Revision = {
   kind: RevisionKind;
@@ -26,9 +30,17 @@ export type Revision = {
   date: string;
   from: number;
   to: number;
-  /** The text the change covers — a deletion's is what would come back on reject. */
+  /** The text the change covers — a deletion's is what would come back on reject; a
+   *  paragraph mark in it reads as a newline. */
   text: string;
+  /** The inline stretches of the change, each within one textblock. */
+  spans: [number, number][];
+  /** The blocks whose paragraph mark belongs to the change, by position. */
+  marks: number[];
 };
+
+export type RevisionAttrs = { id: string; author: string; date: string };
+export type RevMark = { insertion?: RevisionAttrs; deletion?: RevisionAttrs };
 
 export function newRevisionId(): string {
   return `r${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
@@ -69,32 +81,70 @@ function revisionMark(name: RevisionKind, attr: string) {
 export const Insertion = revisionMark('insertion', 'data-insertion');
 export const Deletion = revisionMark('deletion', 'data-deletion');
 
-// Every recorded change in document order, adjacent runs of one id merged. Text one author
-// inserted and another struck through is in both: the insertion and its deletion.
+// A file numbers each run and paragraph mark of one edit on its own: touching stretches
+// by one author at one moment are one change, as both word processors show them.
+function sameChange(prev: Revision, attrs: RevisionAttrs): boolean {
+  return prev.id === String(attrs.id ?? '') || (!!prev.date && prev.date === attrs.date && prev.author === attrs.author);
+}
+
+// Every recorded change in document order, adjacent runs of one change merged, across a
+// paragraph mark of it too. Text one author inserted and another struck through is in
+// both: the insertion and its deletion.
 export function revisions(doc: PMNode): Revision[] {
   const out: Revision[] = [];
   const last: Record<RevisionKind, Revision | null> = { insertion: null, deletion: null };
-  doc.descendants((node, pos) => {
-    // A line break or field is inline as text is, and a recorded one goes with its change.
-    const inline = node.isInline && node.isLeaf;
-    for (const kind of ['insertion', 'deletion'] as const) {
-      const mark = inline ? node.marks.find((m) => m.type.name === kind) : undefined;
+  // The changes whose paragraph mark closed the block before: they reach the next one's start.
+  let bridging: Revision[] = [];
+  const inline = (node: PMNode, pos: number) => {
+    for (const kind of KINDS) {
+      const mark = node.marks.find((m) => m.type.name === kind);
       if (!mark) { last[kind] = null; continue; }
-      const id = String(mark.attrs.id ?? ''), prev = last[kind];
-      if (prev && prev.id === id && prev.to === pos) {
+      const prev = last[kind];
+      if (prev && sameChange(prev, mark.attrs as RevisionAttrs) && prev.to === pos) {
+        const span = prev.spans[prev.spans.length - 1];
+        if (span?.[1] === pos) span[1] = pos + node.nodeSize;
+        else prev.spans.push([pos, pos + node.nodeSize]);
         prev.to = pos + node.nodeSize;
         prev.text += node.text ?? '';
         continue;
       }
       out.push(last[kind] = {
-        kind, id,
+        kind,
+        id: String(mark.attrs.id ?? ''),
         author: String(mark.attrs.author ?? ''),
         date: String(mark.attrs.date ?? ''),
         from: pos, to: pos + node.nodeSize, text: node.text ?? '',
+        spans: [[pos, pos + node.nodeSize]], marks: [],
       });
     }
-    return !inline;
-  });
+  };
+  const visit = (node: PMNode, pos: number): boolean => {
+    if (!node.isTextblock) return true;
+    for (const r of bridging) r.to = pos + 1;
+    bridging = [];
+    node.forEach((child, offset) => {
+      const at = pos + 1 + offset;
+      // A line break or field is inline as text is, and a recorded one goes with its change.
+      if (child.isLeaf) { inline(child, at); return; }
+      last.insertion = last.deletion = null;
+      child.descendants((n, p) => visit(n, at + 1 + p));
+    });
+    const end = pos + node.nodeSize - 1, marks = node.attrs.revMark as RevMark | null | undefined;
+    for (const kind of KINDS) {
+      const attrs = marks?.[kind];
+      if (!attrs) { last[kind] = null; continue; }
+      const prev = last[kind];
+      if (prev && sameChange(prev, attrs) && prev.to === end) {
+        prev.marks.push(pos);
+        prev.text += '\n';
+      } else {
+        out.push(last[kind] = { kind, ...attrs, from: end, to: end, text: '', spans: [], marks: [pos] });
+      }
+      bridging.push(last[kind]!);
+    }
+    return false;
+  };
+  doc.descendants(visit);
   return out;
 }
 
@@ -142,15 +192,68 @@ function byId(state: EditorState, tr: Transaction, dispatch: unknown, id: string
 }
 
 // An insertion and the deletion struck through it share their range, hence the mapping.
+// Paragraph marks go last, from the end: whether a block merges or goes depends on the text
+// left in it, and a merge takes over the mark of the block it swallowed.
 function apply(state: EditorState, tr: Transaction, list: Revision[], accept: boolean): void {
   const drop = accept ? 'deletion' : 'insertion';
-  for (const r of [...list].sort((a, b) => b.from - a.from)) {
-    const from = tr.mapping.map(r.from, 1), to = tr.mapping.map(r.to, -1);
+  const stretches = list.flatMap((r) => r.spans.map(([from, to]) => ({ r, from, to })));
+  for (const { r, from: f, to: t } of stretches.sort((a, b) => b.from - a.from)) {
+    const from = tr.mapping.map(f, 1), to = tr.mapping.map(t, -1);
     if (to <= from) continue;
     if (r.kind === drop) tr.delete(from, to);
     else tr.removeMark(from, to, state.schema.marks[r.kind]);
   }
+  const marks = list.flatMap((r) => r.marks.map((pos) => ({ pos, kind: r.kind })));
+  marks.sort((a, b) => b.pos - a.pos || Number(a.kind === drop) - Number(b.kind === drop));
+  for (const { pos, kind } of marks) {
+    const at = tr.mapping.map(pos, 1), rev = tr.doc.nodeAt(at)?.attrs.revMark as RevMark | null | undefined;
+    if (!rev?.[kind]) continue;
+    if (kind === drop) removeParagraphMark(tr, at);
+    else {
+      const { [kind]: _gone, ...rest } = rev;
+      tr.setNodeAttribute(at, 'revMark', Object.keys(rest).length ? rest : null);
+    }
+  }
   tr.setMeta(RECORDING, true);
+}
+
+const LIST_NODES = new Set(['listItem', 'bulletList', 'orderedList']);
+const hasParagraphMark = (node: PMNode) => node.type.name === 'paragraph' || node.type.name === 'heading';
+
+// The start of the textblock a paragraph mark at `end` runs into, null where none can: the
+// last block of a cell, a frame or the document, or one a table follows.
+function nextParagraph(doc: PMNode, end: number): number | null {
+  const $end = doc.resolve(end);
+  for (let depth = $end.depth; depth > 0; depth--) {
+    const parent = $end.node(depth - 1), index = $end.index(depth - 1);
+    if (index + 1 < parent.childCount) {
+      let node = parent.child(index + 1), at = $end.after(depth);
+      while (!node.isTextblock) {
+        if (!LIST_NODES.has(node.type.name) || !node.childCount) return null;
+        node = node.firstChild!;
+        at++;
+      }
+      return hasParagraphMark(node) ? at + 1 : null;
+    }
+    if (!LIST_NODES.has(parent.type.name)) return null;
+  }
+  return null;
+}
+
+// A paragraph mark gone for good, as LibreOffice does it (probed): a block left empty goes
+// and the next stays as it is; else the next one's text joins it, under the first block's
+// format and the second's mark. Where nothing follows, the block just loses its mark.
+function removeParagraphMark(tr: Transaction, pos: number): void {
+  const block = tr.doc.nodeAt(pos)!, end = pos + block.nodeSize - 1;
+  const next = nextParagraph(tr.doc, end), $pos = tr.doc.resolve(pos);
+  if (!block.content.size && (next !== null || $pos.parent.childCount > 1)) {
+    tr.deleteRange(pos, pos + block.nodeSize);
+    return;
+  }
+  const taken = next === null ? null : tr.doc.resolve(next).parent.attrs.revMark;
+  const before = tr.steps.length;
+  if (next !== null) tr.delete(end, next);
+  tr.setNodeAttribute(pos, 'revMark', tr.steps.length > before ? taken ?? null : null);
 }
 
 export const TrackChanges = Extension.create<{ recording: () => boolean; author: () => string; plain: () => boolean }>({
@@ -158,6 +261,22 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
 
   addOptions() {
     return { recording: () => false, author: () => '', plain: () => false };
+  },
+
+  addGlobalAttributes() {
+    return [{
+      types: ['paragraph', 'heading'],
+      attributes: {
+        revMark: {
+          default: null,
+          keepOnSplit: false,
+          parseHTML: (el: HTMLElement) => {
+            try { return JSON.parse(el.getAttribute('data-rev-mark') ?? 'null'); } catch { return null; }
+          },
+          renderHTML: (a: Record<string, unknown>) => (a.revMark ? { 'data-rev-mark': JSON.stringify(a.revMark) } : {}),
+        },
+      },
+    }];
   },
 
   addCommands() {
@@ -211,11 +330,19 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             if (cache?.doc === state.doc && cache.plain === plain) return cache.set;
             const list = plain ? [] : revisions(state.doc);
             const colors = authorColors(state.doc);
-            const set = DecorationSet.create(state.doc, list.map((r) =>
-              Decoration.inline(r.from, r.to, {
-                class: `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}`,
-                style: `color: ${authorColor(colors, r.author)}`,
-              })));
+            const set = DecorationSet.create(state.doc, list.flatMap((r) => {
+              const cls = `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}`, color = authorColor(colors, r.author);
+              return [
+                ...r.spans.map(([from, to]) => Decoration.inline(from, to, { class: cls, style: `color: ${color}` })),
+                // A widget factory: a split view draws the decoration twice.
+                ...r.marks.map((pos) => Decoration.widget(pos + state.doc.nodeAt(pos)!.nodeSize - 1, () => {
+                  const el = document.createElement('span');
+                  el.className = `pm-para-mark ${cls}`;
+                  el.style.color = color;
+                  return el;
+                }, { side: -1, ignoreSelection: true, key: `${r.kind}${pos}${color}` })),
+              ];
+            }));
             cache = { doc: state.doc, plain, set };
             return set;
           },
@@ -258,8 +385,10 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             // Anything freshly in the document is this author's insertion — never struck
             // through or another's, which typing inside such a run would inherit. Typing
             // joins the run it continues, so a sentence is one change.
+            const attrs = adjacentInsertion(tr.doc, from, author) ?? revisionAttrs(author);
             tr.removeMark(from, to, deletion).removeMark(from, to, insertion);
-            tr.addMark(from, to, insertion.create(adjacentInsertion(tr.doc, from, author) ?? revisionAttrs(author)));
+            tr.addMark(from, to, insertion.create(attrs));
+            markInsertedParagraphs(tr, from, to, attrs);
           }
           // In the history with the edit it marks, so undo and redo take both together.
           return tr.setMeta(RECORDING, true);
@@ -439,7 +568,7 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
       back = { pos: marked.mapping.slice(before).map(from, 1), steps: marked.steps.length };
     }
     const start = end;
-    if (step.slice.size) end = insertTracked(marked, start, step.slice, revisionAttrs(author));
+    if (step.slice.size && !reopensOnly(step.slice)) end = insertTracked(marked, start, step.slice, revisionAttrs(author));
     const steady = marked.steps.length, { from, to } = step, size = step.slice.size;
     at = (p, a) => {
       if (p < from) return prev(p, a);
@@ -454,6 +583,14 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
   marked.setSelection(TextSelection.near(marked.doc.resolve(caret)));
   if (tr.scrolledIntoView) marked.scrollIntoView();
   return marked;
+}
+
+// Deleting up to a list's second item replaces the first with an open list: what remains of
+// the list, not new content. A split's slice holds two blocks.
+function reopensOnly(slice: Slice): boolean {
+  let inline = false;
+  slice.content.descendants((n) => { inline ||= n.isInline; return !inline; });
+  return !inline && slice.content.childCount === 1 && !slice.openStart;
 }
 
 // A paste over cells replaces each row's run of them whole (prosemirror-tables'
@@ -573,7 +710,8 @@ function markPureDelete(tr: Transaction, state: EditorState, author: string): Tr
       const from = marked.mapping.map(back.map(oldStart, 1), 1), to = marked.mapping.map(back.map(oldEnd, -1), -1);
       let inline = false;
       if (to > from) marked.doc.nodesBetween(from, to, (n) => { inline ||= n.isInline; return !inline; });
-      if (!inline) return;
+      // A join takes a paragraph mark out; a lift's ReplaceAroundStep only unwraps.
+      if (!inline && !(step instanceof ReplaceStep && deleteRanges(marked.doc, from, to, author).blocks.length)) return;
       content = true;
       markDeleted(marked, from, to, attrs);
     });
@@ -581,21 +719,38 @@ function markPureDelete(tr: Transaction, state: EditorState, author: string): Tr
   return content ? marked : null;
 }
 
+// The block before the one `$pos` opens, where `$pos` is the start of a textblock.
+function blockBefore($pos: ReturnType<PMNode['resolve']>): PMNode | null {
+  if ($pos.depth === 0 || !$pos.parent.isTextblock || $pos.parentOffset) return null;
+  const sel = TextSelection.findFrom($pos.doc.resolve($pos.before()), -1, true);
+  return sel?.$from.parent ?? null;
+}
+
 // The attrs of the insertion the text just before `pos` belongs to, when the same author
-// made it — what makes consecutive typing one change rather than one per keystroke.
-function adjacentInsertion(doc: PMNode, pos: number, author: string): Record<string, string> | null {
-  const before = pos > 0 ? doc.resolve(pos).nodeBefore : null;
+// made it — what makes consecutive typing one change rather than one per keystroke, over
+// a paragraph just started too.
+function adjacentInsertion(doc: PMNode, pos: number, author: string): RevisionAttrs | null {
+  const $pos = doc.resolve(pos), before = pos > 0 ? $pos.nodeBefore : null;
   const mark = before?.marks.find((m) => m.type.name === 'insertion');
-  if (!mark || String(mark.attrs.author ?? '') !== author) return null;
-  return { id: String(mark.attrs.id), author, date: String(mark.attrs.date) };
+  const attrs = mark?.attrs ?? (blockBefore($pos)?.attrs.revMark as RevMark | null | undefined)?.insertion;
+  if (!attrs || String(attrs.author ?? '') !== author) return null;
+  return { id: String(attrs.id), author, date: String(attrs.date) };
 }
 
 // The attrs of the deletion right beside [from,to), when the same author made it — what
-// makes a run of Backspace or Delete one change rather than one per key.
-function adjacentDeletion(doc: PMNode, from: number, to: number, author: string): Record<string, string> | null {
-  for (const node of [doc.resolve(from).nodeBefore, doc.resolve(to).nodeAfter]) {
-    const mark = node?.marks.find((m) => m.type.name === 'deletion');
-    if (mark && String(mark.attrs.author ?? '') === author) return { id: String(mark.attrs.id), author, date: String(mark.attrs.date) };
+// makes a run of Backspace or Delete one change rather than one per key, across a
+// paragraph mark too.
+function adjacentDeletion(doc: PMNode, from: number, to: number, author: string): RevisionAttrs | null {
+  const $from = doc.resolve(from), $to = doc.resolve(to);
+  const atEnd = $to.parent.isTextblock && $to.parentOffset === $to.parent.content.size;
+  const beside = [
+    $from.nodeBefore?.marks.find((m) => m.type.name === 'deletion')?.attrs,
+    $to.nodeAfter?.marks.find((m) => m.type.name === 'deletion')?.attrs,
+    (blockBefore($from)?.attrs.revMark as RevMark | null | undefined)?.deletion,
+    atEnd ? ($to.parent.attrs.revMark as RevMark | null | undefined)?.deletion : undefined,
+  ];
+  for (const attrs of beside) {
+    if (attrs && String(attrs.author ?? '') === author) return { id: String(attrs.id), author, date: String(attrs.date) };
   }
   return null;
 }
@@ -612,21 +767,46 @@ function isPureDelete(tr: Transaction, state: EditorState): boolean {
     });
 }
 
-function revisionAttrs(author: string) {
+function revisionAttrs(author: string): RevisionAttrs {
   return { id: newRevisionId(), author, date: new Date().toISOString() };
 }
 
-// Strike [from,to) through as one change; the author's own pending insertion inside goes
-// for real, and text already struck through stays as it is.
-function markDeleted(tr: Transaction, from: number, to: number, attrs: Record<string, string>): void {
-  const { kept, own } = deleteRanges(tr.doc, from, to, attrs.author);
+// Strike [from,to) through as one change, the paragraph marks in it too; the author's own
+// pending insertion inside goes for real, and what is already struck through stays as it is.
+function markDeleted(tr: Transaction, from: number, to: number, attrs: RevisionAttrs): void {
+  const { kept, own, blocks } = deleteRanges(tr.doc, from, to, attrs.author);
   for (const keep of kept) tr.addMark(keep[0], keep[1], tr.doc.type.schema.marks.deletion.create(attrs));
+  const start = tr.steps.length;
   for (const range of [...own].reverse()) tr.delete(range[0], range[1]);
+  for (const block of [...blocks].reverse()) {
+    const at = tr.mapping.slice(start).map(block, 1);
+    const rev = (tr.doc.nodeAt(at)?.attrs.revMark ?? null) as RevMark | null;
+    if (rev?.deletion) continue;
+    if (rev?.insertion?.author === attrs.author) removeParagraphMark(tr, at);
+    else tr.setNodeAttribute(at, 'revMark', { ...rev, deletion: attrs });
+  }
+}
+
+// Each paragraph mark that came in with [from,to) is an insertion. A block split in two
+// hands the mark it had to its second half, the one that now ends with it.
+function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs: RevisionAttrs): void {
+  const blocks: { pos: number; end: number; rev: unknown }[] = [];
+  tr.doc.nodesBetween(from, to, (node, pos) => {
+    if (node.type.spec.tableRole === 'table') return false;
+    if (!node.isTextblock || !hasParagraphMark(node)) return true;
+    const end = pos + node.nodeSize - 1;
+    if (end >= from && end < to && nextParagraph(tr.doc, end) !== null) blocks.push({ pos, end, rev: node.attrs.revMark });
+    return false;
+  });
+  if (!blocks.length) return;
+  for (const { pos } of blocks) tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
+  const first = blocks[0].rev, after = nextParagraph(tr.doc, blocks[blocks.length - 1].end)!;
+  if (first) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first);
 }
 
 // The new content lands at `at` (after any text it replaces, which stays struck out),
 // marked as an insertion. Returns where it ends.
-function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: Record<string, string>): number {
+function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: RevisionAttrs): number {
   const before = tr.steps.length;
   tr.replace(at, at, slice);
   // The ranges the fitted replace actually inserted: it may close and reopen blocks
@@ -634,6 +814,7 @@ function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: Record<
   const { insertion, deletion } = tr.doc.type.schema.marks;
   for (const [from, to] of newRanges(tr, before)) {
     tr.removeMark(from, to, deletion).removeMark(from, to, insertion).addMark(from, to, insertion.create(attrs));
+    markInsertedParagraphs(tr, from, to, attrs);
   }
   return tr.mapping.slice(before).map(at, 1);
 }
@@ -649,12 +830,17 @@ export function trackedReplace(tr: Transaction, from: number, to: number, slice:
   return tr.setMeta(RECORDING, true);
 }
 
-// The parts of [from,to) a delete strikes through, and the author's own pending insertions
-// it removes outright; text already struck through is in neither.
-function deleteRanges(doc: PMNode, from: number, to: number, author: string): { kept: [number, number][]; own: [number, number][] } {
-  const kept: [number, number][] = [], own: [number, number][] = [];
+// The parts of [from,to) a delete strikes through, the author's own pending insertions it
+// removes outright (text already struck through is in neither), and the blocks whose
+// paragraph mark lies inside.
+function deleteRanges(doc: PMNode, from: number, to: number, author: string): { kept: [number, number][]; own: [number, number][]; blocks: number[] } {
+  const kept: [number, number][] = [], own: [number, number][] = [], blocks: number[] = [];
   let cursor = from;
   doc.nodesBetween(from, to, (node, pos) => {
+    if (hasParagraphMark(node)) {
+      const end = pos + node.nodeSize - 1;
+      if (end >= from && end < to && nextParagraph(doc, end) !== null) blocks.push(pos);
+    }
     // A picture or field is inline as text is: one still pending goes as its text would.
     if (!node.isInline) return true;
     const s = Math.max(from, pos), e = Math.min(to, pos + node.nodeSize);
@@ -669,5 +855,5 @@ function deleteRanges(doc: PMNode, from: number, to: number, author: string): { 
     return false;
   });
   if (cursor < to) kept.push([cursor, to]);
-  return { kept, own };
+  return { kept, own, blocks };
 }

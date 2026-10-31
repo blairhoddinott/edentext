@@ -1432,6 +1432,11 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
 .tiptap .pm-rev-ins { text-decoration: underline; }
 .tiptap .pm-rev-del { text-decoration: line-through; }
 
+/* A recorded paragraph mark; it takes no width, or it could wrap the line it ends. */
+.tiptap .pm-para-mark { display: inline-block; width: 0; text-decoration: none; }
+.tiptap .pm-para-mark::after { content: '¶'; }
+.tiptap .pm-para-mark.pm-rev-del::after { text-decoration: line-through; }
+
 /* Word's display modes (storage/markup.svelte.ts). The document keeps every change —
    this only takes it off the page, so a final text or the original one can be read. */
 .paper[data-hide-deletions] .tiptap .pm-deletion,

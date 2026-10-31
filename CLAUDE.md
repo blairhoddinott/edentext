@@ -82,7 +82,7 @@ Read directory-level `CLAUDE.md` files when touching that directory; read archit
 | Topic | File |
 |---|---|
 | Components, data flow, zoom, header/footer, debug dump | `src/lib/components/CLAUDE.md`, `docs/architecture/components.md` |
-| Extensions, shortcuts, context menu | `src/lib/editor/CLAUDE.md`, `src/lib/editor/extensions/CLAUDE.md` |
+| Extensions, shortcuts, context menu, recorded changes | `src/lib/editor/CLAUDE.md`, `src/lib/editor/extensions/CLAUDE.md`, `docs/architecture/review.md` |
 | ODF/DOCX export and sentinels | `src/lib/export/CLAUDE.md`, `docs/architecture/export.md` |
 | ODF/DOCX import and images | `src/lib/import/CLAUDE.md`, `docs/architecture/import.md` |
 | Styles | `src/lib/styles/CLAUDE.md`, `docs/architecture/styles.md` |

@@ -75,6 +75,7 @@ const SCHEMA: Record<string, Entry> = {
   'paragraph.indentRight': check(css('margin-right: 2cm'), para('indentRight', 2)),
   'paragraph.indentFirst': check(css('text-indent: 1cm'), para('indentFirst', 1)),
   'paragraph.joinPrev': IMPORT,
+  'paragraph.revMark': same('mark:insertion'),
   'table.joinPrev': IMPORT,
   'paragraph.lineHeight': check(css('line-height: 1.5'), para('lineHeight', '1.5')),
   'paragraph.snapToGrid': ASIAN,

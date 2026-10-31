@@ -66,6 +66,8 @@ const WARN = en.importWarn;
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 type Node = {
+  /** The blocks a paragraph became at its struck paragraph marks (`blocksOf`). */
+  parts?: Node[];
   type: string;
   attrs?: Record<string, unknown>;
   content?: Node[];
@@ -1429,6 +1431,8 @@ function hiddenParagraph(el: Element, ctx: Ctx): boolean {
   return true;
 }
 
+const blocksOf = ({ parts, ...node }: Node): Node[] => parts ?? [node];
+
 function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDefault = false): Node[] {
   const out: Node[] = [];
 
@@ -1451,14 +1455,16 @@ function convertBlocks(elements: Element[], ctx: Ctx, kind: BlockKind, boldByDef
     if (el.namespaceURI === NS.text) {
       if (el.localName === 'p' || el.localName === 'h') {
         if (hiddenParagraph(el, ctx)) continue;
-        const block = hoistPageFrames(convertParaLike(el, ctx, kind, boldByDefault));
-        if (block) out.push(block);
+        for (const part of blocksOf(convertParaLike(el, ctx, kind, boldByDefault))) {
+          const block = hoistPageFrames(part);
+          if (block) out.push(block);
+        }
       } else if (el.localName === 'list') {
         // Chapter numbering wrapping only headings is no real list — unwrap it to plain
         // headings instead of empty nested list levels.
         const headingEls = kind === 'body' ? outlineHeadingEls(el, ctx.resolver) : null;
         if (headingEls) {
-          for (const h of headingEls) out.push(convertParaLike(h, ctx, 'body'));
+          for (const h of headingEls) out.push(...blocksOf(convertParaLike(h, ctx, 'body')));
         } else {
           const list = convertList(el, ctx, null, 1, false, ROOT_ORDERED_CYCLE, !isChapterList(el, ctx.resolver));
           for (const part of list ? liftListTables(list, true) : []) out.push(part.type === 'table' ? part : keepContinuation(out, part));
@@ -2251,7 +2257,43 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
   }
   if (Object.keys(attrs).length) node.attrs = attrs;
   if (content.length) node.content = content;
-  return node;
+  return withParagraphMarks(node, ctx, kind);
+}
+
+// A paragraph mark struck through: the registry holds a block per side, the body one
+// paragraph with REV_BREAK where the mark was. It parts again, each side in its own
+// registry block's format, the only place that keeps the second side's (review.md).
+const REV_BREAK = '__revBreak';
+
+function withParagraphMarks(node: Node, ctx: Ctx, kind: BlockKind): Node {
+  const open = [...ctx.openInsertions.values()].pop();
+  const shape = (el: unknown) => {
+    const block = el as Element;
+    if (!block.getAttributeNS(NS.text, 'style-name')) return node;
+    return convertParaLike(block.cloneNode(false) as Element, ctx, kind, false, block.localName === 'h');
+  };
+  const parts: Node[] = [];
+  type Break = { rev: unknown; after: unknown; before: unknown };
+  let run: Node[] = [], last = null as Break | null;
+  const close = (el: unknown, rev?: unknown) => {
+    const { type, attrs } = el ? shape(el) : node;
+    parts.push({ type, ...(attrs || rev ? { attrs: { ...attrs, ...(rev ? { revMark: rev } : {}) } } : {}), ...(run.length ? { content: run } : {}) });
+    run = [];
+  };
+  for (const n of node.content ?? []) {
+    if (n.type !== REV_BREAK) { run.push(n); continue; }
+    last = n.attrs as Break;
+    close(last.before, last.rev);
+  }
+  if (!last) {
+    if (open) node.attrs = { ...node.attrs, revMark: { insertion: open } };
+    return node;
+  }
+  close(last.after, open ? { insertion: open } : undefined);
+  // What opened the section or the page stays on the block that comes first.
+  const { breakBefore, sectionBreak } = node.attrs ?? {};
+  if (breakBefore || sectionBreak) parts[0].attrs = { ...parts[0].attrs, ...(breakBefore ? { breakBefore } : {}), ...(sectionBreak ? { sectionBreak } : {}) };
+  return { ...parts[0], parts };
 }
 
 // textAlign / lineHeight / spaceBefore / spaceAfter from resolved paragraph
@@ -2579,7 +2621,7 @@ function convertNote(e: Element, ctx: Ctx, defaults: BlockDefaults): Node | null
   for (const para of Array.from(body?.children ?? [])) {
     if (para.localName !== 'p' && para.localName !== 'h') continue;
     if (content.length) content.push({ type: 'hardBreak' });
-    content.push(...convertInline(para, ctx, {}, defaults));
+    content.push(...convertInline(para, ctx, {}, defaults).filter((n) => n.type !== REV_BREAK));
   }
   // The file's own id is unique within it, so it is the anchor's id too. The note takes
   // the paragraph style its notes-configuration names, so it renders at the file's own
@@ -2799,7 +2841,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
                 continue;
               }
               rev.paras.forEach((p, i) => {
-                if (i) out.push({ type: 'text', text: '\n', marks: del });
+                if (i) out.push({ type: REV_BREAK, attrs: { rev: { deletion: del[0].attrs, ...(rev.under ? { insertion: del[1].attrs } : {}) }, before: rev.paras[i - 1], after: p } });
                 for (const n of convertInline(p, ctx, props, defaults)) {
                   if (!n.content && n.type !== 'noteRef') n.marks = [...(n.marks ?? []), ...del];
                   out.push(n);
@@ -3275,7 +3317,12 @@ function convertList(el: Element, ctx: Ctx, inheritedStyleName: string | null, d
     const blocks: Node[] = [];
     for (const child of Array.from(item.children)) {
       if (child.namespaceURI === NS.text && (child.localName === 'p' || child.localName === 'h')) {
-        blocks.push(convertParaLike(child, ctx, 'list', false, keepHeadings || blocks.length > 0));
+        const parts = blocksOf(convertParaLike(child, ctx, 'list', false, keepHeadings || blocks.length > 0));
+        for (const [i, part] of parts.entries()) {
+          // LibreOffice wraps a mark between list items in text:list, each in its item.
+          if (i) items.push({ type: 'listItem', content: blocks.splice(0) });
+          blocks.push(part);
+        }
       } else if (child.namespaceURI === NS.text && child.localName === 'list') {
         const nested = convertList(child, ctx, styleName, depth + 1, inChain, childBaseCycle, keepHeadings);
         if (nested) blocks.push(nested);

@@ -730,6 +730,16 @@ function wrapRevisionXml(run: string, rev: NonNullable<ReturnType<typeof revisio
   return under ? `${open('w:ins', under, docRevisionId(under.attrs.id))}${wrapped}</w:ins>` : wrapped;
 }
 
+// A recorded paragraph mark: <w:ins> and <w:del> in the mark's own run properties.
+function paragraphMarkRevisions(revMark: unknown) {
+  const out: { insertion?: { id: number; author: string; date: string }; deletion?: { id: number; author: string; date: string } } = {};
+  for (const kind of ['insertion', 'deletion'] as const) {
+    const attrs = (revMark as Record<string, Record<string, unknown>> | null | undefined)?.[kind];
+    if (attrs) out[kind] = { ...revisionAttrsOf({ type: kind, attrs }).attrs, id: docRevisionId(String(attrs.id ?? '')) };
+  }
+  return out;
+}
+
 function docRevisionId(id: string): number {
   const seen = docRevisionIds.get(id);
   if (seen != null) return seen;
@@ -2765,7 +2775,8 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
     shading: paraShadingOf(attrs),
     border: paraBordersOf(attrs),
     // The paragraph mark's own run properties; the language there formats the mark alone.
-    run: markSize || markFont || blockLang ? { size: markSize, font: markFont, language: blockLang } : undefined,
+    run: markSize || markFont || blockLang || attrs.revMark
+      ? { size: markSize, font: markFont, language: blockLang, ...paragraphMarkRevisions(attrs.revMark) } : undefined,
     children: [
       ...(attrs.noHyphenation === true ? [new TextRun(NOHYP)] : []),
       ...(attrs.snapToGrid === false ? [new TextRun(NOSNAP)] : []),

@@ -240,6 +240,8 @@ const NTB = '\uE029';
 // both and builds the <text:tracked-changes> registry. U+E01B/U+E01C.
 const TCI = '\uE01B';
 const TCD = '\uE01C';
+// Where a struck paragraph mark joined two blocks; replaceRevisions takes it out.
+const REV_BREAK = '__revBreak';
 
 const EXT_BY_MIME: Record<string, string> = {
   'image/png': 'png',
@@ -677,7 +679,12 @@ type RevisionExport = { kind: 'insertion' | 'deletion'; id: string; author: stri
   /** The insertion a deletion struck through, which LibreOffice stacks in the same region. */
   under?: { author: string; date: string };
   /** The outline level of the heading a deletion was cut from. */
-  level?: number };
+  level?: number;
+  /** The two blocks a struck paragraph mark joined, which the region spans. */
+  shapes?: RevisionShape[];
+  /** That mark ran between two list items. */
+  listed?: boolean };
+type RevisionShape = Pick<TiptapNode, 'type' | 'attrs'>;
 
 // Bracket every insertion run with TCI sentinels and cut every deletion run out, leaving
 // a TCD sentinel where it was — ODF keeps a deletion's text in the registry, not inline.
@@ -687,11 +694,25 @@ type RevisionExport = { kind: 'insertion' | 'deletion'; id: string; author: stri
 // A region is one stretch of one paragraph — LibreOffice reads one stretch per id, and a
 // deletion's text all comes back at its marker — so each run of a change that other text or
 // a block boundary separates goes out as a region of its own.
-function replaceRevisions(node: TiptapNode, out: Map<string, RevisionExport>, part = new Map<string, string>()): TiptapNode {
-  if (!node.content?.length) return node;
+function replaceRevisions(root: TiptapNode, out: Map<string, RevisionExport>, part = new Map<string, string>()): TiptapNode {
+  if (!root.content?.length) return root;
+  const node = root.type === 'doc' ? carryParagraphMarks(root, out) : root;
   const content: TiptapNode[] = [];
   let prev: string | null = null;
-  for (const child of node.content) {
+  for (const child of node.content!) {
+    if (child.type === REV_BREAK) {
+      // The mark ends the deletion before it, if one touches it, and what follows starts a
+      // region of its own: LibreOffice's form, [tail, empty] and [head] (review.md).
+      const a = child.attrs as { rev: Record<string, string>; under?: Record<string, string>; shapes: RevisionShape[]; listed: boolean };
+      const before = prev ? out.get(prev) : undefined;
+      prev = null;
+      const entry = before?.kind === 'deletion' ? before : { ...revisionEntry('deletion', `${a.rev.id}¶${out.size}`, a.rev, node), ...(a.under ? { under: revisionOwner(a.under) } : {}) };
+      if (entry !== before) { out.set(entry.id, entry); content.push({ type: 'text', text: `${TCD}${entry.id}${TCD}` }); }
+      entry.text += '\n';
+      entry.shapes = a.shapes;
+      entry.listed = a.listed;
+      continue;
+    }
     const mark = child.type === 'text'
       ? child.marks?.find((m) => m.type === 'deletion') ?? child.marks?.find((m) => m.type === 'insertion')
       : undefined;
@@ -707,17 +728,7 @@ function replaceRevisions(node: TiptapNode, out: Map<string, RevisionExport>, pa
     if (!goesOn) part.set(key, out.has(id) ? `${id}-${out.size}` : id);
     id = prev = part.get(key)!;
     const known = out.has(id);
-    const entry = out.get(id) ?? {
-      kind, id,
-      author: String(a.author ?? '') || GENERATOR,
-      date: typeof a.date === 'string' && a.date ? a.date : new Date().toISOString(),
-      text: '', nodes: [],
-      ...(node.type === 'heading' ? { level: Number(node.attrs?.level ?? 1) } : {}),
-      ...(under ? { under: {
-        author: String(under.attrs?.author ?? '') || GENERATOR,
-        date: typeof under.attrs?.date === 'string' && under.attrs.date ? under.attrs.date : new Date().toISOString(),
-      } } : {}),
-    };
+    const entry = out.get(id) ?? { ...revisionEntry(kind, id, a, node), ...(under ? { under: revisionOwner(under.attrs ?? {}) } : {}) };
     entry.text += child.text ?? '';
     out.set(id, entry);
     // The marks stay off the sentinel runs: a change is not formatting, and odf-kit
@@ -737,12 +748,99 @@ function replaceRevisions(node: TiptapNode, out: Map<string, RevisionExport>, pa
   }
   if (node.type === 'doc') {
     for (const entry of out.values()) {
-      if (entry.kind !== 'deletion' || !entry.nodes.length) continue;
-      content.push({ type: 'paragraph',
+      if (entry.kind !== 'deletion') continue;
+      // A block per side of a struck paragraph mark, each in that side's own format; the
+      // pass below keeps its opening tag.
+      for (const [i, shape] of (entry.shapes ?? []).entries()) {
+        content.push({ ...shape, content: [{ type: 'text', text: `${TCD}#${entry.id}#${i}${TCD}` }, ...(i ? [] : entry.nodes)] });
+      }
+      if (entry.nodes.length && !entry.shapes) content.push({ type: 'paragraph',
         content: [{ type: 'text', text: `${TCD}#${entry.id}${TCD}` }, ...entry.nodes] });
     }
   }
   return { ...node, content };
+}
+
+function revisionOwner(a: Record<string, unknown>): { author: string; date: string } {
+  return { author: String(a.author ?? '') || GENERATOR, date: typeof a.date === 'string' && a.date ? a.date : new Date().toISOString() };
+}
+
+function revisionEntry(kind: RevisionExport['kind'], id: string, a: Record<string, unknown>, block: TiptapNode): RevisionExport {
+  return { kind, id, ...revisionOwner(a), text: '', nodes: [], ...(block.type === 'heading' ? { level: Number(block.attrs?.level ?? 1) } : {}) };
+}
+
+const REV_LIST_NODES = new Set(['listItem', 'bulletList', 'orderedList']);
+const isParagraphNode = (n: TiptapNode) => n.type === 'paragraph' || n.type === 'heading';
+
+// Recorded paragraph marks into the sentinels' terms, the blocks copied. An insertion is a
+// region from this block's end to the next one's start. A deletion joins the two blocks, as
+// the body shows a struck mark: under the first one's format, or the next one's when
+// nothing of the first stays (probed); REV_BREAK stands where the mark was.
+function carryParagraphMarks(doc: TiptapNode, out: Map<string, RevisionExport>): TiptapNode {
+  const copy = (n: TiptapNode): TiptapNode => (n.content ? { ...n, content: n.content.map(copy) } : n);
+  const root = copy(doc);
+  type Place = { parent: TiptapNode; index: number };
+  // The block a mark runs into, down through the list nodes around it.
+  const next = (chain: Place[]): Place[] | null => {
+    for (let d = chain.length - 1; d >= 0; d--) {
+      const { parent, index } = chain[d];
+      if (index + 1 < parent.content!.length) {
+        const path = [...chain.slice(0, d), { parent, index: index + 1 }];
+        let node = parent.content![index + 1];
+        while (!isParagraphNode(node)) {
+          if (!REV_LIST_NODES.has(node.type) || !node.content?.length) return null;
+          path.push({ parent: node, index: 0 });
+          node = node.content[0];
+        }
+        return path;
+      }
+      if (!REV_LIST_NODES.has(parent.type)) return null;
+    }
+    return null;
+  };
+  const blockAt = (path: Place[]) => { const { parent, index } = path[path.length - 1]; return parent.content![index]; };
+  const remove = (path: Place[]) => {
+    for (let d = path.length - 1; d >= 0; d--) {
+      const { parent, index } = path[d];
+      parent.content!.splice(index, 1);
+      if (parent.content!.length) return;
+    }
+  };
+  const shapeOf = ({ type, attrs }: TiptapNode): RevisionShape => {
+    const { revMark: _gone, ...rest } = attrs ?? {};
+    return { type, attrs: rest };
+  };
+  const stays = (n: TiptapNode) => n.type !== REV_BREAK && !n.marks?.some((m) => m.type === 'deletion');
+  const walk = (node: TiptapNode, chain: Place[]) => {
+    for (let index = 0; index < (node.content?.length ?? 0); index++) {
+      const child = node.content![index], here = [...chain, { parent: node, index }];
+      if (!isParagraphNode(child)) { if (child.content) walk(child, here); continue; }
+      for (;;) {
+        const rev = child.attrs?.revMark as { insertion?: Record<string, string>; deletion?: Record<string, string> } | null | undefined;
+        const after = rev && next(here);
+        if (!rev || !after) break;
+        const following = blockAt(after);
+        if (!rev.deletion) {
+          const id = `${rev.insertion!.id}¶${out.size}`, sentinel = { type: 'text', text: `${TCI}${id}${TCI}` };
+          out.set(id, revisionEntry('insertion', id, rev.insertion!, { type: 'paragraph' }));
+          (child.content ??= []).push(sentinel);
+          (following.content ??= []).unshift(sentinel);
+          break;
+        }
+        const owner = after[after.length - 1].parent;
+        if (owner.type === 'listItem' && owner.content!.length > 1) break;
+        const shapes = [shapeOf(child), shapeOf(following)];
+        const merged = [...(child.content ?? []), { type: REV_BREAK, attrs: { rev: rev.deletion, ...(rev.insertion ? { under: rev.insertion } : {}), shapes, listed: owner.type === 'listItem' && node.type === 'listItem' && owner !== node } }, ...(following.content ?? [])];
+        const look = child.content?.some(stays) ? child : following;
+        remove(after);
+        child.type = look.type;
+        child.attrs = { ...look.attrs, revMark: following.attrs?.revMark ?? null };
+        child.content = merged;
+      }
+    }
+  };
+  walk(root, []);
+  return root;
 }
 
 // A registry paragraph's runs were serialized behind its marker, so a space opening them
@@ -779,10 +877,14 @@ function applyRevisions(odtBytes: Uint8Array, list: Map<string, RevisionExport>,
   const odfId = new Map([...list.keys()].map((id, i) => [id, `ct${i + 1}`]));
   // Cut the hoisted deletion paragraphs (before the point-marker pass, whose regex would
   // eat their markers) and keep their serialized runs for the registry.
-  const hoisted = new Map<string, string>();
+  const hoisted = new Map<string, string>(), opening = new Map<string, [string, string]>();
   content = content.replace(
-    new RegExp(`<text:p\\b[^>]*>\\s*${TCD}#([^${TCD}]*)${TCD}([\\s\\S]*?)</text:p>`, 'g'),
-    (_m, id: string, inner: string) => { hoisted.set(id, inner); return ''; },
+    new RegExp(`<text:([ph])\\b([^>]*)>\\s*${TCD}#([^${TCD}]*)${TCD}([\\s\\S]*?)</text:\\1>`, 'g'),
+    (_m, tag: string, attrs: string, id: string, inner: string) => {
+      hoisted.set(id, inner);
+      opening.set(id, [tag, attrs]);
+      return '';
+    },
   );
   let open = new Map<string, boolean>();
   content = content
@@ -807,9 +909,16 @@ function applyRevisions(odtBytes: Uint8Array, list: Map<string, RevisionExport>,
       + `<dc:date>${escapeXml(c.date.replace(/\.\d+Z?$/, ''))}</dc:date></office:change-info>`;
     const runs = registrySpaces(hoisted.get(r.id) ?? escapeXml(r.text));
     // The deleted text goes back as the block it was cut from, as LibreOffice writes it (probed).
-    const block = r.level
-      ? `<text:h text:style-name="Heading_20_${r.level}" text:outline-level="${r.level}">${runs}</text:h>`
-      : `<text:p text:style-name="Standard">${runs}</text:p>`;
+    const side = (i: number) => {
+      const [tag, attrs] = opening.get(`${r.id}#${i}`) ?? ['p', ''], block = `<text:${tag}${attrs}>${registrySpaces(hoisted.get(`${r.id}#${i}`) ?? '')}</text:${tag}>`;
+      return r.listed ? `<text:list-item>${block}</text:list-item>` : block;
+    };
+    const sides = r.shapes ? side(0) + side(1) : '';
+    const block = r.shapes
+      ? (r.listed ? `<text:list>${sides}</text:list>` : sides)
+      : r.level
+        ? `<text:h text:style-name="Heading_20_${r.level}" text:outline-level="${r.level}">${runs}</text:h>`
+        : `<text:p text:style-name="Standard">${runs}</text:p>`;
     const body = r.kind === 'deletion'
       ? `<text:deletion>${info(r)}${block}</text:deletion>`
         + (r.under ? `<text:insertion>${info(r.under)}</text:insertion>` : '')
