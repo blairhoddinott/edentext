@@ -182,6 +182,53 @@ try {
   const signed = await page.evaluate(() => [...document.querySelectorAll('.balloon')].map((b) => b.textContent).join(' '));
   check(signed.includes('Ich Selbst') && !signed.includes('Fremde Autorin'),
     'a recorded change carries the user name, not the file author');
+
+  // A new comment is written beside its text, which no dialog covers, in a box that grows.
+  const selectWord = (word) => page.evaluate((w) => {
+    const node = [...document.querySelectorAll('.tiptap p')].find((p) => p.textContent === w)?.firstChild;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+  }, word);
+  const ask = () => page.evaluate(() => window.dispatchEvent(new Event('odf-new-comment')));
+  const composer = '.balloon textarea[aria-label]';
+  await page.locator('.tiptap p', { hasText: 'Absatz 5.' }).click();
+  await selectWord('Absatz 5.');
+  await settle();
+  await ask();
+  await page.waitForSelector(composer, { timeout: 5000 });
+  const rows = (await page.locator(composer).boundingBox()).height;
+  await page.keyboard.type('line one\nline two\nline three\nline four\nline five\nline six');
+  await settle();
+  const typed = await page.evaluate((sel) => {
+    const box = document.querySelector(sel);
+    return { focused: document.activeElement === box, scrolls: box.scrollHeight > box.clientHeight + 1, modal: !!document.querySelector('dialog[open]') };
+  }, composer);
+  const grown = (await page.locator(composer).boundingBox()).height;
+  // The card being written lies at its line and the others deck around it, as for any active card.
+  const held = (await menuSpill()).out.filter((o) => !o.includes('overlaps'));
+  check(typed.focused && !typed.modal && !typed.scrolls && grown > rows && !held.length,
+    `a new comment grows in the margin with no dialog (${rows}→${grown}px${held.length ? ': ' + held.join(', ') : ''})`);
+  await page.keyboard.press(`${MOD}+Enter`);
+  await settle();
+  const added = await page.evaluate(() => ({
+    open: !!document.querySelector('.balloon textarea'),
+    body: [...document.querySelectorAll('.balloon .body')].some((b) => b.textContent.startsWith('line one\nline two')),
+    marked: document.querySelector('.tiptap .pm-comment')?.closest('.tiptap')?.textContent.includes('Absatz 5.'),
+  }));
+  check(!added.open && added.body && added.marked, 'the added comment keeps its lines and its text');
+
+  await selectWord('Absatz 6.');
+  await settle();
+  await ask();
+  await page.waitForSelector(composer, { timeout: 5000 });
+  await page.keyboard.type('never mind');
+  await page.keyboard.press('Escape');
+  await settle();
+  check(await page.evaluate(() => !document.querySelector('.balloon textarea')
+    && ![...document.querySelectorAll('.tiptap .pm-comment')].some((c) => c.textContent === 'Absatz 6.')),
+  'a cancelled comment leaves nothing behind');
 } catch (err) {
   check(false, `smoke run threw: ${err.message ?? err}`);
 } finally {

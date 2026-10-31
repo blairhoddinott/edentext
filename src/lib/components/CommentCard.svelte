@@ -7,6 +7,7 @@
   import { mentionsAi } from '../ai/tools';
   import Icon from './ribbon/Icon.svelte';
   import { authorColor } from '../editor/authorColors';
+  import { autosize, isSubmitKey } from '../utils/autosize';
 
   // One comment thread as both reviewing views show it: its quote, text, answers and a reply
   // box, with resolve, edit and remove in the head. Shared by the pane and the balloon; its
@@ -54,14 +55,6 @@
   function focus(node: HTMLTextAreaElement) {
     node.focus();
   }
-
-  // A box as tall as what is typed in it: the card grows instead of scrolling inside.
-  function autosize(node: HTMLTextAreaElement) {
-    const fit = () => { node.style.height = 'auto'; node.style.height = `${node.scrollHeight + 2}px`; };
-    node.addEventListener('input', fit);
-    requestAnimationFrame(fit);
-    return { destroy: () => node.removeEventListener('input', fit) };
-  }
 </script>
 
 <div class="head">
@@ -103,9 +96,9 @@
   <textarea
     rows="2"
     use:focus
-    use:autosize
+    use:autosize={draft}
     bind:value={draft}
-    onkeydown={(e) => { if (e.key === 'Escape') editing = false; }}
+    onkeydown={(e) => { if (e.key === 'Escape') editing = false; else if (isSubmitKey(e)) commit(); }}
   ></textarea>
   <div class="actions">
     <button onclick={() => (editing = false)}>{t().common.cancel}</button>
@@ -139,10 +132,10 @@
   <textarea
     rows="1"
     use:focus
-    use:autosize
+    use:autosize={reply}
     bind:value={reply}
     placeholder={t().comments.reply}
-    onkeydown={(e) => { if (e.key === 'Escape') replying = false; }}
+    onkeydown={(e) => { if (e.key === 'Escape') replying = false; else if (isSubmitKey(e)) sendReply(); }}
   ></textarea>
   <div class="actions">
     <button onclick={() => { replying = false; reply = ''; }}>{t().common.cancel}</button>

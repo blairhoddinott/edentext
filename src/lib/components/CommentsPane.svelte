@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
-  import { commentIdAt, type CommentRange } from '../editor/extensions/comment';
+  import { commentDraft, commentIdAt, type CommentRange } from '../editor/extensions/comment';
   import { selectRange, visibleComments } from './reviewItems';
   import CommentCard from './CommentCard.svelte';
+  import CommentComposer from './CommentComposer.svelte';
   import { authorColor, authorColors } from '../editor/authorColors';
   import { t } from '../i18n/i18n.svelte';
 
@@ -28,6 +29,8 @@
     return visibleComments(editor.state.doc, activeId);
   });
 
+  let draft = $derived(tick < 0 || !editor ? null : commentDraft(editor.state));
+
   let colors = $derived.by(() => (tick < 0 || !editor ? new Map<string, string>() : authorColors(editor.state.doc)));
 
   let cards: Record<string, HTMLElement | null> = {};
@@ -49,11 +52,14 @@
     </button>
   </header>
 
-  {#if !list.length}
+  {#if !list.length && !draft}
     <p class="empty">{t().comments.empty}</p>
   {/if}
 
   <ul>
+    {#if draft}
+      <li><CommentComposer {editor} {draft} {author} /></li>
+    {/if}
     {#each list as c (c.id)}
       <li bind:this={cards[c.id]} class:resolved={c.resolved} class:active={c.id === activeId}
         style:box-shadow={c.id === activeId ? `inset 3px 0 0 ${authorColor(colors, c.author)}` : null}>

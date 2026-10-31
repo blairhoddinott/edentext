@@ -12,20 +12,21 @@
   import type { Editor } from '@tiptap/core';
   import { untrack } from 'svelte';
   import { cmToPx } from '../storage/pageMargins';
-  import { commentIdAt, type CommentRange } from '../editor/extensions/comment';
+  import { commentDraft, commentIdAt, type CommentDraft, type CommentRange } from '../editor/extensions/comment';
   import { revisionIdAt, type Revision } from '../editor/extensions/trackChanges';
   import { authorColor, authorColors } from '../editor/authorColors';
   import { selectRange, visibleComments, visibleRevisions } from './reviewItems';
   import { changesInMargin, commentsInMargin, showResolved } from '../storage/markup.svelte';
   import { deckAround, deckHeights, stackTops } from '../utils/balloonStack';
   import CommentCard from './CommentCard.svelte';
+  import CommentComposer from './CommentComposer.svelte';
   import RevisionCard from './RevisionCard.svelte';
 
   // The margin balloons both word processors draw beside the page: one card per comment
   // and per recorded change, at the height of the line it belongs to, with a dashed
   // leader to it. It sits OUTSIDE .paper — that box clips horizontally and its width is
   // the one pagination measures — but carries the same scale, so it zooms with the page.
-  let { editor, tick, pageBoxes, paperWidth, zoom, author }: {
+  let { editor, tick, pageBoxes, paperWidth, zoom, author, activePane = true }: {
     editor: Editor | null;
     tick: number;
     /** One box per page (Editor.svelte): a section on its own paper differs in size. */
@@ -33,6 +34,8 @@
     paperWidth: number;
     zoom: number;
     author: string;
+    /** Whether this is the split pane in use. */
+    activePane?: boolean;
   } = $props();
 
   const STACK_GAP_PX = 8;
@@ -51,6 +54,7 @@
     anchorY: number;
     left: number;
     comment?: CommentRange;
+    draft?: CommentDraft;
     revision?: Revision;
   };
 
@@ -183,14 +187,16 @@
     const view = editor?.view;
     if (!view || !host?.isConnected) { balloons = []; return; }
     const state = view.state;
-    const activeComment = commentIdAt(state);
+    // The one card being written is the active one, wherever the caret has gone since.
+    const draft = commentsInMargin() ? commentDraft(state) : null;
+    const activeComment = draft ? null : commentIdAt(state);
     const open = commentsInMargin() ? visibleComments(state.doc, activeComment) : [];
     const seen = new Set<string>();
     const revs = changesInMargin()
       ? visibleRevisions(state.doc).filter((r) => !seen.has(r.id) && seen.add(r.id)) : [];
-    if (!open.length && !revs.length) { balloons = []; return; }
+    if (!open.length && !revs.length && !draft) { balloons = []; return; }
     colors = authorColors(state.doc);
-    const activeRevision = revisionIdAt(state);
+    const activeRevision = draft ? null : revisionIdAt(state);
     const dom = view.dom as HTMLElement;
     const rect = dom.getBoundingClientRect();
     // Client rects are in zoom-scaled screen space; page boxes and this layer's own
@@ -226,6 +232,7 @@
     for (const c of open) {
       add(c.from, c.to, { key: `c${c.id}`, color: authorColor(colors, c.author), active: c.id === activeComment, comment: c });
     }
+    if (draft) add(draft.from, draft.to, { key: 'draft', color: 'var(--color-primary)', active: true, draft });
     for (const r of revs) {
       add(r.from, r.to, {
         key: `r${r.id}`,
@@ -331,6 +338,8 @@
     >
       {#if b.comment}
         <CommentCard {editor} c={b.comment} {author} {colors} compact={!b.active} onSelect={() => select(b)} />
+      {:else if b.draft}
+        <CommentComposer {editor} draft={b.draft} {author} takeFocus={activePane} />
       {:else if b.revision}
         <RevisionCard {editor} r={b.revision} color={b.color} onSelect={() => select(b)} />
       {/if}

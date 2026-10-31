@@ -149,6 +149,9 @@ off (the comment caret's menu, Settings ▸ Review) only that one shows, so the 
 still leads to a card that reopens it; Previous/Next skip what is hidden (`visibleComments`).
 Bars and printouts leave a resolved comment out: it is handled.
 
+A new comment is written in a card beside its text (`CommentComposer.svelte`; the pane in the page
+grid); until Add it is a draft in `comment.ts`'s plugin state, outside the document and history.
+
 `reviewItems.ts` is the only source for markup visibility. CSS hiding and revision decorations
 must change together, and a display-mode change dispatches pagination recalculation because it
 changes flow.

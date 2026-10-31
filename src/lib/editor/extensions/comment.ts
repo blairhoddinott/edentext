@@ -1,6 +1,6 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode, Mark as PMMark } from '@tiptap/pm/model';
-import { Plugin, type EditorState } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type EditorState, type SelectionBookmark } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 
@@ -31,6 +31,17 @@ export const OPEN_COMMENT_EVENT = 'odf-new-comment';
 
 export function newCommentId(): string {
   return `c${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+}
+
+// A comment still being written: only where it will go, so it is outside the document
+// and its history until Add. A bookmark, as a cell selection comments several ranges.
+const draftKey = new PluginKey<SelectionBookmark | null>('commentDraft');
+
+export type CommentDraft = { from: number; to: number; quote: string };
+
+export function commentDraft(state: EditorState): CommentDraft | null {
+  const sel = draftKey.getState(state)?.resolve(state.doc);
+  return sel ? { from: sel.from, to: sel.to, quote: state.doc.textBetween(sel.from, sel.to, ' ', ' ') } : null;
 }
 
 function commentIdOf(marks: readonly PMMark[]): string | null {
@@ -117,6 +128,11 @@ declare module '@tiptap/core' {
       /** Appends to the comment's thread, as the reply box in either review view does. */
       replyToComment: (id: string, reply: { author: string; text: string }) => ReturnType;
       removeComment: (id: string) => ReturnType;
+      /** Opens a comment on the selection for writing; nothing changes in the document. */
+      startCommentDraft: () => ReturnType;
+      cancelCommentDraft: () => ReturnType;
+      /** Comments the text the draft was opened on, which has followed every edit since. */
+      submitCommentDraft: (opts: { author: string; text: string }) => ReturnType;
     };
   }
 }
@@ -162,8 +178,8 @@ export const Comment = Mark.create({
     return {
       addComment:
         ({ author, text }) =>
-        ({ state, commands }) => {
-          if (state.selection.empty) return false;
+        ({ tr, commands }) => {
+          if (tr.selection.empty) return false;
           return commands.setMark(this.name, {
             id: newCommentId(), author, text, replies: [], date: new Date().toISOString(), resolved: false,
           });
@@ -203,12 +219,55 @@ export const Comment = Mark.create({
           if (dispatch) for (const r of ranges) tr.removeMark(r.from, r.to, state.schema.marks.comment);
           return true;
         },
+      startCommentDraft:
+        () =>
+        ({ tr, state, dispatch }) => {
+          if (state.selection.empty) return false;
+          if (dispatch) tr.setMeta(draftKey, state.selection.getBookmark());
+          return true;
+        },
+      cancelCommentDraft:
+        () =>
+        ({ tr, dispatch }) => {
+          if (dispatch) tr.setMeta(draftKey, null);
+          return true;
+        },
+      submitCommentDraft:
+        (opts) =>
+        ({ tr, state, commands, dispatch }) => {
+          const draft = draftKey.getState(state);
+          if (!draft) return false;
+          if (dispatch) tr.setSelection(draft.resolve(tr.doc)).setMeta(draftKey, null);
+          return commands.addComment(opts);
+        },
     };
   },
 
   addProseMirrorPlugins() {
     let cache: { doc: PMNode; id: string | null; set: DecorationSet } | null = null;
     return [
+      new Plugin<SelectionBookmark | null>({
+        key: draftKey,
+        state: {
+          init: () => null,
+          // The draft goes with its text: nothing is left to comment on.
+          apply(tr, draft) {
+            const set = tr.getMeta(draftKey) as SelectionBookmark | null | undefined;
+            if (set !== undefined) return set;
+            if (!draft || !tr.docChanged) return draft;
+            const next = draft.map(tr.mapping);
+            return next.resolve(tr.doc).empty ? null : next;
+          },
+        },
+        props: {
+          // Tinted while the caret is away in the box the comment is written in.
+          decorations(state) {
+            const sel = draftKey.getState(state)?.resolve(state.doc);
+            return sel ? DecorationSet.create(state.doc, sel.ranges.map((r) =>
+              Decoration.inline(r.$from.pos, r.$to.pos, { class: 'pm-comment-tint pm-comment-active' }))) : null;
+          },
+        },
+      }),
       new Plugin({
         props: {
           // Each open comment tinted in its author's colour, which the mark cannot know;

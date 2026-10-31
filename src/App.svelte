@@ -80,7 +80,8 @@
   import ResumeCard from './lib/components/ResumeCard.svelte';
   import { volatile } from './lib/storage/docScope';
   import PasswordDialog from './lib/components/PasswordDialog.svelte';
-  import PromptDialog, { askText } from './lib/components/PromptDialog.svelte';
+  import PromptDialog from './lib/components/PromptDialog.svelte';
+  import { askComposer } from './lib/components/CommentComposer.svelte';
   import CommentsPane from './lib/components/CommentsPane.svelte';
   import RevisionsPane from './lib/components/RevisionsPane.svelte';
   import ConnectorLayer from './lib/components/ConnectorLayer.svelte';
@@ -88,8 +89,8 @@
   import AiPane, { askAi, resetAiChat } from './lib/components/AiPane.svelte';
   import { aiConfig, aiAnswering, aiEnabled, AI_COMMENT_EVENT, OPEN_AI_CHAT_EVENT } from './lib/storage/ai.svelte';
   import { aiErrorText, isAbort } from './lib/ai/client';
-  import { abortAll as abortAiRequests, answerComment, mentionsAi, startRequest, endRequest, type AiHost } from './lib/ai/tools';
-  import { comments, OPEN_COMMENT_EVENT } from './lib/editor/extensions/comment';
+  import { abortAll as abortAiRequests, answerComment, startRequest, endRequest, type AiHost } from './lib/ai/tools';
+  import { commentDraft, OPEN_COMMENT_EVENT } from './lib/editor/extensions/comment';
   import AutoCorrectDialog from './lib/components/AutoCorrectDialog.svelte';
   import AutoTextDialog from './lib/components/AutoTextDialog.svelte';
   import ThesaurusDialog from './lib/components/ThesaurusDialog.svelte';
@@ -858,7 +859,7 @@
   // A new document opens at its start: the old caret and scroll offset would drop the
   // reader deep into a document that has not paginated yet.
   function loadContent(content: Content): void {
-    editor?.chain().setMeta(RECORDING, true).setContent(wrapLooseTextBoxes(content))
+    editor?.chain().setMeta(RECORDING, true).cancelCommentDraft().setContent(wrapLooseTextBoxes(content))
       .command(({ tr }) => { tr.setSelection(Selection.atStart(tr.doc)); return true; }).run();
     editor?.view.dom.closest('.editor')?.scrollTo({ top: 0 });
   }
@@ -1242,19 +1243,24 @@
 
   function openReviewSettings() { settingsSection = 'review'; settingsOpen = true; }
 
-  // Word's New Comment: the selected text is annotated and the pane opens on it. A
-  // prompt rather than a dialog — the pane is where a comment is really written.
-  async function addComment() {
+  // The comment is written beside its text, which stays in view; a second New Comment
+  // moves the open card to the new selection and keeps what is typed in it.
+  function addComment() {
     if (!editor || editor.state.selection.empty) return;
-    const text = await askText(t().comments.prompt);
-    if (text === null || !editor) return;
-    const had = new Set(comments(editor.state.doc).map((c) => c.id));
-    editor.chain().focus().addComment({ author: userName(), text: text.trim() }).run();
+    const fresh = !commentDraft(editor.state);
     // A comment nobody can see is worse than none: the new one brings its kind back.
     setShowComments(true);
-    const id = comments(editor.state.doc).find((c) => !had.has(c.id))?.id;
-    if (id && aiEnabled() && mentionsAi(text)) void askAiInComment(id);
+    editor.commands.startCommentDraft();
+    askComposer(fresh);
   }
+
+  // The page grid has no balloons: a card being written needs the pane there.
+  let draftInPane = $derived.by(() => tick >= 0 && !!editor && gridColumns > 1 && !!commentDraft(editor.state));
+
+  // Comments hidden while one is being written: it goes with them.
+  $effect(() => {
+    if (tick >= 0 && editor && !markupView().comments && commentDraft(editor.state)) editor.commands.cancelCommentDraft();
+  });
 
   // "@KI" in a comment or reply: the assistant answers in the thread, a turn of its own.
   async function askAiInComment(id: string) {
@@ -2164,7 +2170,7 @@
   {#if aiEnabled() && aiOpen}
     <AiPane {editor} host={aiHost} onClose={() => (aiOpen = false)} onSettings={() => { settingsSection = 'ai'; settingsOpen = true; }} />
   {/if}
-  {#if commentsInPane()}
+  {#if commentsInPane() || draftInPane}
     <CommentsPane {editor} {tick} author={userName()} onClose={() => setShowComments(false)} />
   {/if}
   {#if changesInPane()}

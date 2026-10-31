@@ -5,6 +5,7 @@ import { Editor } from '@tiptap/core';
 import { zoneExtensions } from '../../src/lib/editor/extensions';
 import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, REBUILD_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc, shownRange } from '../../src/lib/editor/extensions/trackChanges';
+import { commentDraft, comments } from '../../src/lib/editor/extensions/comment';
 import { deriveFilename } from '../../src/lib/storage/documentName';
 import { setRecordChanges } from '../../src/lib/storage/trackChanges.svelte';
 import { searchKey } from '../../src/lib/editor/extensions/searchReplace';
@@ -24,6 +25,44 @@ const FORMATS: [string, (doc: any) => Promise<unknown>][] = [
 ];
 
 afterEach(() => setRecordChanges(false));
+
+describe('a comment being written', () => {
+  // "one two three", with "two" selected.
+  const writing = () => {
+    const e = open('<p>one two three</p>');
+    e.commands.setTextSelection({ from: 5, to: 8 });
+    e.commands.startCommentDraft();
+    return e;
+  };
+
+  it.each<[string, (e: Editor) => void, string | null]>([
+    ['stands where it was opened', () => {}, 'two'],
+    ['follows an edit before it', (e) => { e.commands.insertContentAt(1, 'zero '); }, 'two'],
+    ['survives the caret moving away', (e) => { e.commands.setTextSelection(1); }, 'two'],
+    ['ends with its text', (e) => { e.commands.deleteRange({ from: 4, to: 9 }); }, null],
+    ['ends when cancelled', (e) => { e.commands.cancelCommentDraft(); }, null],
+  ])('%s', (_name, step, quote) => {
+    const e = writing();
+    step(e);
+    expect(commentDraft(e.state)?.quote ?? null).toBe(quote);
+    expect(comments(e.state.doc)).toEqual([]);
+    expect(e.commands.submitCommentDraft({ author: 'A', text: 'first\nsecond' })).toBe(quote !== null);
+    expect(comments(e.state.doc).map((c) => [c.quote, c.text])).toEqual(quote ? [[quote, 'first\nsecond']] : []);
+    expect(commentDraft(e.state)).toBeNull();
+  });
+
+  it('leaves the history alone until it is added, then is one step', () => {
+    const e = writing();
+    const before = e.getJSON();
+    e.commands.cancelCommentDraft();
+    expect(e.can().undo()).toBe(false);
+    e.commands.startCommentDraft();
+    e.commands.submitCommentDraft({ author: 'A', text: 'x' });
+    e.commands.undo();
+    expect(e.getJSON()).toEqual(before);
+    expect(e.can().undo()).toBe(false);
+  });
+});
 
 describe('recording keeps its promise', () => {
   it.each(CASES)('%s', async (_name, html, steps) => {
