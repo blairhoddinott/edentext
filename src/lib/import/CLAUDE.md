@@ -27,6 +27,7 @@ DOCX behavior aligned unless the formats expose an unavoidable difference.
 A heading in a cell or a list carries no style name but renders by its level's `Heading N`,
 so a file style of that name is imported even where no top-level block uses it; under any
 other style it renders as the built-in, so its formatting is measured against that.
+A paragraph in a list or a cell loses its style's name to its effect, in both formats; the ODT export writes the style as its parent for that (and for LibreOffice).
 `repairContent.ts` checks the imported body against the schema on open; content it rejects is
 refitted and reported as a warning. It is a safety net: an importer still emits valid structure.
 

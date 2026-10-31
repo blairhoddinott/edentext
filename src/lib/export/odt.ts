@@ -1677,6 +1677,8 @@ function normalizeLineHeight(lh: number | string): string {
 // table-cell paragraphs (odf-kit's List/TableBuilder support no per-paragraph
 // alignment/spacing/line-height), injected as automatic styles in post-processing.
 type ParaStyle = {
+  // The named style a list item's or a cell's block has, under what it adds to it.
+  named?: string;
   align: AlignValue | null;
   spaceBefore: number | null;
   spaceAfter: number | null;
@@ -1716,6 +1718,12 @@ type ParaStyle = {
 type ListItemExtra = { style: ParaStyle; level: number | null; afterList?: boolean };
 
 function paraStyleIsEmpty(s: ParaStyle): boolean {
+  return !s.named && noParaProps(s);
+}
+
+const parentStyleOf = (s: ParaStyle, parent: string) => (s.named ? odfStyleName(s.named) : parent);
+
+function noParaProps(s: ParaStyle): boolean {
   return s.align === null && s.spaceBefore === null && s.spaceAfter === null && s.lineHeight === null
     && s.background === null && s.borderTop === null && s.borderRight === null
     && s.borderBottom === null && s.borderLeft === null && s.dir === null
@@ -1845,6 +1853,8 @@ type TableProps = { ml: number; mr: number; mt: number; mb: number; keepRows: bo
 // Collect the alignment + paragraph spacing of each listItem's first paragraph, and in
 // `extras` the same for its further blocks, in DFS order — matching the order odf-kit
 // emits <text:list-item> in. Items without overrides yield an all-null descriptor.
+const namedStyle = (b: TiptapNode) => (b.type === 'paragraph' && typeof b.attrs?.styleName === 'string' && b.attrs.styleName ? { named: b.attrs.styleName } : {});
+
 function collectListItemStyles(node: TiptapNode, result: ParaStyle[], extras: ListItemExtra[][] = []): void {
   if (node.type === 'listItem') {
     const blocks = (node.content ?? []).filter(c => c.type === 'paragraph' || c.type === 'heading');
@@ -1854,7 +1864,7 @@ function collectListItemStyles(node: TiptapNode, result: ParaStyle[], extras: Li
       b?.type === 'heading' ? `Heading ${(b.attrs?.level as number) ?? 1}` : (b?.attrs?.styleName as string | undefined) ?? DEFAULT_STYLE);
     const firstList = (node.content ?? []).findIndex(c => c.type === 'bulletList' || c.type === 'orderedList');
     // A list item's blocks break and keep like body ones (pageBreaks.ts walks into lists).
-    const flow = (b: TiptapNode) => ({ ...paired(b), breakBefore: b.attrs?.breakBefore === 'page',
+    const flow = (b: TiptapNode) => ({ ...paired(b), ...namedStyle(b), breakBefore: b.attrs?.breakBefore === 'page',
       keepNext: typeof b.attrs?.keepNext === 'boolean' ? b.attrs.keepNext : null });
     extras.push(blocks.map(b => ({ style: flow(b),
       level: b.type === 'heading' ? (b.attrs?.level as number) ?? 1 : null,
@@ -2103,7 +2113,9 @@ function applyListItemBlocks(odtBytes: Uint8Array, extras: ListItemExtra[][] = [
   // under the item's own, which is where the item's list formatting stays.
   const minted: string[] = [];
   const nameByKey = new Map<string, string>();
-  const styleFor = (style: ParaStyle, parent: string): string => {
+  const styleFor = (style: ParaStyle, base: string): string => {
+    const parent = parentStyleOf(style, base);
+    if (noParaProps(style)) return parent;
     const key = `${parent}|${paraStyleKey(style)}`;
     let name = nameByKey.get(key);
     if (!name) {
@@ -2184,9 +2196,11 @@ function applyListItemStyles(odtBytes: Uint8Array, styles: ParaStyle[]): Uint8Ar
   // the item tag may carry attributes (applyListStartValues adds text:start-value).
   content = content.replace(
     /(<text:list-item[^>]*>\s*<text:p text:style-name=")(List_20_Bullet|List_20_Number)(")/g,
-    (_match, pre, parentStyle, post) => {
+    (_match, pre, listStyle, post) => {
       const style = styles[idx++];
-      if (!style || paraStyleIsEmpty(style)) return `${pre}${parentStyle}${post}`;
+      if (!style || paraStyleIsEmpty(style)) return `${pre}${listStyle}${post}`;
+      const parentStyle = parentStyleOf(style, listStyle);
+      if (noParaProps(style)) return `${pre}${parentStyle}${post}`;
       // Key on the emitted properties, so the key can never lag behind ParaStyle's fields.
       const key = `${parentStyle}|${paraStyleKey(style)}`;
       let name = nameByKey.get(key);
@@ -2200,11 +2214,7 @@ function applyListItemStyles(odtBytes: Uint8Array, styles: ParaStyle[]): Uint8Ar
     },
   );
 
-  if (styleDefs.length === 0) return odtBytes;
-
-  const newStyles = styleDefs.map(({ name, parent, style }) => paraStyleDef(name, parent, style)).join('\n');
-
-  content = injectAutomaticStyles(content, `${newStyles}\n`);
+  if (styleDefs.length) content = injectAutomaticStyles(content, `${styleDefs.map(({ name, parent, style }) => paraStyleDef(name, parent, style)).join('\n')}\n`);
 
   files['content.xml'] = strToU8(content);
   return rezipOdt(files);
@@ -3465,8 +3475,9 @@ function applyCellBlocks(odtBytes: Uint8Array, cellBlocks: CellBlock[][]): Uint8
   const styleDefs: { name: string; parent: string; style: ParaStyle }[] = [];
   const nameByKey = new Map<string, string>();
   let styleCounter = 0;
-  const styleNameFor = (parent: string, style: ParaStyle): string => {
-    if (paraStyleIsEmpty(style)) return parent;
+  const styleNameFor = (base: string, style: ParaStyle): string => {
+    const parent = parentStyleOf(style, base);
+    if (noParaProps(style)) return parent;
     // Key on the emitted properties, so the key can never lag behind ParaStyle's fields.
     const key = `${parent}|${paraStyleKey(style)}`;
     let name = nameByKey.get(key);
@@ -4387,7 +4398,7 @@ function replacePageFields(node: TiptapNode, pageCount: number): TiptapNode {
 // way — so the file says so too. A paragraph's own spacing still wins.
 function cellParaStyle(attrs: TiptapNode['attrs']): ParaStyle {
   const style = paraStyleFromAttrs(attrs);
-  if (attrs?.styleName) return style;
+  if (attrs?.styleName) return { ...style, named: String(attrs.styleName) };
   const def = resolveStyle(exportSheet, DEFAULT_STYLE).para;
   if (!def.spaceBefore && !def.spaceAfter) return style;
   const spaceBefore = exportSpacingModel === 'max' ? style.spaceBefore : style.spaceBefore ?? 0;
@@ -4420,7 +4431,7 @@ function buildCellContent(cell: TiptapNode, c: CellBuilder, force: TextProps = {
         if (child.type === 'bulletList' || child.type === 'orderedList') parts.push(walkList(child));
         else if (child.type === 'paragraph' || child.type === 'heading') {
           emitSegment(child.content, child.attrs); // one segment per paragraph, in DFS order
-          parts.push({ kind: 'paragraph', style: paraStyleFromAttrs(child.attrs, false) });
+          parts.push({ kind: 'paragraph', style: { ...paraStyleFromAttrs(child.attrs, false), ...namedStyle(child) } });
         }
       }
       items.push({ parts, labelless: parts[0]?.kind === 'list' });

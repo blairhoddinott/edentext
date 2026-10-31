@@ -100,6 +100,18 @@ describe('list level indents', () => {
   });
 });
 
+describe('a named style on a block in a list or a cell', () => {
+  const para = { type: 'paragraph', attrs: { styleName: 'Quotations' }, content: [{ type: 'text', text: 'x' }] };
+  const plain = { type: 'paragraph', content: [{ type: 'text', text: 'y' }] };
+  const item = (...content: N[]) => ({ type: 'orderedList', content: [{ type: 'listItem', content }] });
+  const cell = (...content: N[]) => ({ type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', attrs: { colspan: 1, rowspan: 1 }, content }] }] });
+  const blocks = (n: N, out: N[] = []): N[] => { if (n.type === 'paragraph') out.push(n); (n.content ?? []).forEach((c: N) => blocks(c, out)); return out; };
+
+  it.each([['an item', item(para)], ['a further block', item(plain, para)], ['a cell', cell(para)], ['an item in a cell', cell(item(para))]])('keeps its effect in %s', async (_name, block) => {
+    for (const back of await roundTrips({ type: 'doc', content: [block] })) expect(blocks(back).at(-1).attrs?.spaceAfter).toBe(14);
+  });
+});
+
 describe('a font or bullet name a file can hold', () => {
   const run = (family: string) => ({ type: 'text', text: 'x', marks: [{ type: 'textStyle', attrs: { fontFamily: family } }] });
   const list = (attrs: N, content: N[]) => ({ type: 'doc', content: [{ type: 'bulletList', attrs, content: [{ type: 'listItem', content: [{ type: 'paragraph', content }] }] }] });
