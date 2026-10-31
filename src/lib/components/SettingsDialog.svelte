@@ -17,12 +17,16 @@
   import { t, locale, setLocale } from '../i18n/i18n.svelte';
   import { DATE_FORMATS, dateFormat, formatMoment, setDateFormat, type DateFormat } from '../storage/dateFormat.svelte';
   import { localeTag } from '../utils/dateTime';
+  import { userName, setUserName } from '../storage/userName.svelte';
   import Icon from './ribbon/Icon.svelte';
   import Toggle from './Toggle.svelte';
   import { LANGUAGES, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
   import { aiSettings, setAi, aiConfig, AI_PRESETS, presetOf, DEFAULT_CONTEXT_TOKENS, type CustomCommand } from '../storage/ai.svelte';
   import { COMMANDS, commandName } from '../ai/commands';
   import { streamChat, aiErrorText } from '../ai/client';
+
+  // Spaces stay while typing, or the one between two names would go; the store trims.
+  let nameField = $state(userName());
 
   // App-wide settings, one section per side-bar entry. Each control writes through the
   // store that already owns the setting, so the ribbon and the dialogs stay in step.
@@ -283,6 +287,10 @@
           </div>
 
         {:else if section === 'review'}
+          <div class="row">
+            <div class="info"><div class="name">{t().settings.userName}</div><div class="desc">{t().settings.userNameHint}</div></div>
+            <input class="field" type="text" autocomplete="name" spellcheck="false" aria-label={t().settings.userName} bind:value={nameField} oninput={() => setUserName(nameField)} />
+          </div>
           <!-- The Review tab's show buttons and their carets, as settings; the same store. -->
           <div class="row">
             <div class="info"><div class="name">{t().comments.showPane}</div><div class="desc">{t().settings.commentsHint}</div></div>

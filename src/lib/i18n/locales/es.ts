@@ -46,6 +46,8 @@ const es: Messages = {
     formattingMarksHint: 'Marcas de párrafo, espacios y tabulaciones en pantalla',
     pageLabels: 'Números de página junto a la página',
     pageLabelsHint: 'El número de hoja abajo a la derecha de cada página; no se imprime',
+    userName: 'Su nombre',
+    userNameHint: 'Aparece en sus comentarios y cambios registrados',
     commentsHint: 'Marcar el texto comentado y mostrar los comentarios',
     commentPlace: 'Dónde van los comentarios',
     resolvedHint: 'Mantener los comentarios resueltos, en gris y plegados; si no, solo aquel en el que está el cursor',

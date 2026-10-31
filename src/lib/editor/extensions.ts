@@ -89,7 +89,7 @@ import { setOutline, styleSheet } from '../styles/sheet.svelte';
 import { noteSettings } from '../storage/notes.svelte';
 import { recordChanges, recordLock } from '../storage/trackChanges.svelte';
 import { markupView } from '../storage/markup.svelte';
-import { loadDocProperties } from '../storage/docProperties';
+import { userName } from '../storage/userName.svelte';
 import { Insertion, Deletion, FormatChange, REBUILDING, TrackChanges } from './extensions/trackChanges';
 
 const pxToPt = (size: string): string | null => {
@@ -332,7 +332,7 @@ export const extensions = [
   FormatChange,
   TrackChanges.configure({
     recording: recordChanges,
-    author: () => loadDocProperties().author.trim(),
+    author: userName,
     plain: () => markupView().plainRevisions,
     locked: () => !!recordLock(),
   }),

@@ -48,6 +48,8 @@ const zhHant: Messages = {
     formattingMarksHint: '螢幕上的段落標記、空格和定位字元',
     pageLabels: '頁面旁的頁碼',
     pageLabelsHint: '每頁右下角旁顯示的頁序號，不會列印',
+    userName: '使用者名稱',
+    userNameHint: '顯示在您的註解和記錄的修訂上',
     commentsHint: '醒目提示含註解的文字並顯示註解',
     commentPlace: '註解位置',
     resolvedHint: '以灰色摺疊方式保留已解決的註解；否則只顯示游標所在的那則',

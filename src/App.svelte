@@ -53,6 +53,7 @@
   import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, spreadMargins, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, EMPTY_HF_SET, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
   import { loadDocName, saveDocName, loadDocFormat, saveDocFormat, stripOdtExtension, docNameOfFile, sanitizeNameForFile, deriveFilename, filenameFor, loadDocProtected, saveDocProtected, loadDocFile, saveDocFile, type DocumentFormat } from './lib/storage/documentName';
   import { loadDocProperties, saveDocProperties, EMPTY_DOC_PROPERTIES, type DocProperties } from './lib/storage/docProperties';
+  import { userName } from './lib/storage/userName.svelte';
   import { loadHyphenation, saveHyphenation } from './lib/storage/hyphenation';
   import { loadPageNumbering, savePageNumbering, DEFAULT_PAGE_NUMBERING, type PageNumbering } from './lib/storage/pageNumbering';
   import { loadPageDecor, savePageDecor, EMPTY_PAGE_DECOR, type PageDecor } from './lib/storage/pageDecor';
@@ -1080,7 +1081,7 @@
       const { recordDifferences } = await import('./lib/editor/compare');
       const other = settledDoc(editor.schema.nodeFromJSON(repairContent(result.content, editor.schema).content), true);
       const { tr } = editor.state;
-      const differs = recordDifferences(tr, other, (theirs ? result.props : docProps).author.trim(), theirs);
+      const differs = recordDifferences(tr, other, theirs ? result.props.author.trim() : userName(), theirs);
       busyTask = null;
       if (differs) editor.view.dispatch(tr);
       else alert(t().revisions.noDifferences);
@@ -1246,7 +1247,7 @@
     const text = await askText(t().comments.prompt);
     if (text === null || !editor) return;
     const had = new Set(comments(editor.state.doc).map((c) => c.id));
-    editor.chain().focus().addComment({ author: docProps.author.trim(), text: text.trim() }).run();
+    editor.chain().focus().addComment({ author: userName(), text: text.trim() }).run();
     // A comment nobody can see is worse than none: the new one brings its kind back.
     setShowComments(true);
     const id = comments(editor.state.doc).find((c) => !had.has(c.id))?.id;
@@ -2139,7 +2140,7 @@
     {lineGrid}
     {balanceSpaces}
     foldMarks={foldMarksOn}
-    commentAuthor={docProps.author}
+    commentAuthor={userName()}
     bind:extraHfSections
     {zoom}
     onZoom={setZoom}
@@ -2160,10 +2161,10 @@
     <AiPane {editor} host={aiHost} onClose={() => (aiOpen = false)} onSettings={() => { settingsSection = 'ai'; settingsOpen = true; }} />
   {/if}
   {#if commentsInPane()}
-    <CommentsPane {editor} {tick} author={docProps.author} onClose={() => setShowComments(false)} />
+    <CommentsPane {editor} {tick} author={userName()} onClose={() => setShowComments(false)} />
   {/if}
   {#if changesInPane()}
-    <RevisionsPane {editor} {tick} author={docProps.author} onClose={() => setShowChanges(false)} />
+    <RevisionsPane {editor} {tick} onClose={() => setShowChanges(false)} />
   {/if}
   {#if commentsInPane() || changesInPane()}
     <ConnectorLayer {editor} {tick} />

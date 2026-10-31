@@ -9,11 +9,10 @@
   // One recorded change as both reviewing views show it: what it did, to which text, and
   // accept / reject, which return focus to the text without scrolling there. Shared by the
   // pane's row and the margin balloon.
-  let { editor, r, color, author, onSelect }: {
+  let { editor, r, color, onSelect }: {
     editor: Editor | null;
     r: Revision;
     color: string;
-    author: string;
     onSelect: () => void;
   } = $props();
 
@@ -47,7 +46,7 @@
 
 <button class="card" onclick={onSelect}>
   <div class="meta">
-    <b style:color={color}>{r.author || author || t().revisions.unknownAuthor}</b>
+    <b style:color={color}>{r.author || t().revisions.unknownAuthor}</b>
     <span>{formatMoment(r.date)}</span>
   </div>
   <div class="kind">{[place, kind].filter(Boolean).join(' · ')}</div>

@@ -47,6 +47,8 @@ const en = {
     formattingMarksHint: 'Paragraph marks, spaces and tabs on screen',
     pageLabels: 'Page numbers beside the page',
     pageLabelsHint: 'The sheet number at the bottom right of each page; not printed',
+    userName: 'Your name',
+    userNameHint: 'Stands on your comments and recorded changes',
     commentsHint: 'Mark commented text and show the comments',
     commentPlace: 'Where comments go',
     resolvedHint: 'Keep resolved comments, greyed and folded; otherwise only the one the cursor is in',

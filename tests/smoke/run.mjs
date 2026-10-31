@@ -95,6 +95,8 @@ try {
     const essay = Array.from({ length: 16 }, (_, i) => `Absatz ${i + 1} eines sehr langen Kommentars, der ohne Deckel weit ueber das Seitenende hinaus reicht.`).join('\n\n');
     localStorage.setItem('edentext-app-language', 'de');
     localStorage.removeItem('edentext-markup-mode');
+    localStorage.setItem('edentext-user-name', 'Ich Selbst');
+    localStorage.setItem('edentext-doc-properties', JSON.stringify({ author: 'Fremde Autorin' }));
     // The flag the previous document's load left behind would send this one to
     // edentext-doc-broken and start the app empty.
     localStorage.removeItem('edentext-doc-loading');
@@ -171,6 +173,15 @@ try {
   check(full.balloons > 0 && full.bars > 0 && bare.balloons === 0 && bare.bars === 0
     && back.balloons === full.balloons && back.bars === full.bars,
     `no markup empties the margin and all markup fills it again (${full.balloons}/${full.bars} → ${bare.balloons}/${bare.bars} → ${back.balloons}/${back.bars})`);
+
+  // What you record is yours, whoever wrote the file.
+  await page.locator('.tiptap p', { hasText: 'Absatz 3.' }).click();
+  await page.keyboard.press(`${MOD}+Shift+C`);
+  await page.keyboard.type('x');
+  await settle();
+  const signed = await page.evaluate(() => [...document.querySelectorAll('.balloon')].map((b) => b.textContent).join(' '));
+  check(signed.includes('Ich Selbst') && !signed.includes('Fremde Autorin'),
+    'a recorded change carries the user name, not the file author');
 } catch (err) {
   check(false, `smoke run threw: ${err.message ?? err}`);
 } finally {

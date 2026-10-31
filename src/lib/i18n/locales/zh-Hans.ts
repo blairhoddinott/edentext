@@ -47,6 +47,8 @@ const zhHans: Messages = {
     formattingMarksHint: '屏幕上的段落标记、空格和制表符',
     pageLabels: '页面旁的页码',
     pageLabelsHint: '每页右下角旁显示的页序号，不会打印',
+    userName: '用户名',
+    userNameHint: '显示在您的批注和记录的修订上',
     commentsHint: '突出显示带批注的文字并显示批注',
     commentPlace: '批注位置',
     resolvedHint: '以灰色折叠方式保留已解决的批注；否则只显示光标所在的那条',

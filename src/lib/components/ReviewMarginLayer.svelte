@@ -332,7 +332,7 @@
       {#if b.comment}
         <CommentCard {editor} c={b.comment} {author} {colors} compact={!b.active} onSelect={() => select(b)} />
       {:else if b.revision}
-        <RevisionCard {editor} r={b.revision} {author} color={b.color} onSelect={() => select(b)} />
+        <RevisionCard {editor} r={b.revision} color={b.color} onSelect={() => select(b)} />
       {/if}
     </div>
   {/each}

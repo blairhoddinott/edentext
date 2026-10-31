@@ -48,6 +48,8 @@ const ja: Messages = {
     formattingMarksHint: '画面上の段落記号、スペース、タブ',
     pageLabels: 'ページの横にページ番号',
     pageLabelsHint: '各ページの右下に表示される用紙番号 (印刷されません)',
+    userName: 'ユーザー名',
+    userNameHint: '自分のコメントと記録された変更に表示されます',
     commentsHint: 'コメントの付いた文字列を強調し、コメントを表示します',
     commentPlace: 'コメントの表示場所',
     resolvedHint: '解決済みのコメントを灰色で折りたたんで表示します。オフのときはカーソルのあるものだけを表示します',

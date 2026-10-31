@@ -67,7 +67,7 @@
 <div class="head">
   <button class="card" onclick={onSelect}>
     <div class="meta">
-      <b style:color={authorColor(colors, c.author)}>{c.author || author || t().revisions.unknownAuthor}</b>
+      <b style:color={authorColor(colors, c.author)}>{c.author || t().revisions.unknownAuthor}</b>
       <span>{formatMoment(c.date)}</span>
     </div>
   </button>
@@ -121,7 +121,7 @@
 {#if full}
   {#each c.replies as r, i (i)}
     <div class="reply">
-      <div class="meta"><b style:color={authorColor(colors, r.author)}>{r.author || author || t().revisions.unknownAuthor}</b><span>{formatMoment(r.date)}</span></div>
+      <div class="meta"><b style:color={authorColor(colors, r.author)}>{r.author || t().revisions.unknownAuthor}</b><span>{formatMoment(r.date)}</span></div>
       <p class="body">{r.text}</p>
     </div>
   {/each}

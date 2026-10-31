@@ -65,6 +65,7 @@ writes its own marker, so no two tabs race over one key.
 - **Document format:** `edentext-doc-format` — `'docx'` while the open document round-trips as .docx; absent = .odt (`documentName.ts`). Set by the format a file was opened in, and by the extension picked in Save As.
 - **Theme:** `edentext-theme` — `'light' | 'dark' | 'allBlack' | 'auto'`.
 - **Accent:** `edentext-accent` — one of `ACCENTS` (`theme.ts`) or a custom `#rrggbb`, which `applyAccent` sets as an inline `--brand-slate` under `data-accent="custom"`; absent = `slate`, the logo's.
+- **User name:** `edentext-user-name` — the name on new comments, replies and recorded changes, for this browser and not per document (`userName.svelte.ts`, Settings ▸ Review); absent when empty, and then they carry no author. A document's `author` property only says who wrote that file; Merge alone records under it, as the other file's author.
 - **Date format:** `edentext-date-format` — absent = `auto`, the UI language's convention; else a region tag of `DATE_FORMATS` or `iso` (`dateFormat.svelte.ts`, Settings ▸ General). `formatMoment` writes every moment a reader sees in the app (comment and change cards, the review print, kept versions, the browser's document list); a date field in the document keeps its own picture.
 - **Toolbar expanded:** `edentext-toolbar-expanded` — boolean string.
 - **Toolbar category:** `edentext-toolbar-category` — the island's Tools category (`toolbar/island.ts`), Home when unknown.

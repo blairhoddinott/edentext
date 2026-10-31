@@ -10,10 +10,9 @@
   // The reviewing pane both word processors list revisions in, beside the comments one:
   // every recorded change in document order, click to jump, accept or reject in place.
   // The balloons beside the page are the other view; both build their card from RevisionCard.
-  let { editor, tick, author, onClose }: {
+  let { editor, tick, onClose }: {
     editor: Editor | null;
     tick: number;
-    author: string;
     onClose: () => void;
   } = $props();
 
@@ -70,7 +69,7 @@
       <label>{t().revisions.filterAuthor}
         <select bind:value={filter.author}>
           <option value={null}>{t().revisions.filterAny}</option>
-          {#each authors as a}<option value={a}>{a || author || t().revisions.unknownAuthor}</option>{/each}
+          {#each authors as a}<option value={a}>{a || t().revisions.unknownAuthor}</option>{/each}
         </select>
       </label>
       <label>{t().revisions.filterKind}
@@ -101,7 +100,7 @@
   <ul>
     {#each list as r (r.id)}
       <li bind:this={cards[r.id]} class:active={r.id === activeId} style:box-shadow={r.id === activeId ? `inset 3px 0 0 ${colorOf(r)}` : null}>
-        <RevisionCard {editor} {r} {author} color={colorOf(r)} onSelect={() => jumpTo(r)} />
+        <RevisionCard {editor} {r} color={colorOf(r)} onSelect={() => jumpTo(r)} />
       </li>
     {/each}
   </ul>

@@ -46,6 +46,8 @@ const de: Messages = {
     formattingMarksHint: 'Absatzmarken, Leerzeichen und Tabulatoren am Bildschirm',
     pageLabels: 'Seitenzahlen neben der Seite',
     pageLabelsHint: 'Die Blattnummer rechts unten neben jeder Seite; wird nicht gedruckt',
+    userName: 'Ihr Name',
+    userNameHint: 'Steht an Ihren Kommentaren und aufgezeichneten Änderungen',
     commentsHint: 'Kommentierten Text markieren und die Kommentare zeigen',
     commentPlace: 'Ort der Kommentare',
     resolvedHint: 'Erledigte Kommentare ausgegraut und eingeklappt behalten; sonst nur den, in dem der Cursor steht',
