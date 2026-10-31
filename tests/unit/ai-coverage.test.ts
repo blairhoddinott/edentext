@@ -382,6 +382,7 @@ const RIBBON: Record<string, Entry> = {
   autoCorrect: UI, newComment: same('mark:comment'), commentPlace: UI, prevComment: UI, nextComment: UI,
   changePlace: UI, prevChange: UI, nextChange: UI,
   trackChanges: na('recording is the user\'s; the assistant\'s own edits are tracked always'), markupDisplay: UI,
+  protectChanges: same('protect'),
   accept: check(['review', { accept: true, author: 'Ada' }], (d) => d.textContent === 'Hello Ada world', '<p>Hello <span data-insertion="r1" data-rev-author="Ada">Ada </span>world</p>'), acceptAll: same('accept'), reject: same('accept'), rejectAll: same('accept'),
   printMarkup: UI, spellLanguage: same('paragraph.lang'),
   navigator: UI, ruler: UI, fieldShadings: UI, splitView: UI, pagesAcross: UI, zoomOut: UI, zoomIn: UI, zoomReset: UI,

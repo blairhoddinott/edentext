@@ -9,7 +9,7 @@
   import { captionClicks, anchored, clickOutside, closeMenu, isMenuOpen, toggleMenu } from '../menu.svelte';
   import { countText, type TextStats } from '../../../utils/wordCount';
   import type { DocumentLanguage } from '../../../storage/documentLanguage';
-  import { recordChanges, setRecordChanges } from '../../../storage/trackChanges.svelte';
+  import { OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges } from '../../../storage/trackChanges.svelte';
   import { printMarkup, setPrintMarkup } from '../../../storage/printMarkup.svelte';
   import {
     MARKUP_MODES, MARKUP_PLACES, markupMode, setMarkupMode,
@@ -36,6 +36,7 @@
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
   // Accepting a change stays possible even where the view hides it, as it is in Word.
   let anyRevisions = $derived(tick >= 0 && !!editor && hasRevisions(editor));
+  let settleable = $derived(anyRevisions && !recordLock());
   let hasComments = $derived(tick >= 0 && !!editor && comments(editor.state.doc).length > 0);
 
   const PLACE_LABEL: Record<MarkupPlace, () => string> = {
@@ -203,7 +204,17 @@
     label={t().revisions.record}
     title={`${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`}
     active={recordChanges()}
+    disabled={!!recordLock()}
     onclick={() => setRecordChanges(!recordChanges())}
+  />
+  <RibbonButton
+    variant="big"
+    icon="lock"
+    cmd="protectChanges"
+    label={t().revisions.protect}
+    title={recordLock() ? t().revisions.protectOff : t().revisions.protect}
+    active={!!recordLock()}
+    onclick={() => window.dispatchEvent(new Event(OPEN_RECORD_LOCK_EVENT))}
   />
   <div class="rb-menu-wrap" use:clickOutside={'markupDisplay'}>
     <RibbonButton
@@ -236,7 +247,7 @@
       cmd="accept"
       label={t().revisions.accept}
       title={t().revisions.acceptHint}
-      disabled={!anyRevisions}
+      disabled={!settleable}
       onclick={() => editor?.chain().focus().acceptRevisions().run()}
     />
     <RibbonButton
@@ -244,7 +255,7 @@
       icon="check"
       cmd="acceptAll"
       label={t().revisions.acceptAll}
-      disabled={!anyRevisions}
+      disabled={!settleable}
       onclick={() => editor && settleAll(editor, true)}
     />
   </div>
@@ -255,7 +266,7 @@
       cmd="reject"
       label={t().revisions.reject}
       title={t().revisions.rejectHint}
-      disabled={!anyRevisions}
+      disabled={!settleable}
       onclick={() => editor?.chain().focus().rejectRevisions().run()}
     />
     <RibbonButton
@@ -263,7 +274,7 @@
       icon="close"
       cmd="rejectAll"
       label={t().revisions.rejectAll}
-      disabled={!anyRevisions}
+      disabled={!settleable}
       onclick={() => editor && settleAll(editor, false)}
     />
   </div>

@@ -27,6 +27,7 @@ import { cellFormatCode, isCellFormat } from '../utils/cellFormat';
 import { cjkDocFont, isAsianTag, type ExportLanguage } from '../storage/documentLanguage';
 import { DEFAULT_MARGINS, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
+import type { RecordLock } from '../storage/trackChanges.svelte';
 import { pageDimsCm, formatDimsCm, type PageFormat } from '../storage/pageFormat';
 import { DEFAULT_TAB_INTERVAL_CM } from '../storage/tabInterval';
 import type { SpacingModel } from '../storage/spacingModel';
@@ -2226,6 +2227,15 @@ const SETTINGS_ORDER = ['writeProtection', 'view', 'zoom', 'removePersonalInform
   'smartTagType', 'shapeDefaults', 'doNotEmbedSmartTags', 'decimalSymbol',
   'listSeparator'];
 
+// LibreOffice's form has no hash; a file of another program keeps its own.
+function applyRecordLockDocx(bytes: Uint8Array, lock: RecordLock | null): Uint8Array {
+  if (!lock) return bytes;
+  const files = unzipSync(bytes);
+  const attrs = lock.word ?? ' w:edit="trackedChanges" w:enforcement="1"';
+  files['word/settings.xml'] = strToU8(strFromU8(files['word/settings.xml']).replace('</w:settings>', `<w:documentProtection${attrs}/></w:settings>`));
+  return zipSync(files);
+}
+
 // Post-pack pass (runs last): sort w:settings children into the schema sequence.
 function orderDocxSettings(bytes: Uint8Array): Uint8Array {
   const files = unzipSync(bytes);
@@ -3598,6 +3608,7 @@ export async function buildDocx(
   fonts: EmbeddedFont[] = [],
   lineGrid: LineGrid = DEFAULT_LINE_GRID,
   balanceSpaces = false,
+  recordLock: RecordLock | null = null,
 ): Promise<Uint8Array> {
   docLangTag = localeTag(language ? language.language : 'en');
   // Before the walk: every picture the file can hold has to be a raster by then, and
@@ -3879,7 +3890,7 @@ export async function buildDocx(
     ...(balanceSpaces ? ['balanceSingleByteDoubleByteWidth'] : []),
     ...(spacingAtPageStart ? [] : ['suppressSpBfAfterPgBrk']),
   ]);
-  const marked = applySectionMarksDocx(applyEmbeddedFontsDocx(spaced, fonts));
+  const marked = applyRecordLockDocx(applySectionMarksDocx(applyEmbeddedFontsDocx(spaced, fonts)), recordLock);
   if (isEmptyPageDecor(decor)) return patchPackedXml(orderDocxSettings(marked));
   const pt = (cm: number) => (cm / 2.54) * 72;
   return patchPackedXml(orderDocxSettings(applyPageDecorDocx(marked, decor,

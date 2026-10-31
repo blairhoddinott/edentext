@@ -6,6 +6,7 @@ import { revisions, type Revision, type RevisionKind } from '../editor/extension
 import { flushPending } from '../editor/extensions/stateHistory';
 import { bodyEditor, commentZones, settleZones, zoneRevisions } from '../editor/zoneReview';
 import { markupView, showResolved } from '../storage/markup.svelte';
+import { recordLock } from '../storage/trackChanges.svelte';
 
 // What the review views may show, in one place: bars, balloons, leader line and both
 // panes ask here instead of each carrying its own reading of the markup settings.
@@ -38,6 +39,7 @@ export function hasRevisions(editor: Editor): boolean {
 
 /** Accepts or rejects every change, zones included, in one undo step. */
 export function settleAll(editor: Editor, accept: boolean): void {
+  if (recordLock()) return;
   flushPending();
   const chain = (bodyEditor() ?? editor).chain().command(({ tr }) => { settleZones(tr, accept); return true; });
   (accept ? chain.acceptRevisions(true) : chain.rejectRevisions(true)).run();
@@ -46,6 +48,7 @@ export function settleAll(editor: Editor, accept: boolean): void {
 
 /** Accepts or rejects these changes, wherever each is, in one undo step. */
 export function settleRevisions(editor: Editor, list: Revision[], accept: boolean): void {
+  if (recordLock()) return;
   flushPending();
   const body = bodyEditor() ?? editor, zones = list.flatMap((r) => (r.zone ? [r.id] : [])), inBody = list.flatMap((r) => (r.zone ? [] : [r.id]));
   let chain = body === editor ? body.chain().focus(null, { scrollIntoView: false }) : body.chain();

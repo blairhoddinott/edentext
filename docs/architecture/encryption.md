@@ -1,5 +1,7 @@
 # Password protection
 
+Protecting recorded changes is another lock: `docs/architecture/review.md`.
+
 `src/lib/crypto/` encrypts the saved file and decrypts an opened one. Everything below was
 probed against LibreOffice 25.2 rather than read off a specification — the two places where
 the file alone does not say what happens are marked.

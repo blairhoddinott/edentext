@@ -85,7 +85,7 @@ import { AutoText } from './extensions/autoText';
 import { HEADING_LEVELS, MAX_HEADING_LEVEL } from '../styles/headings';
 import { setOutline, styleSheet } from '../styles/sheet.svelte';
 import { noteSettings } from '../storage/notes.svelte';
-import { recordChanges } from '../storage/trackChanges.svelte';
+import { recordChanges, recordLock } from '../storage/trackChanges.svelte';
 import { markupView } from '../storage/markup.svelte';
 import { loadDocProperties } from '../storage/docProperties';
 import { Insertion, Deletion, FormatChange, TrackChanges } from './extensions/trackChanges';
@@ -317,6 +317,7 @@ export const extensions = [
     recording: recordChanges,
     author: () => loadDocProperties().author.trim(),
     plain: () => markupView().plainRevisions,
+    locked: () => !!recordLock(),
   }),
   AutoCorrect,
   WordCompletion,

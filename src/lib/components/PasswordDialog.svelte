@@ -3,9 +3,12 @@
 
   // Two jobs, one dialog: setting the password a document is saved with, and asking
   // for the one an encrypted document was saved with.
-  let { open = $bindable(false), mode, hasPassword = false, wrong = false, lost = false, onApply, onCancel }: {
+  let { open = $bindable(false), mode, title, note, hasPassword = false, wrong = false, lost = false, onApply, onCancel }: {
     open?: boolean;
     mode: 'set' | 'ask';
+    // For a password that guards something else than the file.
+    title?: string;
+    note?: string;
     hasPassword?: boolean;
     wrong?: boolean;
     // The document is protected but the session no longer has the password (a reload).
@@ -20,6 +23,7 @@
   let repeat = $state('');
   let show = $state(false);
 
+  const heading = $derived(title ?? (mode === 'set' ? t().password.setTitle : t().password.askTitle));
   const mismatch = $derived(mode === 'set' && repeat !== '' && password !== repeat);
   const canApply = $derived(password !== '' && (mode === 'ask' || password === repeat));
 
@@ -70,10 +74,10 @@
   bind:this={dialogEl}
   onclose={cancel}
   onclick={(e) => e.target === dialogEl && cancel()}
-  aria-label={mode === 'set' ? t().password.setTitle : t().password.askTitle}
+  aria-label={heading}
 >
   <div class="body">
-    <h2>{mode === 'set' ? t().password.setTitle : t().password.askTitle}</h2>
+    <h2>{heading}</h2>
 
     {#if wrong}<p class="wrong">{t().password.wrong}</p>{/if}
     {#if lost}<p class="note">{t().password.lost}</p>{/if}
@@ -108,7 +112,7 @@
         {@render peek()}
       </div>
       {#if mismatch}<p class="wrong">{t().password.mismatch}</p>{/if}
-      <p class="note">{t().password.note}</p>
+      <p class="note">{note ?? t().password.note}</p>
     {/if}
 
     <div class="actions">

@@ -524,11 +524,11 @@ function removeTableLine(tr: Transaction, pos: number, line: 'row' | 'column'): 
   else removeColumn(tr, rect, map.colCount(pos - tableStart));
 }
 
-export const TrackChanges = Extension.create<{ recording: () => boolean; author: () => string; plain: () => boolean }>({
+export const TrackChanges = Extension.create<{ recording: () => boolean; author: () => string; plain: () => boolean; locked: () => boolean }>({
   name: 'trackChanges',
 
   addOptions() {
-    return { recording: () => false, author: () => '', plain: () => false };
+    return { recording: () => false, author: () => '', plain: () => false, locked: () => false };
   },
 
   addGlobalAttributes() {
@@ -560,21 +560,22 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
   },
 
   addCommands() {
+    const open = () => !this.options.locked();
     return {
       acceptRevisions: (all = false) => ({ state, tr, dispatch }) => {
         const list = targets(state, all);
-        if (!list.length) return false;
+        if (!list.length || !open()) return false;
         if (dispatch) apply(state, tr, list, true);
         return true;
       },
       rejectRevisions: (all = false) => ({ state, tr, dispatch }) => {
         const list = targets(state, all);
-        if (!list.length) return false;
+        if (!list.length || !open()) return false;
         if (dispatch) apply(state, tr, list, false);
         return true;
       },
-      acceptRevision: (id) => ({ state, tr, dispatch }) => byId(state, tr, dispatch, id, true),
-      rejectRevision: (id) => ({ state, tr, dispatch }) => byId(state, tr, dispatch, id, false),
+      acceptRevision: (id) => ({ state, tr, dispatch }) => open() && byId(state, tr, dispatch, id, true),
+      rejectRevision: (id) => ({ state, tr, dispatch }) => open() && byId(state, tr, dispatch, id, false),
       commentRevision: (id, comment) => ({ state, tr, dispatch }) => {
         const list = withIds(revisions(state.doc), id);
         if (list.length && dispatch) writeComment(tr, list, comment);

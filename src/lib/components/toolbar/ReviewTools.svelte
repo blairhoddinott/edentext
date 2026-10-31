@@ -8,7 +8,7 @@
   import { goToMarkup, hasRevisions, settleAll } from '../reviewItems';
   import { countText, type TextStats } from '../../utils/wordCount';
   import type { DocumentLanguage } from '../../storage/documentLanguage';
-  import { recordChanges, setRecordChanges } from '../../storage/trackChanges.svelte';
+  import { OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges } from '../../storage/trackChanges.svelte';
   import { printMarkup, setPrintMarkup } from '../../storage/printMarkup.svelte';
   import {
     MARKUP_MODES, MARKUP_PLACES, markupMode, setMarkupMode,
@@ -35,6 +35,7 @@
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
   // Accepting a change stays possible even where the view hides it, as it is in Word.
   let anyRevisions = $derived(tick >= 0 && !!editor && hasRevisions(editor));
+  let settleable = $derived(anyRevisions && !recordLock());
   let hasComments = $derived(tick >= 0 && !!editor && comments(editor.state.doc).length > 0);
 
   const PLACE_LABEL: Record<MarkupPlace, () => string> = {
@@ -115,7 +116,8 @@
 <div class="toolbar-separator"></div>
 
 <div class="toolbar-group">
-  <IslandButton icon="trackChanges" cmd="trackChanges" title={`${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`} active={recordChanges()} onclick={() => setRecordChanges(!recordChanges())} />
+  <IslandButton icon="trackChanges" cmd="trackChanges" title={`${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`} active={recordChanges()} disabled={!!recordLock()} onclick={() => setRecordChanges(!recordChanges())} />
+  <IslandButton icon="lock" cmd="protectChanges" title={recordLock() ? t().revisions.protectOff : t().revisions.protect} active={!!recordLock()} onclick={() => window.dispatchEvent(new Event(OPEN_RECORD_LOCK_EVENT))} />
   <IslandMenu id="markupDisplay" label={MODE_LABEL[markupMode()]().label} cmd="markupDisplay" title={t().revisions.display}>
     {#each MARKUP_MODES as m}
       <button class:selected={markupMode() === m} onclick={() => { closeMenu(); setMarkupMode(m); }}>
@@ -124,11 +126,11 @@
     {/each}
   </IslandMenu>
   {@render showKind('changePlace', t().revisions.showPane, showChanges(), () => setShowChanges(!showChanges()), changePlace(), setChangePlace, false)}
-  <IslandMenu id="accept" icon="check" cmd="accept" caretCmd="acceptMenu" title={t().revisions.acceptHint} disabled={!anyRevisions} onclick={() => editor?.chain().focus().acceptRevisions().run()}>
+  <IslandMenu id="accept" icon="check" cmd="accept" caretCmd="acceptMenu" title={t().revisions.acceptHint} disabled={!settleable} onclick={() => editor?.chain().focus().acceptRevisions().run()}>
     <button onclick={() => { closeMenu(); editor?.chain().focus().acceptRevisions().run(); }}>{t().revisions.accept}</button>
     <button data-cmd="acceptAll" onclick={() => { closeMenu(); editor && settleAll(editor, true); }}>{t().revisions.acceptAll}</button>
   </IslandMenu>
-  <IslandMenu id="reject" icon="close" cmd="reject" caretCmd="rejectMenu" title={t().revisions.rejectHint} disabled={!anyRevisions} onclick={() => editor?.chain().focus().rejectRevisions().run()}>
+  <IslandMenu id="reject" icon="close" cmd="reject" caretCmd="rejectMenu" title={t().revisions.rejectHint} disabled={!settleable} onclick={() => editor?.chain().focus().rejectRevisions().run()}>
     <button onclick={() => { closeMenu(); editor?.chain().focus().rejectRevisions().run(); }}>{t().revisions.reject}</button>
     <button data-cmd="rejectAll" onclick={() => { closeMenu(); editor && settleAll(editor, false); }}>{t().revisions.rejectAll}</button>
   </IslandMenu>

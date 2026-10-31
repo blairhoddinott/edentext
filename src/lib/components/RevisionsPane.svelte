@@ -4,6 +4,7 @@
   import { authorColor, authorColors } from '../editor/authorColors';
   import { filterRevisions, listedRevisions, selectRange, settleRevisions, type RevisionFilter } from './reviewItems';
   import { openZone } from '../editor/zoneReview';
+  import { recordLock } from '../storage/trackChanges.svelte';
   import RevisionCard from './RevisionCard.svelte';
   import { t } from '../i18n/i18n.svelte';
 
@@ -86,7 +87,7 @@
       <label>{t().revisions.filterSince}
         <input type="date" bind:value={filter.since} />
       </label>
-      {#if filtered && list.length}
+      {#if filtered && list.length && !recordLock()}
         <div class="settle">
           <button onclick={() => editor && settleRevisions(editor, list, true)}>{t().revisions.acceptShown}</button>
           <button onclick={() => editor && settleRevisions(editor, list, false)}>{t().revisions.rejectShown}</button>

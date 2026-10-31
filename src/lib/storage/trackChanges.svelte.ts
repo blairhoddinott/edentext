@@ -6,15 +6,39 @@ import { docKey, docStore } from './docScope';
 // records nothing writes no revision registry.
 
 const KEY = docKey('edentext-record-changes');
+const LOCK_KEY = docKey('edentext-record-lock');
+
+/** Asks the app to set or lift the lock. */
+export const OPEN_RECORD_LOCK_EVENT = 'edentext-open-record-lock';
+
+/** What guards recording: `key` is the password's hash as LibreOffice keeps it (base64),
+ *  `word` a DOCX file's own attributes. Without a key no password can be checked here. */
+export type RecordLock = { key?: string; word?: string };
+
+function storedLock(): RecordLock | null {
+  try { return JSON.parse(docStore.getItem(LOCK_KEY) ?? 'null'); } catch { return null; }
+}
 
 let current = $state(docStore.getItem(KEY) === 'true');
+let lock = $state<RecordLock | null>(storedLock());
 
 export function recordChanges(): boolean {
   return current;
 }
 
 export function setRecordChanges(on: boolean): void {
+  if (lock && !on) return;
   current = on;
   if (on) docStore.setItem(KEY, 'true');
   else docStore.removeItem(KEY);
+}
+
+export function recordLock(): RecordLock | null {
+  return lock;
+}
+
+export function setRecordLock(next: RecordLock | null): void {
+  lock = next;
+  if (next) docStore.setItem(LOCK_KEY, JSON.stringify(next));
+  else docStore.removeItem(LOCK_KEY);
 }

@@ -29,6 +29,7 @@ import { blockLine, blockText, blockTexts, cellAt, trackedChanges, isFrame, html
 import { borderAttr, nameLookup, parseMargins, splitDocumentHtml, type NoteText, type PageSpec } from './dialect';
 import { PAGE_FORMAT_CM, sizeSetup, type PageFormat } from '../storage/pageFormat';
 import type { Orientation } from '../storage/pageOrientation';
+import { recordLock } from '../storage/trackChanges.svelte';
 import type { PageMargins } from '../storage/pageMargins';
 import type { HfDoc, HfVariant, HfZone } from '../storage/headerFooter';
 import { PAGE_NUM_FORMATS } from '../storage/pageNumbering';
@@ -1062,6 +1063,7 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
     case 'review': {
       const accept = boolArg(a.accept);
       if (accept == null) throw new ToolError('accept is true or false');
+      if (recordLock()) throw new ToolError('tracked changes are protected: only the user can lift that');
       const all = trackedChanges(ctx.editor.state.doc);
       const n = numArg(a.change);
       const author = typeof a.author === 'string' && a.author.trim() ? a.author.trim().toLowerCase() : null;

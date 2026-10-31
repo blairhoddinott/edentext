@@ -29,6 +29,7 @@ import { imageDataUrl, placeholderImage, unzipArchive, type ConvertedImages } fr
 import { parseImportXml } from './importLimits';
 import { PX_PER_CM, cmToPx, fitMargins, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
+import type { RecordLock } from '../storage/trackChanges.svelte';
 import { pageFormatOf, type PageFormat } from '../storage/pageFormat';
 import { clampTabInterval, DOCX_IMPLIED_TAB_CM } from '../storage/tabInterval';
 import { languageFromOdf, mainOfPair, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
@@ -430,6 +431,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
     // Word's Layout ▸ Hyphenation.
     hyphenate: docSetting(files, 'autoHyphenation'),
     recordChanges: docRecordsChanges(files),
+    recordLock: docRecordLock(files),
     pageNumbering: docNumbering,
     orientation: docPaper.orientation,
     format: docPaper.format,
@@ -4130,6 +4132,20 @@ function docRecordsChanges(files: Record<string, Uint8Array>): boolean {
     return !!el && onOff(el);
   } catch {
     return false;
+  }
+}
+
+// Only the protection that keeps recording on is ours; its attributes go back out as read.
+function docRecordLock(files: Record<string, Uint8Array>): RecordLock | null {
+  const bytes = files['word/settings.xml'];
+  if (!bytes) return null;
+  try {
+    const el = parseXml(strFromU8(bytes)).getElementsByTagNameNS(W, 'documentProtection')[0];
+    if (el?.getAttributeNS(W, 'edit') !== 'trackedChanges' || !/^(1|true|on)$/.test(el.getAttributeNS(W, 'enforcement') ?? '')) return null;
+    const hashed = el.hasAttributeNS(W, 'hash') || el.hasAttributeNS(W, 'hashValue');
+    return hashed ? { word: Array.from(el.attributes, (a) => ` w:${a.localName}="${a.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}"`).join('') } : {};
+  } catch {
+    return null;
   }
 }
 

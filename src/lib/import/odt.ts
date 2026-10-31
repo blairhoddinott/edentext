@@ -34,6 +34,7 @@ import { astToLatex } from '../math/latex';
 import { parseMathml } from '../math/mathml';
 import { PX_PER_CM, cmToPx, type PageMargins } from '../storage/pageMargins';
 import type { Orientation } from '../storage/pageOrientation';
+import type { RecordLock } from '../storage/trackChanges.svelte';
 import type { SpacingModel } from '../storage/spacingModel';
 import { pageDimsCm, type PageFormat } from '../storage/pageFormat';
 import { languageFromOdf, NO_LANGUAGE, type DocumentLanguage } from '../storage/documentLanguage';
@@ -96,6 +97,8 @@ export interface OdtImportResult {
   hyphenate: boolean;
   // Whether the document records revisions (ODF text:track-changes, Word w:trackRevisions).
   recordChanges: boolean;
+  // What guards that against being turned off (settings.xml RedlineProtectionKey, Word w:documentProtection).
+  recordLock: RecordLock | null;
   // How the page-number field counts (ODF style:num-format + style:page-number, Word w:pgNumType).
   pageNumbering: PageNumbering;
   // The grid every tab past the last custom stop falls on; the format's own fallback
@@ -1199,6 +1202,7 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
     foldMarks: ctx.foldMarks,
     hyphenate: resolver.documentHyphenation(),
     recordChanges: odfRecordChanges(body),
+    recordLock: odfRecordLock(files),
     pageNumbering: { format: docNumFormat, start: odfPageNumberStart(resolver, body) },
     tabIntervalCm: resolver.defaultTabInterval(),
     spacingModel: odfSpacingModel(files),
@@ -2531,6 +2535,12 @@ function convertDateTimeField(e: Element, ctx: Ctx): Node | null {
   const fixed = e.getAttributeNS(NS.text, 'fixed') === 'true';
   const raw = e.getAttributeNS(NS.text, 'date-value') ?? e.getAttributeNS(NS.text, 'time-value');
   return { type: 'dateTimeField', attrs: { kind, format, fixed, value: fieldValue(kind, raw) } };
+}
+
+// A key too short for a hash is what LibreOffice stands in for a DOCX protection without one.
+function odfRecordLock(files: Record<string, Uint8Array>): RecordLock | null {
+  const key = /RedlineProtectionKey"[^>]*>([^<]+)</.exec(files['settings.xml'] ? strFromU8(files['settings.xml']) : '')?.[1];
+  return key ? (atob(key).length >= 20 ? { key } : {}) : null;
 }
 
 // Whether the document records revisions: the registry's own flag, which ODF defaults

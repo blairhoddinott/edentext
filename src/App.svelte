@@ -46,7 +46,7 @@
   import { loadPageFormat, savePageFormat, pageDimsCm, type PageFormat } from './lib/storage/pageFormat';
   import { setStyleSheet, showAllStyles, styleSheet } from './lib/styles/sheet.svelte';
   import { noteSettings, setNoteSettings } from './lib/storage/notes.svelte';
-  import { recordChanges, setRecordChanges } from './lib/storage/trackChanges.svelte';
+  import { OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges, setRecordLock } from './lib/storage/trackChanges.svelte';
   import { DEFAULT_NOTE_SETTINGS, type NoteSettings } from './lib/storage/noteSettings';
   import { builtinStyleSheet, visibleStyles, type StyleFamily, type StyleSheet } from './lib/styles/styleSheet';
   import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, spreadMargins, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, EMPTY_HF_SET, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
@@ -749,6 +749,8 @@
   // Set after a reload: the document is protected, but the password went with the session.
   let passwordLost = $state(loadDocProtected());
   let docProtected = $derived(docPassword !== null || passwordLost);
+  let recordLockOpen = $state(false);
+  let recordLockWrong = $state(false);
   let passwordSetOpen = $state(false);
   let setResolve: ((decided: boolean) => void) | null = null;
   let passwordAskOpen = $state(false);
@@ -897,6 +899,7 @@
     // A new document is one page, so the page grid would show only empty cells.
     pageColumns = 1;
     // Recording belongs to the document, so a new one starts off, as it does in both.
+    setRecordLock(null);
     setRecordChanges(false);
     docProps = { ...EMPTY_DOC_PROPERTIES };
     saveDocProperties(docProps);
@@ -964,6 +967,29 @@
       }
     }
     if (Array.isArray(n.content)) for (const c of n.content) collectFontFamilies(c, out);
+  }
+
+  // A lock without a key holds nothing to check a password against.
+  function openRecordLock(): void {
+    const lock = recordLock();
+    if (lock && !lock.key) { setRecordLock(null); return; }
+    recordLockWrong = false;
+    recordLockOpen = true;
+  }
+
+  async function applyRecordLock(password: string | null): Promise<void> {
+    if (password == null) return;
+    const lock = recordLock();
+    const { recordKey, recordKeyMatches } = await import('./lib/crypto/protect');
+    if (!lock) {
+      setRecordLock({ key: await recordKey(password) });
+      setRecordChanges(true);
+    } else if (await recordKeyMatches(lock.key!, password)) {
+      setRecordLock(null);
+    } else {
+      recordLockWrong = true;
+      recordLockOpen = true;
+    }
   }
 
   function settleAsk(password: string | null): void {
@@ -1094,6 +1120,7 @@
       balanceSpaces = result.balanceSpaces;
       foldMarks = result.foldMarks === true;
       // The file says whether it goes on recording; ours is not the setting that counts.
+      setRecordLock(result.recordLock);
       setRecordChanges(result.recordChanges);
       // Adopt the document's spell-check language (the $effect switches the
       // controller + loads its dictionary). null = file declared none; keep ours.
@@ -1266,7 +1293,7 @@
     return odf && { ...odf, other: documentLanguageOther };
   }
   function exportArgs() {
-    return [pageMargins, pageOrientation, hfOpts(), exportLanguage(), pageFormat, styleSheet(), tabIntervalCm, spacingModel, pageRtl, noteSettings(), docProps, hyphenate, pageNumbering, pageDecor, lineNumbering, recordChanges(), foldMarksOn, spacingAtPageStart, embeddedFonts(), lineGrid, balanceSpaces] as const;
+    return [pageMargins, pageOrientation, hfOpts(), exportLanguage(), pageFormat, styleSheet(), tabIntervalCm, spacingModel, pageRtl, noteSettings(), docProps, hyphenate, pageNumbering, pageDecor, lineNumbering, recordChanges(), foldMarksOn, spacingAtPageStart, embeddedFonts(), lineGrid, balanceSpaces, recordLock()] as const;
   }
 
   async function buildBytes(kind: DocumentFormat, json: TiptapNode): Promise<Uint8Array> {
@@ -1580,7 +1607,11 @@
       if (e.key === 'Escape' && findOpen) closeFind();
     }
     window.addEventListener('keydown', onKeydown);
-    return () => window.removeEventListener('keydown', onKeydown);
+    window.addEventListener(OPEN_RECORD_LOCK_EVENT, openRecordLock);
+    return () => {
+      window.removeEventListener('keydown', onKeydown);
+      window.removeEventListener(OPEN_RECORD_LOCK_EVENT, openRecordLock);
+    };
   });
 
   function handleDebugDump() {
@@ -2189,6 +2220,14 @@
     wrong={passwordWrong}
     onApply={settleAsk}
     onCancel={() => settleAsk(null)}
+  />
+  <PasswordDialog
+    bind:open={recordLockOpen}
+    mode={recordLock() ? 'ask' : 'set'}
+    title={recordLock() ? t().revisions.protectOff : t().revisions.protect}
+    note={t().revisions.protectNote}
+    wrong={recordLockWrong}
+    onApply={applyRecordLock}
   />
   <!-- One instance for every entry point (styles gallery, insert-table menu): the
        callers only say which family to land on. -->

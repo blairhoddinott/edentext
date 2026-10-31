@@ -1499,6 +1499,26 @@ try {
   const movedWord = await page.evaluate(() => ({ text: document.querySelector('.tiptap-host .tiptap').textContent, double: getComputedStyle(document.querySelector('.tiptap-host .pm-rev-move') ?? document.body).textDecorationStyle }));
   check(String(await rows()) === 'Moved' && movedWord.double === 'double', `a dragged word is one recorded move (${await rows()}, ${JSON.stringify(movedWord)})`);
 
+  // A password keeps recording on and the changes unsettled until it is given.
+  const lockButton = page.locator('[data-cmd="protectChanges"]').first();
+  const lockDialog = page.locator('dialog[open]');
+  await lockButton.click();
+  await lockDialog.locator('input').nth(0).fill('secret');
+  await lockDialog.locator('input').nth(1).fill('secret');
+  await lockDialog.getByRole('button', { name: 'OK' }).click();
+  await page.waitForFunction(() => document.querySelector('[data-cmd="trackChanges"]')?.disabled, null, { timeout: 3000 }).catch(() => {});
+  const shut = await page.evaluate(() => ({ record: document.querySelector('[data-cmd="trackChanges"]').disabled, accept: document.querySelector('[data-cmd="accept"]')?.disabled, card: document.querySelector('.revisions-pane .actions button:last-child').disabled }));
+  check(shut.record && shut.accept && shut.card, `protected changes can be neither turned off nor settled (${JSON.stringify(shut)})`);
+  await lockButton.click();
+  await lockDialog.locator('input').first().fill('wrong');
+  await lockDialog.getByRole('button', { name: 'OK' }).click();
+  await page.waitForSelector('dialog[open] .wrong', { timeout: 3000 }).catch(() => {});
+  check(await page.locator('[data-cmd="trackChanges"]').first().isDisabled(), 'the wrong password leaves the protection');
+  await lockDialog.locator('input').first().fill('secret');
+  await lockDialog.getByRole('button', { name: 'OK' }).click();
+  await page.waitForFunction(() => !document.querySelector('[data-cmd="trackChanges"]')?.disabled, null, { timeout: 3000 }).catch(() => {});
+  check(await page.locator('[data-cmd="trackChanges"]').first().isEnabled(), 'the right password lifts it');
+
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);
 } finally {

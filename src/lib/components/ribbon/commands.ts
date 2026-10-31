@@ -131,6 +131,7 @@ export const RIBBON_COMMANDS: RibbonCommand[] = [
   c('review', 'prevChange', (m) => `${m.ribbon.groups.revisions}: ${m.revisions.prev}`),
   c('review', 'nextChange', (m) => `${m.ribbon.groups.revisions}: ${m.revisions.next}`),
   c('review', 'trackChanges', (m) => m.revisions.record),
+  c('review', 'protectChanges', (m) => m.revisions.protect),
   c('review', 'markupDisplay', (m) => m.revisions.display),
   c('review', 'accept', (m) => m.revisions.accept),
   c('review', 'acceptAll', (m) => m.revisions.acceptAll),

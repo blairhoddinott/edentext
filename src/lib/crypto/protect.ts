@@ -71,3 +71,22 @@ export async function decryptPackage(bytes: Uint8Array, password: string): Promi
   }
   throw encryptionError(UNSUPPORTED_ENCRYPTION);
 }
+
+const base64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+
+/** The hash LibreOffice keeps of the password guarding recording: plain SHA-256 of UTF-8. */
+export async function recordKey(password: string): Promise<string> {
+  const { sha256 } = await import('@noble/hashes/sha2.js');
+  return base64(sha256(new TextEncoder().encode(password)));
+}
+
+/** Whether `password` opens `key`; a key of 20 bytes is an older file's SHA-1, in one of three spellings. */
+export async function recordKeyMatches(key: string, password: string): Promise<boolean> {
+  if (atob(key).length !== 20) return key === await recordKey(password);
+  const { sha1 } = await import('@noble/hashes/legacy.js');
+  const utf16 = (high: number) => Uint8Array.from([...Array(password.length).keys()].flatMap((i) => {
+    const unit = password.charCodeAt(i);
+    return high ? [unit >> 8, unit & 255] : [unit & 255, unit >> 8];
+  }));
+  return [new TextEncoder().encode(password), utf16(0), utf16(1)].some((bytes) => base64(sha1(bytes)) === key);
+}

@@ -8,6 +8,9 @@ import { buildDocx } from '../../src/lib/export/docx';
 import { importOdt } from '../../src/lib/import/odt';
 import { importDocx } from '../../src/lib/import/docx';
 import { DEFAULT_MARGINS } from '../../src/lib/storage/pageMargins';
+import { recordChanges, setRecordChanges, setRecordLock } from '../../src/lib/storage/trackChanges.svelte';
+import { recordKey, recordKeyMatches } from '../../src/lib/crypto/protect';
+import { open } from '../trackChangesCases';
 
 type N = any;
 
@@ -17,6 +20,55 @@ const m = DEFAULT_MARGINS;
 const args = (on: boolean) =>
   [m, 'portrait', undefined, null, 'A4', undefined, undefined, 'add', false, undefined, undefined,
     false, undefined, undefined, undefined, on] as const;
+
+// The protection comes last, past the arguments that have no default worth naming here.
+const locked = (lock: N) => [...args(true), false, true, [], undefined, false, lock] as const;
+
+describe('protecting recorded changes', () => {
+  it('keeps LibreOffice\'s key in ODT, and the lock with no password in DOCX', async () => {
+    const key = await recordKey('secret');
+    expect(key).toBe('K7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72ol/pe/Unols=');
+    expect(await recordKeyMatches(key, 'secret')).toBe(true);
+    expect(await recordKeyMatches(key, 'other')).toBe(false);
+    // What LibreOffice stands in for a protection without a hash.
+    const odt = unzipSync(await buildOdt(doc, ...locked({ key })));
+    const stand = strToU8(strFromU8(odt['settings.xml']).replace(key, 'AQ=='));
+    expect(importOdt(zipSync(odt)).recordLock).toEqual({ key });
+    expect(importOdt(zipSync({ ...odt, 'settings.xml': stand })).recordLock).toEqual({});
+    expect(importOdt(await buildOdt(doc, ...args(true))).recordLock).toBeNull();
+
+    expect(importDocx(await buildDocx(doc, ...locked({ key }))).recordLock).toEqual({});
+    const word = ' w:edit="trackedChanges" w:enforcement="1" w:hash="ab&amp;c" w:salt="de"';
+    expect(importDocx(await buildDocx(doc, ...locked({ word }))).recordLock).toEqual({ word });
+    expect(importDocx(await buildDocx(doc, ...args(true))).recordLock).toBeNull();
+  });
+
+  it('checks the SHA-1 keys of older files in each spelling', async () => {
+    const { sha1 } = await import('@noble/hashes/legacy.js');
+    const b64 = (b: number[]) => btoa(String.fromCharCode(...sha1(Uint8Array.from(b))));
+    for (const bytes of [[0x61, 0x62], [0x61, 0, 0x62, 0], [0, 0x61, 0, 0x62]]) {
+      expect(await recordKeyMatches(b64(bytes), 'ab')).toBe(true);
+      expect(await recordKeyMatches(b64(bytes), 'ba')).toBe(false);
+    }
+  });
+
+  it('holds recording on and refuses to settle a change', () => {
+    const e = open('<p>text</p>');
+    setRecordChanges(true);
+    e.commands.insertContentAt(1, 'new ');
+    expect(e.state.doc.textContent).toBe('new text');
+    setRecordLock({});
+    setRecordChanges(false);
+    expect(recordChanges()).toBe(true);
+    expect(e.can().acceptRevisions(true)).toBe(false);
+    expect(e.commands.rejectRevisions(true)).toBe(false);
+    expect(e.state.doc.textContent).toBe('new text');
+    setRecordLock(null);
+    setRecordChanges(false);
+    expect(e.commands.rejectRevisions(true)).toBe(true);
+    expect(e.state.doc.textContent).toBe('text');
+  });
+});
 
 describe('recording revisions survives both round trips', () => {
   it('ODT: the registry carries the flag, with no change in it', async () => {

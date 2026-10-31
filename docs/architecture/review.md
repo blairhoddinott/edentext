@@ -61,6 +61,8 @@ The pane filters by author, kind and day (`filterRevisions`), a move counting as
 
 A change can carry a reviewer's comment (`comment` on its mark, paragraph mark or `revFormat`), written on the card. A comment is part of a change: stretches with different ones are different rows. ODF holds it as `text:p` in `office:change-info` after the date, one per line, on either half of a move; LibreOffice saves one more empty, which the import drops (probed). DOCX has no form for it and a block's format change no ODF form, so there it goes on save.
 
+Protecting the changes (`recordLock`, `storage/trackChanges.svelte.ts`) keeps recording on and refuses accepting and rejecting until the password is given, as LibreOffice does; the commands refuse, so every way in does. **ODF:** the SHA-256 of the UTF-8 password, base64, as `RedlineProtectionKey` in `settings.xml` (probed; a 20-byte key is an older file's SHA-1). **DOCX:** `w:documentProtection w:edit="trackedChanges" w:enforcement="1"`, without a hash as LibreOffice writes it, so the password stays in ODT; saved as DOCX the lock stands with none, and saved from there as ODT it goes, LibreOffice's stand-in key being one no password opens. A hash in a DOCX file goes back out as read, but no password is checked here. It is a guard against mistakes: the file itself stays open to anyone.
+
 ## Views
 
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.
