@@ -675,7 +675,7 @@ function replacePlaceholderFields(node: TiptapNode, labels: string[]): TiptapNod
 
 // One recorded revision. Runs of the same change share an id, so the registry holds one
 // entry per id and a deletion's text is the concatenation of its runs.
-type RevisionExport = { kind: 'insertion' | 'deletion'; id: string; author: string; date: string; text: string; nodes: TiptapNode[];
+type RevisionExport = { kind: 'insertion' | 'deletion' | 'formatChange'; id: string; author: string; date: string; text: string; nodes: TiptapNode[];
   /** The insertion a deletion struck through, which LibreOffice stacks in the same region. */
   under?: { author: string; date: string };
   /** The outline level of the heading a deletion was cut from. */
@@ -719,7 +719,7 @@ function replaceRevisions(root: TiptapNode, out: Map<string, RevisionExport>, pa
     const under = mark?.type === 'deletion' ? child.marks?.find((m) => m.type === 'insertion') : undefined;
     const run = prev;
     prev = null;
-    if (!mark) { content.push(replaceRevisions(child, out, part)); continue; }
+    if (!mark) { content.push(...formatRegion(replaceRevisions(child, out, part), out)); continue; }
     const a = mark.attrs ?? {};
     const kind = mark.type as 'insertion' | 'deletion';
     let id = String(a.id ?? '');
@@ -735,7 +735,7 @@ function replaceRevisions(root: TiptapNode, out: Map<string, RevisionExport>, pa
     // would otherwise split the paragraph's runs around it.
     const rest = child.marks?.filter((m) => m.type !== 'insertion' && m.type !== 'deletion');
     if (kind === 'deletion') {
-      entry.nodes.push({ ...child, ...(rest?.length ? { marks: rest } : { marks: undefined }) });
+      entry.nodes.push({ ...child, marks: rest?.some((m) => m.type !== 'formatChange') ? rest.filter((m) => m.type !== 'formatChange') : undefined });
       // One point marker per region: its registry entry holds the region's runs.
       if (!known) content.push({ type: 'text', text: `${TCD}${id}${TCD}` });
       continue;
@@ -743,7 +743,7 @@ function replaceRevisions(root: TiptapNode, out: Map<string, RevisionExport>, pa
     // A run going on with the region moves its closing marker past itself.
     if (goesOn) content.pop();
     else content.push({ type: 'text', text: `${TCI}${id}${TCI}` });
-    content.push({ ...child, ...(rest?.length ? { marks: rest } : { marks: undefined }) });
+    content.push(...formatRegion({ ...child, ...(rest?.length ? { marks: rest } : { marks: undefined }) }, out));
     content.push({ type: 'text', text: `${TCI}${id}${TCI}` });
   }
   if (node.type === 'doc') {
@@ -759,6 +759,17 @@ function replaceRevisions(root: TiptapNode, out: Map<string, RevisionExport>, pa
     }
   }
   return { ...node, content };
+}
+
+// A format change is a region of its own around each run, inside an insertion. A file holds
+// no old values for it (probed), and a deleted run's goes unsaved.
+function formatRegion(run: TiptapNode, out: Map<string, RevisionExport>): TiptapNode[] {
+  const change = run.type === 'text' ? run.marks?.find((m) => m.type === 'formatChange') : undefined;
+  if (!change) return [run];
+  const id = `${change.attrs?.id}~${out.size}`, marks = run.marks!.filter((m) => m !== change);
+  out.set(id, revisionEntry('formatChange', id, change.attrs ?? {}, run));
+  const edge = { type: 'text', text: `${TCI}${id}${TCI}` };
+  return [edge, { ...run, marks: marks.length ? marks : undefined }, edge];
 }
 
 function revisionOwner(a: Record<string, unknown>): { author: string; date: string } {
@@ -939,6 +950,7 @@ function applyRevisions(odtBytes: Uint8Array, list: Map<string, RevisionExport>,
     const body = r.kind === 'deletion'
       ? `<text:deletion>${info(r)}${block}</text:deletion>`
         + (r.under ? `<text:insertion>${info(r.under)}</text:insertion>` : '')
+      : r.kind === 'formatChange' ? `<text:format-change>${info(r)}</text:format-change>`
       : `<text:insertion>${info(r)}</text:insertion>`;
     return `<text:changed-region xml:id="${ct}" text:id="${ct}">${body}</text:changed-region>`;
   }).join('');

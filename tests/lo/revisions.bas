@@ -24,6 +24,21 @@ Sub Run1(name, cmd)
   d.close(True)
 End Sub
 
+' The kinds of change LibreOffice read from a file.
+Sub Kinds(name)
+  Dim a(0) As New com.sun.star.beans.PropertyValue
+  Dim d, e, s
+  a(0).Name = "Hidden" : a(0).Value = True
+  d = StarDesktop.loadComponentFromURL(ConvertToURL(Environ("LO_REV_DIR") & "/" & name), "_blank", 0, a())
+  s = ""
+  e = d.Redlines.createEnumeration()
+  Do While e.hasMoreElements()
+    s = s & "|" & e.nextElement().RedlineType
+  Loop
+  Print #Out, name & " Kinds " & s
+  d.close(True)
+End Sub
+
 Sub Main
   Dim i, ext
   On Error GoTo Bad
@@ -33,6 +48,7 @@ Sub Main
     For Each ext In Array(".odt", ".docx")
       Run1 "c" & i & ext, ".uno:AcceptAllTrackedChanges"
       Run1 "c" & i & ext, ".uno:RejectAllTrackedChanges"
+      Kinds "c" & i & ext
     Next
   Next
   GoTo Done

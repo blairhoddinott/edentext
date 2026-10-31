@@ -208,8 +208,10 @@ type Ctx = {
   commentReplies: Map<string, { author: string; date: string; text: string }[]>;
   // Recorded revisions: the <text:tracked-changes> registry by change id, and the
   // insertions whose <text:change-start> has been seen but not their end.
-  revisions: Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[]; under?: { author: string; date: string } }>;
+  revisions: Map<string, OdfRevision>;
   openInsertions: Map<string, Record<string, unknown>>;
+  // Likewise the format changes, whose regions state no old values.
+  openFormats: Map<string, Record<string, unknown>>;
   // Footnotes/endnotes in anchor order: the file stores each note's text at its anchor,
   // the editor keeps them in one section at the document end (notes.ts).
   notes: { id: string; kind: NoteKind; label: string | null; text: string; content: Node[]; styleName: string | null }[];
@@ -1115,7 +1117,7 @@ export function importOdt(bytes: Uint8Array, convertedImages: ConvertedImages = 
   const first = resolver.hasMasterPage(masters.leading) ? masters.leading : null;
   const geo = resolver.pageGeometry(first) ?? resolver.pageGeometry();
   const contentWidthCm = contentWidthOf(geo);
-  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), listEnds: new Map(), warnings, seqRefNames: sequenceRefNames(body), files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, leftMarginCm: geo?.margins.left ?? 0, ...heightsOf(geo), pageRtl: geo?.rtl ?? false, breakDropsSpace: odfBreakDropsSpace(files), masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), notes: [], foldMarks: false };
+  const ctx: Ctx = { resolver, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), usedListStyles: new Set(), listEnds: new Map(), warnings, seqRefNames: sequenceRefNames(body), files, imageCache: new Map(), convertedImages, contentWidthCm, docContentWidthCm: contentWidthCm, leftMarginCm: geo?.margins.left ?? 0, ...heightsOf(geo), pageRtl: geo?.rtl ?? false, breakDropsSpace: odfBreakDropsSpace(files), masterPages: [], leadingMaster: masters.leading ?? 'Standard', masterPageStarts: [], bodyBlocks: 0, openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentReplies: odfCommentReplies(body), revisions: odfRevisions(body), openInsertions: new Map(), openFormats: new Map(), notes: [], foldMarks: false };
   // Whole-document columns declared on the page layout instead of a
   // text:section: the body's wrappable runs are wrapped the way a section's would be.
   const pageCols = resolver.pageColumns();
@@ -1296,7 +1298,7 @@ function hfSetOfMasterPage(
 function convertHfZone(zoneEl: Element, ctx: Ctx, geo: Parameters<typeof contentWidthOf>[0], bandCm = 0, footer = false): HfDoc {
   const zoneCtx: Ctx = {
     ...ctx, zone: true, contentWidthCm: contentWidthOf(geo), leftMarginCm: geo?.margins.left ?? ctx.leftMarginCm, ...heightsOf(geo), foldMarks: false,
-    openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), openInsertions: new Map(),
+    openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), openInsertions: new Map(), openFormats: new Map(),
   };
   const blocks = convertBlocks(Array.from(zoneEl.children), zoneCtx, 'zone');
   if (zoneCtx.foldMarks) ctx.foldMarks = true;
@@ -2538,14 +2540,16 @@ function odfRecordChanges(body: Element): boolean {
   return !!registry && registry.getAttributeNS(NS.text, 'track-changes') !== 'false';
 }
 
+type OdfRevision = { kind: 'insertion' | 'deletion' | 'formatChange'; author: string; date: string; text: string; paras: Element[]; under?: { author: string; date: string } };
+
 // The <text:tracked-changes> registry: one entry per change id. A deletion carries the
 // text it removed (the body has only a point marker), an insertion only who and when.
-function odfRevisions(body: Element): Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[]; under?: { author: string; date: string } }> {
-  const out = new Map<string, { kind: 'insertion' | 'deletion'; author: string; date: string; text: string; paras: Element[]; under?: { author: string; date: string } }>();
+function odfRevisions(body: Element): Map<string, OdfRevision> {
+  const out = new Map<string, OdfRevision>();
   const registry = body.getElementsByTagNameNS(NS.text, 'tracked-changes')[0];
   for (const region of Array.from(registry?.children ?? [])) {
     const id = region.getAttributeNS(NS.text, 'id') ?? region.getAttribute('xml:id');
-    const kindEl = Array.from(region.children).find((c) => c.localName === 'insertion' || c.localName === 'deletion');
+    const kindEl = Array.from(region.children).find((c) => c.localName === 'insertion' || c.localName === 'deletion' || c.localName === 'format-change');
     if (!id || !kindEl) continue;
     const who = (el: Element) => {
       const info = el.getElementsByTagNameNS(NS.office, 'change-info')[0];
@@ -2562,7 +2566,7 @@ function odfRevisions(body: Element): Map<string, { kind: 'insertion' | 'deletio
     const under = kindEl.localName === 'deletion'
       ? Array.from(region.children).find((c) => c.localName === 'insertion') : undefined;
     out.set(id, {
-      kind: kindEl.localName === 'deletion' ? 'deletion' : 'insertion',
+      kind: kindEl.localName === 'deletion' ? 'deletion' : kindEl.localName === 'format-change' ? 'formatChange' : 'insertion',
       ...who(kindEl),
       text: paras.map((n) => n.textContent ?? '').join('\n'),
       paras,
@@ -2706,6 +2710,8 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
     if (comment) marks.push({ type: 'comment', attrs: comment });
     const insertion = ctx.openInsertions.values().next().value;
     if (insertion) marks.push({ type: 'insertion', attrs: insertion });
+    const format = ctx.openFormats.values().next().value;
+    if (format) marks.push({ type: 'formatChange', attrs: format });
     if (extra) marks.push(extra);
     const node: Node = { type: 'text', text: clean };
     if (marks.length) node.marks = marks;
@@ -2763,6 +2769,8 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             const marks = marksFor(props, ctx.resolver, defaults);
             const insertion = ctx.openInsertions.values().next().value;
             if (insertion) marks.push({ type: 'insertion', attrs: insertion });
+            const format = ctx.openFormats.values().next().value;
+            if (format) marks.push({ type: 'formatChange', attrs: format });
             const br: Node = { type: 'hardBreak' };
             if (marks.length) br.marks = marks;
             out.push(br);
@@ -2851,6 +2859,10 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             if (!ctx.zone && id && rev?.kind === 'insertion') {
               if (e.localName === 'change-start') ctx.openInsertions.set(id, { id, author: rev.author, date: rev.date });
               else ctx.openInsertions.delete(id);
+            }
+            if (!ctx.zone && id && rev?.kind === 'formatChange') {
+              if (e.localName === 'change-start') ctx.openFormats.set(id, { id, author: rev.author, date: rev.date, old: null });
+              else ctx.openFormats.delete(id);
             }
             continue;
           }

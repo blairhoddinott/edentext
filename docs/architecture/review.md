@@ -41,6 +41,8 @@ A merge whose two sides keep text stays two lines on the page: `display: inline`
 
 **DOCX:** `w:ins`/`w:del` in `w:pPr/w:rPr`, a move's ends `w:moveFrom`/`w:moveTo`.
 
+**Character format:** DOCX `w:rPrChange`; ODF a `text:format-change` region around the run, with no old values, so rejecting after a reload drops the direct formatting, as in LibreOffice (probed: `old` null). A deleted run's format change goes unsaved in ODF.
+
 **ODF insertion:** the region runs from a `text:change-start` at the end of one paragraph to the `text:change-end` at the start of the next.
 
 **ODF deletion:** the body holds **one** paragraph with `text:change` where the mark was, and the registry one block per side, the last holding what came after the mark. LibreOffice splits a selection: the region `[tail, empty]` and a second region `[head]`. Over list items the registry wraps both in `text:list`, the body keeps one item. LibreOffice's body keeps the first block's style, or the second's when the first is deleted whole; it loses the other's format on save, while the registry can carry it.
@@ -57,7 +59,6 @@ Lifting an item out of its list (Backspace at its start) and other list structur
 
 - **Column in DOCX:** LibreOffice drops `w:cellIns`/`w:cellDel`.
 - **Header and footer:** a `text:tracked-changes` of its own as first child of `style:header`/`style:footer` in `styles.xml`.
-- **Character format:** a `text:format-change` region around the run, with no old values. Rejecting it after a reload drops the direct formatting.
 - **Paragraph format:** LibreOffice writes `text:UnknownChange`, reads it back as nothing and is outside the schema. Such a change survives only DOCX.
 - **Moves:** `loext:move-id` in the region's change info.
 

@@ -65,11 +65,13 @@ describe('recording keeps its promise', () => {
     const rejected = open(recorded);
     rejected.commands.rejectRevisions(true);
     expect(rejected.getJSON()).toEqual(start);
-    for (const [format, through] of FORMATS.slice(0, 1)) {
+    for (const [format, through] of FORMATS) {
       const reread = open(await through(recorded));
       expect(revisions(reread.state.doc).map((r) => r.kind), format).toContain('formatChange');
       reread.commands.rejectRevisions(true);
-      expect(reread.getJSON(), `${format}, rejected`).toEqual(open(await through(start)).getJSON());
+      // ODF holds no old values: rejecting there drops the run's direct formatting.
+      if (format === 'DOCX') expect(reread.getJSON(), `${format}, rejected`).toEqual(open(await through(start)).getJSON());
+      else expect(revisions(reread.state.doc)).toEqual([]);
       const taken = open(await through(recorded));
       taken.commands.acceptRevisions(true);
       expect(taken.getJSON(), `${format}, accepted`).toEqual(open(await through(plain.getJSON())).getJSON());
