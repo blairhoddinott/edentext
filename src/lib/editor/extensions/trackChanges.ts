@@ -766,7 +766,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           // Taking back one's own pending text goes as it is (appendTransaction marks what
           // replaces it): a replay a microtask later would break an IME's running composition.
           if (ownOnly(tr, author)) return true;
-          const marked = pasteCells(tr, state, author) ?? replayTracked(tr, state, author) ?? clearCells(tr, state, author)
+          const marked = pasteCells(tr, state, author) ?? replayFittedDrop(tr, state, author) ?? replayTracked(tr, state, author) ?? clearCells(tr, state, author)
             ?? replaceSelection(tr, state, author) ?? markPureDelete(tr, state, author);
           // What passes and removes content only moves or rebuilds it (a sort, merged
           // cells): its output is no insertion either.
@@ -1042,13 +1042,11 @@ function keepsEdit(tr: Transaction, marked: Transaction): boolean {
 function replayTracked(tr: Transaction, state: EditorState, author: string): Transaction | null {
   // Formatting steps ride along (find & replace with a format): applied, not recorded.
   const steps = tr.steps.filter((s): s is ReplaceStep => s instanceof ReplaceStep);
-  const sel = state.selection, ui = tr.getMeta('uiEvent');
-  // A drop out of a list takes the selection out by a step that rewraps what follows.
-  const fitted = ui === 'drop' && tr.steps[0] instanceof ReplaceAroundStep;
-  if (tr.steps.some((s, i) => !(s instanceof ReplaceStep || s instanceof AddMarkStep || s instanceof RemoveMarkStep || (fitted && !i)))) return null;
+  if (tr.steps.some((s) => !(s instanceof ReplaceStep || s instanceof AddMarkStep || s instanceof RemoveMarkStep))) return null;
   const docs = tr.steps.flatMap((s, i) => (s instanceof ReplaceStep ? [tr.docs[i]] : []));
   const swapped = steps.map((s, i) => restyled(s, docs[i]));
-  if (!fitted && !steps.some((s, i) => !swapped[i] && s.to > s.from)) return null;
+  if (!steps.some((s, i) => !swapped[i] && s.to > s.from)) return null;
+  const sel = state.selection, ui = tr.getMeta('uiEvent');
   // What a move takes out and puts in carry one id, each half's change its own.
   const moveId = ui === 'drop' || tr.getMeta(MOVING) ? newRevisionId() : null;
   const fresh = () => ({ ...revisionAttrs(author), ...(moveId ? { moveId } : {}) });
@@ -1067,12 +1065,6 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
     if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
       const from = prev(step.from, 1), to = prev(step.to, -1);
       if (to > from) step instanceof AddMarkStep ? marked.addMark(from, to, step.mark) : marked.removeMark(from, to, step.mark);
-      continue;
-    }
-    if (step instanceof ReplaceAroundStep) {
-      const before = marked.steps.length, back = step.getMap().invert();
-      markDeleted(marked, prev(step.from, 1), prev(step.gapFrom, -1), fresh());
-      at = (p, a) => marked.mapping.slice(before).map(prev(back.map(p, a), a), a);
       continue;
     }
     if (!(step instanceof ReplaceStep)) continue;
@@ -1114,6 +1106,19 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
   marked.setSelection(TextSelection.near(marked.doc.resolve(caret)));
   if (tr.scrolledIntoView) marked.scrollIntoView();
   return marked;
+}
+
+// A drop across lists is fitted by steps around what stays, which no replay can follow: the
+// selection is struck, and goes in where the last step puts it, as one move.
+function replayFittedDrop(tr: Transaction, state: EditorState, author: string): Transaction | null {
+  const sel = state.selection;
+  if (tr.getMeta('uiEvent') !== 'drop' || sel.empty || !tr.steps.some((s) => s instanceof ReplaceAroundStep)) return null;
+  const last = tr.steps[tr.steps.length - 1] as ReplaceStep | ReplaceAroundStep, moveId = newRevisionId();
+  const target = tr.steps.slice(0, -1).reduceRight((pos, step) => step.getMap().invert().map(pos, 1), last.from);
+  const marked = state.tr, slice = state.doc.slice(sel.from, sel.to);
+  markDeleted(marked, sel.from, sel.to, { ...revisionAttrs(author), moveId });
+  const end = insertTracked(marked, marked.mapping.map(target), slice, { ...revisionAttrs(author), moveId });
+  return marked.setSelection(TextSelection.near(marked.doc.resolve(end), -1));
 }
 
 // Deleting up to a list's second item replaces the first with an open list: what remains of
@@ -1362,6 +1367,9 @@ function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs
     return false;
   });
   if (!blocks.length) return;
+  // A range of only the closing tokens a fitted replace adds holds no paragraph mark.
+  const opened = nextParagraph(tr.doc, blocks[0].end);
+  if (blocks.length === 1 && blocks[0].pos < from && blocks[0].end === from && (opened === null || opened > to)) return;
   for (const { pos } of blocks) tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
   // A block that came in whole is new, whatever it was before.
   tr.doc.nodesBetween(from, to, (node, pos) => {

@@ -52,6 +52,13 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['a table in an empty document', '<p></p>', [(e) => select(e, 1), table]],
 ];
 
+// As a drop that ProseMirror fits across lists.
+const fittedDrop = (from: number, to: number, at: number): Act => (e) => {
+  const { tr, doc } = e.state, slice = doc.slice(from, to);
+  tr.setSelection(TextSelection.create(doc, from, to)).deleteSelection();
+  e.view.dispatch(tr.replaceRange(tr.mapping.map(at), tr.mapping.map(at), slice).setMeta('uiEvent', 'drop'));
+};
+
 /** Blocks taking the place of what was there: its removal is a change of its own. */
 export const REPLACE_CASES: [string, string, Act[]][] = [
   ['a table in an empty paragraph', BLANK, [(e) => select(e, 7), table]],
@@ -62,6 +69,7 @@ export const REPLACE_CASES: [string, string, Act[]][] = [
   ['the same after an Enter in the heading', '<h1>Head</h1><p>body</p><p>t</p>', [(e) => select(e, 2), (e) => e.commands.splitBlock(), (e) => select(e, 4, 9), (e) => e.commands.splitBlock()]],
   ['typing over one\'s own heading\'s mark', THREE, [...enter(7), (e) => select(e, 7), (e) => e.commands.insertContent('xy'), (e) => e.commands.setParagraphStyle('Heading 1'), (e) => select(e, 8, 12), (e) => e.commands.insertContent('z')]],
   ['typing over one\'s own list item\'s mark', LIST, [...enter(17), (e) => select(e, 17), (e) => e.commands.insertContent('xy'), (e) => e.commands.toggleBulletList(), (e) => select(e, 18, 24), (e) => e.commands.insertContent('z')]],
+  ['words of two lists dropped behind a paragraph', '<p>head</p><ul><li><p>one</p></li></ul><p>nn</p><ol><li><p>two</p></li></ol><p>end</p>', [(e) => select(e, 10, 23), fittedDrop(10, 23, 5)]],
   ['blocks in an empty paragraph', BLANK, [(e) => select(e, 7), (e) => e.commands.insertContent('<p>x</p><p>y</p>')]],
 ];
 
