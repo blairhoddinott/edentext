@@ -52,7 +52,7 @@
     zoom = 100,
     navigatorOpen = false,
     onLanguage, onZoom, onEditZone, onDebugDump, onManageTableStyles, onNoteOptions, onHeadingNumbering,
-    onFind, onAutoCorrect, onAutoText, onNewComment, onToggleNavigator,
+    onFind, onAutoCorrect, onAutoText, onNewComment, onReviewSettings, onToggleNavigator,
   }: {
     editor: Editor | null;
     tick: number;
@@ -92,6 +92,7 @@
     onAutoCorrect?: () => void;
     onAutoText?: () => void;
     onNewComment?: () => void;
+    onReviewSettings?: () => void;
     onToggleNavigator?: () => void;
   } = $props();
 
@@ -127,7 +128,7 @@
     {:else if category === 'references'}
       <ReferenceTools {editor} {tick} {hfActive} {onNoteOptions} {onHeadingNumbering} />
     {:else if category === 'review'}
-      <ReviewTools {editor} {tick} {documentLanguage} {documentLanguageOther} {onLanguage} {onAutoCorrect} {onNewComment} />
+      <ReviewTools {editor} {tick} {documentLanguage} {documentLanguageOther} {onLanguage} {onAutoCorrect} {onNewComment} {onReviewSettings} />
     {:else}
       <ViewTools bind:showRuler bind:showFormattingMarks bind:showFieldShading bind:splitView bind:pageColumns {zoom} {onZoom} {onDebugDump} {navigatorOpen} {onToggleNavigator} />
     {/if}

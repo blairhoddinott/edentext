@@ -140,6 +140,7 @@ export const RIBBON_COMMANDS: RibbonCommand[] = [
   c('review', 'reject', (m) => m.revisions.reject),
   c('review', 'rejectAll', (m) => m.revisions.rejectAll),
   c('review', 'printMarkup', (m) => m.revisions.printMarkup),
+  c('review', 'reviewSettings', (m) => `${m.settings.title}: ${m.settings.sections.review}`),
   c('review', 'spellLanguage', (m) => m.spellPicker.label),
 
   c('view', 'navigator', (m) => m.navigator.title),

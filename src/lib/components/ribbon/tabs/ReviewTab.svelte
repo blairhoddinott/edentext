@@ -23,7 +23,7 @@
   import { shortcutHint } from '../../../editor/shortcuts';
   import { t } from '../../../i18n/i18n.svelte';
 
-  let { editor, tick, documentLanguage, documentLanguageOther, onLanguage, onAutoCorrect, onNewComment }: {
+  let { editor, tick, documentLanguage, documentLanguageOther, onLanguage, onAutoCorrect, onNewComment, onReviewSettings }: {
     editor: Editor | null;
     tick: number;
     documentLanguage: DocumentLanguage;
@@ -31,6 +31,7 @@
     onLanguage: (code: DocumentLanguage) => void;
     onAutoCorrect?: () => void;
     onNewComment?: () => void;
+    onReviewSettings?: () => void;
   } = $props();
 
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
@@ -190,6 +191,15 @@
       label={t().revisions.next}
       disabled={!hasComments}
       onclick={() => go('comment', 1)}
+    />
+    <!-- Here, not at the tab's end: on a usual window that end lies past the ribbon's edge. -->
+    <RibbonButton
+      variant="small"
+      icon="settings"
+      cmd="reviewSettings"
+      label={t().settings.title}
+      title={`${t().settings.title}: ${t().settings.sections.review}`}
+      onclick={() => onReviewSettings?.()}
     />
   </div>
 </RibbonGroup>

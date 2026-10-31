@@ -385,7 +385,7 @@ const RIBBON: Record<string, Entry> = {
   protectChanges: same('protect'),
   compareDocument: UI, mergeDocument: UI,
   accept: check(['review', { accept: true, author: 'Ada' }], (d) => d.textContent === 'Hello Ada world', '<p>Hello <span data-insertion="r1" data-rev-author="Ada">Ada </span>world</p>'), acceptAll: same('accept'), reject: same('accept'), rejectAll: same('accept'),
-  printMarkup: UI, spellLanguage: same('paragraph.lang'),
+  printMarkup: UI, reviewSettings: UI, spellLanguage: same('paragraph.lang'),
   navigator: UI, ruler: UI, fieldShadings: UI, splitView: UI, pagesAcross: UI, zoomOut: UI, zoomIn: UI, zoomReset: UI,
   tableStyle: same('table.tableStyle'), cellShading: same('tableCell.backgroundColor'), tableBorders: same('tableCell.borderTop'),
   headerRow: same('table.tableLook'), firstColumn: same('table.tableLook'), repeatHeaderRow: same('table.repeatHeader'),

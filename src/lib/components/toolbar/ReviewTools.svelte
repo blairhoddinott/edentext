@@ -22,7 +22,7 @@
   import { t } from '../../i18n/i18n.svelte';
 
   // The Review category, as the ribbon's Review tab.
-  let { editor, tick, documentLanguage, documentLanguageOther, onLanguage, onAutoCorrect, onNewComment }: {
+  let { editor, tick, documentLanguage, documentLanguageOther, onLanguage, onAutoCorrect, onNewComment, onReviewSettings }: {
     editor: Editor | null;
     tick: number;
     documentLanguage: DocumentLanguage;
@@ -30,6 +30,7 @@
     onLanguage: (code: DocumentLanguage) => void;
     onAutoCorrect?: () => void;
     onNewComment?: () => void;
+    onReviewSettings?: () => void;
   } = $props();
 
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
@@ -111,6 +112,7 @@
   {@render showKind('commentPlace', t().comments.showPane, showComments(), () => setShowComments(!showComments()), commentPlace(), setCommentPlace, true)}
   <IslandButton icon="chevronLeft" cmd="prevComment" title={`${t().comments.title}: ${t().revisions.prev}`} disabled={!hasComments} onclick={() => go('comment', -1)} />
   <IslandButton icon="chevronRight" cmd="nextComment" title={`${t().comments.title}: ${t().revisions.next}`} disabled={!hasComments} onclick={() => go('comment', 1)} />
+  <IslandButton icon="settings" cmd="reviewSettings" title={`${t().settings.title}: ${t().settings.sections.review}`} onclick={() => onReviewSettings?.()} />
 </div>
 
 <div class="toolbar-separator"></div>

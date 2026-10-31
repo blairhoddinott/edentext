@@ -85,7 +85,7 @@
     onSelectTheme,
     pdfBusy = false,
     hasPassword = false,
-    onNew, onNewFromTemplate, onOpen, onSave, onSaveAs, onSaveTemplate, onExportPdf, onPrintPdf, onPrint, onAbout, onSettings, onDocProperties, onBrowserDocuments, onProtect, onAutoCorrect, onAutoText, onNewComment,
+    onNew, onNewFromTemplate, onOpen, onSave, onSaveAs, onSaveTemplate, onExportPdf, onPrintPdf, onPrint, onAbout, onSettings, onDocProperties, onBrowserDocuments, onProtect, onAutoCorrect, onAutoText, onNewComment, onReviewSettings,
     navigatorOpen = false, onToggleNavigator,
     aiOpen = false, onToggleAi,
     recentFiles = [], onOpenRecent, onForgetRecent,
@@ -151,6 +151,7 @@
     onAutoCorrect?: () => void;
     onAutoText?: () => void;
     onNewComment?: () => void;
+    onReviewSettings?: () => void;
     navigatorOpen?: boolean;
     onToggleNavigator?: () => void;
     aiOpen?: boolean;
@@ -404,7 +405,7 @@
     {:else if tab === 'references'}
       <ReferencesTab {editor} {tick} {hfActive} {onNoteOptions} {onHeadingNumbering} />
     {:else if tab === 'review'}
-      <ReviewTab {editor} {tick} {documentLanguage} {documentLanguageOther} {onLanguage} {onAutoCorrect} {onNewComment} />
+      <ReviewTab {editor} {tick} {documentLanguage} {documentLanguageOther} {onLanguage} {onAutoCorrect} {onNewComment} {onReviewSettings} />
     {:else if tab === 'view'}
       <ViewTab bind:showRuler bind:showFormattingMarks bind:showFieldShading bind:splitView bind:pageColumns {zoom} {onZoom} {onDebugDump} {navigatorOpen} {onToggleNavigator} />
     {:else if tab === 'headerFooter'}

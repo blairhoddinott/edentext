@@ -1240,6 +1240,8 @@
     }
   }
 
+  function openReviewSettings() { settingsSection = 'review'; settingsOpen = true; }
+
   // Word's New Comment: the selected text is annotated and the pane opens on it. A
   // prompt rather than a dialog — the pane is where a comment is really written.
   async function addComment() {
@@ -1793,6 +1795,7 @@
       onAutoCorrect={() => (autoCorrectOpen = true)}
       onAutoText={() => (autoTextOpen = true)}
       onNewComment={addComment}
+      onReviewSettings={openReviewSettings}
       {navigatorOpen}
       onToggleNavigator={() => (navigatorOpen = !navigatorOpen)}
       {aiOpen}
@@ -2089,6 +2092,7 @@
           onAutoCorrect={() => (autoCorrectOpen = true)}
           onAutoText={() => (autoTextOpen = true)}
           onNewComment={addComment}
+          onReviewSettings={openReviewSettings}
         />
       </div>
       {@render toolbarScrollbar()}
