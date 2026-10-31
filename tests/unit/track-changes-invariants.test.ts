@@ -2,7 +2,7 @@
 // gives unrecorded, rejecting all gives the document back.
 import { describe, it, expect, afterEach } from 'vitest';
 import type { Editor } from '@tiptap/core';
-import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
+import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc } from '../../src/lib/editor/extensions/trackChanges';
 import { setRecordChanges } from '../../src/lib/storage/trackChanges.svelte';
 import { buildDocx } from '../../src/lib/export/docx';
@@ -102,6 +102,30 @@ describe('recording keeps its promise', () => {
     expect(taken.getJSON(), 'DOCX, accepted').toEqual(open(await docx(plain.getJSON())).getJSON());
     // ODF has no form for it that LibreOffice reads back: the format stays, the record goes.
     expect(open(await odt(recorded)).getJSON()).toEqual(open(await odt(plain.getJSON())).getJSON());
+    e.commands.acceptRevisions(true);
+    expect(e.getJSON()).toEqual(plain.getJSON());
+  });
+
+  it.each(LIST_CASES)('%s', async (_name, html, steps) => {
+    const plain = open(html);
+    await edit(plain, steps);
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, steps);
+    expect(revisions(e.state.doc).map((r) => r.kind)).toContain('formatChange');
+    expect(revisions(e.state.doc).every((r) => r.kind === 'formatChange')).toBe(true);
+    setRecordChanges(false);
+    const recorded = e.getJSON();
+    const rejected = open(recorded);
+    rejected.commands.rejectRevisions(true);
+    expect(rejected.getJSON()).toEqual(open(html).getJSON());
+    const [[, docx]] = FORMATS;
+    const reread = open(await docx(recorded));
+    expect(revisions(reread.state.doc).length > 0).toBe(/made a list/.test(_name));
+    if (/made a list/.test(_name)) {
+      reread.commands.rejectRevisions(true);
+      expect(reread.getJSON(), 'DOCX, rejected').toEqual(open(await docx(open(html).getJSON())).getJSON());
+    }
     e.commands.acceptRevisions(true);
     expect(e.getJSON()).toEqual(plain.getJSON());
   });

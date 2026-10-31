@@ -69,6 +69,23 @@ export const BLOCK_FORMAT_CASES: [string, string, Act[]][] = [
   ['an indent and a line height', THREE, [...ranged(2, 2, (e) => e.commands.updateAttributes('paragraph', { indent: 1.25 })), (e) => e.commands.updateAttributes('paragraph', { lineHeight: '1.5' })]],
 ];
 
+const ITEMS = '<ul><li><p>one</p></li><li><p>two</p></li><li><p>three</p></li></ul><p>tail</p>';
+const LEVELS = '<ul><li><p>one</p><ul><li><p>sub</p></li></ul></li><li><p>two</p></li></ul>';
+
+/** Edits of what lists a block is in. */
+export const LIST_CASES: [string, string, Act[]][] = [
+  ['a paragraph made a list', THREE, ranged(2, 2, (e) => e.commands.toggleBulletList())],
+  ['paragraphs made a list', THREE, ranged(2, 8, (e) => e.commands.toggleOrderedList())],
+  ['a paragraph joining the list before it', ITEMS.replace('<p>tail</p>', '<p>more</p>'), ranged(24, 24, (e) => e.commands.toggleBulletList())],
+  ['the middle item out of its list', ITEMS, ranged(9, 9, (e) => e.commands.toggleBulletList())],
+  ['the first item out of its list', ITEMS, ranged(4, 4, (e) => e.commands.toggleBulletList())],
+  ['the whole list off', ITEMS, ranged(4, 17, (e) => e.commands.toggleBulletList())],
+  ['a list of the other type', ITEMS, ranged(4, 4, (e) => e.commands.toggleOrderedList())],
+  ['an item one level down', ITEMS, ranged(11, 11, (e) => e.commands.sinkListItem('listItem'))],
+  ['a nested list off', LEVELS, ranged(4, 20, (e) => e.commands.toggleBulletList())],
+  ['an item one level up', LEVELS, ranged(11, 11, (e) => e.commands.liftListItem('listItem'))],
+];
+
 export const CASES: [string, string, Act[]][] = [
   ['a selection across two paragraphs', THREE, del(3, 9)],
   ['a whole paragraph with its mark', THREE, del(7, 13)],

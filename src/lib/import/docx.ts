@@ -1576,7 +1576,7 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
     // What the paragraph mark's run and the flag runs state is not in the old w:pPr.
     const unsaid = Object.fromEntries(['fontSize', 'fontFamily', 'fontFamilyAsian', 'lang', 'langAsian', 'noHyphenation', 'snapToGrid'].map((k) => [k, attrs[k]]));
     attrs.revFormat = { id: change.getAttributeNS(W, 'id') ?? '', author: change.getAttributeNS(W, 'author') ?? '', date: change.getAttributeNS(W, 'date') ?? '',
-      old: blockFormat(was.type, { ...was.attrs, ...unsaid }) };
+      old: { ...blockFormat(was.type, { ...was.attrs, ...unsaid }), ...(fc(ppr, 'numPr') && !fc(old, 'numPr') ? { list: [] } : {}) } };
   }
   // A direct left indent of 0 still overrides the style's own one.
   const ind = kind !== 'list' && !baked ? fc(ppr, 'ind') : null;

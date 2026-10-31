@@ -94,9 +94,11 @@ const RECORDED_KEYS = ['Enter', 'Enter', 'Backspace', 'Backspace', 'Backspace', 
 const drawRecorded = (r, size) => {
   const x = r();
   if (x < 0.3) return { type: pick(r, WORDS) };
-  if (x < 0.85) return { key: pick(r, RECORDED_KEYS) };
-  if (x < 0.95) return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
-  return pick(r, [{ cmd: 'insertNote', args: ['footnote'] }, { cmd: 'insertTextBox' }, { cmd: 'addRowAfter' }, { cmd: 'addColumnBefore' }, { cmd: 'deleteRow' }, { cmd: 'deleteColumn' }, { cmd: 'deleteTable' },
+  if (x < 0.8) return { key: pick(r, RECORDED_KEYS) };
+  if (x < 0.88) return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
+  return pick(r, [{ cmd: 'toggleBold' }, { cmd: 'toggleItalic' }, { cmd: 'setFontSize', args: ['18pt'] }, { cmd: 'setTextAlign', args: ['center'] },
+    { cmd: 'toggleBulletList' }, { cmd: 'toggleOrderedList' }, { cmd: 'sinkListItem', args: ['listItem'] }, { cmd: 'liftListItem', args: ['listItem'] },
+    { cmd: 'setParagraphStyle', args: ['Heading 2'] }, { cmd: 'insertNote', args: ['footnote'] }, { cmd: 'insertTextBox' }, { cmd: 'addRowAfter' }, { cmd: 'addColumnBefore' }, { cmd: 'deleteRow' }, { cmd: 'deleteColumn' }, { cmd: 'deleteTable' },
     { cmd: 'insertTable', args: [{ rows: 2, cols: 2, withHeaderRow: false }] }]);
 };
 
@@ -571,14 +573,12 @@ try {
     for (let i = 0; i < OPS && !broken; i++) {
       const op = drawRecorded(r, await docSize());
       log.push(op);
-      // Lifting an item out of its list is list structure, which recording does not cover yet.
-      const { atItemStart, inList } = await ed(() => {
-        const { $from, empty } = document.querySelector('.tiptap-host .tiptap').editor.state.selection;
-        const inList = $from.depth > 1 && $from.node(-1).type.name === 'listItem';
-        return { atItemStart: empty && !$from.parentOffset && inList, inList };
+      // The cut a table puts into a list is not recorded.
+      const inList = await ed(() => {
+        const { $from } = document.querySelector('.tiptap-host .tiptap').editor.state.selection;
+        return Array.from({ length: $from.depth }, (_, d) => $from.node(d + 1).type.name).some((n) => /listItem|List$/.test(n));
       });
-      // So is the cut a table puts into a list.
-      if ((op.key === 'Backspace' && atItemStart) || (op.cmd === 'insertTable' && inList)) continue;
+      if (op.cmd === 'insertTable' && inList) continue;
       if (op.cmd) await runCmd(op);
       else {
         const err = await focused();

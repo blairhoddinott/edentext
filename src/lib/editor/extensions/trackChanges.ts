@@ -1,9 +1,9 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core';
-import { Mark as PMMark, Slice, type Fragment, type Node as PMNode } from '@tiptap/pm/model';
+import { Mark as PMMark, NodeRange, Slice, type Fragment, type Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
 import { CellSelection, TableMap, removeColumn, removeRow } from '@tiptap/pm/tables';
-import { AddMarkStep, AttrStep, Mapping, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, type Step, type StepMap } from '@tiptap/pm/transform';
+import { AddMarkStep, AttrStep, Mapping, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, liftTarget, type Step, type StepMap } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 
@@ -50,8 +50,11 @@ export type Revision = {
 
 export type RevisionAttrs = { id: string; author: string; date: string };
 export type RevMark = { insertion?: RevisionAttrs; deletion?: RevisionAttrs };
-/** A block's own format: its type and every attr that shows. */
-export type BlockFormat = { type: string; attrs: Record<string, unknown> };
+/** One list around a block, outermost first. */
+export type ListLevel = { type: string; attrs: Record<string, unknown> };
+/** A block's own format: its type, every attr that shows and the lists around it; `list`
+ *  is absent where a file does not say. */
+export type BlockFormat = { type: string; attrs: Record<string, unknown>; list?: ListLevel[] };
 export type RevFormat = RevisionAttrs & { old: BlockFormat | null };
 
 export function newRevisionId(): string {
@@ -116,7 +119,17 @@ const UNFORMATTED_ATTRS = new Set(['revMark', 'revFormat', 'joinPrev', 'sectionB
 export function blockFormat(type: string, attrs: Record<string, unknown>): BlockFormat {
   return { type, attrs: Object.fromEntries(Object.entries(attrs).filter(([k, v]) => !UNFORMATTED_ATTRS.has(k) && v != null)) };
 }
-const sameBlockFormat = (a: BlockFormat, b: BlockFormat) => a.type === b.type
+const LISTS = new Set(['bulletList', 'orderedList']);
+function listChain(doc: PMNode, pos: number): ListLevel[] {
+  const $pos = doc.resolve(pos), out: ListLevel[] = [];
+  for (let d = 1; d <= $pos.depth; d++) {
+    const { type, attrs } = $pos.node(d);
+    if (LISTS.has(type.name)) out.push({ type: type.name, attrs });
+  }
+  return out;
+}
+const sameLists = (a: ListLevel[] | undefined, b: ListLevel[]) => !a || a.map((l) => l.type).join() === b.map((l) => l.type).join();
+export const sameBlockFormat = (a: BlockFormat, b: BlockFormat) => a.type === b.type
   && Object.keys({ ...a.attrs, ...b.attrs }).every((k) => JSON.stringify(a.attrs[k]) === JSON.stringify(b.attrs[k]));
 
 // A file numbers each run and paragraph mark of one edit on its own: touching stretches
@@ -290,7 +303,6 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
       tr.removeMark(from, to, state.schema.marks[r.kind]);
     }
   }
-  for (const r of list) if (r.kind === 'formatChange') for (const pos of r.marks) settleBlockFormat(tr, pos, accept);
   const marks = list.flatMap((r) => (r.kind === 'formatChange' ? [] : r.marks.map((pos) => ({ pos, kind: r.kind as MarkedKind }))));
   marks.sort((a, b) => b.pos - a.pos || Number(a.kind === drop) - Number(b.kind === drop));
   for (const { pos, kind } of marks) {
@@ -303,6 +315,9 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
       tr.setNodeAttribute(at, 'revMark', Object.keys(rest).length ? rest : null);
     }
   }
+  // From the start: a block going back into a list joins the lists before it.
+  const formats = list.flatMap((r) => (r.kind === 'formatChange' ? r.marks : []));
+  for (const pos of formats.sort((a, b) => a - b)) settleBlockFormat(tr, pos, accept);
   tr.setMeta(RECORDING, true);
 }
 
@@ -327,6 +342,37 @@ function settleBlockFormat(tr: Transaction, pos: number, accept: boolean): void 
   if (accept || !old) { tr.setNodeAttribute(at, 'revFormat', null); return; }
   const kept = Object.fromEntries([...UNFORMATTED_ATTRS].map((k) => [k, node.attrs[k]]));
   tr.setNodeMarkup(at, tr.doc.type.schema.nodes[old.type], { ...old.attrs, ...kept, revFormat: null });
+  if (!sameLists(old.list, listChain(tr.doc, at))) restoreLists(tr, at, old.list!);
+}
+
+// Takes the block at `pos` out of its lists and back into `levels`, inside the lists beside it.
+function restoreLists(tr: Transaction, pos: number, levels: ListLevel[]): void {
+  const { nodes } = tr.doc.type.schema, start = tr.steps.length;
+  const here = () => tr.mapping.slice(start).map(pos, 1);
+  const rangeAt = (at: number) => {
+    const $at = tr.doc.resolve(at);
+    return new NodeRange($at, tr.doc.resolve(at + tr.doc.nodeAt(at)!.nodeSize), $at.depth);
+  };
+  while (listChain(tr.doc, here()).length) {
+    const range = rangeAt(here()), target = liftTarget(range);
+    if (target == null) return;
+    tr.lift(range, target);
+  }
+  if (!levels.length) return;
+  tr.wrap(rangeAt(here()), levels.flatMap((l) => [{ type: nodes[l.type], attrs: l.attrs }, { type: nodes.listItem }]));
+  const sameBeside = (a: PMNode | null | undefined, b: PMNode | null | undefined) => !!a && !!b && a.type === b.type;
+  // Inner levels join the list and item before them; the block's own item stays its own.
+  const first = tr.doc.resolve(here()).depth - levels.length * 2 + 1;
+  for (let d = first; d < first + levels.length * 2 - 1; d++) {
+    const $at = tr.doc.resolve(here()), at = $at.before(d);
+    if (sameBeside(tr.doc.resolve(at).nodeBefore, $at.node(d))) tr.join(at);
+  }
+  for (let d = tr.doc.resolve(here()).depth - 1; d > 0; d--) {
+    const $at = tr.doc.resolve(here());
+    if (!LISTS.has($at.node(d).type.name)) continue;
+    const at = $at.after(d);
+    if (sameBeside(tr.doc.resolve(at).nodeAfter, $at.node(d))) tr.join(at);
+  }
 }
 
 const LIST_NODES = new Set(['listItem', 'bulletList', 'orderedList']);
@@ -437,9 +483,9 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
     }, {
       types: ['paragraph', 'heading'],
       attributes: {
+        // Both halves of a split block were the block that changed.
         revFormat: {
           default: null,
-          keepOnSplit: false,
           parseHTML: (el: HTMLElement) => {
             try { return JSON.parse(el.getAttribute('data-rev-format') ?? 'null'); } catch { return null; }
           },
@@ -613,12 +659,21 @@ function recordFormats(tr: Transaction, transactions: readonly Transaction[], at
   const changeOf = (node: PMNode) => node.marks.find((m) => m.type === formatChange);
   const touched: [number, number][] = [];
   transactions.forEach((t, ti) => {
-    if (t.getMeta('appendedTransaction') || t.getMeta(MOVED)) return;
+    if (t.getMeta('appendedTransaction')) return;
     t.steps.forEach((step, i) => {
-      const onward = [t.mapping.slice(i + 1), ...transactions.slice(ti + 1).map((u) => u.mapping), tr.mapping];
+      const onward = [t.mapping.slice(i), ...transactions.slice(ti + 1).map((u) => u.mapping), tr.mapping];
       const final = (pos: number, assoc: number) => onward.reduce((at, m) => m.map(at, assoc), pos);
-      const block = formattedBlock(step, t.docs[i]);
-      if (block != null) { recordBlockFormat(tr, final(block, 1), t.docs[i].nodeAt(block)!, attrs); return; }
+      const doc = t.docs[i];
+      const block = formattedBlock(step, doc);
+      if (block != null) { recordBlockFormat(tr, final(block, 1), doc, block, attrs); return; }
+      // What moves in or out of a list, or under another list type.
+      if (step instanceof ReplaceAroundStep) {
+        doc.nodesBetween(step.from, step.to, (node, pos) => {
+          if (hasParagraphMark(node)) recordBlockFormat(tr, final(pos, 1), doc, pos, attrs);
+          return !node.isTextblock;
+        });
+        return;
+      }
       if (!(step instanceof AddMarkStep || step instanceof RemoveMarkStep) || UNFORMATTED_MARKS.has(step.mark.type.name)) return;
       t.docs[i].nodesBetween(step.from, step.to, (node, pos) => {
         if (!isMarkable(node)) return true;
@@ -655,12 +710,12 @@ function formattedBlock(step: Step, doc: PMNode): number | null {
 }
 
 // The first record stands, and a block back at it has no change left.
-function recordBlockFormat(tr: Transaction, at: number, before: PMNode, attrs: RevisionAttrs): void {
-  const now = tr.doc.nodeAt(at);
+function recordBlockFormat(tr: Transaction, at: number, doc: PMNode, pos: number, attrs: RevisionAttrs): void {
+  const now = tr.doc.nodeAt(at), before = doc.nodeAt(pos)!;
   if (!now || !hasParagraphMark(now)) return;
   const rec = now.attrs.revFormat as RevFormat | null;
-  const old = rec ? rec.old : blockFormat(before.type.name, before.attrs);
-  const same = !!old && sameBlockFormat(blockFormat(now.type.name, now.attrs), old);
+  const old = rec ? rec.old : { ...blockFormat(before.type.name, before.attrs), list: listChain(doc, pos) };
+  const same = !!old && sameBlockFormat(blockFormat(now.type.name, now.attrs), old) && sameLists(old.list, listChain(tr.doc, at));
   if (rec && same) tr.setNodeAttribute(at, 'revFormat', null);
   else if (!rec && !same) tr.setNodeAttribute(at, 'revFormat', { ...attrs, old });
 }
@@ -1070,7 +1125,7 @@ function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs
   for (const { pos } of blocks) tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
   // A block that came in whole is new, whatever it was before.
   tr.doc.nodesBetween(from, to, (node, pos) => {
-    if (node.attrs.revFormat && pos >= from) tr.setNodeAttribute(pos, 'revFormat', null);
+    if (node.attrs.revFormat && pos >= from && pos + node.nodeSize <= to) tr.setNodeAttribute(pos, 'revFormat', null);
     return !node.isTextblock;
   });
   const first = blocks[0].rev, after = nextParagraph(tr.doc, blocks[blocks.length - 1].end);

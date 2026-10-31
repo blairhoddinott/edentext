@@ -11,7 +11,7 @@ import {
   TextWrappingType, TextWrappingSide, TabStopType, LeaderType,
 } from 'docx';
 import type { IParagraphPropertiesOptions, IRunOptions } from 'docx';
-import type { RevFormat } from '../editor/extensions/trackChanges';
+import { blockFormat, sameBlockFormat, type RevFormat } from '../editor/extensions/trackChanges';
 import type { TiptapNode } from 'odf-kit';
 import type {
   IRunStylePropertiesOptions, IFontAttributesProperties, ISpacingProperties, IIndentAttributesProperties,
@@ -2775,7 +2775,10 @@ function paragraphProps(node: TiptapNode, opts: ParaOpts): IParagraphPropertiesO
 function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
   const attrs = node.attrs ?? {};
   const indChars = opts.numbering ? '' : indentCharsPayload(attrs);
+  // Of a list change only a paragraph made a list has a form here: no old numbering.
   const format = attrs.revFormat as RevFormat | null | undefined;
+  const madeList = format?.old?.list?.length === 0 && !!opts.numbering;
+  const noForm = !!format?.old?.list && !madeList && sameBlockFormat(blockFormat(node.type, attrs), format.old);
   // Paragraph-mark run props carry the block's own font (see import/docx.ts).
   const markSize = typeof attrs.fontSize === 'string' ? fontSizeToHalfPoints(attrs.fontSize) : undefined;
   const markFont = fontPair(attrs.fontFamily, attrs.fontFamilyAsian, (f) => f);
@@ -2790,7 +2793,7 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
   if (blockLang) Object.assign(runForce, { lang: str(attrs.lang) ?? opts.force?.lang, langAsian: str(attrs.langAsian) ?? opts.force?.langAsian });
   return new Paragraph({
     ...paragraphProps(node, opts),
-    ...(format ? { revision: { ...paragraphProps({ ...node, ...format.old }, opts), id: docRevisionId(format.id), author: format.author, date: format.date } } : {}),
+    ...(format && !noForm ? { revision: { ...paragraphProps({ ...node, ...format.old }, madeList ? { ...opts, numbering: undefined } : opts), id: docRevisionId(format.id), author: format.author, date: format.date } } : {}),
     // The paragraph mark's own run properties; the language there formats the mark alone.
     run: markSize || markFont || blockLang || attrs.revMark
       ? { size: markSize, font: markFont, language: blockLang, ...revMarkRevisions(attrs.revMark) } : undefined,

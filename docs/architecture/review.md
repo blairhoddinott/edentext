@@ -31,6 +31,8 @@ The `formatChange` mark holds the format marks its run had (`old`, JSON). A mark
 
 A block's own format (type, style, alignment, spacing, indents, tabs: all attrs but `UNFORMATTED_ATTRS`) is its `revFormat`, read from attr, markup and swap steps the same way: the first record stands and a block back at it has none.
 
+Lists are part of a block's format: `old.list` holds the lists around it, outermost first, so toggling a list, moving an item a level and changing the list type are all a `revFormat`, read from any `ReplaceAroundStep`. Rejecting lifts the block out and wraps it back, into the lists beside it (`restoreLists`), from the document start so nested items find their parents.
+
 Accepting drops the mark; rejecting puts `old` back run by run, a block's attrs and type with it. "Original" shows the current format, since a mark cannot be undone by CSS; the print path prints `settledDoc`.
 
 ## Views
@@ -45,7 +47,7 @@ A merge whose two sides keep text stays two lines on the page: `display: inline`
 
 **Character format:** DOCX `w:rPrChange`; ODF a `text:format-change` region around the run, with no old values, so rejecting after a reload drops the direct formatting, as in LibreOffice (probed: `old` null). A deleted run's format change goes unsaved in ODF.
 
-**Paragraph format:** DOCX `w:pPrChange`. The paragraph mark's run and the flags the package cannot write are outside it, so the importer takes those from the current block. ODF has no form LibreOffice reads back: the new format is saved, the record is not.
+**Paragraph format:** DOCX `w:pPrChange`. The paragraph mark's run and the flags the package cannot write are outside it, so the importer takes those from the current block. Of list changes only a paragraph made a list has a form (no `w:numPr` in the old properties); any other is saved as done, unrecorded. ODF has no form LibreOffice reads back: the new format is saved, the record is not.
 
 **ODF insertion:** the region runs from a `text:change-start` at the end of one paragraph to the `text:change-end` at the start of the next.
 
@@ -57,7 +59,7 @@ Our export writes LibreOffice's form with each side's real format in its registr
 
 ## Not recorded yet
 
-Lifting an item out of its list (Backspace at its start) and other list structure pass unrecorded; the monkey's recording pass skips them.
+The list cut of a table inserted in a list passes unrecorded; the monkey's recording pass skips it. A link autolink sets on what typing made of the text before it stays when the typing is rejected.
 
 ## Probed for later steps
 
