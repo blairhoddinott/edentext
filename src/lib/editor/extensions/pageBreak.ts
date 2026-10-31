@@ -37,6 +37,27 @@ declare module '@tiptap/core' {
   }
 }
 
+// TipTap checks the split before it deletes the selection, whose delete takes a block the
+// selection only enters whole, and the split then lands between blocks. A plain delete
+// keeps the selection's start where the split goes.
+type SplitProps = Parameters<ReturnType<typeof core.splitBlock>>[0];
+function splitOverSelection(options: Parameters<typeof core.splitBlock>[0], props: SplitProps): boolean {
+  const sel = props.tr.selection;
+  if (props.dispatch && sel instanceof TextSelection && !sel.empty) {
+    props.tr.delete(sel.from, sel.to);
+    props.tr.setSelection(TextSelection.near(props.tr.doc.resolve(sel.from)));
+  }
+  return core.splitBlock(options)(props);
+}
+
+/** The split a zone has of what `PageBreak` does for the body. */
+export const ZoneSplit = Extension.create({
+  name: 'zoneSplit',
+  addCommands() {
+    return { splitBlock: (options) => (props) => splitOverSelection(options, props) };
+  },
+});
+
 export const PageBreak = Extension.create({
   name: 'pageBreak',
 
@@ -151,15 +172,7 @@ export const PageBreak = Extension.create({
       // formatting a successor inherits, so the block below the cut gives it up again.
       splitBlock: (options) => (props) => {
         const carried = props.state.selection.$from.parent.attrs?.breakBefore === 'page';
-        // TipTap checks the split before it deletes the selection, whose delete takes a block
-        // the selection only enters whole, and the split then lands between blocks. A plain
-        // delete keeps the selection's start where the split goes.
-        const sel = props.tr.selection;
-        if (props.dispatch && sel instanceof TextSelection && !sel.empty) {
-          props.tr.delete(sel.from, sel.to);
-          props.tr.setSelection(TextSelection.near(props.tr.doc.resolve(sel.from)));
-        }
-        const split = core.splitBlock(options)(props);
+        const split = splitOverSelection(options, props);
         if (carried && split) props.commands.unsetPageBreakBefore();
         return split;
       },

@@ -41,7 +41,7 @@ import { ParagraphBox } from './extensions/paragraphBox';
 import { BlockFontSize } from './extensions/blockFontSize';
 import { ParagraphStyle } from './extensions/paragraphStyle';
 import { CharacterStyle } from './extensions/characterStyle';
-import { PageBreak } from './extensions/pageBreak';
+import { PageBreak, ZoneSplit } from './extensions/pageBreak';
 import { TextDirection } from './extensions/textDirection';
 import { Language } from './extensions/language';
 import { Indent } from './extensions/indent';
@@ -349,6 +349,7 @@ export function zoneExtensions(placeholder = '', live = false) {
   return [
     Document.extend({ content: 'block+' }),
     ...extensions.filter((e) => !BODY_ONLY.has(e.name)).map((e) => (e.name === 'trackChanges' && !live ? (e as typeof TrackChanges).configure({ recording: () => false }) : e)),
+    ZoneSplit,
     PageNumber,
     PageCount,
     // The running head's chapter name, resolved per page by HeaderFooterLayer.
