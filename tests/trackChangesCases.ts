@@ -33,6 +33,9 @@ export const enter = (at: number): Act[] => [(e) => select(e, at), (e) => e.comm
 const TABLE = '<table><tbody><tr><td><p>a1</p></td><td><p>b1</p></td></tr><tr><td><p>a2</p></td><td><p>b2</p></td></tr></tbody></table><p>tail</p>';
 const inCell = (at: number): Act => (e) => select(e, at);
 
+const table: Act = (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
+const BLANK = '<p>aaaa</p><p></p><p>cccc</p>';
+
 /** Edits of a table's structure; `at` is inside its second row's first cell. */
 export const TABLE_CASES: [string, string, Act[]][] = [
   ['a row deleted', TABLE, [inCell(14), (e) => e.commands.deleteRow()]],
@@ -44,6 +47,16 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['a text box inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertTextBox()]],
   ['Enter in a cell', TABLE, [inCell(5), (e) => e.commands.splitBlock()]],
   ['a table inserted', THREE, [(e) => select(e, 7), (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false })]],
+  ['a table in an empty document', '<p></p>', [(e) => select(e, 1), table]],
+];
+
+/** Blocks taking the place of what was there: its removal is a change of its own. */
+export const REPLACE_CASES: [string, string, Act[]][] = [
+  ['a table in an empty paragraph', BLANK, [(e) => select(e, 7), table]],
+  ['a table over a selected paragraph', THREE, [(e) => select(e, 7, 11), table]],
+  ['a table over part of a paragraph', THREE, [(e) => select(e, 8, 10), table]],
+  ['a table over two paragraphs', THREE, [(e) => select(e, 2, 9), table]],
+  ['blocks in an empty paragraph', BLANK, [(e) => select(e, 7), (e) => e.commands.insertContent('<p>x</p><p>y</p>')]],
 ];
 
 const ranged = (from: number, to: number, act: Act): Act[] => [(e) => select(e, from, to), act];

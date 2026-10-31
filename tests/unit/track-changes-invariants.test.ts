@@ -3,7 +3,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { zoneExtensions } from '../../src/lib/editor/extensions';
-import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, REBUILD_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
+import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, REBUILD_CASES, REPLACE_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc, shownRange } from '../../src/lib/editor/extensions/trackChanges';
 import { commentDraft, comments } from '../../src/lib/editor/extensions/comment';
 import { deriveFilename } from '../../src/lib/storage/documentName';
@@ -287,6 +287,21 @@ describe('recording keeps its promise', () => {
       rereadAccepted.commands.acceptRevisions(true);
       expect(shape(rereadAccepted), `${format}, accepted`).toEqual(shape(open(await through(plain.getJSON()))));
     }
+    e.commands.acceptRevisions(true);
+    expect(shape(e)).toEqual(shape(plain));
+  });
+
+  it.each(REPLACE_CASES)('%s', async (_name, html, steps) => {
+    const plain = open(html);
+    await edit(plain, steps);
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, steps);
+    const recorded = e.getJSON();
+    setRecordChanges(false);
+    const rejected = open(recorded);
+    rejected.commands.rejectRevisions(true);
+    expect(rejected.getJSON()).toEqual(open(html).getJSON());
     e.commands.acceptRevisions(true);
     expect(shape(e)).toEqual(shape(plain));
   });

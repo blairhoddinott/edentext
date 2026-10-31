@@ -1006,9 +1006,12 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
       // The document's last blocks moved away: the mark before them goes, as the last one cannot.
       if (moveId && end === marked.doc.content.size && marked.doc.resolve(from).nodeBefore?.isTextblock) { from--; end--; }
       const node = marked.doc.nodeAt(from);
+      // Blocks taking an empty block's place go in front of it, where the plain edit puts them.
+      const blank = !!node?.isTextblock && !node.content.size && from + node.nodeSize === end && !step.slice.openStart;
       if (end > from) markDeleted(marked, from, end, (moveId ? null : adjacentDeletion(marked.doc, from, end, author)) ?? (node && tableLine(node) ? line : fresh()));
       end = marked.mapping.slice(before).map(end, -1);
       back = { pos: marked.mapping.slice(before).map(from, 1), steps: marked.steps.length };
+      if (blank && step.slice.size) end = back.pos;
     }
     const start = end;
     if (step.slice.size && !reopensOnly(step.slice)) end = insertTracked(marked, start, step.slice, fresh());
@@ -1031,11 +1034,11 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
 }
 
 // Deleting up to a list's second item replaces the first with an open list: what remains of
-// the list, not new content. A split's slice holds two blocks.
+// the list, not new content, unlike an empty table. A split's slice holds two blocks.
 function reopensOnly(slice: Slice): boolean {
   let inline = false;
   slice.content.descendants((n) => { inline ||= n.isInline; return !inline; });
-  return !inline && slice.content.childCount === 1 && !slice.openStart;
+  return !inline && slice.content.childCount === 1 && !slice.openStart && LIST_NODES.has(slice.content.firstChild!.type.name);
 }
 
 // A paste over cells replaces each row's run of them whole (prosemirror-tables'
