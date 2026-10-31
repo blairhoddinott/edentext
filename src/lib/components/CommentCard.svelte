@@ -220,8 +220,10 @@
     line-clamp: 6;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    /* WebKit's clamp stops short of text with line breaks in it. */
+    max-height: 6lh;
   }
-  .body.clamp.line { -webkit-line-clamp: 1; line-clamp: 1; }
+  .body.clamp.line { -webkit-line-clamp: 1; line-clamp: 1; max-height: 1lh; }
   .replies { margin-top: 2px; color: var(--color-text-muted); }
 
   /* An answer is indented under the comment it belongs to, as in a threaded pane. */
