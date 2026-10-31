@@ -1296,9 +1296,21 @@ function markDeleted(tr: Transaction, from: number, to: number, attrs: RevisionA
     const at = tr.mapping.slice(start).map(block, 1);
     const rev = (tr.doc.nodeAt(at)?.attrs.revMark ?? null) as RevMark | null;
     if (rev?.deletion) continue;
-    if (rev?.insertion?.author === attrs.author) removeParagraphMark(tr, at);
+    if (rev?.insertion?.author === attrs.author) removeOwnMark(tr, at, attrs);
     else tr.setNodeAttribute(at, 'revMark', { ...rev, deletion: attrs });
   }
+}
+
+// The block after one's own mark joins this one, whose format is what a plain edit leaves.
+// A block rejecting would empty is really that second block, so it keeps its record.
+function removeOwnMark(tr: Transaction, pos: number, attrs: RevisionAttrs): void {
+  const doc = tr.doc, block = doc.nodeAt(pos)!, next = nextParagraph(doc, pos + block.nodeSize - 1);
+  let inserted = block.content.size > 0;
+  block.forEach((node) => { inserted &&= node.marks.some((m) => m.type.name === 'insertion'); });
+  removeParagraphMark(tr, pos);
+  if (!inserted || next === null) return;
+  tr.setNodeAttribute(pos, 'revFormat', doc.nodeAt(next - 1)!.attrs.revFormat);
+  recordBlockFormat(tr, pos, doc, next - 1, attrs);
 }
 
 // Each paragraph mark that came in with [from,to) is an insertion. A block split in two

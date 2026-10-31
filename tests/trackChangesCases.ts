@@ -58,6 +58,8 @@ export const REPLACE_CASES: [string, string, Act[]][] = [
   ['a table over two paragraphs', THREE, [(e) => select(e, 2, 9), table]],
   ['Enter over a heading up to the next paragraph', '<h1>Head</h1><p>body</p><p>t</p>', [(e) => select(e, 1, 7), (e) => e.commands.splitBlock()]],
   ['the same after an Enter in the heading', '<h1>Head</h1><p>body</p><p>t</p>', [(e) => select(e, 2), (e) => e.commands.splitBlock(), (e) => select(e, 4, 9), (e) => e.commands.splitBlock()]],
+  ['typing over one\'s own heading\'s mark', THREE, [...enter(7), (e) => select(e, 7), (e) => e.commands.insertContent('xy'), (e) => e.commands.setParagraphStyle('Heading 1'), (e) => select(e, 8, 12), (e) => e.commands.insertContent('z')]],
+  ['typing over one\'s own list item\'s mark', LIST, [...enter(17), (e) => select(e, 17), (e) => e.commands.insertContent('xy'), (e) => e.commands.toggleBulletList(), (e) => select(e, 18, 24), (e) => e.commands.insertContent('z')]],
   ['blocks in an empty paragraph', BLANK, [(e) => select(e, 7), (e) => e.commands.insertContent('<p>x</p><p>y</p>')]],
 ];
 

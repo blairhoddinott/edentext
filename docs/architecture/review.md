@@ -13,7 +13,7 @@ Removing a mark follows LibreOffice (probed, accept and reject alike):
 - a block left empty goes, and the next stays unchanged;
 - otherwise the next block's text joins it, under the first block's format and the second's mark.
 
-Deleted `Heading first` + `body second` across the mark gives one heading; with the whole heading deleted, the body keeps its own format. The author's own pending mark goes at once.
+Deleted `Heading first` + `body second` across the mark gives one heading; with the whole heading deleted, the body keeps its own format. The author's own pending mark goes at once; a joined block of only inserted text takes over the second block's format record, since rejecting leaves that block.
 
 ## Tables
 
