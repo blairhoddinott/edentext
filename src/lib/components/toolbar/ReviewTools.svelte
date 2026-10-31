@@ -8,7 +8,7 @@
   import { goToMarkup, hasRevisions, settleAll, shownStats } from '../reviewItems';
   import type { TextStats } from '../../utils/wordCount';
   import type { DocumentLanguage } from '../../storage/documentLanguage';
-  import { OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges } from '../../storage/trackChanges.svelte';
+  import { OPEN_COMPARE_EVENT, OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges } from '../../storage/trackChanges.svelte';
   import { printMarkup, setPrintMarkup } from '../../storage/printMarkup.svelte';
   import {
     MARKUP_MODES, MARKUP_PLACES, markupMode, setMarkupMode,
@@ -136,6 +136,8 @@
   </IslandMenu>
   <IslandButton icon="chevronLeft" cmd="prevChange" title={`${t().ribbon.groups.revisions}: ${t().revisions.prev}`} disabled={!anyRevisions} onclick={() => go('revision', -1)} />
   <IslandButton icon="chevronRight" cmd="nextChange" title={`${t().ribbon.groups.revisions}: ${t().revisions.next}`} disabled={!anyRevisions} onclick={() => go('revision', 1)} />
+  <IslandButton icon="compare" cmd="compareDocument" title={t().revisions.compareHint} disabled={!editor} onclick={() => window.dispatchEvent(new CustomEvent(OPEN_COMPARE_EVENT, { detail: false }))} />
+  <IslandButton icon="mergeDocument" cmd="mergeDocument" title={t().revisions.mergeHint} disabled={!editor} onclick={() => window.dispatchEvent(new CustomEvent(OPEN_COMPARE_EVENT, { detail: true }))} />
   <!-- A checkbox, not a button: it settles what the next printout carries, it does not print. -->
   <label class="check" data-cmd="printMarkup" title={t().revisions.printMarkupHint}>
     <input type="checkbox" checked={printMarkup()} onchange={(e) => setPrintMarkup(e.currentTarget.checked)} />

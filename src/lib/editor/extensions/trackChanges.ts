@@ -1268,6 +1268,27 @@ export function trackedReplace(tr: Transaction, from: number, to: number, slice:
   return tr.setMeta(RECORDING, true);
 }
 
+/** Hands the changes recorded under `working` to `author`; `swap` makes each the opposite one. */
+export function claimRevisions(tr: Transaction, working: string, author: string, swap: boolean): void {
+  const { marks } = tr.doc.type.schema;
+  for (const r of revisions(tr.doc)) {
+    if (r.author !== working || r.kind === 'formatChange') continue;
+    const kind = swap ? (r.kind === 'insertion' ? 'deletion' : 'insertion') : r.kind;
+    for (const pos of r.marks) {
+      const { [r.kind as MarkedKind]: attrs, ...rest } = tr.doc.nodeAt(pos)!.attrs.revMark as RevMark;
+      tr.setNodeAttribute(pos, 'revMark', { ...rest, [kind]: { ...attrs, author } });
+    }
+    for (const [from, to] of r.spans) tr.doc.nodesBetween(from, to, (node, pos) => {
+      const old = node.marks.find((m) => m.type.name === r.kind && m.attrs.author === working);
+      if (!old) return !node.isInline;
+      const mark = marks[kind].create({ ...old.attrs, author });
+      if (node.isLeaf || node.isText) tr.removeMark(pos, pos + node.nodeSize, old).addMark(pos, pos + node.nodeSize, mark);
+      else tr.setNodeMarkup(pos, null, node.attrs, mark.addToSet(old.removeFromSet(node.marks)));
+      return false;
+    });
+  }
+}
+
 /** Records the formatting steps `tr` holds as `author`'s, whether or not recording is on. */
 export function trackedFormat(tr: Transaction, author: string): Transaction {
   recordFormats(tr, [tr], revisionAttrs(author));

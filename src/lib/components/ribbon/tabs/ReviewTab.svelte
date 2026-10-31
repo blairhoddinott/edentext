@@ -9,7 +9,7 @@
   import { captionClicks, anchored, clickOutside, closeMenu, isMenuOpen, toggleMenu } from '../menu.svelte';
   import type { TextStats } from '../../../utils/wordCount';
   import type { DocumentLanguage } from '../../../storage/documentLanguage';
-  import { OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges } from '../../../storage/trackChanges.svelte';
+  import { OPEN_COMPARE_EVENT, OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges } from '../../../storage/trackChanges.svelte';
   import { printMarkup, setPrintMarkup } from '../../../storage/printMarkup.svelte';
   import {
     MARKUP_MODES, MARKUP_PLACES, markupMode, setMarkupMode,
@@ -207,15 +207,6 @@
     disabled={!!recordLock()}
     onclick={() => setRecordChanges(!recordChanges())}
   />
-  <RibbonButton
-    variant="big"
-    icon="lock"
-    cmd="protectChanges"
-    label={t().revisions.protect}
-    title={recordLock() ? t().revisions.protectOff : t().revisions.protect}
-    active={!!recordLock()}
-    onclick={() => window.dispatchEvent(new Event(OPEN_RECORD_LOCK_EVENT))}
-  />
   <div class="rb-menu-wrap" use:clickOutside={'markupDisplay'}>
     <RibbonButton
       variant="big"
@@ -294,6 +285,35 @@
       label={t().revisions.next}
       disabled={!anyRevisions}
       onclick={() => go('revision', 1)}
+    />
+  </div>
+  <div class="rb-col">
+    <RibbonButton
+      variant="small"
+      icon="compare"
+      cmd="compareDocument"
+      label={t().revisions.compare}
+      title={t().revisions.compareHint}
+      disabled={!editor}
+      onclick={() => window.dispatchEvent(new CustomEvent(OPEN_COMPARE_EVENT, { detail: false }))}
+    />
+    <RibbonButton
+      variant="small"
+      icon="mergeDocument"
+      cmd="mergeDocument"
+      label={t().revisions.merge}
+      title={t().revisions.mergeHint}
+      disabled={!editor}
+      onclick={() => window.dispatchEvent(new CustomEvent(OPEN_COMPARE_EVENT, { detail: true }))}
+    />
+    <RibbonButton
+      variant="small"
+      icon="lock"
+      cmd="protectChanges"
+      label={t().revisions.protect}
+      title={recordLock() ? t().revisions.protectOff : t().revisions.protect}
+      active={!!recordLock()}
+      onclick={() => window.dispatchEvent(new Event(OPEN_RECORD_LOCK_EVENT))}
     />
   </div>
 </RibbonGroup>

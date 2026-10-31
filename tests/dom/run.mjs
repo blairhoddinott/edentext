@@ -1499,6 +1499,22 @@ try {
   const movedWord = await page.evaluate(() => ({ text: document.querySelector('.tiptap-host .tiptap').textContent, double: getComputedStyle(document.querySelector('.tiptap-host .pm-rev-move') ?? document.body).textDecorationStyle }));
   check(String(await rows()) === 'Moved' && movedWord.double === 'double', `a dragged word is one recorded move (${await rows()}, ${JSON.stringify(movedWord)})`);
 
+  // A compared file's differences land here as changes of the file, in one undo step.
+  await page.evaluate(async (b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    window.showOpenFilePicker = async () => [{ getFile: async () => new File([bytes], 'older.odt'), queryPermission: async () => 'granted' }];
+  }, (await readFile(join(ROOT, 'tests/corpus/01-flow.odt'))).toString('base64'));
+  const paneRows = () => page.evaluate(() => document.querySelectorAll('.revisions-pane li').length);
+  const before = await paneRows();
+  await page.locator('[data-cmd="compareDocument"]').first().click();
+  await page.waitForFunction((n) => document.querySelectorAll('.revisions-pane li').length > n, before, { timeout: 8000 }).catch(() => {});
+  const compared = await paneRows();
+  check(compared > before, `comparing lists the differences as changes (${before} → ${compared})`);
+  await page.locator('.tiptap-host .tiptap').first().click();
+  await page.keyboard.press(`${MOD}+z`);
+  await page.waitForFunction((n) => document.querySelectorAll('.revisions-pane li').length === n, before, { timeout: 5000 }).catch(() => {});
+  check(await paneRows() === before, 'one undo takes the comparison back');
+
   // A password keeps recording on and the changes unsettled until it is given.
   const lockButton = page.locator('[data-cmd="protectChanges"]').first();
   const lockDialog = page.locator('dialog[open]');

@@ -9,7 +9,7 @@ no-break spaces and no ordinary one (a web editor's copy) gets plain spaces back
 
 `authorColors.ts` hands each reviewer one colour of LibreOffice's author palette, in order of first appearance over revisions, comments and their answers alike, as LibreOffice shares one author table between them; every review view and the print path colour by it.
 
-`zoneReview.ts` gives the review the header and footer docs, open or not (`docs/architecture/review.md`).
+`zoneReview.ts` gives the review the header and footer docs, open or not; `compare.ts` records what separates this document from a file (both in `docs/architecture/review.md`).
 
 `clickCaret.ts` (`readClickCaret`, the body's and the zone's `mousedown`): a click that focuses a view reads its caret in at once, since ProseMirror puts its old selection back 20 ms after a focus that no `selectionchange` has followed yet, which a busy page in Firefox delays past that.
 

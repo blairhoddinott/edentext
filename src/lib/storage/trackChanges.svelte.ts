@@ -8,6 +8,9 @@ import { docKey, docStore } from './docScope';
 const KEY = docKey('edentext-record-changes');
 const LOCK_KEY = docKey('edentext-record-lock');
 
+/** Asks the app for a file to compare with (`detail` false) or merge in (true). */
+export const OPEN_COMPARE_EVENT = 'edentext-open-compare';
+
 /** Asks the app to set or lift the lock. */
 export const OPEN_RECORD_LOCK_EVENT = 'edentext-open-record-lock';
 

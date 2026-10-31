@@ -63,6 +63,12 @@ A change can carry a reviewer's comment (`comment` on its mark, paragraph mark o
 
 Protecting the changes (`recordLock`, `storage/trackChanges.svelte.ts`) keeps recording on and refuses accepting and rejecting until the password is given, as LibreOffice does; the commands refuse, so every way in does. **ODF:** the SHA-256 of the UTF-8 password, base64, as `RedlineProtectionKey` in `settings.xml` (probed; a 20-byte key is an older file's SHA-1). **DOCX:** `w:documentProtection w:edit="trackedChanges" w:enforcement="1"`, without a hash as LibreOffice writes it, so the password stays in ODT; saved as DOCX the lock stands with none, and saved from there as ODT it goes, LibreOffice's stand-in key being one no password opens. A hash in a DOCX file goes back out as read, but no password is checked here. It is a guard against mistakes: the file itself stays open to anyone.
 
+## Comparing
+
+Compare and Merge in the review tab take a file and write what separates it from this document into this one, as one undo step (`editor/compare.ts`): blocks are aligned by kind and text, those between them paired by place, and a pair differs by word. Each hunk goes through `trackedReplace`, so this document's own text and format stay and the recorder's promises hold. **Merge** takes this document as the older one and records under the file's author: accepting gives the file. **Compare** takes the file as the older one, as LibreOffice does, under our author: the same hunks with insertion and deletion swapped (`claimRevisions`), so accepting keeps this document and rejecting gives the file. The file is read as accepted; text struck here does not count.
+
+Only text and structure differ: format does not, so a block differing in that alone is the same, and neither do headers, footers or the notes' text. A table of another shape is replaced whole, as is a long stretch with nothing in common (`MAX_CELLS`). A block without a form for a change, such as an index, passes unrecorded, and a table or list inserted at the very end leaves an empty paragraph when rejected, since the last block has no mark of its own.
+
 ## Views
 
 Word counts (`shownStats`), index rows, the navigator and references (`blockText`) read as the view does: what it hides is not there. The cached rows of an index change on its next update.

@@ -47,7 +47,7 @@
   import { loadPageFormat, savePageFormat, pageDimsCm, type PageFormat } from './lib/storage/pageFormat';
   import { setStyleSheet, showAllStyles, styleSheet } from './lib/styles/sheet.svelte';
   import { noteSettings, setNoteSettings } from './lib/storage/notes.svelte';
-  import { OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges, setRecordLock } from './lib/storage/trackChanges.svelte';
+  import { OPEN_COMPARE_EVENT, OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges, setRecordLock } from './lib/storage/trackChanges.svelte';
   import { DEFAULT_NOTE_SETTINGS, type NoteSettings } from './lib/storage/noteSettings';
   import { builtinStyleSheet, visibleStyles, type StyleFamily, type StyleSheet } from './lib/styles/styleSheet';
   import { loadHfDoc, saveHfDoc, loadHfDistances, saveHfDistances, loadDifferentFirstPage, saveDifferentFirstPage, loadDifferentOddEven, saveDifferentOddEven, hfIsEmpty, spreadMargins, DEFAULT_HF_DISTANCES, HF_ZONE_KEYS, EMPTY_HF_SET, loadExtraHfSections, saveExtraHfSections, loadHfPictures, type HfDoc, type HfZone, type HfDistances, type HfSet } from './lib/storage/headerFooter';
@@ -753,6 +753,8 @@
   // Set after a reload: the document is protected, but the password went with the session.
   let passwordLost = $state(loadDocProtected());
   let docProtected = $derived(docPassword !== null || passwordLost);
+  // Set while the file input is picking a file to compare with, not one to open.
+  let compareTheirs: boolean | null = null;
   let recordLockOpen = $state(false);
   let recordLockWrong = $state(false);
   let passwordSetOpen = $state(false);
@@ -1044,6 +1046,65 @@
     }
   }
 
+  async function importBytes(bytes: Uint8Array, name: string) {
+    let isDocx = name.endsWith('.docx') || name.endsWith('.dotx');
+    // Pre-decode any images in a format the browser can't render (TIFF, …) to PNG.
+    // Lazy: the decoder loads only when such an image is present, else this is a no-op.
+    const converted = await convertUnsupportedImages(bytes);
+    // An extension can be wrong (a renamed or mis-saved file) and both word processors
+    // go by content, so the other format is tried before the file is called broken —
+    // a file that is neither reports the error for the extension it carries.
+    const [{ importOdt }, { importDocx }] = await Promise.all([import('./lib/import/odt'), import('./lib/import/docx')]);
+    try {
+      return { result: isDocx ? importDocx(bytes, converted) : importOdt(bytes, converted), isDocx };
+    } catch (err) {
+      try {
+        return { result: isDocx ? importOdt(bytes, converted) : importDocx(bytes, converted), isDocx: !isDocx };
+      } catch { throw err; }
+    }
+  }
+
+  // The differences to another file, recorded here. Compared, that file is the older one
+  // and the changes lead up to this document; merged in, they lead to that file.
+  async function compareWith(bytes: Uint8Array, name: string, theirs: boolean) {
+    if (!editor) return;
+    try {
+      if (isProtected(bytes)) {
+        const opened = await unprotect(bytes);
+        if (!opened) return;
+        bytes = opened.bytes;
+      }
+      busyTask = 'loading';
+      await painted();
+      const { result } = await importBytes(bytes, name.toLowerCase());
+      const { recordDifferences } = await import('./lib/editor/compare');
+      const other = settledDoc(editor.schema.nodeFromJSON(repairContent(result.content, editor.schema).content), true);
+      const { tr } = editor.state;
+      const differs = recordDifferences(tr, other, (theirs ? result.props : docProps).author.trim(), theirs);
+      busyTask = null;
+      if (differs) editor.view.dispatch(tr);
+      else alert(t().revisions.noDifferences);
+    } catch (err) {
+      busyTask = null;
+      console.error('[compare] Failed to read the file:', err);
+      alert(t().dialogs.couldNotOpen);
+    }
+  }
+
+  async function pickToCompare(theirs: boolean) {
+    if (!fsSupported) {
+      compareTheirs = theirs;
+      fileInput?.click();
+      return;
+    }
+    try {
+      const r = await openOdt();
+      if (r) await compareWith(r.bytes, r.name, theirs);
+    } catch (err) {
+      if ((err as DOMException)?.name !== 'AbortError') alert(t().dialogs.couldNotOpen);
+    }
+  }
+
   async function applyImport(bytes: Uint8Array, handle: FileSystemFileHandle | null, sourceName?: string) {
     if (!editor) return;
     try {
@@ -1057,26 +1118,10 @@
       busyTask = 'loading';
       await painted();
       const name = sourceName?.toLowerCase() ?? '';
-      let isDocx = name.endsWith('.docx') || name.endsWith('.dotx');
       // A template is loaded for its content but never bound as the handle, so the
       // first Save prompts for a new document instead of overwriting the template.
       const isTemplate = name.endsWith('.ott') || name.endsWith('.dotx');
-      // Pre-decode any images in a format the browser can't render (TIFF, …) to PNG.
-      // Lazy: the decoder loads only when such an image is present, else this is a no-op.
-      const converted = await convertUnsupportedImages(bytes);
-      // An extension can be wrong (a renamed or mis-saved file) and both word processors
-      // go by content, so the other format is tried before the file is called broken —
-      // a file that is neither reports the error for the extension it carries.
-      const [{ importOdt }, { importDocx }] = await Promise.all([import('./lib/import/odt'), import('./lib/import/docx')]);
-      let result;
-      try {
-        result = isDocx ? importDocx(bytes, converted) : importOdt(bytes, converted);
-      } catch (err) {
-        try {
-          result = isDocx ? importOdt(bytes, converted) : importDocx(bytes, converted);
-          isDocx = !isDocx;
-        } catch { throw err; }
-      }
+      const { result, isDocx } = await importBytes(bytes, name);
       const { content, error: bodyError } = repairContent(result.content, editor.schema);
       const zoneErrors: string[] = [];
       Object.assign(result, repairZones(result, zoneErrors));
@@ -1286,8 +1331,11 @@
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = ''; // allow re-selecting the same file
+    const theirs = compareTheirs;
+    compareTheirs = null;
     if (!file) return;
-    await applyImport(new Uint8Array(await file.arrayBuffer()), null, file.name);
+    if (theirs != null) await compareWith(new Uint8Array(await file.arrayBuffer()), file.name, theirs);
+    else await applyImport(new Uint8Array(await file.arrayBuffer()), null, file.name);
   }
 
   // Both exporters take the same document-wide arguments, and every save path needs
@@ -1612,7 +1660,10 @@
     }
     window.addEventListener('keydown', onKeydown);
     window.addEventListener(OPEN_RECORD_LOCK_EVENT, openRecordLock);
+    const onCompare = (e: Event) => void pickToCompare((e as CustomEvent<boolean>).detail);
+    window.addEventListener(OPEN_COMPARE_EVENT, onCompare);
     return () => {
+      window.removeEventListener(OPEN_COMPARE_EVENT, onCompare);
       window.removeEventListener('keydown', onKeydown);
       window.removeEventListener(OPEN_RECORD_LOCK_EVENT, openRecordLock);
     };

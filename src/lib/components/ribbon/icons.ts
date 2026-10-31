@@ -30,6 +30,8 @@ export const STROKED = {
   undo: ['M2.5 6.5h6.75a3.75 3.75 0 0 1 0 7.5H5.5', 'M5.25 3.5 2.5 6.5l2.75 3'],
   redo: ['M13.5 6.5H6.75a3.75 3.75 0 0 0 0 7.5H10.5', 'M10.75 3.5 13.5 6.5l-2.75 3'],
   info: ['M8 14.5A6.5 6.5 0 1 0 8 1.5a6.5 6.5 0 0 0 0 13z', 'M8 7.25v4'],
+  compare: ['M2.5 3h4.75v10H2.5z', 'M8.75 3h4.75v10H8.75z'],
+  mergeDocument: ['M3.5 2.5V6c0 2 4.5 2 4.5 4v3.5', 'M12.5 2.5V6c0 2-4.5 2-4.5 4'],
   lock: ['M3.75 7.25h8.5v6.25h-8.5z', 'M5.75 7.25V5a2.25 2.25 0 0 1 4.5 0v2.25'],
   // The assistant: a round speech bubble, open where a star sits in its corner — round,
   // so it never reads as the comment's square one.
