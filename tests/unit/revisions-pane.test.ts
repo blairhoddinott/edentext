@@ -10,7 +10,9 @@ import Text from '@tiptap/extension-text';
 import { TrackChanges, Insertion, Deletion, revisions } from '../../src/lib/editor/extensions/trackChanges';
 import { Comment } from '../../src/lib/editor/extensions/comment';
 import { authorColors } from '../../src/lib/editor/authorColors';
-import { filterRevisions, settleRevisions } from '../../src/lib/components/reviewItems';
+import { filterRevisions, settleRevisions, shownStats } from '../../src/lib/components/reviewItems';
+import { blockText } from '../../src/lib/editor/extensions/outline';
+import { setMarkupMode, type MarkupMode } from '../../src/lib/storage/markup.svelte';
 
 type N = any;
 
@@ -77,6 +79,17 @@ describe('revisions for the reviewing pane', () => {
     expect(steps).toBe(1);
     editor.destroy();
   });
+
+  it.each([['all', ['a one', 'two b gone'], 5], ['none', ['a one', 'two b'], 4], ['original', ['a', 'b gone'], 3]] as [MarkupMode, string[], number][])(
+    'reads as the view does: %s', (mode, blocks, words) => {
+      const editor = makeEditor(doc);
+      setMarkupMode(mode);
+      const stats = shownStats(editor.state.doc);
+      expect([blockText(editor.state.doc.child(0)), blockText(editor.state.doc.child(1))]).toEqual(blocks);
+      expect(stats).toMatchObject({ words, paragraphs: 2, charsNoSpaces: blocks.join('').replace(/\s/g, '').length });
+      setMarkupMode('all');
+      editor.destroy();
+    });
 
   it('rejects a change by id: an insertion goes, a deletion comes back', () => {
     const editor = makeEditor(doc);

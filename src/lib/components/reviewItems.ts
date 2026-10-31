@@ -2,7 +2,8 @@ import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import { comments, commentRanges, type CommentRange } from '../editor/extensions/comment';
-import { revisions, type Revision, type RevisionKind } from '../editor/extensions/trackChanges';
+import { revisions, settledRange, type Revision, type RevisionKind } from '../editor/extensions/trackChanges';
+import { countText, type TextStats } from '../utils/wordCount';
 import { flushPending } from '../editor/extensions/stateHistory';
 import { bodyEditor, commentZones, settleZones, zoneRevisions } from '../editor/zoneReview';
 import { markupView, showResolved } from '../storage/markup.svelte';
@@ -25,6 +26,14 @@ export function visibleCommentRanges(doc: PMNode): CommentRange[] {
 
 export function visibleRevisions(doc: PMNode): Revision[] {
   return markupView().changes ? revisions(doc) : [];
+}
+
+/** The statistics of a range as the view reads: what it hides does not count. */
+export function shownStats(doc: PMNode, from = 0, to = doc.content.size): TextStats {
+  const { hideDeletions, hideInsertions } = markupView();
+  if (!hideDeletions && !hideInsertions) return countText(doc, from, to);
+  const shown = settledRange(doc, hideDeletions, from, to);
+  return countText(shown.doc, shown.from, shown.to);
 }
 
 /** What the pane lists: the body's changes, then the headers' and footers'. */

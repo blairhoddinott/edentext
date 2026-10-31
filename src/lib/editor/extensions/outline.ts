@@ -6,6 +6,7 @@ import { outlineIsEmpty, outlineLabel, type OutlineNumbering } from '../../style
 import { formatOrdinal } from '../../utils/orderedListTypes';
 import { sequenceFieldText } from './caption';
 import { MOVING } from './trackChanges';
+import { markupView } from '../../storage/markup.svelte';
 
 // The document's chapters, as LibreOffice's Navigator and Word's Navigation pane show
 // them: every top-level heading, each owning the blocks up to the next heading of its
@@ -23,10 +24,13 @@ export type OutlineEntry = {
 
 // A block's text with its atoms spelled out: a hard break is a line of the entry (a
 // book's "Chapter 1" / title pair is two lines in LibreOffice's own index) and a
-// sequence field is its number, which is most of what a caption entry says.
+// sequence field is its number, which is most of what a caption entry says. Text the view
+// hides is not there for an index, the navigator or a reference, as in LibreOffice.
 export function blockText(node: PMNode): string {
+  const { hideDeletions, hideInsertions } = markupView();
+  const hidden = (child: PMNode) => child.marks.some((m) => m.type.name === (hideDeletions ? 'deletion' : hideInsertions ? 'insertion' : ''));
   let raw = '';
-  node.forEach((child) => { raw += child.type.name === 'hardBreak' ? '\n' : inlineText(child); });
+  node.forEach((child) => { if (!hidden(child)) raw += child.type.name === 'hardBreak' ? '\n' : inlineText(child); });
   return raw.trim();
 }
 
@@ -92,7 +96,7 @@ export function outline(doc: PMNode): OutlineEntry[] {
       pos: offset,
       end: doc.content.size,
       level: Math.max(1, Number(node.attrs.level) || 1),
-      text: node.textContent,
+      text: blockText(node),
     });
   });
   // A chapter ends where the next one at its level or above begins.

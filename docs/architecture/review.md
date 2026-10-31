@@ -65,6 +65,8 @@ Protecting the changes (`recordLock`, `storage/trackChanges.svelte.ts`) keeps re
 
 ## Views
 
+Word counts (`shownStats`), index rows, the navigator and references (`blockText`) read as the view does: what it hides is not there. The cached rows of an index change on its next update.
+
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.
 
 A merge whose two sides keep text stays two lines on the page: `display: inline` on both blocks loses alignment, indents and spacing, which belong to the block, and cannot join list items. Accepting and rejecting are right regardless, and the print path really merges: it prints `settledDoc`. The raster PDF copies the page and shows what the page shows.

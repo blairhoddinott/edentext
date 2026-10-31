@@ -34,7 +34,8 @@
   import { getColorDebug } from './lib/utils/colorDebug';
   import { CHUNK_FAILURE, reportLoadFailure } from './lib/utils/loadFailure';
   import { resetHistoryLog } from './lib/utils/historyLog.svelte';
-  import { countText, type TextStats } from './lib/utils/wordCount';
+  import type { TextStats } from './lib/utils/wordCount';
+  import { shownStats } from './lib/components/reviewItems';
   import type { Node as PmNode } from 'prosemirror-model';
   import { clampZoom, wheelZoomFactor, MIN_ZOOM, MAX_ZOOM } from './lib/utils/zoom';
   import { loadTheme, saveTheme, applyTheme, loadToolbarExpanded, saveToolbarExpanded, loadToolbarCategory, saveToolbarCategory, loadChromeMode, saveChromeMode, loadFormattingMarks, saveFormattingMarks, loadFieldShading, saveFieldShading, loadPageLabels, savePageLabels, loadRuler, saveRuler, loadSplitView, saveSplitView, loadPageColumns, savePageColumns, type ThemeMode, type ChromeMode } from './lib/storage/theme';
@@ -181,18 +182,21 @@
   let wordCountOpen = $state(false);
   let docStats = $state<TextStats>({ words: 0, charsWithSpaces: 0, charsNoSpaces: 0, paragraphs: 0 });
   let countedDoc: PmNode | null = null;
+  let countedView = '';
   let countTimer: ReturnType<typeof setTimeout> | undefined;
   // Throttled, not debounced: a document that keeps changing (a settle pass, the spell
   // checker's decorations) would push a debounced count out for as long as it goes on.
   $effect(() => {
     if (tick < 0 || !editor) return;
-    const { doc } = editor.state;
-    if (doc === countedDoc) return;
+    const { doc } = editor.state, { hideDeletions, hideInsertions } = markupView();
+    const view = `${hideDeletions}${hideInsertions}`;
+    if (doc === countedDoc && view === countedView) return;
     countedDoc = doc;
+    countedView = view;
     countTimer ??= setTimeout(() => {
       countTimer = undefined;
       const now = editor!.state.doc;
-      docStats = countText(now, 0, now.content.size);
+      docStats = shownStats(now);
     }, 300);
   });
 
@@ -254,7 +258,7 @@
   let selStats = $derived.by<TextStats | null>(() => {
     if (tick < 0 || !editor) return null;
     const { from, to, empty } = editor.state.selection;
-    return empty ? null : countText(editor.state.doc, from, to);
+    return empty ? null : shownStats(editor.state.doc, from, to);
   });
 
   let themeMode: ThemeMode = $state(loadTheme());

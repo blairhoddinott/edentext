@@ -7,7 +7,7 @@
   import LanguagePicker from '../../LanguagePicker.svelte';
   import GrammarToggle from '../../GrammarToggle.svelte';
   import { captionClicks, anchored, clickOutside, closeMenu, isMenuOpen, toggleMenu } from '../menu.svelte';
-  import { countText, type TextStats } from '../../../utils/wordCount';
+  import type { TextStats } from '../../../utils/wordCount';
   import type { DocumentLanguage } from '../../../storage/documentLanguage';
   import { OPEN_RECORD_LOCK_EVENT, recordChanges, recordLock, setRecordChanges } from '../../../storage/trackChanges.svelte';
   import { printMarkup, setPrintMarkup } from '../../../storage/printMarkup.svelte';
@@ -18,7 +18,7 @@
     type MarkupMode, type MarkupPlace,
   } from '../../../storage/markup.svelte';
   import { comments } from '../../../editor/extensions/comment';
-  import { goToMarkup, hasRevisions, settleAll } from '../../reviewItems';
+  import { goToMarkup, hasRevisions, settleAll, shownStats } from '../../reviewItems';
   import { OPEN_THESAURUS_EVENT } from '../../../spell/thesaurus';
   import { shortcutHint } from '../../../editor/shortcuts';
   import { t } from '../../../i18n/i18n.svelte';
@@ -58,13 +58,13 @@
   let stats = $derived.by<TextStats>(() => {
     if (tick < 0 || !editor) return { words: 0, charsWithSpaces: 0, charsNoSpaces: 0, paragraphs: 0 };
     const { doc } = editor.state;
-    return countText(doc, 0, doc.content.size);
+    return shownStats(doc);
   });
 
   let selStats = $derived.by<TextStats | null>(() => {
     if (tick < 0 || !editor) return null;
     const { from, to, empty } = editor.state.selection;
-    return empty ? null : countText(editor.state.doc, from, to);
+    return empty ? null : shownStats(editor.state.doc, from, to);
   });
 
   const ROWS = (s: TextStats) => [

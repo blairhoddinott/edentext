@@ -511,6 +511,14 @@ export function settledDoc(doc: PMNode, accept: boolean, id?: string | string[])
   return tr.doc;
 }
 
+/** The document as a view hiding one kind of change shows it, with a range carried over. */
+export function settledRange(doc: PMNode, accept: boolean, from: number, to: number): { doc: PMNode; from: number; to: number } {
+  const state = EditorState.create({ doc }), tr = state.tr;
+  apply(state, tr, revisions(doc), accept);
+  const start = tr.mapping.map(from);
+  return { doc: tr.doc, from: start, to: Math.max(start, tr.mapping.map(to, -1)) };
+}
+
 // A row or column gone for good; with its last one the table goes.
 function removeTableLine(tr: Transaction, pos: number, line: 'row' | 'column'): void {
   const $pos = tr.doc.resolve(pos), depth = line === 'row' ? $pos.depth : $pos.depth - 1;
