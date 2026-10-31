@@ -17,7 +17,7 @@ Deleted `Heading first` + `body second` across the mark gives one heading; with 
 
 ## Tables
 
-A row carries a `revMark` as a paragraph does; so does each cell of a column, recorded only when every row got a new cell, which tells a column from a split cell. A row or column change gathers all its cells and text into one revision (`gatherTableChanges`), and removing one takes the line with `removeRow`/`removeColumn`, with the last line the table. A deleted row a merged cell runs through rebuilds that cell and passes unrecorded; a column through one only narrows it and is recorded. In ODF the line's style says `loext:text-changes-only="false"`, the change sits on the text in it, and only a line without text gets the tracked U+200D LibreOffice writes.
+A row carries a `revMark` as a paragraph does; so does each cell of a column, recorded only when every row got a new cell, which tells a column from a split cell. A row or column change gathers its cells and the text in them into one revision (`gatherChanges`), within one table: the same author and moment elsewhere is another change, as a file's coarse dates and one compare's hunks have it. Removing one takes the line with `removeRow`/`removeColumn`, with the last line the table. A deleted row a merged cell runs through rebuilds that cell and passes unrecorded; a column through one only narrows it and is recorded. In ODF the line's style says `loext:text-changes-only="false"`, the change sits on the text in it, and only a line without text gets the tracked U+200D LibreOffice writes.
 
 Blocks taking an empty block's place go in front of it, which is where the plain edit leaves them; the empty block's mark is struck, so rejecting brings it back.
 

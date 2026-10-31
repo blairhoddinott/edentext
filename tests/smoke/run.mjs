@@ -106,13 +106,20 @@ try {
       m(long, { type: 'comment', attrs: { id: 'c2', author: 'Ein-Autor-Ohne-Leerzeichen-Im-Namen', date: '2026-03-04T05:06:07.000Z', text: long, resolved: false } }),
       m('lang kommentiert', { type: 'comment', attrs: { id: 'c3', author: 'Test Autor', date: '2026-03-04T05:06:07.000Z', text: essay, resolved: false } }),
       m('inserted', { type: 'insertion', attrs: { id: 'r1', author: 'Rev Autor', date: '2026-05-06T07:08:09.000Z' } }),
+      // Neither an empty block nor a row has a line at its start: their cards still show.
+      { type: 'paragraph', attrs: { revMark: { insertion: { id: 'r2', author: 'Rev Autor', date: '2026-05-06T07:08:09.000Z' } } } },
+      p('Zwischen.'),
+      { type: 'table', content: [{ type: 'tableRow', attrs: { revMark: { insertion: { id: 'r3', author: 'Rev Autor', date: '2026-05-06T07:08:09.000Z' } } },
+        content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
       ...Array.from({ length: 6 }, (_, i) => p(`Absatz ${i + 1}.`)),
     ] }));
   });
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('.tiptap', { timeout: 15_000 });
-  await page.waitForFunction(() => document.querySelectorAll('.balloon').length >= 4,
+  await page.waitForFunction(() => document.querySelectorAll('.balloon').length >= 6,
     null, { timeout: 15_000 }).catch(() => {});
+  check(await page.evaluate(() => document.querySelectorAll('.balloon').length) === 6,
+    'every change has its balloon, an empty paragraph and a table row too');
   // The edit box opens inside the card: floating, it would be clipped by the balloon.
   const menuSpill = async () => page.evaluate(() => {
     const out = [];
@@ -149,7 +156,7 @@ try {
   await page.click('.balloon .edit');
   await settle();
   const opened = await menuSpill();
-  check(spill.count === 4 && spill.out.length === 0 && opened.out.length === 0,
+  check(spill.count === 6 && spill.out.length === 0 && opened.out.length === 0,
     `margin balloons hold their content (${spill.count} balloons${[...spill.out, ...opened.out].length ? ': ' + [...spill.out, ...opened.out].join(', ') : ''})`);
 
   // The display modes, through the ribbon: no markup takes bars and balloons off the

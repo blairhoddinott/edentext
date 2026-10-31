@@ -291,6 +291,18 @@ describe('recording keeps its promise', () => {
     expect(shape(e)).toEqual(shape(plain));
   });
 
+  it('a row gathers its own text, not what the same author did elsewhere at that moment', () => {
+    const rev = (id: string) => ({ id, author: 'A', date: '2026-05-06T07:08:00Z' });
+    const ins = (id: string, text: string) => ({ type: 'text', text, marks: [{ type: 'insertion', attrs: rev(id) }] });
+    const para = (...content: object[]) => ({ type: 'paragraph', content });
+    const table = (id: string, text: string) => ({ type: 'table', content: [{ type: 'tableRow', attrs: { revMark: { insertion: rev(id) } },
+      content: [{ type: 'tableCell', content: [para(ins(`${id}t`, text))] }] }] });
+    const e = open({ type: 'doc', content: [para(ins('a', 'far')), para({ type: 'text', text: 'between' }), table('b', 'x'), para({ type: 'text', text: 'between' }), table('c', 'y'), para(ins('d', 'far'))] });
+    expect(revisions(e.state.doc).map((r) => r.text)).toEqual(['far', 'x', 'y', 'far']);
+    e.commands.acceptRevision(revisions(e.state.doc)[1].id);
+    expect(revisions(e.state.doc)).toHaveLength(3);
+  });
+
   it.each(REPLACE_CASES)('%s', async (_name, html, steps) => {
     const plain = open(html);
     await edit(plain, steps);

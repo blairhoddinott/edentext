@@ -10,6 +10,7 @@
 
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
+  import type { EditorView } from '@tiptap/pm/view';
   import { untrack } from 'svelte';
   import { cmToPx } from '../storage/pageMargins';
   import { commentDraft, commentIdAt, type CommentDraft, type CommentRange } from '../editor/extensions/comment';
@@ -183,6 +184,17 @@
     glideFrame = requestAnimationFrame(step);
   });
 
+  // Where a card's line is. An empty block or a table has no line at its position, but a
+  // box of its own, unless the view hides it.
+  function anchorBox(view: EditorView, pos: number): { top: number; bottom: number } | null {
+    const line = view.coordsAtPos(pos);
+    if (line.bottom - line.top >= 1) return line;
+    const { node, offset } = view.domAtPos(pos), child = node.childNodes[offset];
+    const el = child instanceof HTMLElement && !child.matches('br, img.ProseMirror-separator') ? child : node instanceof HTMLElement ? node : node.parentElement;
+    const box = el?.getBoundingClientRect();
+    return box && box.height >= 1 ? box : null;
+  }
+
   function measure(): void {
     const view = editor?.view;
     if (!view || !host?.isConnected) { balloons = []; return; }
@@ -209,11 +221,11 @@
       let anchorX: number;
       let anchorY: number;
       try {
-        const a = view.coordsAtPos(from);
+        const a = anchorBox(view, from);
         const b = view.coordsAtPos(to, -1);
-        // An anchor inside text the display mode hides has no box of its own; its card
-        // would otherwise stack at the top of the page, pointing nowhere.
-        if (a.bottom - a.top < 1) return;
+        // An anchor inside text the display mode hides has no box; its card would otherwise
+        // stack at the top of the page, pointing nowhere.
+        if (!a) return;
         want = (a.top - rect.top) / scale;
         anchorX = (b.left - rect.left) / scale;
         // The bottom of the line box, not its middle: both word processors run the leader

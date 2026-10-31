@@ -66,8 +66,10 @@ export type ListLevel = { type: string; attrs: Record<string, unknown> };
 export type BlockFormat = { type: string; attrs: Record<string, unknown>; list?: ListLevel[] };
 export type RevFormat = RevisionAttrs & { old: BlockFormat | null };
 
+// One compare records hundreds within a millisecond, so the count keeps them apart.
+let revisionCount = 0;
 export function newRevisionId(): string {
-  return `r${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+  return `r${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}${(++revisionCount).toString(36)}`;
 }
 
 // Whether the editor is recording. A document-level switch, like LibreOffice's Edit ▸
@@ -234,7 +236,7 @@ export function revisions(doc: PMNode): Revision[] {
     return false;
   };
   doc.descendants(visit);
-  const list = gatherChanges(out), halves = new Map<string, Set<RevisionKind>>();
+  const list = gatherChanges(out, doc), halves = new Map<string, Set<RevisionKind>>();
   for (const { moveId, kind } of list) if (moveId) halves.set(moveId, (halves.get(moveId) ?? new Set()).add(kind));
   for (const r of list) if (r.moveId && halves.get(r.moveId)!.size === 2) r.moved = true;
   return list;
@@ -253,12 +255,29 @@ function changedMarks(node: PMNode, change: PMMark): string[] {
   return [...new Set([...now.filter((m) => !has(old, m)), ...old.filter((m) => !has(now, m))].map((m) => m.type))];
 }
 
-// A row or column change is one change over its cells and all the text in them, which no
-// adjacency in the document joins; so is one format change over runs it left out.
-function gatherChanges(list: Revision[]): Revision[] {
-  const hosts: Revision[] = [];
-  const hostOf = (r: Revision) => hosts.find((h) => h.kind === r.kind && (r.kind === 'formatChange' ? h.id === r.id : sameChange(h, r)));
-  for (const r of list) if ((r.table || r.kind === 'formatChange') && !hostOf(r)) hosts.push(r);
+// A row or column change is one change over its lines in one table and all the text in them,
+// which no adjacency in the document joins: elsewhere the same author and moment is another
+// change, as a file's coarse dates and one compare's hunks have it. So is what one edit
+// recorded under one id, and one format change over runs it left out.
+function gatherChanges(list: Revision[], doc: PMNode): Revision[] {
+  const hosts: Revision[] = [], lines = new Map<Revision, { table: number; from: number; to: number }[]>();
+  const tableOf = (pos: number) => {
+    const $pos = doc.resolve(pos);
+    let depth = $pos.depth;
+    while (depth > 0 && $pos.node(depth).type.spec.tableRole !== 'table') depth--;
+    return depth ? $pos.before(depth) : -1;
+  };
+  const hostOf = (r: Revision) => hosts.find((h) => {
+    if (h.kind !== r.kind) return false;
+    if (r.kind === 'formatChange') return h.id === r.id;
+    return sameChange(h, r) && (h.id === r.id || lines.get(h)!.some((l) => (r.from >= l.from && r.to <= l.to) || (!!r.table && l.table === tableOf(r.from))));
+  });
+  for (const r of list) {
+    if (!r.table && r.kind !== 'formatChange') continue;
+    const host = hostOf(r) ?? r;
+    if (host === r) { hosts.push(r); lines.set(r, []); }
+    if (r.table) lines.get(host)!.push({ table: tableOf(r.from), from: r.from, to: r.to });
+  }
   return list.filter((r) => {
     const host = hostOf(r);
     if (!host || host === r) return true;
