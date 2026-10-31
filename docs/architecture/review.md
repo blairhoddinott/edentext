@@ -99,7 +99,7 @@ Our export writes LibreOffice's form with each side's real format in its registr
 
 ## Not recorded yet
 
-The list cut of a table inserted in a list passes unrecorded; the monkey's recording pass skips it. A link autolink sets on what typing made of the text before it stays when the typing is rejected.
+The list cut of a table inserted in a list passes unrecorded; the monkey's recording pass skips it. While recording, autolink only links what is all new text, as a link has no change of its own to go with the typing.
 
 Regrouping what is there passes unrecorded (`REBUILDING`, and any transaction outside the history): columns, a split or merged cell, a sort, an index inserted, the columns flow's own cuts. So do what neither format records as a change or this one has no form for: links, bookmarks, comments, a table's own format and header row. A selection an index replaces goes recorded.
 

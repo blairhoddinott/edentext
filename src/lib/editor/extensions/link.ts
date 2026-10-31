@@ -1,11 +1,33 @@
 import LinkBase from '@tiptap/extension-link';
-import { ReplaceStep } from '@tiptap/pm/transform';
+import type { EditorState, Transaction } from '@tiptap/pm/state';
+import { AddMarkStep, ReplaceStep } from '@tiptap/pm/transform';
+import { changedRanges } from './spellCheck';
+import { recordChanges } from '../../storage/trackChanges.svelte';
 import { DEFAULT_SHORTCUTS } from '../shortcuts';
 import { autoCorrect } from '../../storage/autoCorrect.svelte';
 
 // Event the toolbar listens for to open the link dialog (Ctrl/Cmd+K). The extension
 // can't reach Svelte state directly, so it dispatches this on window instead.
 export const OPEN_LINK_DIALOG_EVENT = 'odf-open-link-dialog';
+
+// A link stands outside the review, so rejecting would leave it on what typing made of
+// the text before it: while recording, only what is all new text links by itself.
+function tracedLinks(tr: Transaction, trs: readonly Transaction[], state: EditorState): Transaction {
+  const fresh = trs.flatMap(changedRanges);
+  const isNew = (from: number, to: number) => {
+    let all = true;
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (!node.isInline) return true;
+      const start = Math.max(pos, from), end = Math.min(pos + node.nodeSize, to);
+      all &&= node.marks.some((m) => m.type.name === 'insertion') || fresh.some((r) => r.from <= start && end <= r.to);
+      return false;
+    });
+    return all;
+  };
+  const out = state.tr;
+  for (const step of tr.steps) if (!(step instanceof AddMarkStep && !isNew(step.from, step.to))) out.step(step);
+  return out;
+}
 
 // Hyperlink mark. Round-trips to ODF <text:a xlink:href> (odf-kit's native run path
 // and export/odt.ts applyRuns; import/odt.ts convertInline). openOnClick is off so a
@@ -39,8 +61,11 @@ export const Link = LinkBase.configure({
     for (const p of plugins) {
       const append = p.spec.appendTransaction;
       if (!append || !(p as unknown as { key: string }).key.startsWith('autolink')) continue;
-      p.spec.appendTransaction = (trs, oldState, newState) =>
-        trs.some((tr) => tr.steps.some((s) => s instanceof ReplaceStep)) ? append(trs, oldState, newState) : undefined;
+      p.spec.appendTransaction = (trs, oldState, newState) => {
+        if (!trs.some((tr) => tr.steps.some((s) => s instanceof ReplaceStep))) return undefined;
+        const tr = append(trs, oldState, newState);
+        return tr && recordChanges() ? tracedLinks(tr, trs, newState) : tr;
+      };
     }
     return plugins;
   },
