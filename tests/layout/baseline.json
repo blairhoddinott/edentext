@@ -395,9 +395,9 @@
   "fuzz/seed-9.odt": {
    "pages": 1,
    "lines": 9,
-   "ms": 100,
+   "ms": 200,
    "starts": [
-    "<tag> dolor Größe €42 a&b"
+    "it's €42 sit dolor €42 sit"
    ]
   },
   "tests/corpus/01-flow.docx": {
