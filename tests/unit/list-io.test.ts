@@ -100,6 +100,29 @@ describe('list level indents', () => {
   });
 });
 
+describe('a font or bullet name a file can hold', () => {
+  const run = (family: string) => ({ type: 'text', text: 'x', marks: [{ type: 'textStyle', attrs: { fontFamily: family } }] });
+  const list = (attrs: N, content: N[]) => ({ type: 'doc', content: [{ type: 'bulletList', attrs, content: [{ type: 'listItem', content: [{ type: 'paragraph', content }] }] }] });
+  const families = (d: N) => [...JSON.stringify(d).matchAll(/"fontFamily(?:Asian)?":"((?:[^"\\\\]|\\\\.)*)"/g)].map((m) => JSON.parse(`"${m[1]}"`));
+
+  it.each(['Liberation Sans', 'Arial', 'AT&T Sans', "Bob's <Font>"])('%s reads back as written wherever it sits', async (family) => {
+    const docs = [
+      list(null, [run(family)]),
+      { type: 'doc', content: [{ type: 'paragraph', attrs: { fontFamily: family }, content: [{ type: 'text', text: 'x' }] }] },
+      { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x', marks: [{ type: 'textStyle', attrs: { fontFamilyAsian: family } }] }] }] },
+    ];
+    for (const doc of docs) for (const back of await roundTrips(doc)) expect(new Set(families(back))).toEqual(new Set([family]));
+  });
+
+  it('the default font on a list adds no label format of its own', async () => {
+    for (const back of await roundTrips(list(null, [run('Liberation Serif')]))) expect(listOf(back).attrs?.markerFormat ?? null).toBeNull();
+  });
+
+  it.each(['&', '<', '"'])('a bullet %s leaves the file readable', async (bulletChar) => {
+    for (const back of await roundTrips(list({ bulletChar }, [{ type: 'text', text: 'x' }]))) expect(listOf(back).attrs?.bulletChar).toBe(bulletChar);
+  });
+});
+
 // A level's own label formatting (w:lvl/w:rPr) colours and sizes the bullet whatever the
 // item's text says; a symbol font is left out.
 it("keeps a numbering level's own label formatting through import and both round trips", async () => {

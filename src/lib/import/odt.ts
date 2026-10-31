@@ -7,7 +7,7 @@ import { ASIAN_SCRIPT_RE } from '../utils/script';
 import { ODF_LOOK_ATTRS, normalizeColor, labelledItems } from '../export/odt';
 import { HEADING_STYLE_OVERRIDES, MAX_HEADING_LEVEL } from '../styles/headings';
 import { isAllowedUri } from '@tiptap/extension-link';
-import { builtinStyleSheet, DEFAULT_STYLE, type ParaProps, type Style, type StyleSheet, type TextProps } from '../styles/styleSheet';
+import { builtinStyleSheet, DEFAULT_STYLE, screenFontName, type ParaProps, type Style, type StyleSheet, type TextProps } from '../styles/styleSheet';
 import { DEFAULT_OUTLINE_LEVEL, MAX_OUTLINE_LEVELS, type OutlineLevel, type OutlineNumbering } from '../styles/outlineNumbering';
 import { LIST_LEVEL_STEP_CM, MAX_LIST_LEVELS, type ListLevelStyle, type ListStyle } from '../styles/listStyles';
 import { HEADER_SHADE } from '../editor/extensions/tableHeaderRow';
@@ -1851,14 +1851,6 @@ function blockDefaults(resolver: StyleResolver, named: string | null, headingLev
     langAsian: langs.asian ?? doc.asian,
     box: paraBoxAttrs(para),
   };
-}
-
-// The inverse of export/odt.ts twinFontName: a declared metric twin reads back as the
-// bundled family the editor renders.
-function screenFontName(family: string): string {
-  if (family === 'Times New Roman') return 'Liberation Serif';
-  if (family === 'Arial') return 'Liberation Sans';
-  return family;
 }
 
 // A style:display-name (when present) is authoritative; else the name's _hex_ escapes

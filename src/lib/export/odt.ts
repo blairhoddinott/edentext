@@ -271,6 +271,10 @@ export function twinFontName(family: string): string {
   return family;
 }
 
+// Direct formatting names the family as chosen, only the default as its twin: it has to
+// read back as what a named style's own mapping would turn into something else.
+const directFontName = (family: string) => (family === ODFKIT_DEFAULT_FONT ? EXPORT_FONT : family);
+
 // LibreOffice's style-name encoding: a style:name is an NCName, so every other character
 // travels as its hex code ("Heading 1" → "Heading_20_1", "&" → "_26_").
 export function odfStyleName(name: string): string {
@@ -2306,11 +2310,12 @@ function markFontPayload(attrs: TiptapNode['attrs']): string {
 // The paragraph style's own text properties for that payload (+ asian/complex aliases).
 function fontSizeProps(payload: string): string {
   const [size, family, asian] = payload.split('|');
-  const font = family ? twinFontName(family) : '';
+  // odf-kit escaped the payload as text, which leaves only the quote for an attribute.
+  const attr = (name: string) => directFontName(name).replace(/"/g, '&quot;');
   return [
     size ? `fo:font-size="${size}" style:font-size-asian="${size}" style:font-size-complex="${size}"` : '',
-    font ? `style:font-name="${escapeXml(font)}" style:font-name-complex="${escapeXml(font)}"` : '',
-    asian ? `style:font-name-asian="${escapeXml(twinFontName(asian))}"` : '',
+    family ? `style:font-name="${attr(family)}" style:font-name-complex="${attr(family)}"` : '',
+    asian ? `style:font-name-asian="${attr(asian)}"` : '',
   ].filter(Boolean).join(' ');
 }
 
@@ -2454,8 +2459,8 @@ function setTagAttrs(tag: string, attrs: Record<string, string>): string {
   for (const [name, value] of Object.entries(attrs)) {
     const re = new RegExp(`\\s${name}="[^"]*"`);
     out = re.test(out)
-      ? out.replace(re, ` ${name}="${value}"`)
-      : out.replace(/(\/?>)$/, ` ${name}="${value}"$1`);
+      ? out.replace(re, () => ` ${name}="${value}"`)
+      : out.replace(/(\/?>)$/, (end) => ` ${name}="${value}"${end}`);
   }
   return out;
 }
@@ -2504,12 +2509,12 @@ function ownStyleAttrs(style: { para: Record<string, unknown>; text: Record<stri
   const text: Record<string, string> = {};
   if (t.fontFamily) {
     // The registry holds the on-screen family; the file declares its metric twin.
-    const font = twinFontName(String(t.fontFamily));
+    const font = escapeXml(twinFontName(String(t.fontFamily)));
     text['style:font-name'] = font;
     text['style:font-name-complex'] = font;
   }
   // The asian slot only where the style names one; otherwise it inherits it.
-  if (t.fontFamilyAsian) text['style:font-name-asian'] = twinFontName(String(t.fontFamilyAsian));
+  if (t.fontFamilyAsian) text['style:font-name-asian'] = escapeXml(twinFontName(String(t.fontFamilyAsian)));
   if (t.fontSizePt != null) {
     const size = `${t.fontSizePt}pt`;
     text['fo:font-size'] = size;
@@ -2618,16 +2623,16 @@ function outlineStyleXml(outline: OutlineNumbering | null | undefined): string {
     const attrs: Record<string, string> = {
       'text:level': String(i + 1),
       'style:num-format': level.format,
-      'style:num-suffix': level.suffix,
+      'style:num-suffix': escapeXml(level.suffix),
     };
     if (level.format === 'aa' || level.format === 'AA') {
       attrs['style:num-format'] = level.format[0];
       attrs['style:num-letter-sync'] = 'true';
     }
-    if (level.prefix) attrs['style:num-prefix'] = level.prefix;
+    if (level.prefix) attrs['style:num-prefix'] = escapeXml(level.prefix);
     if (level.displayLevels > 1) attrs['text:display-levels'] = String(level.displayLevels);
     if (level.start !== 1) attrs['text:start-value'] = String(level.start);
-    if (level.charStyle) attrs['text:style-name'] = odfStyleName(level.charStyle);
+    if (level.charStyle) attrs['text:style-name'] = escapeXml(odfStyleName(level.charStyle));
     const tag = setTagAttrs('<text:outline-level-style/>', attrs);
     const pos = outlineLevelPositionXml(level);
     levels.push(pos ? `${tag.replace('/>', '>')}${pos}</text:outline-level-style>` : tag);
@@ -3072,7 +3077,7 @@ function applyBulletListChars(odtBytes: Uint8Array, chars: (string[] | null)[]):
       open +
       body.replace(
         /(<text:list-level-style-bullet text:level=")(\d)(" text:bullet-char=")[^"]*(")/g,
-        (_mm, a: string, lvl: string, b: string, c: string) => a + lvl + b + (vec[+lvl - 1] ?? defaultBulletChar(+lvl - 1)) + c,
+        (_mm, a: string, lvl: string, b: string, c: string) => a + lvl + b + escapeXml(vec[+lvl - 1] ?? defaultBulletChar(+lvl - 1)) + c,
       ) +
       close,
     );
@@ -3187,7 +3192,7 @@ function applyListMarkerFormats(odtBytes: Uint8Array, formats: (MarkerFormat | n
   const nameByProps = new Map<string, string>();
   const styleFor = (format: MarkerFormat): string => {
     const color = format.color ? normalizeColor(format.color) : undefined;
-    const props = (format.fontFamily ? ` fo:font-family="${twinFontName(format.fontFamily)}"` : '')
+    const props = (format.fontFamily ? ` fo:font-family="${escapeXml(directFontName(format.fontFamily))}"` : '')
       + (format.fontWeight ? ` fo:font-weight="${format.fontWeight}"` : '')
       + (format.fontStyle ? ` fo:font-style="${format.fontStyle}"` : '')
       + (format.fontSize ? ` fo:font-size="${format.fontSize}"` : '')
@@ -3427,7 +3432,7 @@ function buildCellListStyle(
       const disp = opts.multilevel && level > 1 ? ` text:display-levels="${level}"` : '';
       levels += `<text:list-level-style-number text:level="${level}" ${odfNumFormatAttrs(f.numFormat)} style:num-suffix="${f.numSuffix}"${disp}>${labelAlign}</text:list-level-style-number>`;
     } else {
-      const ch = bulletChars[(level - 1) % bulletChars.length];
+      const ch = escapeXml(bulletChars[(level - 1) % bulletChars.length]);
       levels += `<text:list-level-style-bullet text:level="${level}" text:bullet-char="${ch}">${labelAlign}</text:list-level-style-bullet>`;
     }
   }
@@ -4007,7 +4012,7 @@ function formattingFromMarks(marks: TiptapNode['marks'] = []): TextFormatting {
     const ff = String(tsm.attrs.fontFamily);
     // Explicitly choosing the editor default should match the untagged
     // default, which resolves to EXPORT_FONT via the Standard style.
-    fmt.fontFamily = ff === ODFKIT_DEFAULT_FONT ? EXPORT_FONT : ff;
+    fmt.fontFamily = directFontName(ff);
   }
   if (tsm?.attrs?.fontSize)   fmt.fontSize   = String(tsm.attrs.fontSize);
   if (tsm?.attrs?.color) {
@@ -4106,7 +4111,8 @@ export function odfExtraTextProps(marks: TiptapNode['marks'] = [], baseSizePt = 
   const a: string[] = [];
   a.push(...Object.entries(langPairAttrs(marks.find(m => m.type === 'textStyle')?.attrs)).map(([k, v]) => `${k}="${v}"`));
   const asian = marks.find(m => m.type === 'textStyle')?.attrs?.fontFamilyAsian;
-  if (asian) a.push(`style:font-name-asian="${escapeXml(twinFontName(String(asian)))}"`);
+  // Rides a sentinel odf-kit escapes as text, so only the quote is left to keep out.
+  if (asian) a.push(`style:font-name-asian="${directFontName(String(asian)).replace(/"/g, "'")}"`);
   const caps = marks.find(m => m.type === 'textStyle')?.attrs?.caps;
   if (caps === 'smallCaps') a.push('fo:font-variant="small-caps"');
   else if (caps === 'uppercase' || caps === 'lowercase' || caps === 'capitalize') a.push(`fo:text-transform="${caps}"`);
@@ -4216,7 +4222,7 @@ function textFormatting(t: TextProps): Record<string, unknown> {
   if (t.italic != null) fmt.italic = t.italic;
   if (t.underline) fmt.underline = true;
   if (t.strike) fmt.strikethrough = true;
-  if (t.fontFamily) fmt.fontFamily = t.fontFamily === ODFKIT_DEFAULT_FONT ? EXPORT_FONT : t.fontFamily;
+  if (t.fontFamily) fmt.fontFamily = directFontName(t.fontFamily);
   if (t.fontSizePt != null) fmt.fontSize = `${t.fontSizePt}pt`;
   if (t.color) fmt.color = t.color;
   return fmt;

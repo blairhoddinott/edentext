@@ -247,6 +247,14 @@ export function resolveStyle(sheet: StyleSheet, name: string | null | undefined,
   return out;
 }
 
+// The inverse of export/odt.ts twinFontName: a declared metric twin reads as the bundled
+// family the editor renders.
+export function screenFontName(family: string): string {
+  if (family === 'Times New Roman') return 'Liberation Serif';
+  if (family === 'Arial') return 'Liberation Sans';
+  return family;
+}
+
 // The bundled fonts are exposed as CSS variables; anything else renders by name.
 export function cssFontFamily(name: string): string {
   if (name === 'Liberation Serif') return 'var(--font-serif)';

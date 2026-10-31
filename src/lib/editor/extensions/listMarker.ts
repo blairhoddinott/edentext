@@ -2,7 +2,8 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { cssFontFamily, resolveStyle, type StyleSheet, type TextProps } from '../../styles/styleSheet';
+import { cssFontFamily, resolveStyle, screenFontName, type StyleSheet, type TextProps } from '../../styles/styleSheet';
+import { blockStyleName } from './paragraphStyle';
 
 // A list marker's direct formatting. CSS values, since that is what two of the three
 // consumers want; the DOCX exporter converts. The family is the plain name, not a CSS
@@ -73,16 +74,20 @@ export function markerFormatFromText(t: TextProps): Partial<MarkerFormat> | null
 
 // Drops from every list's `markerFormat` what its items' first portions give anyway, so
 // a file's own markers stay put and a round trip adds nothing.
-export function pruneMarkerFormats(nodes: JsonNode[] | undefined, charProps?: CharStyleProps): void {
+export function pruneMarkerFormats(nodes: JsonNode[] | undefined, charProps?: CharStyleProps, sheet?: StyleSheet): void {
   for (const n of nodes ?? []) {
     const own = n.attrs?.markerFormat as Partial<MarkerFormat> | null | undefined;
     if (own && typeof own === 'object') {
       const portion = listMarkerFormat({ ...n, attrs: { ...n.attrs, markerFormat: null } }, charProps);
-      const kept = Object.fromEntries(KEYS.filter((key) => own[key] && own[key] !== portion?.[key]).map((key) => [key, own[key]]));
+      // With no family of its own the text is in its block's, which a marker's need not repeat.
+      const block = n.content?.[0]?.content?.[0];
+      const text = portion?.fontFamily ?? (sheet && block ? resolveStyle(sheet, blockStyleName({ type: { name: String(block.type) }, attrs: block.attrs ?? undefined })).text.fontFamily : null);
+      const same = (key: typeof KEYS[number]) => key === 'fontFamily' ? screenFontName(own[key]!) === (text && screenFontName(text)) : own[key] === portion?.[key];
+      const kept = Object.fromEntries(KEYS.filter((key) => own[key] && !same(key)).map((key) => [key, own[key]]));
       n.attrs!.markerFormat = Object.keys(kept).length ? kept : null;
       if (!n.attrs!.markerFormat) delete n.attrs!.markerFormat;
     }
-    pruneMarkerFormats(n.content, charProps);
+    pruneMarkerFormats(n.content, charProps, sheet);
   }
 }
 
@@ -92,7 +97,7 @@ export function pruneImportedMarkers(result: { content: unknown; styles: StyleSh
   const charProps = charStyleProps(result.styles);
   const zones = [result, ...(result.hfSections ?? [])].flatMap((set) =>
     Object.values(set as Record<string, unknown>).filter((v): v is JsonNode => !!v && typeof v === 'object' && (v as JsonNode).type === 'doc'));
-  for (const doc of zones) pruneMarkerFormats(doc.content, charProps);
+  for (const doc of zones) pruneMarkerFormats(doc.content, charProps, result.styles);
 }
 
 // The format the whole list agrees on (TipTap JSON), else null — a file carries

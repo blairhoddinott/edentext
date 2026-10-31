@@ -9,7 +9,7 @@ import { HEADING_STYLE_OVERRIDES, MAX_HEADING_LEVEL } from '../styles/headings';
 import { PLACEHOLDER_SDT_TAG } from '../export/docx';
 import { isAllowedUri } from '@tiptap/extension-link';
 import { FOLD_MARK_NAME } from '../storage/foldMarks';
-import { builtinStyleSheet, DEFAULT_STYLE, type ParaProps, type Style, type StyleSheet, type TextProps } from '../styles/styleSheet';
+import { builtinStyleSheet, DEFAULT_STYLE, screenFontName, type ParaProps, type Style, type StyleSheet, type TextProps } from '../styles/styleSheet';
 import { DEFAULT_OUTLINE_LEVEL, MAX_OUTLINE_LEVELS, type OutlineNumbering } from '../styles/outlineNumbering';
 import { markerFormatFromText, pruneImportedMarkers } from '../editor/extensions/listMarker';
 import { MAX_LIST_LEVELS, type ListLevelStyle, type ListStyle } from '../styles/listStyles';
@@ -1386,9 +1386,8 @@ function styleText(ctx: Ctx, id: string | null, own = false): TextProps {
 function runTextProps(run: RunProps): TextProps {
   const out: TextProps = {};
   // Our own export declares the metric twin; keep the registry on the on-screen name.
-  const screen = (f: string) => (f === 'Times New Roman' ? 'Liberation Serif' : f === 'Arial' ? 'Liberation Sans' : f);
-  if (run.font) out.fontFamily = screen(run.font);
-  if (run.fontEastAsia) out.fontFamilyAsian = screen(run.fontEastAsia);
+  if (run.font) out.fontFamily = screenFontName(run.font);
+  if (run.fontEastAsia) out.fontFamilyAsian = screenFontName(run.fontEastAsia);
   if (run.sizeHalfPt != null) out.fontSizePt = Math.round((run.sizeHalfPt / 2) * 10) / 10;
   if (run.spacingTwip) out.letterSpacingPt = Math.round((run.spacingTwip / 20) * 100) / 100;
   // Word kerns nothing unless w:kern names the size to start at, and a document that
