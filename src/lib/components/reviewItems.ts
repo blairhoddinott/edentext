@@ -5,7 +5,7 @@ import { comments, commentRanges, type CommentRange } from '../editor/extensions
 import { revisions, settledRange, type Revision, type RevisionKind } from '../editor/extensions/trackChanges';
 import { countText, type TextStats } from '../utils/wordCount';
 import { flushPending } from '../editor/extensions/stateHistory';
-import { bodyEditor, commentZones, settleZones, zoneRevisions } from '../editor/zoneReview';
+import { bodyEditor, commentZones, liveZone, openZone, settleZones, zoneRevisions } from '../editor/zoneReview';
 import { markupView, showResolved } from '../storage/markup.svelte';
 import { recordLock } from '../storage/trackChanges.svelte';
 
@@ -121,11 +121,25 @@ export function step<T extends { from: number; to: number }>(
   return hit ?? (dir === 1 ? sorted[0] : sorted[sorted.length - 1]);
 }
 
+/** Selects a change where it is, opening its zone if it sits in one. */
+export function jumpToRevision(editor: Editor, r: Revision): void {
+  if (r.zone) openZone(r.zone, (zone) => selectRange(zone, r.from, r.to));
+  else selectRange(bodyEditor() ?? editor, r.from, r.to);
+}
+
 /** Selects the next or previous comment or change; only what the view shows is a place
- *  to jump to. */
+ *  to jump to. Changes run through the body, then the zones in the pane's order. */
 export function goToMarkup(editor: Editor, kind: 'comment' | 'revision', dir: 1 | -1): void {
-  const doc = editor.state.doc;
-  const list: { from: number; to: number }[] = kind === 'comment' ? visibleComments(doc) : visibleRevisions(doc);
-  const hit = step(list, editor.state.selection.from, dir);
-  if (hit) selectRange(editor, hit.from, hit.to);
+  if (kind === 'comment') {
+    const hit = step(visibleComments(editor.state.doc), editor.state.selection.from, dir);
+    if (hit) selectRange(editor, hit.from, hit.to);
+    return;
+  }
+  const list = listedRevisions((bodyEditor() ?? editor).state.doc);
+  const zones = [...new Set(list.flatMap((r) => (r.zone ? [r.zone] : [])))];
+  // Past any document's size: each zone's positions follow those of the one before.
+  const offset = (zone: string | null | undefined) => (zone ? zones.indexOf(zone) + 1 : 0) * 2 ** 32;
+  const stops = list.map((r) => ({ r, from: offset(r.zone) + r.from, to: 0 }));
+  const hit = step(stops, offset(liveZone()) + editor.state.selection.from, dir);
+  if (hit) jumpToRevision(editor, hit.r);
 }

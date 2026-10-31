@@ -16,6 +16,8 @@ export type ZoneHost = {
   list: () => { id: string; doc: HfDoc }[];
   /** Opens a zone for editing and hands over its editor. */
   open: (id: string, ready: (editor: Editor) => void) => void;
+  /** The zone open for editing, under the same id. */
+  live: () => string | null;
 };
 
 /** On a body transaction that wrote zones: they go back into the open zone too. */
@@ -73,6 +75,8 @@ export function commentZones(tr: Transaction, id: string, comment: string): void
   }
   tr.setMeta(RECORDING, true).setMeta(ZONE_SETTLED, true);
 }
+
+export const liveZone = () => host?.live() ?? null;
 
 export function openZone(id: string, ready: (editor: Editor) => void): void {
   host?.open(id, ready);

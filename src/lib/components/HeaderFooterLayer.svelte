@@ -591,6 +591,7 @@
         .filter((key) => (!key.endsWith('First') || s.differentFirstPage) && (!key.endsWith('Even') || s.differentOddEven))
         .map((key) => ({ id: `hf:${i}:${key}`, doc: s[key] }))),
       open: openZoneOf,
+      live: () => (hfEditor ? liveId : null),
     });
     const body = bodyEditor;
     body?.on('update', repaint);

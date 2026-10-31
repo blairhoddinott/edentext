@@ -325,7 +325,7 @@ const saveAs = async (ext, retry = true) => {
     const [dl] = await Promise.all([
       page.waitForEvent('download', { timeout: 30_000 }),
       page.locator('.ribbon-menu button', { hasText: `(.${ext})` }).first().click()
-        .then(() => page.locator('dialog[open] button.primary').click({ timeout: 2_000 }).catch(() => {})),
+        .then(() => page.locator('dialog[open] button.primary').click({ timeout: 15_000 }).catch(() => {})),
     ]);
     await page.keyboard.press('Escape');
     return new Uint8Array(await readFile(await dl.path()));

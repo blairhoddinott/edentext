@@ -2,8 +2,7 @@
   import type { Editor } from '@tiptap/core';
   import { revisionIdAt, type Revision } from '../editor/extensions/trackChanges';
   import { authorColor, authorColors } from '../editor/authorColors';
-  import { filterRevisions, listedRevisions, selectRange, settleRevisions, type RevisionFilter } from './reviewItems';
-  import { openZone } from '../editor/zoneReview';
+  import { filterRevisions, jumpToRevision, listedRevisions, settleRevisions, type RevisionFilter } from './reviewItems';
   import { recordLock } from '../storage/trackChanges.svelte';
   import RevisionCard from './RevisionCard.svelte';
   import { t } from '../i18n/i18n.svelte';
@@ -53,8 +52,7 @@
   }
 
   function jumpTo(r: Revision) {
-    if (r.zone) openZone(r.zone, (zone) => selectRange(zone, r.from, r.to));
-    else if (editor) selectRange(editor, r.from, r.to);
+    if (editor) jumpToRevision(editor, r);
   }
 </script>
 
