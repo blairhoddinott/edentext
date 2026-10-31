@@ -1,4 +1,5 @@
 import BulletListBase from '@tiptap/extension-bullet-list';
+import { keepingListBelow } from './listStyle';
 import { bulletCharAttr } from '../../utils/bulletListTypes';
 import { inNote } from './notes';
 
@@ -37,7 +38,7 @@ export const BulletList = BulletListBase.extend({
       ...parent,
       // A note holds its inline content without a paragraph, so there is nothing to wrap:
       // ProseMirror would fit the note itself into the list and lose its text.
-      toggleBulletList: () => (props) => !inNote(props.state) && parent!.toggleBulletList!()(props),
+      toggleBulletList: () => (props) => !inNote(props.state) && keepingListBelow(props, () => parent!.toggleBulletList!()(props)),
       // setNodeMarkup on exactly the innermost list: updateAttributes would also
       // rewrite every ancestor bulletList (it visits all nodes across the range).
       setBulletChar:

@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core';
+import { Extension, type CommandProps } from '@tiptap/core';
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state';
 import type { ResolvedPos } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -253,6 +253,23 @@ export function outerOrderedListAt(state: EditorState): { pos: number; node: Pro
 
 // The named style governing the cursor's list (the outermost list's), for the
 // dropdowns' active state; null = none or not in a list.
+// A block made a list joins the list after it, and a join keeps the first list's attrs:
+// the list that was there stays what it was. Attr steps, as that is no change of the block's.
+export function keepingListBelow(props: CommandProps, toggle: () => boolean): boolean {
+  const { $to } = props.state.selection;
+  const below = $to.depth ? props.state.doc.resolve($to.after()).nodeAfter : null;
+  if (!toggle()) return false;
+  if (!below || !props.dispatch) return true;
+  const $now = props.tr.selection.$to;
+  for (let d = $now.depth; d > 0; d--) {
+    const list = $now.node(d);
+    if (list.type !== below.type || !list.lastChild!.eq(below.lastChild!)) continue;
+    for (const [key, value] of Object.entries(below.attrs)) if (list.attrs[key] !== value) props.tr.setNodeAttribute($now.before(d), key, value);
+    break;
+  }
+  return true;
+}
+
 export function listStyleNameAt(state: EditorState): string | null {
   const { $from } = state.selection;
   for (let d = 1; d <= $from.depth; d++) {

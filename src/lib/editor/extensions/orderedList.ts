@@ -4,6 +4,7 @@ import type { ResolvedPos } from '@tiptap/pm/model';
 import { childCycle, defaultOrderedTypeAt, orderedTypeAttrAt, orderedTypeDef, ROOT_ORDERED_CYCLE, type OrderedCycle, type OrderedListType } from '../../utils/orderedListTypes';
 import { decimalOutline, MAX_OUTLINE_LEVELS, outlineIsEmpty, type OutlineNumbering } from '../../styles/outlineNumbering';
 import { inNote } from './notes';
+import { keepingListBelow } from './listStyle';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -126,7 +127,7 @@ export const OrderedList = OrderedListBase.extend<{ headingNumbering: HeadingNum
         (props) => {
           // No list in a note, as for a bullet list (bulletList.ts).
           if (inNote(props.state)) return false;
-          if (!numbering || !inChapterHeading(props.state)) return parent!.toggleOrderedList!()(props);
+          if (!numbering || !inChapterHeading(props.state)) return keepingListBelow(props, () => parent!.toggleOrderedList!()(props));
           if (props.dispatch) numbering.set(outlineIsEmpty(numbering.get()) ? decimalOutline() : null);
           return true;
         },
