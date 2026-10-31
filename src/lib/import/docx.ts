@@ -1,4 +1,4 @@
-import { UNFORMATTED_MARKS } from '../editor/extensions/trackChanges';
+import { UNFORMATTED_MARKS, blockFormat } from '../editor/extensions/trackChanges';
 import { strFromU8 } from 'fflate';
 import en from '../i18n/locales/en';
 import { DocxStyles, parseRunProps, mergeRunProps, readNumPr, readSpacing, readTabStops, toggle as onOff, wVal, W, R, WP, A, B, WPS, WPG, MC, VML, O, W10, PKG_REL, type RunProps, type ParaSpacing } from './docxStyles';
@@ -1568,6 +1568,16 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   applyContextualSpacing(el, ppr, ctx, styleId, attrs);
   const revMark = kind === 'zone' ? undefined : paragraphMarkRevisions(ppr);
   if (revMark) attrs.revMark = revMark;
+  const change = kind === 'zone' ? null : fc(ppr, 'pPrChange');
+  if (change) {
+    const before = el.ownerDocument.createElementNS(W, 'p'), old = fc(change, 'pPr');
+    if (old) before.appendChild(old.cloneNode(true));
+    const was = convertParagraph(before, ctx, kind, boldByDefault);
+    // What the paragraph mark's run and the flag runs state is not in the old w:pPr.
+    const unsaid = Object.fromEntries(['fontSize', 'fontFamily', 'fontFamilyAsian', 'lang', 'langAsian', 'noHyphenation', 'snapToGrid'].map((k) => [k, attrs[k]]));
+    attrs.revFormat = { id: change.getAttributeNS(W, 'id') ?? '', author: change.getAttributeNS(W, 'author') ?? '', date: change.getAttributeNS(W, 'date') ?? '',
+      old: blockFormat(was.type, { ...was.attrs, ...unsaid }) };
+  }
   // A direct left indent of 0 still overrides the style's own one.
   const ind = kind !== 'list' && !baked ? fc(ppr, 'ind') : null;
   const directLeft = ind && !intAttr(ind, W, 'leftChars') ? intAttr(ind, W, 'left') ?? intAttr(ind, W, 'start') : null;

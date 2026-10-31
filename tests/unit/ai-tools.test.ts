@@ -160,7 +160,7 @@ describe('tools', () => {
     editor.destroy();
   });
 
-  it('formats directly, without a revision, and sets a heading style', () => {
+  it('records formatting and a heading style as one change each', () => {
     const editor = makeEditor('<p>Summary line</p><p>body</p>');
     const ctx = turn(editor);
     expect(runTool(ctx, call('format', { from: 1, bold: true })).result).toBe('ok');
@@ -170,7 +170,9 @@ describe('tools', () => {
     expect(first.type.name).toBe('heading');
     expect(first.attrs.level).toBe(2);
     expect(first.firstChild?.marks.some((m) => m.type.name === 'bold')).toBe(false);
-    expect(revisions(editor.state.doc)).toEqual([]);
+    expect(revisions(editor.state.doc).map((r) => r.kind)).toEqual(['formatChange']);
+    editor.commands.rejectRevisions(true);
+    expect(editor.getHTML()).toBe('<p>Summary line</p><p>body</p>');
     editor.destroy();
   });
 

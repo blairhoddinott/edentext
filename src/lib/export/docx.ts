@@ -10,7 +10,8 @@ import {
   TableAnchorType, RelativeHorizontalPosition,
   TextWrappingType, TextWrappingSide, TabStopType, LeaderType,
 } from 'docx';
-import type { IRunOptions } from 'docx';
+import type { IParagraphPropertiesOptions, IRunOptions } from 'docx';
+import type { RevFormat } from '../editor/extensions/trackChanges';
 import type { TiptapNode } from 'odf-kit';
 import type {
   IRunStylePropertiesOptions, IFontAttributesProperties, ISpacingProperties, IIndentAttributesProperties,
@@ -2605,11 +2606,10 @@ function applyParagraphFlagsDocx(bytes: Uint8Array): Uint8Array {
       for (const f of flags) {
         if (!p.includes(f.mark)) continue;
         p = p.replace(new RegExp(`<w:r>(?:(?!</w:r>)[\\s\\S])*${f.mark}(?:(?!</w:r>)[\\s\\S])*</w:r>`, 'g'), '');
-        const pPr = /<w:pPr>[\s\S]*?<\/w:pPr>/.exec(p);
+        // The block's own part: a w:pPrChange closes it and holds a w:pPr of its own.
+        const pPr = /<w:pPr>(?:(?!<w:pPrChange\b)[\s\S])*?(?=<w:pPrChange\b|<\/w:pPr>)/.exec(p);
         if (!pPr) { p = p.replace(/^(<w:p\b[^>]*>)/, `$1<w:pPr>${f.xml}</w:pPr>`); continue; }
-        const patched = f.before.test(pPr[0])
-          ? pPr[0].replace(f.before, `${f.xml}$&`)
-          : pPr[0].replace('</w:pPr>', `${f.xml}</w:pPr>`);
+        const patched = f.before.test(pPr[0]) ? pPr[0].replace(f.before, `${f.xml}$&`) : `${pPr[0]}${f.xml}`;
         p = p.replace(pPr[0], patched);
       }
       return p;
@@ -2727,11 +2727,11 @@ function paraBordersOf(attrs: TiptapNode['attrs']) {
   return Object.keys(out).length ? out : undefined;
 }
 
-function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
+// A block's w:pPr; a recorded format change writes the earlier one with the same builder.
+function paragraphProps(node: TiptapNode, opts: ParaOpts): IParagraphPropertiesOptions {
   const attrs = node.attrs ?? {};
   const indent: Writable<IIndentAttributesProperties> = {};
   const pt = blockPt(node);
-  const indChars = opts.numbering ? '' : indentCharsPayload(attrs);
   if (!opts.numbering) {
     const left = leftCm(attrs, pt);
     // An explicit 0 is kept: it overrides the named style's indent.
@@ -2749,19 +2749,7 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
   // w:tabs. Word measures w:pos from the left text margin, the same origin the attr
   // uses, so the position goes out unshifted by the paragraph's own indent.
   const stops = parseTabStops(attrs.tabStops);
-  // Paragraph-mark run props carry the block's own font (see import/docx.ts).
-  const markSize = typeof attrs.fontSize === 'string' ? fontSizeToHalfPoints(attrs.fontSize) : undefined;
-  const markFont = fontPair(attrs.fontFamily, attrs.fontFamilyAsian, (f) => f);
-  const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
-  const blockLang = langProp(attrs.lang, attrs.langAsian);
-  // Unmarked text renders at the block's size and font; a run without its own takes the
-  // style's in Word, so the block's goes onto the runs as well as the paragraph mark.
-  const runForce: TextProps = { ...opts.force };
-  if (markSize) runForce.fontSizePt = markSize / 2;
-  if (str(attrs.fontFamily)) runForce.fontFamily = attrs.fontFamily as string;
-  if (str(attrs.fontFamilyAsian)) runForce.fontFamilyAsian = attrs.fontFamilyAsian as string;
-  if (blockLang) Object.assign(runForce, { lang: str(attrs.lang) ?? opts.force?.lang, langAsian: str(attrs.langAsian) ?? opts.force?.langAsian });
-  return new Paragraph({
+  return {
     style,
     alignment: alignOf(attrs),
     spacing: opts.inCell ? cellSpacingOf(attrs, node) : spacingOf(attrs),
@@ -2781,6 +2769,28 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
     numbering: opts.numbering,
     shading: paraShadingOf(attrs),
     border: paraBordersOf(attrs),
+  };
+}
+
+function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
+  const attrs = node.attrs ?? {};
+  const indChars = opts.numbering ? '' : indentCharsPayload(attrs);
+  const format = attrs.revFormat as RevFormat | null | undefined;
+  // Paragraph-mark run props carry the block's own font (see import/docx.ts).
+  const markSize = typeof attrs.fontSize === 'string' ? fontSizeToHalfPoints(attrs.fontSize) : undefined;
+  const markFont = fontPair(attrs.fontFamily, attrs.fontFamilyAsian, (f) => f);
+  const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+  const blockLang = langProp(attrs.lang, attrs.langAsian);
+  // Unmarked text renders at the block's size and font; a run without its own takes the
+  // style's in Word, so the block's goes onto the runs as well as the paragraph mark.
+  const runForce: TextProps = { ...opts.force };
+  if (markSize) runForce.fontSizePt = markSize / 2;
+  if (str(attrs.fontFamily)) runForce.fontFamily = attrs.fontFamily as string;
+  if (str(attrs.fontFamilyAsian)) runForce.fontFamilyAsian = attrs.fontFamilyAsian as string;
+  if (blockLang) Object.assign(runForce, { lang: str(attrs.lang) ?? opts.force?.lang, langAsian: str(attrs.langAsian) ?? opts.force?.langAsian });
+  return new Paragraph({
+    ...paragraphProps(node, opts),
+    ...(format ? { revision: { ...paragraphProps({ ...node, ...format.old }, opts), id: docRevisionId(format.id), author: format.author, date: format.date } } : {}),
     // The paragraph mark's own run properties; the language there formats the mark alone.
     run: markSize || markFont || blockLang || attrs.revMark
       ? { size: markSize, font: markFont, language: blockLang, ...revMarkRevisions(attrs.revMark) } : undefined,

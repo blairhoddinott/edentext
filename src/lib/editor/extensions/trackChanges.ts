@@ -3,7 +3,7 @@ import { Mark as PMMark, Slice, type Fragment, type Node as PMNode } from '@tipt
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
 import { CellSelection, TableMap, removeColumn, removeRow } from '@tiptap/pm/tables';
-import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, type Step, type StepMap } from '@tiptap/pm/transform';
+import { AddMarkStep, AttrStep, Mapping, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, type Step, type StepMap } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 
@@ -21,7 +21,8 @@ import { authorColor, authorColors } from '../authorColors';
 // block it ends does, holding the insertion, the deletion or both. A table row and a cell of
 // a recorded column carry theirs the same way.
 //
-// A format change is the `formatChange` mark, which holds the marks its text had before.
+// A format change is the `formatChange` mark, which holds the marks its text had before;
+// a block's own format change is its `revFormat` attr.
 
 export type RevisionKind = 'insertion' | 'deletion' | 'formatChange';
 type MarkedKind = 'insertion' | 'deletion';
@@ -49,6 +50,9 @@ export type Revision = {
 
 export type RevisionAttrs = { id: string; author: string; date: string };
 export type RevMark = { insertion?: RevisionAttrs; deletion?: RevisionAttrs };
+/** A block's own format: its type and every attr that shows. */
+export type BlockFormat = { type: string; attrs: Record<string, unknown> };
+export type RevFormat = RevisionAttrs & { old: BlockFormat | null };
 
 export function newRevisionId(): string {
   return `r${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
@@ -108,6 +112,13 @@ export const FormatChange = revisionMark('formatChange', 'data-format-change').e
 export const UNFORMATTED_MARKS = new Set(['link', 'bookmark', 'comment', 'insertion', 'deletion', 'formatChange']);
 const formatOf = (marks: readonly PMMark[]) => marks.filter((m) => !UNFORMATTED_MARKS.has(m.type.name));
 
+const UNFORMATTED_ATTRS = new Set(['revMark', 'revFormat', 'joinPrev', 'sectionBreak']);
+export function blockFormat(type: string, attrs: Record<string, unknown>): BlockFormat {
+  return { type, attrs: Object.fromEntries(Object.entries(attrs).filter(([k, v]) => !UNFORMATTED_ATTRS.has(k) && v != null)) };
+}
+const sameBlockFormat = (a: BlockFormat, b: BlockFormat) => a.type === b.type
+  && Object.keys({ ...a.attrs, ...b.attrs }).every((k) => JSON.stringify(a.attrs[k]) === JSON.stringify(b.attrs[k]));
+
 // A file numbers each run and paragraph mark of one edit on its own: touching stretches
 // by one author at one moment are one change, as both word processors show them.
 function sameChange(prev: Revision, attrs: RevisionAttrs): boolean {
@@ -162,6 +173,11 @@ export function revisions(doc: PMNode): Revision[] {
     }
     for (const r of bridging) r.to = pos + 1;
     bridging = [];
+    const format = node.attrs.revFormat as RevFormat | null | undefined;
+    if (format) {
+      const { id, author, date } = format;
+      out.push({ kind: 'formatChange', id, author, date, from: pos + 1, to: pos + node.nodeSize - 1, text: node.textContent, spans: [], marks: [pos], changed: [] });
+    }
     node.forEach((child, offset) => {
       const at = pos + 1 + offset;
       // A line break or field is inline as text is, and a recorded one goes with its change;
@@ -274,6 +290,7 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
       tr.removeMark(from, to, state.schema.marks[r.kind]);
     }
   }
+  for (const r of list) if (r.kind === 'formatChange') for (const pos of r.marks) settleBlockFormat(tr, pos, accept);
   const marks = list.flatMap((r) => (r.kind === 'formatChange' ? [] : r.marks.map((pos) => ({ pos, kind: r.kind as MarkedKind }))));
   marks.sort((a, b) => b.pos - a.pos || Number(a.kind === drop) - Number(b.kind === drop));
   for (const { pos, kind } of marks) {
@@ -301,6 +318,15 @@ function restoreFormat(tr: Transaction, from: number, to: number): void {
     for (const old of (change?.attrs.old ?? []) as Record<string, unknown>[]) tr.addMark(a, b, schema.markFromJSON(old));
     return false;
   });
+}
+
+function settleBlockFormat(tr: Transaction, pos: number, accept: boolean): void {
+  const { pos: at, deleted } = tr.mapping.mapResult(pos, 1), node = tr.doc.nodeAt(at);
+  const old = (node?.attrs.revFormat as RevFormat | null | undefined)?.old;
+  if (deleted || !node?.attrs.revFormat) return;
+  if (accept || !old) { tr.setNodeAttribute(at, 'revFormat', null); return; }
+  const kept = Object.fromEntries([...UNFORMATTED_ATTRS].map((k) => [k, node.attrs[k]]));
+  tr.setNodeMarkup(at, tr.doc.type.schema.nodes[old.type], { ...old.attrs, ...kept, revFormat: null });
 }
 
 const LIST_NODES = new Set(['listItem', 'bulletList', 'orderedList']);
@@ -408,6 +434,18 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           renderHTML: (a: Record<string, unknown>) => (a.revMark ? { 'data-rev-mark': JSON.stringify(a.revMark) } : {}),
         },
       },
+    }, {
+      types: ['paragraph', 'heading'],
+      attributes: {
+        revFormat: {
+          default: null,
+          keepOnSplit: false,
+          parseHTML: (el: HTMLElement) => {
+            try { return JSON.parse(el.getAttribute('data-rev-format') ?? 'null'); } catch { return null; }
+          },
+          renderHTML: (a: Record<string, unknown>) => (a.revFormat ? { 'data-rev-format': JSON.stringify(a.revFormat) } : {}),
+        },
+      },
     }];
   },
 
@@ -465,7 +503,10 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             const gone = goneBlocks(state.doc).map(({ pos, size, kind }) => Decoration.node(pos, pos + size, { class: `pm-gone-${kind}` }));
             const set = DecorationSet.create(state.doc, gone.concat(list.flatMap((r) => {
               const cls = `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}`, color = authorColor(colors, r.author);
-              if (r.kind === 'formatChange') return r.spans.map(([from, to]) => Decoration.inline(from, to, { class: 'pm-rev-format', style: `--rev-color: ${color}` }));
+              if (r.kind === 'formatChange') return [
+                ...r.spans.map(([from, to]) => Decoration.inline(from, to, { class: 'pm-rev-format', style: `--rev-color: ${color}` })),
+                ...r.marks.map((pos) => Decoration.node(pos, pos + state.doc.nodeAt(pos)!.nodeSize, { class: 'pm-block-format', style: `--rev-color: ${color}` })),
+              ];
               return [
                 ...r.spans.map(([from, to]) => Decoration.inline(from, to, { class: cls, style: `color: ${color}` })),
                 // A widget factory: a split view draws the decoration twice.
@@ -574,9 +615,11 @@ function recordFormats(tr: Transaction, transactions: readonly Transaction[], at
   transactions.forEach((t, ti) => {
     if (t.getMeta('appendedTransaction') || t.getMeta(MOVED)) return;
     t.steps.forEach((step, i) => {
-      if (!(step instanceof AddMarkStep || step instanceof RemoveMarkStep) || UNFORMATTED_MARKS.has(step.mark.type.name)) return;
       const onward = [t.mapping.slice(i + 1), ...transactions.slice(ti + 1).map((u) => u.mapping), tr.mapping];
       const final = (pos: number, assoc: number) => onward.reduce((at, m) => m.map(at, assoc), pos);
+      const block = formattedBlock(step, t.docs[i]);
+      if (block != null) { recordBlockFormat(tr, final(block, 1), t.docs[i].nodeAt(block)!, attrs); return; }
+      if (!(step instanceof AddMarkStep || step instanceof RemoveMarkStep) || UNFORMATTED_MARKS.has(step.mark.type.name)) return;
       t.docs[i].nodesBetween(step.from, step.to, (node, pos) => {
         if (!isMarkable(node)) return true;
         const from = final(Math.max(pos, step.from), 1), to = final(Math.min(pos + node.nodeSize, step.to), -1);
@@ -602,6 +645,24 @@ function recordFormats(tr: Transaction, transactions: readonly Transaction[], at
     }
     return false;
   });
+}
+
+// The position of the paragraph or heading a step changes the format of, if any.
+function formattedBlock(step: Step, doc: PMNode): number | null {
+  const pos = step instanceof AttrStep ? (UNFORMATTED_ATTRS.has(step.attr) ? null : step.pos)
+    : retagged(step) || swap(step, doc) ? (step as ReplaceStep).from : null;
+  return pos != null && hasParagraphMark(doc.nodeAt(pos)!) ? pos : null;
+}
+
+// The first record stands, and a block back at it has no change left.
+function recordBlockFormat(tr: Transaction, at: number, before: PMNode, attrs: RevisionAttrs): void {
+  const now = tr.doc.nodeAt(at);
+  if (!now || !hasParagraphMark(now)) return;
+  const rec = now.attrs.revFormat as RevFormat | null;
+  const old = rec ? rec.old : blockFormat(before.type.name, before.attrs);
+  const same = !!old && sameBlockFormat(blockFormat(now.type.name, now.attrs), old);
+  if (rec && same) tr.setNodeAttribute(at, 'revFormat', null);
+  else if (!rec && !same) tr.setNodeAttribute(at, 'revFormat', { ...attrs, old });
 }
 
 // Undo and redo, and what other plugins append to them.
@@ -1007,6 +1068,11 @@ function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs
   });
   if (!blocks.length) return;
   for (const { pos } of blocks) tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
+  // A block that came in whole is new, whatever it was before.
+  tr.doc.nodesBetween(from, to, (node, pos) => {
+    if (node.attrs.revFormat && pos >= from) tr.setNodeAttribute(pos, 'revFormat', null);
+    return !node.isTextblock;
+  });
   const first = blocks[0].rev, after = nextParagraph(tr.doc, blocks[blocks.length - 1].end);
   if (first && after !== null) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first);
 }

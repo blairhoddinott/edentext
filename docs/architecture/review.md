@@ -29,7 +29,9 @@ A note anchor and a text box take a change as an atom does: `revisions()` treats
 
 The `formatChange` mark holds the format marks its run had (`old`, JSON). A mark step of a transaction is the record (`recordFormats`): each run it touches keeps what it had before the transaction, the first record stands, a run back at its old format loses the change, and the author's own insertion takes none. One transaction is one change, however many runs and blocks it covers (`gatherChanges`, by id).
 
-Accepting drops the mark; rejecting puts `old` back run by run. "Original" shows the current format, since a mark cannot be undone by CSS; the print path prints `settledDoc`.
+A block's own format (type, style, alignment, spacing, indents, tabs: all attrs but `UNFORMATTED_ATTRS`) is its `revFormat`, read from attr, markup and swap steps the same way: the first record stands and a block back at it has none.
+
+Accepting drops the mark; rejecting puts `old` back run by run, a block's attrs and type with it. "Original" shows the current format, since a mark cannot be undone by CSS; the print path prints `settledDoc`.
 
 ## Views
 
@@ -42,6 +44,8 @@ A merge whose two sides keep text stays two lines on the page: `display: inline`
 **DOCX:** `w:ins`/`w:del` in `w:pPr/w:rPr`, a move's ends `w:moveFrom`/`w:moveTo`.
 
 **Character format:** DOCX `w:rPrChange`; ODF a `text:format-change` region around the run, with no old values, so rejecting after a reload drops the direct formatting, as in LibreOffice (probed: `old` null). A deleted run's format change goes unsaved in ODF.
+
+**Paragraph format:** DOCX `w:pPrChange`. The paragraph mark's run and the flags the package cannot write are outside it, so the importer takes those from the current block. ODF has no form LibreOffice reads back: the new format is saved, the record is not.
 
 **ODF insertion:** the region runs from a `text:change-start` at the end of one paragraph to the `text:change-end` at the start of the next.
 
@@ -59,7 +63,6 @@ Lifting an item out of its list (Backspace at its start) and other list structur
 
 - **Column in DOCX:** LibreOffice drops `w:cellIns`/`w:cellDel`.
 - **Header and footer:** a `text:tracked-changes` of its own as first child of `style:header`/`style:footer` in `styles.xml`.
-- **Paragraph format:** LibreOffice writes `text:UnknownChange`, reads it back as nothing and is outside the schema. Such a change survives only DOCX.
 - **Moves:** `loext:move-id` in the region's change info.
 
 The UNO API removes rows and columns unrecorded; a probe needs the dispatcher. pyuno does not run on macOS here, so the leg and the probes are Basic macros in a fresh profile's `Standard` library.

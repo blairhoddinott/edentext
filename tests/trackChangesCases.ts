@@ -60,6 +60,15 @@ export const FORMAT_CASES: [string, string, Act[]][] = [
   ['two formats, one after the other', STYLED, [...ranged(2, 4, (e) => e.commands.setItalic()), (e) => e.commands.setUnderline()]],
 ];
 
+/** Edits of a block's own format. */
+export const BLOCK_FORMAT_CASES: [string, string, Act[]][] = [
+  ['alignment set', THREE, ranged(2, 2, (e) => e.commands.setTextAlign('center'))],
+  ['alignment over two paragraphs', THREE, ranged(3, 9, (e) => e.commands.setTextAlign('right'))],
+  ['a paragraph style', THREE, ranged(2, 2, (e) => e.commands.setParagraphStyle('Heading 1'))],
+  ['a heading made a paragraph', '<h2>head</h2><p>body</p>', ranged(2, 2, (e) => e.commands.setParagraph())],
+  ['an indent and a line height', THREE, [...ranged(2, 2, (e) => e.commands.updateAttributes('paragraph', { indent: 1.25 })), (e) => e.commands.updateAttributes('paragraph', { lineHeight: '1.5' })]],
+];
+
 export const CASES: [string, string, Act[]][] = [
   ['a selection across two paragraphs', THREE, del(3, 9)],
   ['a whole paragraph with its mark', THREE, del(7, 13)],

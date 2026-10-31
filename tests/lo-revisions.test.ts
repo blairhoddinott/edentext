@@ -4,7 +4,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { Editor } from '@tiptap/core';
-import { CASES, FORMAT_CASES, TABLE_CASES, edit, open } from './trackChangesCases';
+import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, TABLE_CASES, edit, open } from './trackChangesCases';
 import { setRecordChanges } from '../src/lib/storage/trackChanges.svelte';
 import { buildOdt } from '../src/lib/export/odt';
 import { buildDocx } from '../src/lib/export/docx';
@@ -34,7 +34,7 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
     rmSync(DIR, { recursive: true, force: true });
     mkdirSync(DIR, { recursive: true });
     const want = new Map<string, string[]>();
-    const cases = [...CASES, ...TABLE_CASES, ...FORMAT_CASES];
+    const cases = [...CASES, ...TABLE_CASES, ...FORMAT_CASES, ...BLOCK_FORMAT_CASES];
     for (const [i, [name, html, steps]] of cases.entries()) {
       const plain = open(html);
       await edit(plain, steps);
@@ -71,9 +71,14 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
       .map(([key, paras]) => `${cases[+key.match(/c(\d+)/)![1]][0]} — ${key}: LibreOffice ${JSON.stringify(got.get(key))}, ours ${JSON.stringify(paras)}`);
     expect(wrong).toEqual([]);
     const unread = FORMAT_CASES.flatMap(([name], i) => ['odt', 'docx'].flatMap((ext) => {
-      const kinds = got.get(`c${cases.length - FORMAT_CASES.length + i}.${ext} Kinds`) ?? [];
+      const kinds = got.get(`c${CASES.length + TABLE_CASES.length + i}.${ext} Kinds`) ?? [];
       return kinds.length && kinds.every((k) => k === 'Format') ? [] : [`${name}, ${ext}: ${kinds}`];
     }));
     expect(unread).toEqual([]);
+    const blocks = BLOCK_FORMAT_CASES.flatMap(([name], i) => {
+      const kinds = got.get(`c${cases.length - BLOCK_FORMAT_CASES.length + i}.docx Kinds`) ?? [];
+      return kinds.length && kinds.every((k) => k === 'ParagraphFormat') ? [] : [`${name}: ${kinds}`];
+    });
+    expect(blocks).toEqual([]);
   });
 });

@@ -1434,6 +1434,9 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
 /* Only the line tells a format change: the text's own colour may be what changed. */
 .tiptap .pm-rev-format { text-decoration: underline dotted var(--rev-color); }
 
+/* A block's own format change: a tint, the block may have a background of its own. */
+.tiptap .pm-block-format { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--rev-color) 8%, transparent); }
+
 /* A recorded paragraph mark; it takes no width, or it could wrap the line it ends. */
 .tiptap .pm-para-mark { display: inline-block; width: 0; text-decoration: none; }
 .tiptap .pm-para-mark::after { content: '¶'; }

@@ -80,7 +80,7 @@ const EDIT_LINES = [
   'Change a table with the table tool, never by rebuilding it.',
   'Formatting meant for every paragraph of a kind (a rule under each heading, a colour, spacing) goes into its style with set_style, not onto each paragraph. Frames (a text box, a picture placeholder) go in with insert_frame or in the HTML, and the frame tool changes, moves, stacks, captions or deletes one listed as frame 1 in its paragraph\'s formatting.',
   'To change the document, call the tools. Paragraph numbers refer to the latest document and stay valid for the whole reply; paragraphs you insert are numbered from the next message on, so give inserted content its formatting in its HTML.',
-  'Text changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
+  'Text and formatting changes become tracked changes the user accepts or rejects. After changing the document, say in one sentence what you did, and say so when you assumed something the document does not state.',
 ];
 
 const READ_TOOLS = new Set(['read_paragraphs']);
