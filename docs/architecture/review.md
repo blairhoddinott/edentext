@@ -103,6 +103,8 @@ Our export writes LibreOffice's form with each side's real format in its registr
 
 ## Not recorded yet
 
+An edit the recorder would lose passes unrecorded and logs an error (`keepsEdit`): what accepting the replay leaves is held against what the edit leaves, blocks and text only, for everything but text replaced within a block. The monkey fails on that error.
+
 The list cut of a table inserted in a list passes unrecorded; the monkey's recording pass skips it. A table or list inserted at the document's very end leaves an empty paragraph when rejected, since the last block has no mark of its own. While recording, autolink only links what is all new text, as a link has no change of its own to go with the typing.
 
 Regrouping what is there passes unrecorded (`REBUILDING`, and any transaction outside the history): columns, a split or merged cell, a sort, an index inserted, the columns flow's own cuts. So do what neither format records as a change or this one has no form for: links, bookmarks, comments, a table's own format and header row. A selection an index replaces goes recorded.

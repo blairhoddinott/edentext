@@ -764,6 +764,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           // What passes and removes content only moves or rebuilds it (a sort, merged
           // cells): its output is no insertion either.
           if (!marked) { if (removes(tr)) tr.setMeta(MOVED, true); return true; }
+          if (!keepsEdit(tr, marked)) { console.error('Recording would lose this edit: it passes unrecorded.'); return true; }
           queueMicrotask(() => this.editor.view.dispatch(marked.setMeta(RECORDING, true)));
           return false;
         },
@@ -1006,6 +1007,20 @@ function ownOnly(tr: Transaction, author: string): boolean {
     });
     return own;
   }) && tr.steps.some((s) => (s as ReplaceStep).to > (s as ReplaceStep).from);
+}
+
+// Blocks and text in order, what a lost edit shows in; attrs and marks may differ harmlessly.
+function outline(doc: PMNode): string {
+  let out = '';
+  doc.descendants((node) => { out += node.text ?? `<${node.type.name}>`; });
+  return out;
+}
+
+// Whether accepting `marked` gives what the edit gives: losing the record of an edit is
+// better than losing the edit. Text replaced within a block needs no such walk.
+function keepsEdit(tr: Transaction, marked: Transaction): boolean {
+  const simple = tr.steps.every((s, i) => !(s instanceof ReplaceStep) || (inlineOnly(tr.docs[i], s.from, s.to) && (!s.slice.size || !!s.slice.content.firstChild!.isInline)));
+  return simple || outline(settledDoc(marked.doc, true)) === outline(settledDoc(tr.doc, true));
 }
 
 // A user edit that removes text — a delete, typing or pasting over a selection, Enter over

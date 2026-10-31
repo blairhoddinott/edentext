@@ -669,6 +669,8 @@ try {
   check(false, `monkey run threw: ${err.stack ?? err}`);
 } finally {
   if (consoleErrors.length) console.log(`console errors (${consoleErrors.length}): ${[...new Set(consoleErrors)].slice(0, 5).join(' | ')}`);
+  const lost = consoleErrors.filter((m) => m.startsWith('Recording would lose'));
+  check(!lost.length, lost.length ? `the recorder kept every edit — ${lost.length} passed unrecorded` : 'the recorder kept every edit');
   check(pageErrors.length === 0, pageErrors.length ? `no uncaught page errors — got: ${pageErrors.join(' | ')}` : 'no uncaught page errors');
   await browser.close();
   if (server) process.kill(-server.pid);
