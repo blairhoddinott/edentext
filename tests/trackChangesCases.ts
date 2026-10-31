@@ -37,6 +37,7 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['the table deleted', TABLE, [inCell(14), (e) => e.commands.deleteTable()]],
   ['a row inserted', TABLE, [inCell(14), (e) => e.commands.addRowAfter()]],
   ['a column inserted', TABLE, [inCell(14), (e) => e.commands.addColumnBefore()]],
+  ['Enter in a cell', TABLE, [inCell(5), (e) => e.commands.splitBlock()]],
   ['a table inserted', THREE, [(e) => select(e, 7), (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false })]],
 ];
 

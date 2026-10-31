@@ -4,7 +4,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { Editor } from '@tiptap/core';
-import { CASES, edit, open } from './trackChangesCases';
+import { CASES, TABLE_CASES, edit, open } from './trackChangesCases';
 import { setRecordChanges } from '../src/lib/storage/trackChanges.svelte';
 import { buildOdt } from '../src/lib/export/odt';
 import { buildDocx } from '../src/lib/export/docx';
@@ -34,7 +34,8 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
     rmSync(DIR, { recursive: true, force: true });
     mkdirSync(DIR, { recursive: true });
     const want = new Map<string, string[]>();
-    for (const [i, [, html, steps]] of CASES.entries()) {
+    const cases = [...CASES, ...TABLE_CASES];
+    for (const [i, [, html, steps]] of cases.entries()) {
       const plain = open(html);
       await edit(plain, steps);
       setRecordChanges(true);
@@ -58,14 +59,15 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
     writeFileSync(`${lib}/Module1.xba`, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
 <script:module xmlns:script="http://openoffice.org/2000/script" script:name="Module1" script:language="StarBasic" script:moduleType="normal">${xml(readFileSync('tests/lo/revisions.bas', 'utf8'))}</script:module>`);
-    soffice('macro:///Standard.Module1.Main', { LO_REV_DIR: DIR, LO_REV_COUNT: String(CASES.length) });
+    soffice('macro:///Standard.Module1.Main', { LO_REV_DIR: DIR, LO_REV_COUNT: String(cases.length) });
 
     const got = new Map(readFileSync(`${DIR}/out.txt`, 'utf8').trim().split('\n').map((line) => {
       const [name, cmd, ...rest] = line.split(' ');
-      return [`${name} ${cmd}`, rest.join(' ').split('|').slice(1)] as const;
+      // LibreOffice keeps the U+200D it puts into a new empty cell.
+      return [`${name} ${cmd}`, rest.join(' ').replace(/\u200D/g, '').split('|').slice(1)] as const;
     }));
     const wrong = [...want].filter(([key, paras]) => JSON.stringify(got.get(key)) !== JSON.stringify(paras))
-      .map(([key, paras]) => `${CASES[+key.match(/c(\d+)/)![1]][0]} — ${key}: LibreOffice ${JSON.stringify(got.get(key))}, ours ${JSON.stringify(paras)}`);
+      .map(([key, paras]) => `${cases[+key.match(/c(\d+)/)![1]][0]} — ${key}: LibreOffice ${JSON.stringify(got.get(key))}, ours ${JSON.stringify(paras)}`);
     expect(wrong).toEqual([]);
   });
 });

@@ -167,9 +167,11 @@ export function revisions(doc: PMNode): Revision[] {
 // adjacency in the document joins.
 function gatherTableChanges(list: Revision[]): Revision[] {
   const hosts: Revision[] = [];
+  const hostOf = (r: Revision) => hosts.find((h) => h.kind === r.kind && sameChange(h, r));
+  for (const r of list) if (r.table && !hostOf(r)) hosts.push(r);
   return list.filter((r) => {
-    const host = hosts.find((h) => h.kind === r.kind && sameChange(h, r));
-    if (!host) { if (r.table) hosts.push(r); return true; }
+    const host = hostOf(r);
+    if (!host || host === r) return true;
     host.spans.push(...r.spans);
     host.marks.push(...r.marks);
     host.text += r.text;
@@ -326,7 +328,7 @@ function removeTableLine(tr: Transaction, pos: number, line: 'row' | 'column'): 
   const $pos = tr.doc.resolve(pos), depth = line === 'row' ? $pos.depth : $pos.depth - 1;
   const table = $pos.node(depth), tableStart = $pos.start(depth), map = TableMap.get(table);
   if ((line === 'row' ? map.height : map.width) === 1) {
-    tr.deleteRange($pos.before(depth), $pos.after(depth));
+    tr.delete($pos.before(depth), $pos.after(depth));
     return;
   }
   const rect = { map, table, tableStart, left: 0, top: 0, right: 0, bottom: 0 };
@@ -798,6 +800,7 @@ function markPureDelete(tr: Transaction, state: EditorState, author: string): Tr
   const attrs = revisionAttrs(author);
   let content = false;
   tr.steps.forEach((step, i) => {
+    if (retagged(step)) return;
     // Mapping.invert ignores a slice's bounds: the maps before this step, copied.
     const back = new Mapping(tr.mapping.maps.slice(0, i)).invert();
     step.getMap().forEach((oldStart, oldEnd) => {
@@ -855,6 +858,8 @@ function isPureDelete(tr: Transaction, state: EditorState): boolean {
   if (!tr.steps.length) return false;
   return tr.doc.content.size < state.doc.content.size
     && tr.steps.every((step) => {
+      // A merged cell a deleted column runs through only gets narrower.
+      if (retagged(step)) return true;
       let inserted = 0;
       step.getMap().forEach((_os, _oe, ns, ne) => { inserted += ne - ns; });
       return inserted === 0;
@@ -886,16 +891,17 @@ function markDeleted(tr: Transaction, from: number, to: number, attrs: RevisionA
 function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs: RevisionAttrs): void {
   const blocks: { pos: number; end: number; rev: unknown }[] = [];
   tr.doc.nodesBetween(from, to, (node, pos) => {
-    if (node.type.spec.tableRole === 'table') return false;
     if (!node.isTextblock || !hasParagraphMark(node)) return true;
     const end = pos + node.nodeSize - 1;
-    if (end >= from && end < to && nextParagraph(tr.doc, end) !== null) blocks.push({ pos, end, rev: node.attrs.revMark });
+    // Before a table only what came in with the range can go again: it, or what split from it.
+    const fresh = pos >= from || end + 1 < to;
+    if (end >= from && end < to && (fresh || nextParagraph(tr.doc, end) !== null)) blocks.push({ pos, end, rev: node.attrs.revMark });
     return false;
   });
   if (!blocks.length) return;
   for (const { pos } of blocks) tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
-  const first = blocks[0].rev, after = nextParagraph(tr.doc, blocks[blocks.length - 1].end)!;
-  if (first) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first);
+  const first = blocks[0].rev, after = nextParagraph(tr.doc, blocks[blocks.length - 1].end);
+  if (first && after !== null) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first);
 }
 
 // The rows and the columns that came in whole: a column only as a new cell in every row,

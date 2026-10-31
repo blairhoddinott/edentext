@@ -65,7 +65,6 @@ describe('recording keeps its promise', () => {
     rejected.commands.rejectRevisions(true);
     expect(rejected.getJSON()).toEqual(open(html).getJSON());
     for (const [format, through] of FORMATS) {
-      if (format === 'ODT') continue;
       const reread = open(await through(recorded));
       expect(revisions(reread.state.doc), `${format}, read`).toHaveLength(1);
       reread.commands.rejectRevisions(true);
@@ -76,6 +75,17 @@ describe('recording keeps its promise', () => {
     }
     e.commands.acceptRevisions(true);
     expect(e.getJSON()).toEqual(plain.getJSON());
+  });
+
+  // No file holds a paragraph mark in front of a table: the split itself survives only here.
+  it('a table splitting a paragraph goes with the split', async () => {
+    setRecordChanges(true);
+    const e = open(THREE);
+    await edit(e, [(ed) => select(ed, 9), (ed) => ed.commands.insertTable({ rows: 1, cols: 1, withHeaderRow: false })]);
+    expect(revisions(e.state.doc)).toHaveLength(1);
+    setRecordChanges(false);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(THREE).getJSON());
   });
 
   it('one typed passage over a paragraph break is one change', async () => {

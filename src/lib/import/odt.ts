@@ -2265,6 +2265,26 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
 // registry block's format, the only place that keeps the second side's (review.md).
 const REV_BREAK = '__revBreak';
 
+// The change of a recorded row or cell, which ODF keeps on the first change in its text;
+// the U+200D that opens such a line (or stands in for an empty one) goes.
+function lineChange(nodes: Node[]): Record<string, unknown> | undefined {
+  for (const node of nodes) {
+    const content = node.content ?? [];
+    const at = content.findIndex((n) => n.marks?.some((m) => m.type === 'insertion' || m.type === 'deletion'));
+    if (at >= 0) {
+      const text = content[at], rev = Object.fromEntries(text.marks!.filter((m) => m.type === 'insertion' || m.type === 'deletion').map((m) => [m.type, m.attrs]));
+      if (text.text?.startsWith('\u200D')) {
+        if (text.text.length > 1) text.text = text.text.slice(1);
+        else content.splice(at, 1);
+      }
+      return rev;
+    }
+    const nested = lineChange(content);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
 function withParagraphMarks(node: Node, ctx: Ctx, kind: BlockKind): Node {
   const open = [...ctx.openInsertions.values()].pop();
   const shape = (el: unknown) => {
@@ -3703,11 +3723,10 @@ function convertTable(el: Element, ctx: Ctx): Node | null {
         if (backgroundColor) attrs.backgroundColor = backgroundColor;
         if (verticalAlign) attrs.verticalAlign = verticalAlign;
         if (weights) attrs.colwidth = weights.slice(colIndex, colIndex + colspan);
-        cells.push({
-          type: header ? 'tableHeader' : 'tableCell',
-          attrs,
-          content: blocks.length ? structuredClone(blocks) : [{ type: 'paragraph' }],
-        });
+        const content = blocks.length ? structuredClone(blocks) : [{ type: 'paragraph' }];
+        const revMark = ctx.resolver.recordedLine('table-cell', cellStyleName) ? lineChange(content) : undefined;
+        if (revMark) attrs.revMark = revMark;
+        cells.push({ type: header ? 'tableHeader' : 'tableCell', attrs, content });
         colIndex += colspan;
       }
     }
@@ -3717,6 +3736,8 @@ function convertTable(el: Element, ctx: Ctx): Node | null {
     const heightCm = ctx.resolver.rowMinHeightCm(rowEl.getAttributeNS(NS.table, 'style-name'));
     if (heightCm != null && heightCm > 0) row.attrs = { rowHeight: Math.round(heightCm * PX_PER_CM) };
     if (ctx.resolver.rowKeepTogether(rowEl.getAttributeNS(NS.table, 'style-name'))) row.attrs = { ...row.attrs, cantSplit: true };
+    const revMark = ctx.resolver.recordedLine('table-row', rowEl.getAttributeNS(NS.table, 'style-name')) ? lineChange(cells) : undefined;
+    if (revMark) row.attrs = { ...row.attrs, revMark };
     rows.push(row);
   };
 

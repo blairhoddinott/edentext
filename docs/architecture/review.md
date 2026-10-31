@@ -17,7 +17,9 @@ Deleted `Heading first` + `body second` across the mark gives one heading; with 
 
 ## Tables
 
-A row carries a `revMark` as a paragraph does; so does each cell of a column, recorded only when every row got a new cell, which tells a column from a split cell. A row or column change gathers all its cells and text into one revision (`gatherTableChanges`), and removing one takes the line with `removeRow`/`removeColumn`, with the last line the table. A row or column delete through merged cells is no pure delete and passes unrecorded.
+A row carries a `revMark` as a paragraph does; so does each cell of a column, recorded only when every row got a new cell, which tells a column from a split cell. A row or column change gathers all its cells and text into one revision (`gatherTableChanges`), and removing one takes the line with `removeRow`/`removeColumn`, with the last line the table. A deleted row a merged cell runs through rebuilds that cell and passes unrecorded; a column through one only narrows it and is recorded. In ODF the line's style says `loext:text-changes-only="false"`, the change sits on the text in it, and only a line without text gets the tracked U+200D LibreOffice writes.
+
+A table cutting a paragraph records the split as a mark in front of it, which no file can hold: LibreOffice's reject and ours after a reload keep the two halves. The list cut of a table inserted in a list is not recorded.
 
 ## Views
 
@@ -43,8 +45,7 @@ Lifting an item out of its list (Backspace at its start) and other list structur
 
 ## Probed for later steps
 
-- **Row:** `loext:text-changes-only="false"` on the row style, kind read from the cells' changes. A new empty row carries a tracked U+200D in its first cell.
-- **Column:** the same attribute on the cell style, U+200D in each new cell. LibreOffice drops `w:cellIns`/`w:cellDel` from DOCX.
+- **Column in DOCX:** LibreOffice drops `w:cellIns`/`w:cellDel`.
 - **Note:** a deletion's registry block holds the whole `text:note`.
 - **Header and footer:** a `text:tracked-changes` of its own as first child of `style:header`/`style:footer` in `styles.xml`.
 - **Character format:** a `text:format-change` region around the run, with no old values. Rejecting it after a reload drops the direct formatting.

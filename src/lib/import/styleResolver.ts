@@ -512,6 +512,11 @@ export class StyleResolver {
     return !!styleName && this.merged('table-row', styleName).misc['fo:keep-together'] === 'always';
   }
 
+  // A row or cell LibreOffice recorded as a whole: its change reads off the text in it.
+  recordedLine(family: 'table-row' | 'table-cell', styleName: string | null): boolean {
+    return !!styleName && this.merged(family, styleName).misc['loext:text-changes-only'] === 'false';
+  }
+
   rowMinHeightCm(styleName: string | null): number | null {
     if (!styleName) return null;
     return lengthToCm(this.merged('table-row', styleName).misc['style:min-row-height']);

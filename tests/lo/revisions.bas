@@ -4,7 +4,7 @@ Dim Out As Integer
 
 Sub Run1(name, cmd)
   Dim a(0) As New com.sun.star.beans.PropertyValue
-  Dim none(), d, e, o, s
+  Dim none(), d, e, o, s, c
   a(0).Name = "Hidden" : a(0).Value = True
   d = StarDesktop.loadComponentFromURL(ConvertToURL(Environ("LO_REV_DIR") & "/" & name), "_blank", 0, a())
   createUnoService("com.sun.star.frame.DispatchHelper").executeDispatch(d.CurrentController.Frame, cmd, "", 0, none())
@@ -12,7 +12,13 @@ Sub Run1(name, cmd)
   e = d.Text.createEnumeration()
   Do While e.hasMoreElements()
     o = e.nextElement()
-    s = s & "|" & o.getString()
+    If o.supportsService("com.sun.star.text.TextTable") Then
+      For Each c In o.getCellNames()
+        s = s & "|" & Join(Split(Join(Split(o.getCellByName(c).getString(), Chr(13)), ""), Chr(10)), "|")
+      Next
+    Else
+      s = s & "|" & o.getString()
+    End If
   Loop
   Print #Out, name & " " & cmd & " " & s
   d.close(True)

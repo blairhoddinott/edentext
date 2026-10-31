@@ -95,7 +95,9 @@ const drawRecorded = (r, size) => {
   const x = r();
   if (x < 0.3) return { type: pick(r, WORDS) };
   if (x < 0.85) return { key: pick(r, RECORDED_KEYS) };
-  return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
+  if (x < 0.95) return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
+  return pick(r, [{ cmd: 'addRowAfter' }, { cmd: 'addColumnBefore' }, { cmd: 'deleteRow' }, { cmd: 'deleteColumn' }, { cmd: 'deleteTable' },
+    { cmd: 'insertTable', args: [{ rows: 2, cols: 2, withHeaderRow: false }] }]);
 };
 
 // The zone's own schema — one paragraph of runs, breaks, fields and inline images — so it
@@ -556,7 +558,7 @@ try {
   }
 
   for (let run = 0; run < RUNS; run++) {
-    const seed = SEED + 100 + run, doc = ['02-blocks.odt', '08-lists.odt'][run % 2], r = mulberry32(seed);
+    const seed = SEED + 100 + run, doc = ['02-blocks.odt', '08-lists.odt', '04-table.odt'][run % 3], r = mulberry32(seed);
     const before = await docJson();
     await page.setInputFiles('input.file-input[accept*=".odt"]', join(ROOT, 'tests/corpus', doc));
     await page.waitForFunction((b) => JSON.stringify(document.querySelector('.tiptap-host .tiptap').editor.getJSON()) !== b, before, { timeout: 30_000 });
@@ -570,11 +572,13 @@ try {
       const op = drawRecorded(r, await docSize());
       log.push(op);
       // Lifting an item out of its list is list structure, which recording does not cover yet.
-      const lifts = op.key === 'Backspace' && await ed(() => {
+      const { atItemStart, inList } = await ed(() => {
         const { $from, empty } = document.querySelector('.tiptap-host .tiptap').editor.state.selection;
-        return empty && !$from.parentOffset && $from.depth > 1 && $from.node(-1).type.name === 'listItem';
+        const inList = $from.depth > 1 && $from.node(-1).type.name === 'listItem';
+        return { atItemStart: empty && !$from.parentOffset && inList, inList };
       });
-      if (lifts) continue;
+      // So is the cut a table puts into a list.
+      if ((op.key === 'Backspace' && atItemStart) || (op.cmd === 'insertTable' && inList)) continue;
       if (op.cmd) await runCmd(op);
       else {
         const err = await focused();
@@ -592,18 +596,20 @@ try {
       const editor = document.querySelector('.tiptap-host .tiptap').editor;
       const made = revisions(editor.state.doc).length;
       editor.commands.rejectRevisions(true);
-      // An attr at its default may be spelled out or absent: a rebuilt block spells it.
-      const plain = (key) => JSON.parse(JSON.stringify(JSON.parse(key), (_k, v) => (v === null ? undefined : v)));
+      // An attr at its default may be spelled out or absent: a rebuilt block spells it. Widths
+      // rescale by a rounding error as columns come and go.
+      const plain = (key) => JSON.parse(JSON.stringify(JSON.parse(key), (k, v) => (v === null || k === 'colwidth' ? undefined : v)));
       const diff = firstDiff({ type: 'doc', content: plain(initial) }, { type: 'doc', content: plain(window.__docKey()) });
+      const rejected = window.__docKey();
       editor.commands.undo();
       editor.commands.acceptRevisions(true);
       const after = revisions(editor.state.doc).length;
       editor.state.doc.check();
-      return { made, diff, after };
+      return { made, diff, after, rejected };
     }, initial);
     const bad = broken ?? left.diff ?? (left.after ? `${left.after} changes left after accepting all` : null);
     check(!bad, `seed ${seed} on ${doc}: ${left.made} recorded changes${bad ? ` — ${bad}` : ', all rejected and accepted'}`);
-    if (bad) { await writeFile(join(tmpdir(), `monkey-${seed}-recorded.json`), JSON.stringify(log)); await writeFile(join(tmpdir(), `monkey-${seed}-initial.json`), initial); for (const op of log.slice(-14)) console.log('    ', JSON.stringify(op)); }
+    if (bad) { await writeFile(join(tmpdir(), `monkey-${seed}-recorded.json`), JSON.stringify(log)); await writeFile(join(tmpdir(), `monkey-${seed}-initial.json`), initial); await writeFile(join(tmpdir(), `monkey-${seed}-rejected.json`), left.rejected ?? ''); for (const op of log.slice(-14)) console.log('    ', JSON.stringify(op)); }
   }
 } catch (err) {
   check(false, `monkey run threw: ${err.stack ?? err}`);

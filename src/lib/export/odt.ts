@@ -776,9 +776,26 @@ const isParagraphNode = (n: TiptapNode) => n.type === 'paragraph' || n.type === 
 // region from this block's end to the next one's start. A deletion joins the two blocks, as
 // the body shows a struck mark: under the first one's format, or the next one's when
 // nothing of the first stays (probed); REV_BREAK stands where the mark was.
+// LibreOffice reads a row's or column's change from the text in it, so a line without any
+// gets a tracked U+200D, as it writes itself (probed).
+function plantLineChanges(node: TiptapNode): void {
+  const hasText = (n: TiptapNode): boolean => n.type === 'text' || !!n.content?.some(hasText);
+  for (const child of node.content ?? []) {
+    const rev = child.attrs?.revMark as Record<string, Record<string, string>> | null | undefined;
+    if (rev && !hasText(child) && (child.type === 'tableRow' || child.type === 'tableCell' || child.type === 'tableHeader')) {
+      let block = child;
+      while (block.type !== 'paragraph' && block.type !== 'heading' && block.content?.length) block = block.content[0];
+      const marks = (['insertion', 'deletion'] as const).filter((k) => rev[k]).map((type) => ({ type, attrs: rev[type] }));
+      if (block !== child) block.content = [{ type: 'text', text: REV_LINE, marks }, ...(block.content ?? [])];
+    }
+    plantLineChanges(child);
+  }
+}
+
 function carryParagraphMarks(doc: TiptapNode, out: Map<string, RevisionExport>): TiptapNode {
   const copy = (n: TiptapNode): TiptapNode => (n.content ? { ...n, content: n.content.map(copy) } : { ...n });
   const root = copy(doc);
+  plantLineChanges(root);
   type Place = { parent: TiptapNode; index: number };
   // The block a mark runs into, down through the list nodes around it.
   const next = (chain: Place[]): Place[] | null => {
@@ -1856,6 +1873,7 @@ function collectTableRowHeights(node: TiptapNode, result: (string | null)[]): vo
         typeof h === 'number' && h > 0
           ? `style:min-row-height="${Math.round(((h * 2.54) / 96) * 1000) / 1000}cm" style:use-optimal-row-height="false"` : '',
         row.attrs?.cantSplit === true ? 'fo:keep-together="always"' : '',
+        row.attrs?.revMark ? 'loext:text-changes-only="false"' : '',
       ].filter(Boolean).join(' ');
       result.push(props || null);
     }
@@ -1911,6 +1929,10 @@ function applyTableRowHeights(odtBytes: Uint8Array, heights: (string | null)[]):
 // odf-kit only writes the fo:padding shorthand, which ODF defines as one length —
 // LibreOffice drops a multi-value form. The cells carry their table's margins as a
 // CSS-style TRBL shorthand, which this expands per side (scoped to cell properties).
+// Rides on the padding value, which every cell has a style for: a cell of a recorded column.
+const REV_CELL = 'rev';
+const REV_LINE = '\u200D';
+
 function expandCellPadding(odtBytes: Uint8Array): Uint8Array {
   const files = unzipSync(odtBytes);
   const contentBytes = files['content.xml'];
@@ -1919,10 +1941,11 @@ function expandCellPadding(odtBytes: Uint8Array): Uint8Array {
   const content = strFromU8(contentBytes).replace(
     /(<style:table-cell-properties\b[^>]*?)fo:padding="([^"]*)"/g,
     (_m, head: string, value: string) => {
-      const [top, right, bottom, left] = value.trim().split(/\s+/);
+      const [top, right, bottom, left, rev] = value.trim().split(/\s+/);
       if (!left) return head + `fo:padding="${value}"`;
       return head + `fo:padding-top="${top}" fo:padding-right="${right}"`
-        + ` fo:padding-bottom="${bottom}" fo:padding-left="${left}"`;
+        + ` fo:padding-bottom="${bottom}" fo:padding-left="${left}"`
+        + (rev === REV_CELL ? ' loext:text-changes-only="false"' : '');
     },
   );
 
@@ -4640,7 +4663,7 @@ function exportTable(node: TiptapNode, doc: OdtDocument, contentWidthCm: number,
           // Emit the cell's runs (SEG-separated) and record its descriptor; addCell is
           // synchronous, so the push stays in document order, matching applyCellBlocks'
           // walk. Spans make odf-kit emit covered cells, which its cell regex never matches.
-          const opts: CellOptions = { padding: padValue(parseCellPadding(cell.attrs?.cellPadding) ?? tablePad) };
+          const opts: CellOptions = { padding: padValue(parseCellPadding(cell.attrs?.cellPadding) ?? tablePad) + (cell.attrs?.revMark ? ` ${REV_CELL}` : '') };
           const colspan = (cell.attrs?.colspan as number) ?? 1;
           const rowspan = (cell.attrs?.rowspan as number) ?? 1;
           if (colspan > 1) opts.colSpan = colspan;
