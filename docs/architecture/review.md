@@ -79,6 +79,8 @@ What reads the document as text reads it as accepting would leave it: formulas a
 
 Word counts (`shownStats`), index rows, the navigator and references (`blockText`) read as the view does: what it hides is not there. The cached rows of an index change on its next update.
 
+A change the view hides, such as a deletion under simple markup, keeps its card beside where it stands, as its bar does; a comment on hidden text has none.
+
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.
 
 A merge whose two sides keep text stays two lines on the page: `display: inline` on both blocks loses alignment, indents and spacing, which belong to the block, and cannot join list items. Accepting and rejecting are right regardless, and the print path really merges: it prints `settledDoc`. The raster PDF copies the page and shows what the page shows.

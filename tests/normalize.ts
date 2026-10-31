@@ -120,6 +120,9 @@ export function normalize(node: N): N {
     if (k in ORDERED_DEFAULTS && ORDERED_DEFAULTS[k] === v) continue;
     if (volatileKey(k)) continue;
     if (k === 'zIndex') continue;
+    // A list starting at 1 has nothing to count on from, and no style means no space to undo.
+    if (k === 'continueNumbering' && (node.attrs?.start ?? 1) === 1) continue;
+    if ((k === 'spaceBefore' || k === 'spaceAfter') && v === 0 && node.type === 'paragraph' && !node.attrs?.styleName) continue;
     // An index with no cached row and one never generated both generate on mount.
     if (node.type === 'tableOfContents' && k === 'entries' && Array.isArray(v) && !v.length) continue;
     if (k === 'colwidth') { attrs.colwidth = 'CW'; continue; } // ratios compared separately

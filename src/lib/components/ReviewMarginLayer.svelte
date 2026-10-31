@@ -186,13 +186,21 @@
 
   // Where a card's line is. An empty block or a table has no line at its position, but a
   // box of its own, unless the view hides it.
-  function anchorBox(view: EditorView, pos: number): { top: number; bottom: number } | null {
-    const line = view.coordsAtPos(pos);
+  function anchorBox(view: EditorView, pos: number, side = 1): { top: number; bottom: number; left: number } | null {
+    const line = view.coordsAtPos(pos, side);
     if (line.bottom - line.top >= 1) return line;
     const { node, offset } = view.domAtPos(pos), child = node.childNodes[offset];
     const el = child instanceof HTMLElement && !child.matches('br, img.ProseMirror-separator') ? child : node instanceof HTMLElement ? node : node.parentElement;
     const box = el?.getBoundingClientRect();
     return box && box.height >= 1 ? box : null;
+  }
+
+  // The nearest box around a position, for a block with nothing shown in it.
+  function shownAround(view: EditorView, pos: number): DOMRect | null {
+    const { node } = view.domAtPos(pos);
+    let el = node instanceof HTMLElement ? node : node.parentElement;
+    while (el && el.getBoundingClientRect().height < 1) el = el.parentElement;
+    return el?.getBoundingClientRect() ?? null;
   }
 
   function measure(): void {
@@ -221,11 +229,11 @@
       let anchorX: number;
       let anchorY: number;
       try {
-        const a = anchorBox(view, from);
-        const b = view.coordsAtPos(to, -1);
-        // An anchor inside text the display mode hides has no box; its card would otherwise
-        // stack at the top of the page, pointing nowhere.
+        // A change the view hides shows beside where it stands, as its bar does. A comment
+        // on hidden text has no box; its card would stack at the top of the page.
+        const a = anchorBox(view, from) ?? (part.revision ? anchorBox(view, from, -1) ?? anchorBox(view, to) ?? shownAround(view, from) : null);
         if (!a) return;
+        const end = view.coordsAtPos(to, -1), b = end.bottom - end.top >= 1 ? end : a;
         want = (a.top - rect.top) / scale;
         anchorX = (b.left - rect.left) / scale;
         // The bottom of the line box, not its middle: both word processors run the leader

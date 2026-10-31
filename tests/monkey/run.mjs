@@ -456,10 +456,10 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
     }
     return { ...n, content: out };
   };
-  // A DOCX cell ends in a paragraph, so one follows a table that ends it.
+  // A DOCX cell or text box ends in a paragraph, so one follows a table that ends it.
   const cellTail = (n) => {
     const kids = n.content ?? [], last = kids[kids.length - 1];
-    if (/^table(Cell|Header)$/.test(n.type) && last?.type === 'paragraph' && !last.content?.length && kids[kids.length - 2]?.type === 'table') kids.pop();
+    if (/^(tableCell|tableHeader|textBox)$/.test(n.type) && last?.type === 'paragraph' && !last.content?.length && kids[kids.length - 2]?.type === 'table') kids.pop();
     kids.forEach(cellTail);
     return n;
   };
