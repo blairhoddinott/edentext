@@ -1126,6 +1126,8 @@ const ja: Messages = {
     showPaneHint: '記録された変更の一覧を表示',
     empty: '記録された変更はありません。',
     unknownAuthor: '不明な作成者',
+    tableRow: '表の行',
+    tableColumn: '表の列',
     inserted: '挿入',
     deleted: '削除',
   },

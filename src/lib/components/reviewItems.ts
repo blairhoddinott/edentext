@@ -28,7 +28,8 @@ export function visibleRevisions(doc: PMNode): Revision[] {
  *  cards does. `scroll: false` for a card beside the page, which stays under the pointer. */
 export function selectRange(editor: Editor, from: number, to: number, scroll = true): void {
   const { state, view } = editor;
-  const tr = state.tr.setSelection(TextSelection.create(state.doc, from, to));
+  // By `between`: a row's change starts between nodes, where a text selection cannot.
+  const tr = state.tr.setSelection(TextSelection.between(state.doc.resolve(from), state.doc.resolve(to)));
   const scroller = (view.dom as HTMLElement).closest('.editor');
   view.dispatch(scroll && !scroller ? tr.scrollIntoView() : tr);
   view.focus();

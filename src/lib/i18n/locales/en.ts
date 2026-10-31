@@ -1139,6 +1139,8 @@ const en = {
     showPaneHint: 'Show the list of recorded changes',
     empty: 'No recorded changes.',
     unknownAuthor: 'Unknown author',
+    tableRow: 'Table row',
+    tableColumn: 'Table column',
     inserted: 'Inserted',
     deleted: 'Deleted',
   },

@@ -33,7 +33,7 @@ function inherit(tr: Transaction, tableStart: number, axis: 'row' | 'column', li
   if (row && source >= 0 && source < table.childCount) {
     let pos = tableStart;
     for (let i = 0; i < line; i++) pos += table.child(i).nodeSize;
-    tr.setNodeMarkup(pos, null, table.child(source).attrs);
+    tr.setNodeMarkup(pos, null, { ...table.child(source).attrs, revMark: null });
   }
   const done = new Set<number>();
   for (let k = 0; k < (row ? map.width : map.height); k++) {
@@ -44,10 +44,10 @@ function inherit(tr: Transaction, tableStart: number, axis: 'row' | 'column', li
     done.add(cellPos);
     const cell = table.nodeAt(cellPos)!;
     const src = table.nodeAt(srcPos)!;
-    const { colspan: _c, rowspan: _r, colwidth: _w, ...look } = src.attrs;
+    const { colspan: _c, rowspan: _r, colwidth: _w, revMark: _rev, ...look } = src.attrs;
     tr.setNodeMarkup(tableStart + cellPos, null, { ...cell.attrs, ...look });
     const para = cell.firstChild;
     const from = src.firstChild;
-    if (para && from && para.type === from.type) tr.setNodeMarkup(tableStart + cellPos + 1, null, from.attrs);
+    if (para && from && para.type === from.type) tr.setNodeMarkup(tableStart + cellPos + 1, null, { ...from.attrs, revMark: null });
   }
 }

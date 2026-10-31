@@ -1139,6 +1139,8 @@ const ru: Messages = {
     showPaneHint: 'Показать список записанных исправлений',
     empty: 'Записанных исправлений нет.',
     unknownAuthor: 'Неизвестный автор',
+    tableRow: 'Строка таблицы',
+    tableColumn: 'Столбец таблицы',
     inserted: 'Добавлено',
     deleted: 'Удалено',
   },

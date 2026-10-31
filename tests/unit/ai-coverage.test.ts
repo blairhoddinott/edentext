@@ -247,6 +247,8 @@ const SCHEMA: Record<string, Entry> = {
   tableRow: check(table('row_below', { cells: ['x', 'y'] }), (d) => first(d, 'table')!.childCount === 3, TABLE),
   'tableRow.rowHeight': check(table('css', { value: 'height: 1cm' }), (d) => !!first(d, 'tableRow')!.attrs.rowHeight, TABLE),
   'tableRow.cantSplit': IMPORT,
+  'tableRow.revMark': same('mark:insertion'),
+  'tableCell.revMark': same('mark:insertion'),
   tableCell: same('table'),
   tableHeader: check(insert('<table><tr><th>h</th></tr><tr><td>c</td></tr></table>'), (d) => !!first(d, 'tableHeader')),
   'tableCell.formula': check(table('formula', { value: '=SUM(<A1:B1>)' }), (d) => !!first(d, 'tableCell')!.attrs.formula, TABLE),

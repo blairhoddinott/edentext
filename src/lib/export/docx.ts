@@ -731,7 +731,7 @@ function wrapRevisionXml(run: string, rev: NonNullable<ReturnType<typeof revisio
 }
 
 // A recorded paragraph mark: <w:ins> and <w:del> in the mark's own run properties.
-function paragraphMarkRevisions(revMark: unknown) {
+function revMarkRevisions(revMark: unknown) {
   const out: { insertion?: { id: number; author: string; date: string }; deletion?: { id: number; author: string; date: string } } = {};
   for (const kind of ['insertion', 'deletion'] as const) {
     const attrs = (revMark as Record<string, Record<string, unknown>> | null | undefined)?.[kind];
@@ -2776,7 +2776,7 @@ function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
     border: paraBordersOf(attrs),
     // The paragraph mark's own run properties; the language there formats the mark alone.
     run: markSize || markFont || blockLang || attrs.revMark
-      ? { size: markSize, font: markFont, language: blockLang, ...paragraphMarkRevisions(attrs.revMark) } : undefined,
+      ? { size: markSize, font: markFont, language: blockLang, ...revMarkRevisions(attrs.revMark) } : undefined,
     children: [
       ...(attrs.noHyphenation === true ? [new TextRun(NOHYP)] : []),
       ...(attrs.snapToGrid === false ? [new TextRun(NOSNAP)] : []),
@@ -2955,6 +2955,7 @@ function tableToDocx(node: TiptapNode, contentWidthCm: number, num: Numbering, f
       const ownPad = parseCellPadding(cell.attrs?.cellPadding);
       const content = formulaCellContent(cell) ?? cell.content;
       cells.push(new TableCell({
+        ...revMarkRevisions(cell.attrs?.revMark),
         columnSpan: colspan > 1 ? colspan : undefined,
         rowSpan: rowspan > 1 ? rowspan : undefined,
         margins: ownPad
@@ -2978,6 +2979,7 @@ function tableToDocx(node: TiptapNode, contentWidthCm: number, num: Numbering, f
       }));
     }
     return new TableRow({
+      ...revMarkRevisions(row.attrs?.revMark),
       height: typeof rh === 'number' && rh > 0 ? { value: pxToTwip(rh), rule: HeightRule.ATLEAST } : undefined,
       ...(row.attrs?.cantSplit === true ? { cantSplit: true } : {}),
       // The flag marks a header row, whether the table asked for the repeat or only the

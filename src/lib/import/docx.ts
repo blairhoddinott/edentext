@@ -1717,10 +1717,15 @@ function keepRunDefault(content: Node[], key: 'fontSize' | 'fontFamily', value: 
 }
 
 // A recorded paragraph mark (w:pPr/w:rPr/w:ins|del, a move's two ends w:moveFrom|moveTo).
-function paragraphMarkRevisions(ppr: Element | null): Record<string, { id: string; author: string; date: string }> | undefined {
-  const rPr = fc(ppr, 'rPr'), out: Record<string, { id: string; author: string; date: string }> = {};
-  for (const [name, kind] of [['ins', 'insertion'], ['moveTo', 'insertion'], ['del', 'deletion'], ['moveFrom', 'deletion']]) {
-    const el = fc(rPr, name);
+function paragraphMarkRevisions(ppr: Element | null) {
+  return revMarkIn(fc(ppr, 'rPr'), [['ins', 'insertion'], ['moveTo', 'insertion'], ['del', 'deletion'], ['moveFrom', 'deletion']]);
+}
+
+// The revisions a property element holds, as `revMark`: a paragraph mark's, a row's, a cell's.
+function revMarkIn(pr: Element | null, names: string[][]): Record<string, { id: string; author: string; date: string }> | undefined {
+  const out: Record<string, { id: string; author: string; date: string }> = {};
+  for (const [name, kind] of names) {
+    const el = fc(pr, name);
     if (el) out[kind] = { id: el.getAttributeNS(W, 'id') ?? '', author: el.getAttributeNS(W, 'author') ?? '', date: el.getAttributeNS(W, 'date') ?? '' };
   }
   return Object.keys(out).length ? out : undefined;
@@ -3733,6 +3738,8 @@ function buildTable(tbl: Element, ctx: Ctx): Node | null {
       const { formula, format } = cellFormulaOf(tc);
       if (formula) attrs.formula = formula;
       if (formula && format) attrs.cellFormat = format;
+      const revMark = revMarkIn(tcPr, [['cellIns', 'insertion'], ['cellDel', 'deletion']]);
+      if (revMark) attrs.revMark = revMark;
       const cell: Node = { type: isHeaderRow ? 'tableHeader' : 'tableCell', attrs, content: blocks.length ? blocks : [{ type: 'paragraph' }] };
       cells.push(cell);
       for (let c = col; c < col + colspan; c++) pending[c] = vMerge === 'restart' ? cell : null;
@@ -3746,6 +3753,8 @@ function buildTable(tbl: Element, ctx: Ctx): Node | null {
     if (h && h > 0) row.attrs = { rowHeight: Math.round(twipToPx(h)) };
     const cs = fc(fc(tr, 'trPr'), 'cantSplit');
     if (cs && onOff(cs)) row.attrs = { ...row.attrs, cantSplit: true };
+    const revMark = revMarkIn(fc(tr, 'trPr'), [['ins', 'insertion'], ['del', 'deletion']]);
+    if (revMark) row.attrs = { ...row.attrs, revMark };
     rows.push(row);
   }
   if (rows.length === 0) return null;

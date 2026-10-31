@@ -15,6 +15,10 @@ Removing a mark follows LibreOffice (probed, accept and reject alike):
 
 Deleted `Heading first` + `body second` across the mark gives one heading; with the whole heading deleted, the body keeps its own format. The author's own pending mark goes at once.
 
+## Tables
+
+A row carries a `revMark` as a paragraph does; so does each cell of a column, recorded only when every row got a new cell, which tells a column from a split cell. A row or column change gathers all its cells and text into one revision (`gatherTableChanges`), and removing one takes the line with `removeRow`/`removeColumn`, with the last line the table. A row or column delete through merged cells is no pure delete and passes unrecorded.
+
 ## Views
 
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.

@@ -27,6 +27,19 @@ const LIST = '<ul><li><p>one</p></li><li><p>two</p></li></ul><p>tail</p>';
 export const del = (from: number, to: number): Act[] => [(e) => select(e, from, to), (e) => e.commands.deleteSelection()];
 export const enter = (at: number): Act[] => [(e) => select(e, at), (e) => e.commands.splitBlock()];
 
+const TABLE = '<table><tbody><tr><td><p>a1</p></td><td><p>b1</p></td></tr><tr><td><p>a2</p></td><td><p>b2</p></td></tr></tbody></table><p>tail</p>';
+const inCell = (at: number): Act => (e) => select(e, at);
+
+/** Edits of a table's structure; `at` is inside its second row's first cell. */
+export const TABLE_CASES: [string, string, Act[]][] = [
+  ['a row deleted', TABLE, [inCell(14), (e) => e.commands.deleteRow()]],
+  ['a column deleted', TABLE, [inCell(14), (e) => e.commands.deleteColumn()]],
+  ['the table deleted', TABLE, [inCell(14), (e) => e.commands.deleteTable()]],
+  ['a row inserted', TABLE, [inCell(14), (e) => e.commands.addRowAfter()]],
+  ['a column inserted', TABLE, [inCell(14), (e) => e.commands.addColumnBefore()]],
+  ['a table inserted', THREE, [(e) => select(e, 7), (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false })]],
+];
+
 export const CASES: [string, string, Act[]][] = [
   ['a selection across two paragraphs', THREE, del(3, 9)],
   ['a whole paragraph with its mark', THREE, del(7, 13)],

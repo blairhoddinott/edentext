@@ -1129,6 +1129,8 @@ const fr: Messages = {
     showPaneHint: 'Afficher la liste des modifications enregistrées',
     empty: 'Aucune modification enregistrée.',
     unknownAuthor: 'Auteur inconnu',
+    tableRow: 'Ligne de tableau',
+    tableColumn: 'Colonne de tableau',
     inserted: 'Inséré',
     deleted: 'Supprimé',
   },

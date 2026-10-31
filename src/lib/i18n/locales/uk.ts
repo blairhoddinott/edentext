@@ -1139,6 +1139,8 @@ const uk: Messages = {
     showPaneHint: 'Показати список записаних виправлень',
     empty: 'Записаних виправлень немає.',
     unknownAuthor: 'Невідомий автор',
+    tableRow: 'Рядок таблиці',
+    tableColumn: 'Стовпець таблиці',
     inserted: 'Додано',
     deleted: 'Видалено',
   },

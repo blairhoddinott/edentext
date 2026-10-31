@@ -1125,6 +1125,8 @@ const es: Messages = {
     showPaneHint: 'Mostrar la lista de cambios registrados',
     empty: 'No hay cambios registrados.',
     unknownAuthor: 'Autor desconocido',
+    tableRow: 'Fila de tabla',
+    tableColumn: 'Columna de tabla',
     inserted: 'Insertado',
     deleted: 'Eliminado',
   },

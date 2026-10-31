@@ -1438,12 +1438,16 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
 .tiptap .pm-para-mark.pm-rev-del::after { text-decoration: line-through; }
 .tiptap .pm-para-mark.pm-rev-ins::after { text-decoration: underline; }
 
+/* A recorded row or column, tinted in its author's colour. */
+.tiptap .pm-line-insertion { background: color-mix(in srgb, var(--rev-color) 14%, transparent); }
+.tiptap .pm-line-deletion { background: color-mix(in srgb, var(--rev-color) 14%, transparent); text-decoration: line-through; }
+
 /* Word's display modes (storage/markup.svelte.ts). The document keeps every change —
    this only takes it off the page, so a final text or the original one can be read. */
 .paper[data-hide-deletions] .tiptap .pm-deletion,
 .paper[data-hide-insertions] .tiptap .pm-insertion { display: none; }
 
-/* A block with nothing left in such a view goes too, with a list item holding only it. */
+/* A block, row or cell with nothing left in such a view goes too, with a list item holding only it. */
 .paper[data-hide-deletions] .tiptap .pm-gone-deletion,
 .paper[data-hide-insertions] .tiptap .pm-gone-insertion,
 .paper[data-hide-deletions] .tiptap li:not(:has(> :not(.pm-gone-deletion))),

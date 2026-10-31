@@ -1124,6 +1124,8 @@ const zhHans: Messages = {
     showPaneHint: '显示已记录的修订列表',
     empty: '没有已记录的修订。',
     unknownAuthor: '未知作者',
+    tableRow: '表格行',
+    tableColumn: '表格列',
     inserted: '插入',
     deleted: '删除',
   },

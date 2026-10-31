@@ -1125,6 +1125,8 @@ const zhHant: Messages = {
     showPaneHint: '顯示已記錄的修訂清單',
     empty: '沒有已記錄的修訂。',
     unknownAuthor: '不明作者',
+    tableRow: '表格列',
+    tableColumn: '表格欄',
     inserted: '插入',
     deleted: '刪除',
   },

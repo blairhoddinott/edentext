@@ -2,7 +2,7 @@
 // gives unrecorded, rejecting all gives the document back.
 import { describe, it, expect, afterEach } from 'vitest';
 import type { Editor } from '@tiptap/core';
-import { CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
+import { CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc } from '../../src/lib/editor/extensions/trackChanges';
 import { setRecordChanges } from '../../src/lib/storage/trackChanges.svelte';
 import { buildDocx } from '../../src/lib/export/docx';
@@ -10,6 +10,9 @@ import { importDocx } from '../../src/lib/import/docx';
 import { buildOdt } from '../../src/lib/export/odt';
 import { importOdt } from '../../src/lib/import/odt';
 import { DEFAULT_MARGINS } from '../../src/lib/storage/pageMargins';
+
+// A file always states column widths; what a removed column leaves of them is the same edit.
+const shape = (e: Editor) => JSON.parse(JSON.stringify(e.getJSON(), (k, v) => (k === 'colwidth' ? undefined : v)));
 
 const FORMATS: [string, (doc: any) => Promise<unknown>][] = [
   ['DOCX', async (doc) => importDocx(await buildDocx(doc, DEFAULT_MARGINS)).content],
@@ -47,6 +50,32 @@ describe('recording keeps its promise', () => {
 
     accepted.commands.acceptRevisions(true);
     expect(accepted.getJSON()).toEqual(plain.getJSON());
+  });
+
+  it.each(TABLE_CASES)('%s', async (_name, html, steps) => {
+    const plain = open(html);
+    await edit(plain, steps);
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, steps);
+    const recorded = e.getJSON();
+    expect(revisions(e.state.doc)).toHaveLength(1);
+    setRecordChanges(false);
+    const rejected = open(recorded);
+    rejected.commands.rejectRevisions(true);
+    expect(rejected.getJSON()).toEqual(open(html).getJSON());
+    for (const [format, through] of FORMATS) {
+      if (format === 'ODT') continue;
+      const reread = open(await through(recorded));
+      expect(revisions(reread.state.doc), `${format}, read`).toHaveLength(1);
+      reread.commands.rejectRevisions(true);
+      expect(shape(reread), `${format}, rejected`).toEqual(shape(open(await through(open(html).getJSON()))));
+      const rereadAccepted = open(await through(recorded));
+      rereadAccepted.commands.acceptRevisions(true);
+      expect(shape(rereadAccepted), `${format}, accepted`).toEqual(shape(open(await through(plain.getJSON()))));
+    }
+    e.commands.acceptRevisions(true);
+    expect(e.getJSON()).toEqual(plain.getJSON());
   });
 
   it('one typed passage over a paragraph break is one change', async () => {

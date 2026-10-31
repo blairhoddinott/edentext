@@ -1123,6 +1123,8 @@ const pt: Messages = {
     showPaneHint: 'Mostrar a lista de alterações registadas',
     empty: 'Não há alterações registadas.',
     unknownAuthor: 'Autor desconhecido',
+    tableRow: 'Linha da tabela',
+    tableColumn: 'Coluna da tabela',
     inserted: 'Inserido',
     deleted: 'Eliminado',
   },

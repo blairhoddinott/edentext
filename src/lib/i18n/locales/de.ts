@@ -1130,6 +1130,8 @@ const de: Messages = {
     showPaneHint: 'Liste der aufgezeichneten Änderungen anzeigen',
     empty: 'Keine aufgezeichneten Änderungen.',
     unknownAuthor: 'Unbekannter Autor',
+    tableRow: 'Tabellenzeile',
+    tableColumn: 'Tabellenspalte',
     inserted: 'Eingefügt',
     deleted: 'Gelöscht',
   },

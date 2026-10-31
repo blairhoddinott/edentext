@@ -2,8 +2,8 @@ import { Extension, Mark, mergeAttributes } from '@tiptap/core';
 import { Slice, type Fragment, type Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
-import { CellSelection } from '@tiptap/pm/tables';
-import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceStep, type Step, type StepMap } from '@tiptap/pm/transform';
+import { CellSelection, TableMap, removeColumn, removeRow } from '@tiptap/pm/tables';
+import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, type Step, type StepMap } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 
@@ -18,7 +18,8 @@ import { authorColor, authorColors } from '../authorColors';
 // probed — see docs/architecture/review.md.
 //
 // A paragraph mark is no text, so a mark cannot carry its change: the `revMark` attr of the
-// block it ends does, holding the insertion, the deletion or both.
+// block it ends does, holding the insertion, the deletion or both. A table row and a cell of
+// a recorded column carry theirs the same way.
 
 export type RevisionKind = 'insertion' | 'deletion';
 const KINDS = ['insertion', 'deletion'] as const;
@@ -35,8 +36,10 @@ export type Revision = {
   text: string;
   /** The inline stretches of the change, each within one textblock. */
   spans: [number, number][];
-  /** The blocks whose paragraph mark belongs to the change, by position. */
+  /** The blocks whose paragraph mark belongs to the change, with the rows and cells. */
   marks: number[];
+  /** Set when the change is a table's: its rows, or a column of cells. */
+  table?: 'row' | 'column';
 };
 
 export type RevisionAttrs = { id: string; author: string; date: string };
@@ -87,6 +90,11 @@ function sameChange(prev: Revision, attrs: RevisionAttrs): boolean {
   return prev.id === String(attrs.id ?? '') || (!!prev.date && prev.date === attrs.date && prev.author === attrs.author);
 }
 
+const tableLine = (node: PMNode): 'row' | 'column' | null => {
+  const role = node.type.spec.tableRole;
+  return role === 'row' ? 'row' : role === 'cell' || role === 'header_cell' ? 'column' : null;
+};
+
 // Every recorded change in document order, adjacent runs of one change merged, across a
 // paragraph mark of it too. Text one author inserted and another struck through is in
 // both: the insertion and its deletion.
@@ -119,7 +127,14 @@ export function revisions(doc: PMNode): Revision[] {
     }
   };
   const visit = (node: PMNode, pos: number): boolean => {
-    if (!node.isTextblock) return true;
+    if (!node.isTextblock) {
+      const table = tableLine(node), rev = node.attrs.revMark as RevMark | null | undefined;
+      if (table && rev) for (const kind of KINDS) {
+        const attrs = rev[kind];
+        if (attrs) out.push({ kind, ...attrs, from: pos, to: pos + node.nodeSize, text: '', spans: [], marks: [pos], table });
+      }
+      return true;
+    }
     for (const r of bridging) r.to = pos + 1;
     bridging = [];
     node.forEach((child, offset) => {
@@ -145,7 +160,23 @@ export function revisions(doc: PMNode): Revision[] {
     return false;
   };
   doc.descendants(visit);
-  return out;
+  return gatherTableChanges(out);
+}
+
+// A row or column change is one change over its cells and all the text in them, which no
+// adjacency in the document joins.
+function gatherTableChanges(list: Revision[]): Revision[] {
+  const hosts: Revision[] = [];
+  return list.filter((r) => {
+    const host = hosts.find((h) => h.kind === r.kind && sameChange(h, r));
+    if (!host) { if (r.table) hosts.push(r); return true; }
+    host.spans.push(...r.spans);
+    host.marks.push(...r.marks);
+    host.text += r.text;
+    host.from = Math.min(host.from, r.from);
+    host.to = Math.max(host.to, r.to);
+    return false;
+  });
 }
 
 /** The change the selection lies within — what the pane highlights and the bar thickens. */
@@ -206,8 +237,9 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
   const marks = list.flatMap((r) => r.marks.map((pos) => ({ pos, kind: r.kind })));
   marks.sort((a, b) => b.pos - a.pos || Number(a.kind === drop) - Number(b.kind === drop));
   for (const { pos, kind } of marks) {
-    const at = tr.mapping.map(pos, 1), rev = tr.doc.nodeAt(at)?.attrs.revMark as RevMark | null | undefined;
-    if (!rev?.[kind]) continue;
+    const { pos: at, deleted } = tr.mapping.mapResult(pos, 1);
+    const rev = tr.doc.nodeAt(at)?.attrs.revMark as RevMark | null | undefined;
+    if (deleted || !rev?.[kind]) continue;
     if (kind === drop) removeParagraphMark(tr, at);
     else {
       const { [kind]: _gone, ...rest } = rev;
@@ -245,6 +277,8 @@ function nextParagraph(doc: PMNode, end: number): number | null {
 // format and the second's mark. Where nothing follows, the block just loses its mark.
 function removeParagraphMark(tr: Transaction, pos: number): void {
   const block = tr.doc.nodeAt(pos)!, end = pos + block.nodeSize - 1;
+  const line = tableLine(block);
+  if (line) { removeTableLine(tr, pos, line); return; }
   const next = nextParagraph(tr.doc, end), $pos = tr.doc.resolve(pos);
   if (!block.content.size && (next !== null || $pos.parent.childCount > 1)) {
     tr.deleteRange(pos, pos + block.nodeSize);
@@ -263,6 +297,10 @@ function goneBlocks(doc: PMNode): { pos: number; size: number; kind: RevisionKin
   const out: { pos: number; size: number; kind: RevisionKind }[] = [];
   let before: RevMark | null = null;
   doc.descendants((node, pos) => {
+    const line = tableLine(node);
+    if (line) for (const kind of KINDS) {
+      if ((node.attrs.revMark as RevMark | null)?.[kind]) out.push({ pos, size: node.nodeSize, kind });
+    }
     if (!hasParagraphMark(node)) return true;
     const rev = node.attrs.revMark as RevMark | null;
     for (const kind of KINDS) {
@@ -283,6 +321,19 @@ export function settledDoc(doc: PMNode, accept: boolean): PMNode {
   return tr.doc;
 }
 
+// A row or column gone for good; with its last one the table goes.
+function removeTableLine(tr: Transaction, pos: number, line: 'row' | 'column'): void {
+  const $pos = tr.doc.resolve(pos), depth = line === 'row' ? $pos.depth : $pos.depth - 1;
+  const table = $pos.node(depth), tableStart = $pos.start(depth), map = TableMap.get(table);
+  if ((line === 'row' ? map.height : map.width) === 1) {
+    tr.deleteRange($pos.before(depth), $pos.after(depth));
+    return;
+  }
+  const rect = { map, table, tableStart, left: 0, top: 0, right: 0, bottom: 0 };
+  if (line === 'row') removeRow(tr, rect, $pos.index(depth));
+  else removeColumn(tr, rect, map.colCount(pos - tableStart));
+}
+
 export const TrackChanges = Extension.create<{ recording: () => boolean; author: () => string; plain: () => boolean }>({
   name: 'trackChanges',
 
@@ -292,7 +343,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
 
   addGlobalAttributes() {
     return [{
-      types: ['paragraph', 'heading'],
+      types: ['paragraph', 'heading', 'tableRow', 'tableCell', 'tableHeader'],
       attributes: {
         revMark: {
           default: null,
@@ -363,12 +414,12 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
               return [
                 ...r.spans.map(([from, to]) => Decoration.inline(from, to, { class: cls, style: `color: ${color}` })),
                 // A widget factory: a split view draws the decoration twice.
-                ...r.marks.map((pos) => Decoration.widget(pos + state.doc.nodeAt(pos)!.nodeSize - 1, () => {
+                ...r.marks.map((pos) => (tableLine(state.doc.nodeAt(pos)!) ? Decoration.node(pos, pos + state.doc.nodeAt(pos)!.nodeSize, { class: `pm-line-${r.kind}`, style: `--rev-color: ${color}` }) : Decoration.widget(pos + state.doc.nodeAt(pos)!.nodeSize - 1, () => {
                   const el = document.createElement('span');
                   el.className = `pm-para-mark ${cls}`;
                   el.style.color = color;
                   return el;
-                }, { side: -1, ignoreSelection: true, key: `${r.kind}${pos}${color}` })),
+                }, { side: -1, ignoreSelection: true, key: `${r.kind}${pos}${color}` }))),
               ];
             })));
             cache = { doc: state.doc, plain, set };
@@ -407,17 +458,18 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           const ranges = insertedRanges(transactions);
           if (!ranges.length) return null;
           const tr = newState.tr;
-          const author = options.author();
+          const author = options.author(), fresh = revisionAttrs(author);
           const { insertion, deletion } = newState.schema.marks;
           for (const [from, to] of ranges) {
             // Anything freshly in the document is this author's insertion — never struck
             // through or another's, which typing inside such a run would inherit. Typing
             // joins the run it continues, so a sentence is one change.
-            const attrs = adjacentInsertion(tr.doc, from, author) ?? revisionAttrs(author);
+            const attrs = adjacentInsertion(tr.doc, from, author) ?? fresh;
             tr.removeMark(from, to, deletion).removeMark(from, to, insertion);
             tr.addMark(from, to, insertion.create(attrs));
             markInsertedParagraphs(tr, from, to, attrs);
           }
+          markInsertedLines(tr, ranges, fresh);
           // In the history with the edit it marks, so undo and redo take both together.
           return tr.setMeta(RECORDING, true);
         },
@@ -480,8 +532,9 @@ function insertedRanges(transactions: readonly Transaction[]): [number, number][
 function newRanges(tr: Transaction, first = 0): [number, number][] {
   const out: [number, number][] = [];
   for (let i = first; i < tr.steps.length; i++) {
-    if (restyled(tr.steps[i], tr.docs[i])) continue;
-    const rest = tr.mapping.slice(i + 1);
+    if (restyled(tr.steps[i], tr.docs[i]) || retagged(tr.steps[i])) continue;
+    // A retagged node stays where it is, and its range with it.
+    const rest = new Mapping(tr.steps.slice(i + 1).filter((s) => !retagged(s)).map((s) => s.getMap()));
     tr.steps[i].getMap().forEach((_os, _oe, ns, ne) => {
       const from = rest.map(ns, 1), to = rest.map(ne, -1);
       if (to > from) out.push([from, to]);
@@ -499,6 +552,11 @@ function swap(step: Step, doc: PMNode): [PMNode, PMNode] | null {
   return old && !old.isText && step.from + old.nodeSize === step.to && old.type === next.type ? [old, next] : null;
 }
 
+// A node given other attributes around the same content (`setNodeMarkup`).
+function retagged(step: Step): boolean {
+  return step instanceof ReplaceAroundStep && step.gapFrom - step.from === 1 && step.to - step.gapTo === 1 && step.slice.size === 2;
+}
+
 // A container rebuilt whole (a sorted table, an updated index): its content only moves.
 function rebuilt(step: Step, doc: PMNode): boolean {
   const pair = swap(step, doc);
@@ -514,7 +572,7 @@ function restyled(step: Step, doc: PMNode): boolean {
 // Whether a transaction takes anything out of the document, restyled nodes aside.
 function removes(tr: Transaction): boolean {
   let gone = false;
-  tr.steps.forEach((s, i) => { if (!restyled(s, tr.docs[i])) s.getMap().forEach((os, oe) => { if (oe > os) gone = true; }); });
+  tr.steps.forEach((s, i) => { if (!restyled(s, tr.docs[i]) && !retagged(s)) s.getMap().forEach((os, oe) => { if (oe > os) gone = true; }); });
   return gone;
 }
 
@@ -684,6 +742,12 @@ function pasteCells(tr: Transaction, state: EditorState, author: string): Transa
 function clearCells(tr: Transaction, state: EditorState, author: string): Transaction | null {
   const sel = state.selection;
   if (!(sel instanceof CellSelection) || tr.doc.textContent.length >= state.doc.textContent.length) return null;
+  // Deleting rows or columns over the selection takes the cells away: another change.
+  const takesLines = tr.steps.some((s, i) => {
+    const step = s as ReplaceStep, node = tr.docs[i].nodeAt(step.from);
+    return !!node && !!tableLine(node) && step.from + node.nodeSize <= step.to;
+  });
+  if (takesLines) return null;
   if (!tr.steps.every((s) => s instanceof ReplaceStep && !s.slice.content.textBetween(0, s.slice.content.size))) return null;
   const marked = state.tr, attrs = revisionAttrs(author);
   sel.forEachCell((cell, pos) => {
@@ -834,6 +898,30 @@ function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs
   if (first) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first);
 }
 
+// The rows and the columns that came in whole: a column only as a new cell in every row,
+// which tells it from a split cell. One transaction's lines are one change.
+function markInsertedLines(tr: Transaction, ranges: [number, number][], attrs: RevisionAttrs): void {
+  const cells = new Map<number, { rows: Set<number>; cells: number[]; height: number }>();
+  for (const [from, to] of ranges) {
+    tr.doc.nodesBetween(from, to, (node, pos) => {
+      const line = tableLine(node), whole = pos >= from && pos + node.nodeSize <= to;
+      if (!line || !whole) return true;
+      if (line === 'row') tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
+      else {
+        const $pos = tr.doc.resolve(pos), table = $pos.before($pos.depth - 1);
+        const entry = cells.get(table) ?? { rows: new Set(), cells: [], height: $pos.node($pos.depth - 1).childCount };
+        entry.rows.add($pos.before());
+        entry.cells.push(pos);
+        cells.set(table, entry);
+      }
+      return false;
+    });
+  }
+  for (const entry of cells.values()) {
+    if (entry.rows.size === entry.height) for (const pos of entry.cells) tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
+  }
+}
+
 // The new content lands at `at` (after any text it replaces, which stays struck out),
 // marked as an insertion. Returns where it ends.
 function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: RevisionAttrs): number {
@@ -842,10 +930,12 @@ function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: Revisio
   // The ranges the fitted replace actually inserted: it may close and reopen blocks
   // around the slice, so its size says nothing about where the new content lies.
   const { insertion, deletion } = tr.doc.type.schema.marks;
-  for (const [from, to] of newRanges(tr, before)) {
+  const ranges = newRanges(tr, before);
+  for (const [from, to] of ranges) {
     tr.removeMark(from, to, deletion).removeMark(from, to, insertion).addMark(from, to, insertion.create(attrs));
     markInsertedParagraphs(tr, from, to, attrs);
   }
+  markInsertedLines(tr, ranges, attrs);
   return tr.mapping.slice(before).map(at, 1);
 }
 
@@ -862,11 +952,16 @@ export function trackedReplace(tr: Transaction, from: number, to: number, slice:
 
 // The parts of [from,to) a delete strikes through, the author's own pending insertions it
 // removes outright (text already struck through is in neither), and the blocks whose
-// paragraph mark lies inside.
+// paragraph mark lies inside, with the rows and cells it covers whole.
 function deleteRanges(doc: PMNode, from: number, to: number, author: string): { kept: [number, number][]; own: [number, number][]; blocks: number[] } {
   const kept: [number, number][] = [], own: [number, number][] = [], blocks: number[] = [];
-  let cursor = from;
+  let cursor = from, rowEnd = 0;
   doc.nodesBetween(from, to, (node, pos) => {
+    const line = tableLine(node);
+    if (line && pos >= from && pos + node.nodeSize <= to && pos >= rowEnd) {
+      blocks.push(pos);
+      if (line === 'row') rowEnd = pos + node.nodeSize;
+    }
     if (hasParagraphMark(node)) {
       const end = pos + node.nodeSize - 1;
       if (end >= from && end < to && nextParagraph(doc, end) !== null) blocks.push(pos);
