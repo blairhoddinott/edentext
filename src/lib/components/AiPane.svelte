@@ -38,7 +38,7 @@
   import { aiConfig, aiSettings, docBudget, setAi } from '../storage/ai.svelte';
   import { showChanges, setShowChanges } from '../storage/markup.svelte';
   import { recordLock } from '../storage/trackChanges.svelte';
-  import { revisions } from '../editor/extensions/trackChanges';
+  import { revisions, shownRange } from '../editor/extensions/trackChanges';
   import { aiErrorText, isAbort, streamChat } from '../ai/client';
   import { blockTexts, contentToDom, htmlToSlice, stripFences } from '../ai/doc';
   import { TextSelection } from '@tiptap/pm/state';
@@ -87,7 +87,7 @@
     if (!ed) return;
     const read = () => {
       const { from, to } = ed.state.selection;
-      const text = ed.state.doc.textBetween(from, to, ' ', ' ').replace(/\s+/g, ' ').trim();
+      const text = shownRange(ed.state.doc, from, to, ' ', ' ').replace(/\s+/g, ' ').trim();
       selected = text.length > 40 ? text.slice(0, 40) + '…' : text;
     };
     read();

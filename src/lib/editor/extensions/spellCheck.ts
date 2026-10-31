@@ -49,7 +49,7 @@ function wordDecos(node: PmNode, base: number, decos: Decoration[], outerLang?: 
   let blockLang = outerLang;
   node.descendants((child, pos) => {
     if (child.isTextblock) blockLang = blockLangOf(child) ?? outerLang;
-    if (!child.isText) return;
+    if (!child.isText || child.marks.some((m) => m.type.name === 'deletion')) return;
     const text = child.text ?? '';
     const code = langOf(child, blockLang);
     WORD_RE.lastIndex = 0;

@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { isCitationStyle, type CitationStyle } from '../utils/citationStyle';
+import { shownRange } from '../editor/extensions/trackChanges';
 import { askText } from './PromptDialog.svelte';
 import { t } from '../i18n/i18n.svelte';
 
@@ -45,6 +46,6 @@ export function setIndexAttrs(editor: Editor, pos: number, attrs: Record<string,
  *  processors open, filled from the selection. */
 export async function markIndexEntry(editor: Editor): Promise<void> {
   const { from, to } = editor.state.selection;
-  const term = await askText(t().ribbon.indexEntryPrompt, editor.state.doc.textBetween(from, to, ' '));
+  const term = await askText(t().ribbon.indexEntryPrompt, shownRange(editor.state.doc, from, to, ' '));
   if (term?.trim()) editor.chain().focus().setTextSelection(to).insertIndexEntry(term).run();
 }

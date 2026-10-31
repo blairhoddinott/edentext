@@ -71,7 +71,7 @@ Only text and structure differ: format does not, so a block differing in that al
 
 ## Reading struck text
 
-What reads the document as text reads it as accepting would leave it: formulas and sort keys (`liveText`), find and replace, and typing's word and sentence rules (`typedText`, which keeps offsets). In "Original" find reads the other way round: inserted text is what is gone. A copy, and the passage an AI rewrite is sent, is plain text as the view reads it (`copiedSlice`, the `transformCopied` prop), with no record of the changes; a selection wholly inside what would go keeps its text, so a struck word can be reused.
+What reads the document as text reads it as accepting would leave it: formulas and sort keys (`liveText`), find and replace, and typing's word and sentence rules (`typedText`, which keeps offsets). In "Original" find reads the other way round: inserted text is what is gone. Spelling and grammar leave it out, and so do an attached file's text, the running head, a file's or tab's name and an `|outline` link. A copy, and the passage an AI rewrite is sent, is plain text as the view reads it (`copiedSlice`, the `transformCopied` prop), with no record of the changes; a selection wholly inside what would go keeps its text, so a struck word can be reused. What a dialog or a request takes from a selection reads the same way (`shownRange`).
 
 ## Views
 

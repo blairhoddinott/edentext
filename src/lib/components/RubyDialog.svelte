@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
+  import { shownRange } from '../editor/extensions/trackChanges';
   import { t } from '../i18n/i18n.svelte';
 
   // LibreOffice's Format ▸ Asian Phonetic Guide / Word's Phonetic Guide: the base text
@@ -22,7 +23,7 @@
   $effect(() => {
     if (!open || !editor) return;
     const { from, to } = editor.state.selection;
-    base = to > from ? editor.state.doc.textBetween(from, to, ' ') : '';
+    base = to > from ? shownRange(editor.state.doc, from, to, ' ') : '';
     reading = '';
   });
 

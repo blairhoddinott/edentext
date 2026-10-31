@@ -23,11 +23,14 @@ export function docNameOfFile(fileName: string): string {
   return stripOdtExtension(fileName).replace(/\.do[ct]x$/i, '');
 }
 
+type Run = { text?: string; marks?: { type?: string }[] };
+
 // The save filename from the first heading that has text (sanitized, 50 chars at
 // most); `document.odt` without one.
-export function deriveFilename(json: { content?: { type?: string; content?: { text?: string }[] }[] }): string {
-  const heading = json.content?.find((n) => n.type === 'heading' && n.content?.length);
-  return filenameFor(heading?.content?.[0]?.text);
+export function deriveFilename(json: { content?: { type?: string; content?: Run[] }[] }): string {
+  const live = (run: Run) => !run.marks?.some((m) => m.type === 'deletion');
+  const heading = json.content?.find((n) => n.type === 'heading' && n.content?.some(live));
+  return filenameFor(heading?.content?.find(live)?.text);
 }
 
 export function filenameFor(firstText: string | undefined): string {

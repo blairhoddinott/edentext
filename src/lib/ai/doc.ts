@@ -1,5 +1,5 @@
 // The document as the model reads it, and the model's HTML as editor content. Every
-import { copiedSlice } from '../editor/extensions/trackChanges';
+import { copiedSlice, shownRange } from '../editor/extensions/trackChanges';
 // textblock is one numbered line, so a tool can name a paragraph by its number; text
 // struck through as a deletion is left out — the model sees the text as it would read.
 
@@ -399,7 +399,7 @@ export function serializeDoc(state: EditorState, blocks = blockTexts(state.doc),
   if (changes.length) body += `\n\nTracked changes, numbered:\n${changes.join('\n')}`;
   const where = empty
     ? `The cursor is in paragraph ${first?.n ?? 1}.`
-    : `Selected: paragraphs ${first?.n ?? 1}–${last?.n ?? 1}: «${state.doc.textBetween(from, to, '\n', '')}»`;
+    : `Selected: paragraphs ${first?.n ?? 1}–${last?.n ?? 1}: «${shownRange(state.doc, from, to)}»`;
   return `Document, one paragraph per line, numbered:\n${body}\n\n${where}`;
 }
 

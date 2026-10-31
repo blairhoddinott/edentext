@@ -3,6 +3,7 @@
 
 import type { Schema } from '@tiptap/pm/model';
 import { isProtected } from '../crypto/protect';
+import { copiedSlice } from '../editor/extensions/trackChanges';
 import { repairContent } from '../import/repairContent';
 
 export type Source = { name: string; text: string };
@@ -33,7 +34,8 @@ export async function readSource(file: File, schema: Schema): Promise<Source> {
     try { result = docx ? importOdt(bytes) : importDocx(bytes); } catch { throw new SourceError(name); }
   }
   const doc = schema.nodeFromJSON(repairContent(result.content, schema).content);
-  return { name, text: doc.textBetween(0, doc.content.size, '\n', ' ') };
+  const { content } = copiedSlice(doc.slice(0, doc.content.size), false);
+  return { name, text: content.textBetween(0, content.size, '\n', ' ') };
 }
 
 /** The sources as the message's preface, each cut to its share of `budget` characters. */

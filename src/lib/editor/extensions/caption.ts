@@ -2,6 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
+import { blockText } from './outline';
 import { formatOrdinal } from '../../utils/orderedListTypes';
 import { PX_PER_CM } from '../../storage/pageMargins';
 import type { NoteNumFormat } from '../../storage/noteSettings';
@@ -271,8 +272,7 @@ export function getFrameDebug(view: EditorView): FrameDebugEntry[] {
         ? {
             // The running number is an atom, so plain textContent leaves a gap where
             // the reader sees "Figure 1".
-            text: next.textBetween(0, next.content.size, '', (leaf) =>
-              leaf.type.name === 'sequenceField' ? sequenceFieldText(leaf) : '').slice(0, 80),
+            text: blockText(next).slice(0, 80),
             span: span(textSpan(nextDOM)),
             textAlign: getComputedStyle(nextDOM).textAlign,
             indent: next.attrs.indent,

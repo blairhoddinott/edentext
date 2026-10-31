@@ -8,6 +8,7 @@ import { changedRanges, blockLangOf, langOf, HIGHLIGHTS, paintHighlight, type Ra
 import { hasGrammar, NO_LANGUAGE } from '../../storage/documentLanguage';
 import { grammarLanguage, grammarReady, lintText, subscribeGrammar, type GrammarFix, type GrammarLint } from '../../spell/grammar.svelte';
 import { isPaginating } from './pageBreaks';
+import { typedText } from './trackChanges';
 import { mostlyAsian } from '../../utils/script';
 
 // What the context menu reads off a decoration.
@@ -26,10 +27,10 @@ const BUDGET_MS = 30;
 // Below this a block has no sentence to judge.
 const MIN_CHARS = 3;
 
-// A block's text in document offsets: a leaf node is one character wide, so an
-// offset into this string is an offset into the document.
+// A block's text in document offsets, so an offset into this string is one into the
+// document; struck text is no part of a sentence.
 function blockText(doc: PmNode, block: Range): string {
-  return doc.textBetween(block.from, block.to, undefined, '￼');
+  return typedText(doc.resolve(block.to));
 }
 
 function applyResults(doc: PmNode, set: DecorationSet, results: Results): DecorationSet {

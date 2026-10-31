@@ -88,6 +88,17 @@ describe('grammar recheck after an edit', () => {
     editor.destroy();
   });
 
+  it('reads a sentence without its struck text, offsets kept', async () => {
+    const editor = await makeEditor();
+    const { deletion } = editor.schema.marks;
+    editor.view.dispatch(editor.state.tr.addMark(9, 12, deletion.create({ author: 'a', date: '', id: 'r' })));
+    await settle(editor, () => !grammarErrorAt(editor.state, RUN_A));
+
+    expect(linted).toContain('The dog \uFFFC\uFFFC\uFFFC fast.');
+    expect(grammarErrorAt(editor.state, RUN_B)?.message).toBe('Verb agreement');
+    editor.destroy();
+  });
+
   it('carries a finding\'s fixes on the decoration', async () => {
     const editor = await makeEditor();
     const found = grammarErrorAt(editor.state, RUN_A);

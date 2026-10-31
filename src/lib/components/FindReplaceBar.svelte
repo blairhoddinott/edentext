@@ -2,6 +2,7 @@
   import type { Editor } from '@tiptap/core';
   import { onMount } from 'svelte';
   import { FORMAT_MARKS, getSearchState, type FormatSpec } from '../editor/extensions/searchReplace';
+  import { shownRange } from '../editor/extensions/trackChanges';
   import { styleOrder } from '../styles/styleSheet';
   import { styleSheet } from '../styles/sheet.svelte';
   import { styleLabel, t } from '../i18n/i18n.svelte';
@@ -69,7 +70,7 @@
     if (editor) {
       const { from, to } = editor.state.selection;
       if (to > from) {
-        const sel = editor.state.doc.textBetween(from, to, '\n');
+        const sel = shownRange(editor.state.doc, from, to);
         if (sel && !sel.includes('\n')) findText = sel;
       }
     }

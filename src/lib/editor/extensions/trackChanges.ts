@@ -772,6 +772,12 @@ export function copiedSlice(slice: Slice, original: boolean): Slice {
   return new Slice(clean(slice.content, live), slice.openStart, slice.openEnd);
 }
 
+/** A range's text as a copy of it reads: what a dialog or a request takes from a selection. */
+export function shownRange(doc: PMNode, from: number, to: number, block = '\n', leaf = ''): string {
+  const { content } = copiedSlice(doc.slice(from, to), markupView().hideInsertions);
+  return content.textBetween(0, content.size, block, leaf);
+}
+
 // What a mark step reaches: text and inline atoms.
 const isMarkable = (node: PMNode) => node.isInline && node.isAtom;
 

@@ -71,4 +71,14 @@ describe('spell recheck after an edit', () => {
     expect(checks).toEqual(['two', 'delta']);
     editor.destroy();
   });
+
+  it('leaves struck text out', async () => {
+    const editor = await makeEditor();
+    const { deletion } = editor.schema.marks;
+    editor.view.dispatch(editor.state.tr.addMark(7, 12, deletion.create({ author: 'a', date: '', id: 'r' })));
+    vi.advanceTimersByTime(400);
+    expect(spellErrorAt(editor.state, XXONE)).toBeNull();
+    expect(spellErrorAt(editor.state, XXTWO)).toEqual({ from: 25, to: 30 });
+    editor.destroy();
+  });
 });

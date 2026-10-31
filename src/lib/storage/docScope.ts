@@ -188,8 +188,8 @@ export interface BrowserDocument {
   label: string;
 }
 
-function firstText(node: { text?: string; content?: unknown[] }): string {
-  if (node.text?.trim()) return node.text.trim();
+function firstText(node: { text?: string; marks?: { type?: string }[]; content?: unknown[] }): string {
+  if (node.text?.trim() && !node.marks?.some((m) => m.type === 'deletion')) return node.text.trim();
   for (const child of node.content ?? []) {
     const text = firstText(child as typeof node);
     if (text) return text;

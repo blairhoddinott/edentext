@@ -4,7 +4,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { zoneExtensions } from '../../src/lib/editor/extensions';
 import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, REBUILD_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
-import { revisions, settledDoc } from '../../src/lib/editor/extensions/trackChanges';
+import { revisions, settledDoc, shownRange } from '../../src/lib/editor/extensions/trackChanges';
+import { deriveFilename } from '../../src/lib/storage/documentName';
 import { setRecordChanges } from '../../src/lib/storage/trackChanges.svelte';
 import { searchKey } from '../../src/lib/editor/extensions/searchReplace';
 import { buildDocx } from '../../src/lib/export/docx';
@@ -367,6 +368,13 @@ describe('struck text is not there', () => {
     await edit(e, [(ed) => select(ed, 20), (ed) => ed.commands.setCellFormula('=SUM(A1:A2)')]);
     await new Promise((r) => setTimeout(r));
     expect(texts(e)[2]).toBe('20');
+  });
+
+  it('a selection and a file name do not read it', async () => {
+    const e = await struck('<h1>old new</h1><p>t</p>', 1, 5);
+    expect(shownRange(e.state.doc, 1, 8)).toBe('new');
+    expect(shownRange(e.state.doc, 1, 5)).toBe('old ');
+    expect(deriveFilename(e.getJSON())).toBe('new.odt');
   });
 
   it('typing does not read it', async () => {

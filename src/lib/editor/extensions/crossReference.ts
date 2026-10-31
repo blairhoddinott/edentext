@@ -7,6 +7,7 @@ import { bookmarks, findBookmark, goToTarget, type BookmarkRef } from './bookmar
 import { pageOfElement, scheduleFieldRound, type FieldWrite, type PageGrid, type VMargins } from './pageBreaks';
 import { blockText, headingNumbers, inCellOrItem, inlineText, type HeadingNumber } from './outline';
 import { listNumberAt } from './listStyle';
+import { liveText } from './trackChanges';
 import { seqCategoryOf, sequenceFields, type SeqCategory } from './caption';
 import { collectNoteRefs, findNoteSection, noteLabels, type NoteKind } from './notes';
 import { styleSheet } from '../../styles/sheet.svelte';
@@ -370,7 +371,7 @@ export function hasRefTargets(doc: PMNode): boolean {
 function noteBodies(doc: PMNode): Map<string, string> {
   const out = new Map<string, string>();
   const section = findNoteSection(doc);
-  section?.node.forEach((child) => out.set(String(child.attrs.id ?? ''), child.textContent.trim()));
+  section?.node.forEach((child) => out.set(String(child.attrs.id ?? ''), liveText(child).trim()));
   return out;
 }
 

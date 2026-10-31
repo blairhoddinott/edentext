@@ -19,6 +19,7 @@
   import TextBoxToolbar from './TextBoxToolbar.svelte';
   import type { WrapMode } from '../editor/extensions/image';
   import { findTextBox, type ShapeKind, type TextVAlign } from '../editor/extensions/textBox';
+  import { blockText } from '../editor/extensions/outline';
   import { catchUpIndexes } from '../editor/extensions/tableOfContents';
   import { fitPastedSlice } from '../editor/paste';
   import { readClickCaret } from '../editor/clickCaret';
@@ -129,7 +130,7 @@ import { EMPTY_PAGE_DECOR, type PageDecor } from '../storage/pageDecor';
     const out: ChapterStart[] = [];
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name !== 'heading') return;
-      const text = node.textContent.trim();
+      const text = blockText(node);
       const el = editor!.view.nodeDOM(pos) as HTMLElement | null;
       if (!text || !el || el.nodeType !== 1) return;
       const top = topInEditor(editor!.view, el);

@@ -3,6 +3,7 @@ import type { Node as PMNode, Mark as PMMark } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { inlineText } from './outline';
+import { liveText } from './trackChanges';
 
 // A bookmark: a named range of text, the target a cross-reference or internal link points
 // at. A mark, not a point node — both formats store a range (ODF text:bookmark-start/-end,
@@ -73,7 +74,7 @@ export function findTarget(doc: PMNode, ref: string): BookmarkRef | null {
   let hit: BookmarkRef | null = null;
   doc.descendants((node, pos) => {
     if (hit || !node.isBlock) return !hit;
-    if (node.type.name !== 'heading' || node.textContent !== text) return true;
+    if (node.type.name !== 'heading' || liveText(node) !== text) return true;
     hit = { name, from: pos + 1, to: pos + node.nodeSize - 1, text };
     return false;
   });
