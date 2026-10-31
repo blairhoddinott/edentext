@@ -291,6 +291,23 @@ describe('recording keeps its promise', () => {
     expect(shape(e)).toEqual(shape(plain));
   });
 
+  it.each<[string, boolean, (e: Editor) => unknown, number]>([
+    ['Enter at a heading start', true, (e) => e.commands.splitBlock(), 2],
+    ['clearing the block type', true, (e) => e.commands.clearNodes(), 1],
+    ['clearing the block type, not recording', false, (e) => e.commands.clearNodes(), 1],
+  ])('a block keeps what is recorded on it: %s', async (_name, recording, act, marks) => {
+    const rev = { id: 'x', author: 'Other', date: '2026-05-06T07:08:00Z' };
+    const e = open({ type: 'doc', content: [
+      { type: 'heading', attrs: { level: 1, revMark: { insertion: rev } }, content: [{ type: 'text', text: 'head' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'tail' }] }] });
+    setRecordChanges(recording);
+    await edit(e, [(ed) => select(ed, 1), act]);
+    setRecordChanges(false);
+    expect(e.getJSON().content!.filter((b) => b.attrs?.revMark)).toHaveLength(marks);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON().content!.map((b) => b.content?.[0].text)).toEqual(['headtail']);
+  });
+
   it('a row gathers its own text, not what the same author did elsewhere at that moment', () => {
     const rev = (id: string) => ({ id, author: 'A', date: '2026-05-06T07:08:00Z' });
     const ins = (id: string, text: string) => ({ type: 'text', text, marks: [{ type: 'insertion', attrs: rev(id) }] });

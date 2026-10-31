@@ -715,13 +715,14 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             composed.pos = t.mapping.map(composed.pos, -1);
             for (const map of t.mapping.maps) composed.kept = keptThrough(map, composed.kept);
           }
-          if (!options.recording()) return null;
           if (!transactions.some((t) => t.docChanged)) return null;
           // Our own accept/reject and the mark pass below must not recurse, and undo/redo
           // restore a recorded state: the history carries the marks along.
           if (transactions.some((t) => t.getMeta(RECORDING) || fromHistory(t))) return null;
-          const ranges = insertedRanges(transactions);
           const tr = newState.tr;
+          keepRecords(tr, transactions);
+          if (!options.recording()) return tr.steps.length ? tr.setMeta(RECORDING, true) : null;
+          const ranges = insertedRanges(transactions);
           const author = options.author(), fresh = revisionAttrs(author);
           const { insertion, deletion, formatChange } = newState.schema.marks;
           for (const [from, to] of ranges) {
@@ -865,6 +866,8 @@ function formattedBlock(step: Step, doc: PMNode): number | null {
 function recordBlockFormat(tr: Transaction, at: number, doc: PMNode, pos: number, attrs: RevisionAttrs): void {
   const now = tr.doc.nodeAt(at), before = doc.nodeAt(pos)!;
   if (!now || !hasParagraphMark(now)) return;
+  // The author's own new empty block has no format to go back to.
+  if (!now.content.size && (now.attrs.revMark as RevMark | null)?.insertion?.author === attrs.author) return;
   const rec = now.attrs.revFormat as RevFormat | null;
   const old = rec ? rec.old : { ...blockFormat(before.type.name, before.attrs), list: listChain(doc, pos) };
   const same = !!old && sameBlockFormat(blockFormat(now.type.name, now.attrs), old) && sameLists(old.list, listChain(tr.doc, at));
@@ -919,6 +922,20 @@ function swap(step: Step, doc: PMNode): [PMNode, PMNode] | null {
   const old = doc.nodeAt(step.from), next = step.slice.content.firstChild!;
   // Text is content itself: a run swapped for another is an edit, never a restyle.
   return old && !old.isText && step.from + old.nodeSize === step.to && old.type === next.type ? [old, next] : null;
+}
+
+// A block's type set without its attrs (`clearNodes`, Enter at a heading's start) resets
+// them, but what is recorded on a block is no format of it, and stays.
+function keepRecords(tr: Transaction, transactions: readonly Transaction[]): void {
+  transactions.forEach((t, ti) => t.steps.forEach((step, i) => {
+    if (!retagged(step)) return;
+    const pos = (step as ReplaceAroundStep).from, old = t.docs[i].nodeAt(pos)!;
+    const at = [t.mapping.slice(i), ...transactions.slice(ti + 1).map((u) => u.mapping)].reduce((p, m) => m.map(p, 1), pos);
+    const now = tr.doc.nodeAt(at);
+    if (now?.isTextblock) for (const key of ['revMark', 'revFormat']) {
+      if (old.attrs[key] && !now.attrs[key]) tr.setNodeAttribute(at, key, old.attrs[key]);
+    }
+  }));
 }
 
 // A node given other attributes around the same content (`setNodeMarkup`).
@@ -1296,6 +1313,11 @@ function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs
   const first = blocks[0].rev, after = nextParagraph(tr.doc, blocks[blocks.length - 1].end);
   const split = blocks[0].pos < from && after !== null && after <= to;
   if ((first || split) && after !== null) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first ?? null);
+  // Enter at a block's start: the block is the second half, and its format change with it.
+  const head = tr.doc.nodeAt(blocks[0].pos)!;
+  if (split && !head.content.size && head.attrs.revFormat) {
+    tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revFormat', head.attrs.revFormat).setNodeAttribute(blocks[0].pos, 'revFormat', null);
+  }
 }
 
 // The rows and the columns that came in whole: a column only as a new cell in every row,
