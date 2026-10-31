@@ -1343,10 +1343,10 @@ function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs
   }
 }
 
-// The rows and the columns that came in whole: a column only as a new cell in every row,
-// which tells it from a split cell. One transaction's lines are one change.
+// The rows and the columns that came in whole: a column only as a new cell in every row
+// but those a merged cell widens through it. One transaction's lines are one change.
 function markInsertedLines(tr: Transaction, ranges: [number, number][], attrs: RevisionAttrs): void {
-  const cells = new Map<number, { rows: Set<number>; cells: number[]; height: number }>();
+  const cells = new Map<number, number[]>();
   for (const [from, to] of ranges) {
     tr.doc.nodesBetween(from, to, (node, pos) => {
       const line = tableLine(node), whole = pos >= from && pos + node.nodeSize <= to;
@@ -1354,16 +1354,16 @@ function markInsertedLines(tr: Transaction, ranges: [number, number][], attrs: R
       if (line === 'row') tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
       else {
         const $pos = tr.doc.resolve(pos), table = $pos.before($pos.depth - 1);
-        const entry = cells.get(table) ?? { rows: new Set(), cells: [], height: $pos.node($pos.depth - 1).childCount };
-        entry.rows.add($pos.before());
-        entry.cells.push(pos);
-        cells.set(table, entry);
+        cells.set(table, [...(cells.get(table) ?? []), pos - table - 1]);
       }
       return false;
     });
   }
-  for (const entry of cells.values()) {
-    if (entry.rows.size === entry.height) for (const pos of entry.cells) tr.setNodeAttribute(pos, 'revMark', { insertion: attrs });
+  for (const [at, fresh] of cells) {
+    const table = tr.doc.nodeAt(at)!, map = TableMap.get(table);
+    const whole = (col: number) => Array.from({ length: map.height }, (_, row) => map.map[row * map.width + col])
+      .every((cell) => fresh.includes(cell) || table.nodeAt(cell)!.attrs.colspan > 1);
+    if (fresh.every((cell) => whole(map.colCount(cell)))) for (const cell of fresh) tr.setNodeAttribute(at + 1 + cell, 'revMark', { insertion: attrs });
   }
 }
 

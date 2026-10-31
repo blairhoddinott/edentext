@@ -649,7 +649,10 @@ try {
       // An attr at its default may be spelled out or absent: a rebuilt block spells it. Widths
       // rescale by a rounding error as columns come and go.
       const plain = (key) => JSON.parse(JSON.stringify(JSON.parse(key), (k, v) => (v === null || k === 'colwidth' ? undefined : v)));
-      const diff = firstDiff({ type: 'doc', content: plain(initial) }, { type: 'doc', content: plain(window.__docKey()) })
+      // A table at the very end leaves an empty paragraph, as the last block has no mark.
+      const [opened, left] = [plain(initial), plain(window.__docKey())];
+      if (left.length === opened.length + 1 && left.at(-1).type === 'paragraph' && !left.at(-1).content) left.pop();
+      const diff = firstDiff({ type: 'doc', content: opened }, { type: 'doc', content: left })
         ?? firstDiff({ zones: plain(zonesBefore) }, { zones: plain(zones()) });
       const rejected = window.__docKey();
       editor.commands.undo();

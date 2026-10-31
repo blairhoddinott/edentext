@@ -17,7 +17,7 @@ Deleted `Heading first` + `body second` across the mark gives one heading; with 
 
 ## Tables
 
-A row carries a `revMark` as a paragraph does; so does each cell of a column, recorded only when every row got a new cell, which tells a column from a split cell. A row or column change gathers its cells and the text in them into one revision (`gatherChanges`), within one table: the same author and moment elsewhere is another change, as a file's coarse dates and one compare's hunks have it. Removing one takes the line with `removeRow`/`removeColumn`, with the last line the table. A deleted row a merged cell runs through rebuilds that cell and passes unrecorded; a column through one only narrows it and is recorded. In ODF the line's style says `loext:text-changes-only="false"`, the change sits on the text in it, and only a line without text gets the tracked U+200D LibreOffice writes.
+A row carries a `revMark` as a paragraph does; so does each cell of a column, recorded when every row got a new cell or has a merged cell widened through it. A row or column change gathers its cells and the text in them into one revision (`gatherChanges`), within one table: the same author and moment elsewhere is another change, as a file's coarse dates and one compare's hunks have it. Removing one takes the line with `removeRow`/`removeColumn`, with the last line the table. A deleted row a merged cell runs through rebuilds that cell and passes unrecorded; a column through one only narrows it and is recorded. In ODF the line's style says `loext:text-changes-only="false"`, the change sits on the text in it, and only a line without text gets the tracked U+200D LibreOffice writes.
 
 Blocks taking an empty block's place go in front of it, which is where the plain edit leaves them; the empty block's mark is struck, so rejecting brings it back.
 
@@ -69,7 +69,7 @@ Protecting the changes (`recordLock`, `storage/trackChanges.svelte.ts`) keeps re
 
 Compare and Merge in the review tab take a file and write what separates it from this document into this one, as one undo step (`editor/compare.ts`): blocks are aligned by kind and text, those between them paired by place, and a pair differs by word. Each hunk goes through `trackedReplace`, so this document's own text and format stay and the recorder's promises hold. **Merge** takes this document as the older one and records under the file's author: accepting gives the file. **Compare** takes the file as the older one, as LibreOffice does, under our author: the same hunks with insertion and deletion swapped (`claimRevisions`), so accepting keeps this document and rejecting gives the file. The file is read as accepted; text struck here does not count.
 
-Only text and structure differ: format does not, so a block differing in that alone is the same, and neither do headers, footers or the notes' text. A table of another shape is replaced whole, as is a long stretch with nothing in common (`MAX_CELLS`). A block without a form for a change, such as an index, passes unrecorded, and a table or list inserted at the very end leaves an empty paragraph when rejected, since the last block has no mark of its own.
+Only text and structure differ: format does not, so a block differing in that alone is the same, and neither do headers, footers or the notes' text. A table of another shape is replaced whole, as is a long stretch with nothing in common (`MAX_CELLS`). A block without a form for a change, such as an index, passes unrecorded.
 
 ## Reading struck text
 
@@ -103,7 +103,7 @@ Our export writes LibreOffice's form with each side's real format in its registr
 
 ## Not recorded yet
 
-The list cut of a table inserted in a list passes unrecorded; the monkey's recording pass skips it. While recording, autolink only links what is all new text, as a link has no change of its own to go with the typing.
+The list cut of a table inserted in a list passes unrecorded; the monkey's recording pass skips it. A table or list inserted at the document's very end leaves an empty paragraph when rejected, since the last block has no mark of its own. While recording, autolink only links what is all new text, as a link has no change of its own to go with the typing.
 
 Regrouping what is there passes unrecorded (`REBUILDING`, and any transaction outside the history): columns, a split or merged cell, a sort, an index inserted, the columns flow's own cuts. So do what neither format records as a change or this one has no form for: links, bookmarks, comments, a table's own format and header row. A selection an index replaces goes recorded.
 

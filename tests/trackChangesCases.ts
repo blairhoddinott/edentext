@@ -31,6 +31,7 @@ export const del = (from: number, to: number): Act[] => [(e) => select(e, from, 
 export const enter = (at: number): Act[] => [(e) => select(e, at), (e) => e.commands.splitBlock()];
 
 const TABLE = '<table><tbody><tr><td><p>a1</p></td><td><p>b1</p></td></tr><tr><td><p>a2</p></td><td><p>b2</p></td></tr></tbody></table><p>tail</p>';
+const TALL = '<table><tbody><tr><td colspan="2"><p>a</p></td></tr><tr><td><p>b</p></td><td><p>c</p></td></tr></tbody></table><p>t</p>';
 const inCell = (at: number): Act => (e) => select(e, at);
 
 const table: Act = (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
@@ -43,6 +44,7 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['the table deleted', TABLE, [inCell(14), (e) => e.commands.deleteTable()]],
   ['a row inserted', TABLE, [inCell(14), (e) => e.commands.addRowAfter()]],
   ['a column inserted', TABLE, [inCell(14), (e) => e.commands.addColumnBefore()]],
+  ['a column through a merged cell', TALL, [inCell(11), (e) => e.commands.addColumnAfter()]],
   ['a note inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertNote('footnote')]],
   ['a text box inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertTextBox()]],
   ['Enter in a cell', TABLE, [inCell(5), (e) => e.commands.splitBlock()]],
@@ -149,8 +151,6 @@ export const CASES: [string, string, Act[]][] = [
   ['from an item into its sub-list', NESTED, del(5, 12)],
   ['Enter before a sub-list', NESTED, enter(6)],
 ];
-
-const TALL = '<table><tbody><tr><td colspan="2"><p>a</p></td></tr><tr><td><p>b</p></td><td><p>c</p></td></tr></tbody></table><p>t</p>';
 
 /** Commands that regroup what is there: unrecorded, and no change left behind. */
 export const REBUILD_CASES: [string, string, Act[]][] = [
