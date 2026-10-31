@@ -818,7 +818,7 @@ function recordFormats(tr: Transaction, transactions: readonly Transaction[], at
       const final = (pos: number, assoc: number) => onward.reduce((at, m) => m.map(at, assoc), pos);
       const doc = t.docs[i];
       const block = formattedBlock(step, doc);
-      if (block != null) { recordBlockFormat(tr, final(block, 1), doc, block, attrs); return; }
+      if (block != null) { if (!bornIn(t, i, block)) recordBlockFormat(tr, final(block, 1), doc, block, attrs); return; }
       // What moves in or out of a list, or under another list type.
       if (step instanceof ReplaceAroundStep) {
         doc.nodesBetween(step.from, step.to, (node, pos) => {
@@ -860,6 +860,17 @@ function formattedBlock(step: Step, doc: PMNode): number | null {
   const pos = step instanceof AttrStep ? (UNFORMATTED_ATTRS.has(step.attr) ? null : step.pos)
     : retagged(step) || swap(step, doc) ? (step as ReplaceStep).from : null;
   return pos != null && hasParagraphMark(doc.nodeAt(pos)!) ? pos : null;
+}
+
+// Whether an earlier step of `t` opened the block at `pos`, as a split does its second half:
+// what the same edit then sets on it is no change of a format it had.
+function bornIn(t: Transaction, step: number, pos: number): boolean {
+  return t.steps.slice(0, step).some((s, j) => {
+    const at = t.mapping.slice(j + 1, step).invert().map(pos, 1);
+    let born = false;
+    s.getMap().forEach((_os, _oe, ns, ne) => { born ||= at >= ns && at < ne; });
+    return born;
+  });
 }
 
 // The first record stands, and a block back at it has no change left.
@@ -1347,7 +1358,7 @@ function markInsertedLines(tr: Transaction, ranges: [number, number][], attrs: R
 // The new content lands at `at` (after any text it replaces, which stays struck out),
 // marked as an insertion. Returns where it ends.
 function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: RevisionAttrs): number {
-  const before = tr.steps.length;
+  const before = tr.steps.length, doc = tr.doc;
   tr.replace(at, at, slice);
   // The ranges the fitted replace actually inserted: it may close and reopen blocks
   // around the slice, so its size says nothing about where the new content lies.
@@ -1359,7 +1370,24 @@ function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: Revisio
     markInsertedParagraphs(tr, from, to, attrs);
   }
   markInsertedLines(tr, ranges, attrs);
-  return tr.mapping.slice(before).map(at, 1);
+  const end = tr.mapping.slice(before).map(at, 1);
+  // The fitted replace hands what follows to the slice's last block, or to its list: a
+  // change of that block's.
+  const was = blockStartingAt(doc, at), now = blockStartingAt(tr.doc, end);
+  if (was != null && now != null && hasParagraphMark(tr.doc.nodeAt(now)!) && hasParagraphMark(doc.nodeAt(was)!)) {
+    tr.setNodeAttribute(now, 'revFormat', doc.nodeAt(was)!.attrs.revFormat);
+    recordBlockFormat(tr, now, doc, was, attrs);
+  }
+  return end;
+}
+
+// The textblock whose content `pos` opens, past the lists around it.
+function blockStartingAt(doc: PMNode, pos: number): number | null {
+  const $pos = doc.resolve(pos);
+  if ($pos.parent.isTextblock) return $pos.parentOffset ? null : $pos.before();
+  let node = $pos.nodeAfter, at = pos;
+  while (node && !node.isTextblock) { node = node.firstChild; at++; }
+  return node ? at : null;
 }
 
 /**

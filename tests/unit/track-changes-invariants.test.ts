@@ -308,6 +308,18 @@ describe('recording keeps its promise', () => {
     expect(e.getJSON().content!.map((b) => b.content?.[0].text)).toEqual(['headtail']);
   });
 
+  it('a page break left behind by Enter is no change of the second half', async () => {
+    const e = open('<h1>Head</h1><p>tail</p>');
+    e.commands.setPageBreakBefore();
+    const start = e.getJSON();
+    setRecordChanges(true);
+    await edit(e, [(ed) => select(ed, 3), (ed) => ed.commands.splitBlock()]);
+    setRecordChanges(false);
+    expect(revisions(e.state.doc).map((r) => r.kind)).toEqual(['insertion']);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(start);
+  });
+
   it('a row gathers its own text, not what the same author did elsewhere at that moment', () => {
     const rev = (id: string) => ({ id, author: 'A', date: '2026-05-06T07:08:00Z' });
     const ins = (id: string, text: string) => ({ type: 'text', text, marks: [{ type: 'insertion', attrs: rev(id) }] });
