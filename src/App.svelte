@@ -26,7 +26,7 @@
   import { repairContent, repairZones } from './lib/import/repairContent';
   import en from './lib/i18n/locales/en';
   import { getPageBreakDebug } from './lib/editor/extensions/pageBreaks';
-  import { RECORDING } from './lib/editor/extensions/trackChanges';
+  import { RECORDING, settledDoc } from './lib/editor/extensions/trackChanges';
   import { getColumnsFlowDebug } from './lib/editor/extensions/columnsFlow';
   import { getTextBoxDebug, withRenderedBoxHeights } from './lib/editor/extensions/textBox';
   import { getTableCellDebug } from './lib/editor/extensions/tableCellAlign';
@@ -60,7 +60,7 @@
   import { loadLineGrid, saveLineGrid, DEFAULT_LINE_GRID, type LineGrid } from './lib/storage/lineGrid';
   import { loadFoldMarks, saveFoldMarks } from './lib/storage/foldMarks';
   import { printMarkup } from './lib/storage/printMarkup.svelte';
-  import { commentsInPane, changesInPane, markupAttrs, setShowChanges, setShowComments } from './lib/storage/markup.svelte';
+  import { commentsInPane, changesInPane, markupAttrs, markupView, setShowChanges, setShowComments } from './lib/storage/markup.svelte';
   import { isAsianTag, loadDocumentLanguage, numberingScripts, loadDocumentLanguageOther, pickDocumentLanguage, saveDocumentLanguage, saveDocumentLanguageOther, odfFromLanguage, tagForLanguage, westernCode, type DocumentLanguage } from './lib/storage/documentLanguage';
   import { setTableLanguage } from './lib/storage/tableOptions.svelte';
   import { spellController } from './lib/spell/controller';
@@ -1399,7 +1399,10 @@
     busyTask = 'pdf';
     await painted();
     try {
-      const json = editor.getJSON() as TiptapNode;
+      // A view showing a finished text prints it finished, merged paragraphs included.
+      const view = markupView();
+      const shown = view.hideDeletions || view.hideInsertions ? settledDoc(editor.state.doc, view.hideDeletions) : editor.state.doc;
+      const json = shown.toJSON() as TiptapNode;
       await exportPdf({
         source: editor.view.dom as HTMLElement,
         json,

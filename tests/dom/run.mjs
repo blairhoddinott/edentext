@@ -1407,6 +1407,25 @@ try {
   const prefill = await page.locator('.ai-pane textarea').inputValue().catch(() => null);
   check(prefill === '/draft ', `Alt+I opens the chat with /draft (${JSON.stringify(prefill)})`);
 
+  // A view showing a finished text drops a block nothing is left of; a recorded mark shows.
+  await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'load' });
+  await page.waitForSelector('.tiptap');
+  const seen = await page.evaluate(async () => {
+    const editor = document.querySelector('.tiptap-host .tiptap').editor;
+    const rev = { id: 'r1', author: 'A', date: '2026-01-01T00:00:00Z' }, mark = [{ type: 'deletion', attrs: rev }];
+    const fill = Array.from({ length: 60 }, () => ({ type: 'paragraph', content: [{ type: 'text', text: 'gone', marks: mark }], attrs: { revMark: { deletion: rev } } }));
+    editor.commands.setContent({ type: 'doc', content: [...fill, { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'item', marks: mark }], attrs: { revMark: { deletion: rev } } }] }] }, { type: 'paragraph', content: [{ type: 'text', text: 'stays' }] }] });
+    const blocks = () => Array.from(document.querySelectorAll('.tiptap-host .tiptap p, .tiptap-host .tiptap li')).filter((el) => el.offsetParent).length;
+    await new Promise((r) => setTimeout(r, 1500));
+    const all = { blocks: blocks(), marks: document.querySelectorAll('.pm-para-mark').length };
+    return { all };
+  });
+  check(seen.all.marks === 61 && seen.all.blocks === 63, `every recorded paragraph mark shows in the full view (${JSON.stringify(seen.all)})`);
+  await page.evaluate(() => document.querySelector('.paper').setAttribute('data-hide-deletions', ''));
+  const left = await page.evaluate(() => Array.from(document.querySelectorAll('.tiptap-host .tiptap p, .tiptap-host .tiptap li')).filter((el) => el.offsetParent).map((el) => el.textContent));
+  check(left.length === 1 && left[0] === 'stays', `the blocks a hidden deletion empties go, list items too (${left.length} left)`);
+  await page.evaluate(() => { const p = document.querySelector('.paper'); p.removeAttribute('data-hide-deletions'); document.querySelector('.tiptap-host .tiptap').editor.commands.setContent('<p>aa</p><p>bbbb</p><p>cc</p>'); });
+
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);
 } finally {

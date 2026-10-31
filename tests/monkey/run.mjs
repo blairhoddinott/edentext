@@ -1,6 +1,7 @@
 // Monkey run: random editing in the real browser under the invariants any sequence of
 // commands must keep — no uncaught error, a document its schema accepts, undo back to the
 // opened file and redo forward, and a saved file that validates and reads back as held.
+// A second pass edits text with recording on: rejecting all gives the opened file back.
 import { readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -85,6 +86,16 @@ const drawOp = (r, size) => {
   let x = r() * TOTAL;
   for (const [w, draw] of OPS_TABLE) { if ((x -= w) < 0) return draw(r, size); }
   return { key: 'ArrowRight' };
+};
+
+// What recording covers so far, drawn by the recording pass.
+const RECORDED_KEYS = ['Enter', 'Enter', 'Backspace', 'Backspace', 'Backspace', 'Delete', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+  'Shift+ArrowLeft', 'Shift+ArrowRight', 'Shift+ArrowDown', 'Shift+ArrowUp', 'Home', 'End'];
+const drawRecorded = (r, size) => {
+  const x = r();
+  if (x < 0.3) return { type: pick(r, WORDS) };
+  if (x < 0.85) return { key: pick(r, RECORDED_KEYS) };
+  return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
 };
 
 // The zone's own schema — one paragraph of runs, breaks, fields and inline images — so it
@@ -542,6 +553,57 @@ try {
       await page.waitForSelector('.tiptap-host .tiptap', { timeout: 30_000 });
       run--;
     }
+  }
+
+  for (let run = 0; run < RUNS; run++) {
+    const seed = SEED + 100 + run, doc = ['02-blocks.odt', '08-lists.odt'][run % 2], r = mulberry32(seed);
+    const before = await docJson();
+    await page.setInputFiles('input.file-input[accept*=".odt"]', join(ROOT, 'tests/corpus', doc));
+    await page.waitForFunction((b) => JSON.stringify(document.querySelector('.tiptap-host .tiptap').editor.getJSON()) !== b, before, { timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    await watchFlow();
+    const initial = await docKey();
+    await ed(async () => (await import('/src/lib/storage/trackChanges.svelte.ts')).setRecordChanges(true));
+    const log = [];
+    let broken = null;
+    for (let i = 0; i < OPS && !broken; i++) {
+      const op = drawRecorded(r, await docSize());
+      log.push(op);
+      // Lifting an item out of its list is list structure, which recording does not cover yet.
+      const lifts = op.key === 'Backspace' && await ed(() => {
+        const { $from, empty } = document.querySelector('.tiptap-host .tiptap').editor.state.selection;
+        return empty && !$from.parentOffset && $from.depth > 1 && $from.node(-1).type.name === 'listItem';
+      });
+      if (lifts) continue;
+      if (op.cmd) await runCmd(op);
+      else {
+        const err = await focused();
+        if (err) broken = `focus threw: ${err}`;
+        else if (op.type) await page.keyboard.type(op.type);
+        else await press(op.key);
+      }
+      await page.waitForTimeout(5);
+      broken ??= await docCheck();
+    }
+    const left = await ed(async (initial) => {
+      const { firstDiff } = await import('/tests/normalize.ts');
+      (await import('/src/lib/storage/trackChanges.svelte.ts')).setRecordChanges(false);
+      const { revisions } = await import('/src/lib/editor/extensions/trackChanges.ts');
+      const editor = document.querySelector('.tiptap-host .tiptap').editor;
+      const made = revisions(editor.state.doc).length;
+      editor.commands.rejectRevisions(true);
+      // An attr at its default may be spelled out or absent: a rebuilt block spells it.
+      const plain = (key) => JSON.parse(JSON.stringify(JSON.parse(key), (_k, v) => (v === null ? undefined : v)));
+      const diff = firstDiff({ type: 'doc', content: plain(initial) }, { type: 'doc', content: plain(window.__docKey()) });
+      editor.commands.undo();
+      editor.commands.acceptRevisions(true);
+      const after = revisions(editor.state.doc).length;
+      editor.state.doc.check();
+      return { made, diff, after };
+    }, initial);
+    const bad = broken ?? left.diff ?? (left.after ? `${left.after} changes left after accepting all` : null);
+    check(!bad, `seed ${seed} on ${doc}: ${left.made} recorded changes${bad ? ` — ${bad}` : ', all rejected and accepted'}`);
+    if (bad) { await writeFile(join(tmpdir(), `monkey-${seed}-recorded.json`), JSON.stringify(log)); await writeFile(join(tmpdir(), `monkey-${seed}-initial.json`), initial); for (const op of log.slice(-14)) console.log('    ', JSON.stringify(op)); }
   }
 } catch (err) {
   check(false, `monkey run threw: ${err.stack ?? err}`);

@@ -24,7 +24,7 @@
     <span>{formatMoment(r.date)}</span>
   </div>
   <div class="kind">{r.kind === 'insertion' ? t().revisions.inserted : t().revisions.deleted}</div>
-  <div class="quote" class:struck={r.kind === 'deletion'} style:color={color}>{r.text}</div>
+  <div class="quote" class:struck={r.kind === 'deletion'} style:color={color}>{r.text.replace(/\n/g, '¶') || '¶'}</div>
 </button>
 <div class="actions">
   <button onclick={() => editor?.chain().focus(null, { scrollIntoView: false }).acceptRevision(r.id).run()}>{t().revisions.accept}</button>

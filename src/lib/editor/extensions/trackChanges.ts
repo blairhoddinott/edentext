@@ -1,7 +1,7 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core';
 import { Slice, type Fragment, type Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
-import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
 import { CellSelection } from '@tiptap/pm/tables';
 import { AddMarkStep, Mapping, RemoveMarkStep, ReplaceStep, type Step, type StepMap } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
@@ -256,6 +256,33 @@ function removeParagraphMark(tr: Transaction, pos: number): void {
   tr.setNodeAttribute(pos, 'revMark', tr.steps.length > before ? taken ?? null : null);
 }
 
+// The blocks nothing of which is left once a kind of change is out: all their text belongs
+// to it, and so does a paragraph mark on either end. The page drops them in a view that
+// hides the kind; a block with text left beside such a mark stays a block of its own.
+function goneBlocks(doc: PMNode): { pos: number; size: number; kind: RevisionKind }[] {
+  const out: { pos: number; size: number; kind: RevisionKind }[] = [];
+  let before: RevMark | null = null;
+  doc.descendants((node, pos) => {
+    if (!hasParagraphMark(node)) return true;
+    const rev = node.attrs.revMark as RevMark | null;
+    for (const kind of KINDS) {
+      let all = !!(rev?.[kind] ?? before?.[kind]);
+      node.forEach((child) => { all &&= child.marks.some((m) => m.type.name === kind); });
+      if (all) out.push({ pos, size: node.nodeSize, kind });
+    }
+    before = rev;
+    return true;
+  });
+  return out;
+}
+
+/** The document with every change accepted or rejected, for a page built from it. */
+export function settledDoc(doc: PMNode, accept: boolean): PMNode {
+  const state = EditorState.create({ doc }), tr = state.tr;
+  apply(state, tr, revisions(doc), accept);
+  return tr.doc;
+}
+
 export const TrackChanges = Extension.create<{ recording: () => boolean; author: () => string; plain: () => boolean }>({
   name: 'trackChanges',
 
@@ -330,7 +357,8 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             if (cache?.doc === state.doc && cache.plain === plain) return cache.set;
             const list = plain ? [] : revisions(state.doc);
             const colors = authorColors(state.doc);
-            const set = DecorationSet.create(state.doc, list.flatMap((r) => {
+            const gone = goneBlocks(state.doc).map(({ pos, size, kind }) => Decoration.node(pos, pos + size, { class: `pm-gone-${kind}` }));
+            const set = DecorationSet.create(state.doc, gone.concat(list.flatMap((r) => {
               const cls = `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}`, color = authorColor(colors, r.author);
               return [
                 ...r.spans.map(([from, to]) => Decoration.inline(from, to, { class: cls, style: `color: ${color}` })),
@@ -342,7 +370,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
                   return el;
                 }, { side: -1, ignoreSelection: true, key: `${r.kind}${pos}${color}` })),
               ];
-            }));
+            })));
             cache = { doc: state.doc, plain, set };
             return set;
           },
@@ -573,7 +601,9 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
     at = (p, a) => {
       if (p < from) return prev(p, a);
       if (p > from + size) return prev(p - size + (to - from), a);
-      return marked.mapping.slice(steady).map(size ? Math.min(start + (p - from), end) : end, a);
+      // The fitted replace may close and reopen blocks before the slice.
+      const fit = p > from ? Math.max(0, end - start - size) : 0;
+      return marked.mapping.slice(steady).map(size ? Math.min(start + fit + (p - from), end) : end, a);
     };
   }
   // Backspace leaves the caret before the text it struck, so the next one strikes on;

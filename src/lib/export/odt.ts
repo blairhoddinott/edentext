@@ -777,7 +777,7 @@ const isParagraphNode = (n: TiptapNode) => n.type === 'paragraph' || n.type === 
 // the body shows a struck mark: under the first one's format, or the next one's when
 // nothing of the first stays (probed); REV_BREAK stands where the mark was.
 function carryParagraphMarks(doc: TiptapNode, out: Map<string, RevisionExport>): TiptapNode {
-  const copy = (n: TiptapNode): TiptapNode => (n.content ? { ...n, content: n.content.map(copy) } : n);
+  const copy = (n: TiptapNode): TiptapNode => (n.content ? { ...n, content: n.content.map(copy) } : { ...n });
   const root = copy(doc);
   type Place = { parent: TiptapNode; index: number };
   // The block a mark runs into, down through the list nodes around it.

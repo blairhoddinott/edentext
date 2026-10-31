@@ -1436,11 +1436,18 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
 .tiptap .pm-para-mark { display: inline-block; width: 0; text-decoration: none; }
 .tiptap .pm-para-mark::after { content: '¶'; }
 .tiptap .pm-para-mark.pm-rev-del::after { text-decoration: line-through; }
+.tiptap .pm-para-mark.pm-rev-ins::after { text-decoration: underline; }
 
 /* Word's display modes (storage/markup.svelte.ts). The document keeps every change —
    this only takes it off the page, so a final text or the original one can be read. */
 .paper[data-hide-deletions] .tiptap .pm-deletion,
 .paper[data-hide-insertions] .tiptap .pm-insertion { display: none; }
+
+/* A block with nothing left in such a view goes too, with a list item holding only it. */
+.paper[data-hide-deletions] .tiptap .pm-gone-deletion,
+.paper[data-hide-insertions] .tiptap .pm-gone-insertion,
+.paper[data-hide-deletions] .tiptap li:not(:has(> :not(.pm-gone-deletion))),
+.paper[data-hide-insertions] .tiptap li:not(:has(> :not(.pm-gone-insertion))) { display: none; }
 
 /* What is left reads as plain text: the decoration that carries underline, strike and
    author colour is off in these modes too (trackChanges.ts), the mark's tint is not. */
