@@ -96,7 +96,7 @@ const drawRecorded = (r, size) => {
   if (x < 0.3) return { type: pick(r, WORDS) };
   if (x < 0.85) return { key: pick(r, RECORDED_KEYS) };
   if (x < 0.95) return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
-  return pick(r, [{ cmd: 'addRowAfter' }, { cmd: 'addColumnBefore' }, { cmd: 'deleteRow' }, { cmd: 'deleteColumn' }, { cmd: 'deleteTable' },
+  return pick(r, [{ cmd: 'insertNote', args: ['footnote'] }, { cmd: 'insertTextBox' }, { cmd: 'addRowAfter' }, { cmd: 'addColumnBefore' }, { cmd: 'deleteRow' }, { cmd: 'deleteColumn' }, { cmd: 'deleteTable' },
     { cmd: 'insertTable', args: [{ rows: 2, cols: 2, withHeaderRow: false }] }]);
 };
 

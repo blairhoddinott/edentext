@@ -49,8 +49,9 @@ export const NoteRef = Node.create({
   inline: true,
   atom: true,
   // The anchor wears its note class's own look, not the run's: ODF's text:note-citation
-  // holds bare text (no span, no style name), so no mark on it could be saved.
-  marks: '',
+  // holds bare text (no span, no style name), so no mark on it could be saved. Only a
+  // recorded change, which sits around it in both formats.
+  marks: 'insertion deletion',
 
   addAttributes() {
     return {
@@ -393,15 +394,16 @@ export const Notes = Extension.create<NotesOptions>({
   },
 });
 
-// The anchor takes no marks (`marks: ''`): ODF's text:note-citation is bare text, so
-// none could be saved, and the anchor draws its note class's look. A mark applied to a
-// range is only checked against the parent, so marking across one still reaches it.
+// The anchor takes no format marks: ODF's text:note-citation is bare text, so none could be
+// saved, and the anchor draws its note class's look. A mark applied to a range is only
+// checked against the parent, so marking across one still reaches it.
 function stripAnchorMarks(state: EditorState): Transaction | null {
   let tr: Transaction | null = null;
   state.doc.descendants((node, pos) => {
-    if (node.type.name !== 'noteRef' || !node.marks.length) return;
+    const kept = node.marks.filter((m) => m.type.name === 'insertion' || m.type.name === 'deletion');
+    if (node.type.name !== 'noteRef' || kept.length === node.marks.length) return;
     tr ??= state.tr;
-    tr.setNodeMarkup(pos, undefined, node.attrs, []);
+    tr.setNodeMarkup(pos, undefined, node.attrs, kept);
   });
   return tr;
 }

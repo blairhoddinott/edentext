@@ -3,6 +3,9 @@ import { Editor } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { extensions } from '../src/lib/editor/extensions';
 
+// jsdom has none, and a text box's view observes its size.
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+
 type Act = (e: Editor) => unknown;
 
 const settled = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
@@ -37,6 +40,8 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['the table deleted', TABLE, [inCell(14), (e) => e.commands.deleteTable()]],
   ['a row inserted', TABLE, [inCell(14), (e) => e.commands.addRowAfter()]],
   ['a column inserted', TABLE, [inCell(14), (e) => e.commands.addColumnBefore()]],
+  ['a note inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertNote('footnote')]],
+  ['a text box inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertTextBox()]],
   ['Enter in a cell', TABLE, [inCell(5), (e) => e.commands.splitBlock()]],
   ['a table inserted', THREE, [(e) => select(e, 7), (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false })]],
 ];

@@ -1352,7 +1352,8 @@ function replaceTextBoxes(doc: TiptapNode, boxes: TextBoxExport[]): TiptapNode {
         const desc = textBoxDescriptor(child);
         boxes.push(desc);
         const shape = desc.shapeKind !== 'textbox' || !!desc.shapePath;
-        content.push({ type: 'text', text: `${TBX}P${i}${TBX}` });
+        const change = child.marks?.filter((m) => m.type === 'insertion' || m.type === 'deletion');
+        content.push({ type: 'text', text: `${TBX}P${i}${TBX}`, ...(change?.length ? { marks: change } : {}) });
         staged.push({ type: 'paragraph', content: [{ type: 'text', text: `${TBX}S${i}${TBX}` }] });
         staged.push(...(child.content ?? []).map(b => shape ? stampLang(walk(b)) : walk(b)));
         staged.push({ type: 'paragraph', content: [{ type: 'text', text: `${TBX}E${i}${TBX}` }] });
@@ -1500,7 +1501,7 @@ function replaceNotes(doc: TiptapNode, notes: NoteExport[]): TiptapNode {
           label: bodies.get(id)?.label ?? null,
           styleName: bodies.get(id)?.styleName ?? null,
         });
-        return { type: 'text', text: `${FNT}A${i}${FNT}` };
+        return { type: 'text', text: `${FNT}A${i}${FNT}`, ...(child.marks?.length ? { marks: child.marks } : {}) };
       }),
     };
   };

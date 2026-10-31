@@ -2096,7 +2096,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
 
   // A recorded revision (w:ins/w:del, a move's two ends w:moveFrom/w:moveTo). Its runs and
   // atoms keep their formatting and take the mark; deleted text sits in w:delText, read as
-  // ordinary text. A note anchor takes no marks and a box is no single character.
+  // ordinary text.
   const handleRevision = (el: Element, linkHref?: string) => {
     const kind = el.localName === 'del' || el.localName === 'moveFrom' ? 'deletion' : 'insertion';
     const attrs = {
@@ -2109,7 +2109,6 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     // The zone schema records no revisions.
     if (!ctx.zone) {
       for (let i = before; i < out.length; i++) {
-        if (out[i].content || out[i].type === 'noteRef') continue;
         out[i].marks = [...(out[i].marks ?? []), { type: kind, attrs }];
       }
     }

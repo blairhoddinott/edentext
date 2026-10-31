@@ -1,5 +1,5 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core';
-import { Slice, type Fragment, type Node as PMNode } from '@tiptap/pm/model';
+import { Slice, type Fragment, type Mark as PMMark, type Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
 import { CellSelection, TableMap, removeColumn, removeRow } from '@tiptap/pm/tables';
@@ -139,8 +139,10 @@ export function revisions(doc: PMNode): Revision[] {
     bridging = [];
     node.forEach((child, offset) => {
       const at = pos + 1 + offset;
-      // A line break or field is inline as text is, and a recorded one goes with its change.
-      if (child.isLeaf) { inline(child, at); return; }
+      // A line break or field is inline as text is, and a recorded one goes with its change;
+      // so does a text box, with everything in it.
+      const recorded = child.marks.some((m) => m.type.name === 'insertion' || m.type.name === 'deletion');
+      if (child.isLeaf || recorded) { inline(child, at); return; }
       last.insertion = last.deletion = null;
       child.descendants((n, p) => visit(n, at + 1 + p));
     });
@@ -468,7 +470,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             // joins the run it continues, so a sentence is one change.
             const attrs = adjacentInsertion(tr.doc, from, author) ?? fresh;
             tr.removeMark(from, to, deletion).removeMark(from, to, insertion);
-            tr.addMark(from, to, insertion.create(attrs));
+            markRange(tr, from, to, insertion.create(attrs));
             markInsertedParagraphs(tr, from, to, attrs);
           }
           markInsertedLines(tr, ranges, fresh);
@@ -629,7 +631,7 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
     || (!sel.empty && steps[0].from === sel.from && steps[0].to === sel.to)
     || steps.every((s, i) => swapped[i] || s.to === s.from || inlineOnly(docs[i], s.from, s.to));
   if (!user) return null;
-  const marked = state.tr;
+  const marked = state.tr, line = revisionAttrs(author);
   // A position of the document before the current step, in the marked one as it stands.
   let at: (p: number, assoc: number) => number = (p, a) => marked.mapping.map(p, a);
   let back: { pos: number; steps: number } | null = null;
@@ -651,7 +653,8 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
     let end = prev(step.to, -1);
     if (step.to > step.from) {
       const from = prev(step.from, 1), before = marked.steps.length;
-      if (end > from) markDeleted(marked, from, end, adjacentDeletion(marked.doc, from, end, author) ?? revisionAttrs(author));
+      const node = marked.doc.nodeAt(from);
+      if (end > from) markDeleted(marked, from, end, adjacentDeletion(marked.doc, from, end, author) ?? (node && tableLine(node) ? line : revisionAttrs(author)));
       end = marked.mapping.slice(before).map(end, -1);
       back = { pos: marked.mapping.slice(before).map(from, 1), steps: marked.steps.length };
     }
@@ -870,11 +873,21 @@ function revisionAttrs(author: string): RevisionAttrs {
   return { id: newRevisionId(), author, date: new Date().toISOString() };
 }
 
+// A change's mark over a range. A mark step only reaches text and atoms, so a text box in
+// the range takes it as well as the text in it.
+function markRange(tr: Transaction, from: number, to: number, mark: PMMark): void {
+  tr.addMark(from, to, mark);
+  tr.doc.nodesBetween(from, to, (node, pos) => {
+    if (node.isInline && !node.isLeaf && pos >= from && pos + node.nodeSize <= to) tr.setNodeMarkup(pos, null, node.attrs, mark.addToSet(node.marks));
+    return !node.isInline;
+  });
+}
+
 // Strike [from,to) through as one change, the paragraph marks in it too; the author's own
 // pending insertion inside goes for real, and what is already struck through stays as it is.
 function markDeleted(tr: Transaction, from: number, to: number, attrs: RevisionAttrs): void {
   const { kept, own, blocks } = deleteRanges(tr.doc, from, to, attrs.author);
-  for (const keep of kept) tr.addMark(keep[0], keep[1], tr.doc.type.schema.marks.deletion.create(attrs));
+  for (const keep of kept) markRange(tr, keep[0], keep[1], tr.doc.type.schema.marks.deletion.create(attrs));
   const start = tr.steps.length;
   for (const range of [...own].reverse()) tr.delete(range[0], range[1]);
   for (const block of [...blocks].reverse()) {
@@ -938,7 +951,8 @@ function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: Revisio
   const { insertion, deletion } = tr.doc.type.schema.marks;
   const ranges = newRanges(tr, before);
   for (const [from, to] of ranges) {
-    tr.removeMark(from, to, deletion).removeMark(from, to, insertion).addMark(from, to, insertion.create(attrs));
+    tr.removeMark(from, to, deletion).removeMark(from, to, insertion);
+    markRange(tr, from, to, insertion.create(attrs));
     markInsertedParagraphs(tr, from, to, attrs);
   }
   markInsertedLines(tr, ranges, attrs);

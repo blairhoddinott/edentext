@@ -21,6 +21,10 @@ A row carries a `revMark` as a paragraph does; so does each cell of a column, re
 
 A table cutting a paragraph records the split as a mark in front of it, which no file can hold: LibreOffice's reject and ours after a reload keep the two halves. The list cut of a table inserted in a list is not recorded.
 
+## Notes and text boxes
+
+A note anchor and a text box take a change as an atom does: `revisions()` treats a recorded box as one inline piece with everything in it, and a mark step never reaches a box, so `markRange` sets it with `setNodeMarkup`. The note's body follows its anchor through the notes' own repair. In ODF a deletion's registry block holds the whole `text:note` or frame, and a region around a frame says nothing about the paragraphs in it.
+
 ## Views
 
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.
@@ -46,7 +50,6 @@ Lifting an item out of its list (Backspace at its start) and other list structur
 ## Probed for later steps
 
 - **Column in DOCX:** LibreOffice drops `w:cellIns`/`w:cellDel`.
-- **Note:** a deletion's registry block holds the whole `text:note`.
 - **Header and footer:** a `text:tracked-changes` of its own as first child of `style:header`/`style:footer` in `styles.xml`.
 - **Character format:** a `text:format-change` region around the run, with no old values. Rejecting it after a reload drops the direct formatting.
 - **Paragraph format:** LibreOffice writes `text:UnknownChange`, reads it back as nothing and is outside the schema. Such a change survives only DOCX.

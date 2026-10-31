@@ -11,8 +11,9 @@ import { buildOdt } from '../../src/lib/export/odt';
 import { importOdt } from '../../src/lib/import/odt';
 import { DEFAULT_MARGINS } from '../../src/lib/storage/pageMargins';
 
-// A file always states column widths; what a removed column leaves of them is the same edit.
-const shape = (e: Editor) => JSON.parse(JSON.stringify(e.getJSON(), (k, v) => (k === 'colwidth' ? undefined : v)));
+// A file always states column widths; what a removed column leaves of them is the same
+// edit. A new note or box draws its own id.
+const shape = (e: Editor) => JSON.parse(JSON.stringify(e.getJSON(), (k, v) => (k === 'colwidth' || k === 'id' ? undefined : v)));
 
 const FORMATS: [string, (doc: any) => Promise<unknown>][] = [
   ['DOCX', async (doc) => importDocx(await buildDocx(doc, DEFAULT_MARGINS)).content],
@@ -74,7 +75,29 @@ describe('recording keeps its promise', () => {
       expect(shape(rereadAccepted), `${format}, accepted`).toEqual(shape(open(await through(plain.getJSON()))));
     }
     e.commands.acceptRevisions(true);
-    expect(e.getJSON()).toEqual(plain.getJSON());
+    expect(shape(e)).toEqual(shape(plain));
+  });
+
+  it.each<[string, (e: Editor) => unknown]>([
+    ['note', (e) => e.commands.insertNote('footnote')],
+    ['text box', (e) => e.commands.insertTextBox()],
+  ])('a deleted %s comes back and goes', async (_name, insert) => {
+    const e = open(THREE);
+    await edit(e, [(ed) => select(ed, 3), insert]);
+    const start = e.getJSON();
+    const end = 3 + e.state.doc.child(0).child(1).nodeSize;
+    setRecordChanges(true);
+    await edit(e, del(2, end + 1));
+    const recorded = e.getJSON();
+    setRecordChanges(false);
+    for (const [, through] of [['here', async (d: unknown) => d], ...FORMATS] as typeof FORMATS) {
+      const rejected = open(await through(recorded));
+      rejected.commands.rejectRevisions(true);
+      expect(shape(rejected)).toEqual(shape(open(await through(start))));
+      const accepted = open(await through(recorded));
+      accepted.commands.acceptRevisions(true);
+      expect(accepted.getJSON().content?.[0].content?.map((n) => n.type)).toEqual(['text']);
+    }
   });
 
   // No file holds a paragraph mark in front of a table: the split itself survives only here.

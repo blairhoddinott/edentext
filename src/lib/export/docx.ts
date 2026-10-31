@@ -319,10 +319,9 @@ const ARV = '\uE032';
 type AtomRevisionDocx = { el: 'w:ins' | 'w:del'; id: number; author: string; date: string };
 let docAtomRevisions: AtomRevisionDocx[] = [];
 
-// The two bracket texts for an atom carrying a recorded change, else null. A note anchor
-// takes no marks and a box is no single character.
+// The two bracket texts for an atom carrying a recorded change, else null.
 function atomRevisionMarks(node: TiptapNode): [string, string] | null {
-  if (node.type === 'text' || node.type === 'hardBreak' || node.type === 'textBox' || node.type === 'noteRef') return null;
+  if (node.type === 'text' || node.type === 'hardBreak') return null;
   const rev = revisionOf(node), under = stackedOf(node);
   if (!rev) return null;
   docAtomRevisions.push({ el: rev.kind === 'insertion' ? 'w:ins' : 'w:del',

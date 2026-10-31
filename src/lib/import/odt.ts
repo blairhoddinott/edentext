@@ -627,6 +627,13 @@ export function unnestBoxes(blocks: Node[], ctx: { warnings: Set<string> }): Nod
 // fo:min-height when present (height = minimum, content grows the box), else the
 // frame's svg:height, which LibreOffice keeps fixed and clips at.
 function convertTextBoxFrame(frame: Element, textBoxEl: Element, ctx: Ctx): Node {
+  // A region around the frame records the frame, not the paragraphs in it.
+  const open = ctx.openInsertions;
+  ctx.openInsertions = new Map();
+  try { return textBoxNode(frame, textBoxEl, ctx); } finally { ctx.openInsertions = open; }
+}
+
+function textBoxNode(frame: Element, textBoxEl: Element, ctx: Ctx): Node {
   const attrs: Record<string, unknown> = {};
   // A floating frame that grows with its text (fo:min-width, no width) spans what its
   // anchor leaves it: LibreOffice lays it out at the column's width (probed).
@@ -2715,7 +2722,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
       for (const n of out.slice(from)) {
         if (settled.has(n)) continue;
         settled.add(n);
-        if (insertion && !n.content && n.type !== 'noteRef' && !n.marks?.some((m) => m.type === 'insertion')) {
+        if (insertion && !n.marks?.some((m) => m.type === 'insertion')) {
           n.marks = [...(n.marks ?? []), { type: 'insertion', attrs: insertion }];
         }
       }
@@ -2863,7 +2870,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
               rev.paras.forEach((p, i) => {
                 if (i) out.push({ type: REV_BREAK, attrs: { rev: { deletion: del[0].attrs, ...(rev.under ? { insertion: del[1].attrs } : {}) }, before: rev.paras[i - 1], after: p } });
                 for (const n of convertInline(p, ctx, props, defaults)) {
-                  if (!n.content && n.type !== 'noteRef') n.marks = [...(n.marks ?? []), ...del];
+                  n.marks = [...(n.marks ?? []), ...del];
                   out.push(n);
                 }
               });
