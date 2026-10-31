@@ -356,6 +356,9 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
   const { resolveStyle } = await import('/src/lib/styles/styleSheet.ts');
   const sheet = editor.extensionManager.extensions.find((e) => e.name === 'paragraphStyle')?.options.sheet();
   const styled = (n, header = false, framed = false, text = {}, nested = false) => {
+    // getJSON hands out the nodes' and marks' own attrs, which blocks can share.
+    if (n.attrs) n.attrs = { ...n.attrs };
+    n.marks = n.marks?.map((m) => (m.attrs ? { ...m, attrs: { ...m.attrs } } : m));
     // A heading's level already names its style, so neither importer writes one out —
     // and the style it resolves to is the one whose values are suppressed.
     const style = n.attrs?.styleName ?? (n.type === 'heading' ? `Heading ${n.attrs?.level ?? 1}` : null);
@@ -364,7 +367,7 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
       for (const [k, v] of Object.entries(n.attrs)) if (k !== 'styleName' && own.para?.[k] === v) delete n.attrs[k];
       text = own.text ?? {};
       // A block in a list or a cell loses the name to its effect (import/CLAUDE.md).
-      if (nested && n.attrs?.styleName) for (const k of ['spaceBefore', 'spaceAfter', 'lineHeight']) if (own.para?.[k] != null) n.attrs[k] ??= own.para[k];
+      if (nested && n.type === 'paragraph' && n.attrs?.styleName) for (const k of ['spaceBefore', 'spaceAfter', 'lineHeight']) if (own.para?.[k] != null) n.attrs[k] ??= own.para[k];
     }
     if (header && n.type === 'text' && n.marks) n.marks = n.marks.filter((m) => m.type !== 'bold');
     // A formula alone in its block is a display formula to both files — a note holds its
