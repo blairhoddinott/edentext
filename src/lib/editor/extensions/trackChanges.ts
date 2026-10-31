@@ -363,7 +363,7 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
     const { pos: at, deleted } = tr.mapping.mapResult(pos, 1);
     const rev = tr.doc.nodeAt(at)?.attrs.revMark as RevMark | null | undefined;
     if (deleted || !rev?.[kind]) continue;
-    if (kind === drop) removeParagraphMark(tr, at);
+    if (kind === drop && !(accept && holdsNew(state.doc.nodeAt(pos)!))) removeParagraphMark(tr, at);
     else {
       const { [kind]: _gone, ...rest } = rev;
       tr.setNodeAttribute(at, 'revMark', Object.keys(rest).length ? rest : null);
@@ -373,6 +373,13 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
   const formats = list.flatMap((r) => (r.kind === 'formatChange' ? r.marks : []));
   for (const pos of formats.sort((a, b) => a - b)) settleBlockFormat(tr, pos, accept);
   tr.setMeta(RECORDING, true);
+}
+
+// A struck row someone typed into stays for what is new in it.
+function holdsNew(node: PMNode): boolean {
+  let fresh = false;
+  if (tableLine(node) === 'row') node.descendants((n) => { fresh ||= n.marks.some((m) => m.type.name === 'insertion') && !n.marks.some((m) => m.type.name === 'deletion'); });
+  return fresh;
 }
 
 // Puts back what each run of a format change held. Without a record it loses its direct
@@ -1009,18 +1016,24 @@ function ownOnly(tr: Transaction, author: string): boolean {
   }) && tr.steps.some((s) => (s as ReplaceStep).to > (s as ReplaceStep).from);
 }
 
-// Blocks and text in order, what a lost edit shows in; attrs and marks may differ harmlessly.
-function outline(doc: PMNode): string {
-  let out = '';
-  doc.descendants((node) => { out += node.text ?? `<${node.type.name}>`; });
+// Each character and object in a document. Blocks are no part of it: accepting a mark
+// follows the file's rule, which merges them differently from a plain edit.
+function tally(doc: PMNode): Map<string, number> {
+  const out = new Map<string, number>(), add = (key: string) => out.set(key, (out.get(key) ?? 0) + 1);
+  doc.descendants((node) => {
+    if (node.isText) for (const char of node.text!) add(char);
+    else if (!node.isTextblock && !LIST_NODES.has(node.type.name) && !/row|cell/.test(node.type.spec.tableRole ?? '')) add(`<${node.type.name}>`);
+  });
   return out;
 }
 
-// Whether accepting `marked` gives what the edit gives: losing the record of an edit is
+// Whether accepting `marked` keeps all the edit leaves: losing the record of an edit is
 // better than losing the edit. Text replaced within a block needs no such walk.
 function keepsEdit(tr: Transaction, marked: Transaction): boolean {
   const simple = tr.steps.every((s, i) => !(s instanceof ReplaceStep) || (inlineOnly(tr.docs[i], s.from, s.to) && (!s.slice.size || !!s.slice.content.firstChild!.isInline)));
-  return simple || outline(settledDoc(marked.doc, true)) === outline(settledDoc(tr.doc, true));
+  if (simple) return true;
+  const kept = tally(settledDoc(marked.doc, true));
+  return [...tally(settledDoc(tr.doc, true))].every(([key, count]) => (kept.get(key) ?? 0) >= count);
 }
 
 // A user edit that removes text — a delete, typing or pasting over a selection, Enter over
@@ -1029,11 +1042,13 @@ function keepsEdit(tr: Transaction, marked: Transaction): boolean {
 function replayTracked(tr: Transaction, state: EditorState, author: string): Transaction | null {
   // Formatting steps ride along (find & replace with a format): applied, not recorded.
   const steps = tr.steps.filter((s): s is ReplaceStep => s instanceof ReplaceStep);
-  if (tr.steps.some((s) => !(s instanceof ReplaceStep || s instanceof AddMarkStep || s instanceof RemoveMarkStep))) return null;
+  const sel = state.selection, ui = tr.getMeta('uiEvent');
+  // A drop out of a list takes the selection out by a step that rewraps what follows.
+  const fitted = ui === 'drop' && tr.steps[0] instanceof ReplaceAroundStep;
+  if (tr.steps.some((s, i) => !(s instanceof ReplaceStep || s instanceof AddMarkStep || s instanceof RemoveMarkStep || (fitted && !i)))) return null;
   const docs = tr.steps.flatMap((s, i) => (s instanceof ReplaceStep ? [tr.docs[i]] : []));
   const swapped = steps.map((s, i) => restyled(s, docs[i]));
-  if (!steps.some((s, i) => !swapped[i] && s.to > s.from)) return null;
-  const sel = state.selection, ui = tr.getMeta('uiEvent');
+  if (!fitted && !steps.some((s, i) => !swapped[i] && s.to > s.from)) return null;
   // What a move takes out and puts in carry one id, each half's change its own.
   const moveId = ui === 'drop' || tr.getMeta(MOVING) ? newRevisionId() : null;
   const fresh = () => ({ ...revisionAttrs(author), ...(moveId ? { moveId } : {}) });
@@ -1052,6 +1067,12 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
     if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
       const from = prev(step.from, 1), to = prev(step.to, -1);
       if (to > from) step instanceof AddMarkStep ? marked.addMark(from, to, step.mark) : marked.removeMark(from, to, step.mark);
+      continue;
+    }
+    if (step instanceof ReplaceAroundStep) {
+      const before = marked.steps.length, back = step.getMap().invert();
+      markDeleted(marked, prev(step.from, 1), prev(step.gapFrom, -1), fresh());
+      at = (p, a) => marked.mapping.slice(before).map(prev(back.map(p, a), a), a);
       continue;
     }
     if (!(step instanceof ReplaceStep)) continue;
@@ -1463,7 +1484,9 @@ function deleteRanges(doc: PMNode, from: number, to: number, author: string): { 
   let cursor = from, rowEnd = 0;
   doc.nodesBetween(from, to, (node, pos) => {
     const line = tableLine(node);
-    if (line && pos >= from && pos + node.nodeSize <= to && pos >= rowEnd) {
+    // A column goes cell by cell; a cell a longer range runs through only loses its text.
+    const whole = line === 'row' ? pos >= from && pos + node.nodeSize <= to : pos === from && pos + node.nodeSize === to;
+    if (line && whole && pos >= rowEnd) {
       blocks.push(pos);
       if (line === 'row') rowEnd = pos + node.nodeSize;
     }

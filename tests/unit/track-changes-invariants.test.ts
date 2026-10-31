@@ -332,6 +332,29 @@ describe('recording keeps its promise', () => {
     expect(revisions(e.state.doc)).toHaveLength(3);
   });
 
+  it('typing over a selection through a table takes no column along', async () => {
+    const html = '<table><tbody><tr><td><p>a1</p></td><td><p>b1</p></td></tr><tr><td><p>a2</p></td><td><p>b2</p></td></tr></tbody></table><p>t</p>';
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, [(ed) => select(ed, 5, 19), (ed) => ed.view.dispatch(ed.state.tr.insertText('z'))]);
+    setRecordChanges(false);
+    const rejected = open(e.getJSON());
+    rejected.commands.rejectRevisions(true);
+    expect(rejected.getJSON()).toEqual(open(html).getJSON());
+    e.commands.acceptRevisions(true);
+    expect(e.state.doc.textContent).toContain('b2');
+  });
+
+  it('a struck row someone typed into stays', async () => {
+    setRecordChanges(true);
+    const e = open('<table><tbody><tr><td><p>a1</p></td></tr><tr><td><p>a2</p></td></tr></tbody></table><p>t</p>');
+    await edit(e, [(ed) => select(ed, 5), (ed) => ed.commands.deleteRow(), (ed) => select(ed, 5), (ed) => ed.commands.insertContent('new')]);
+    setRecordChanges(false);
+    e.commands.acceptRevisions(true);
+    expect(e.state.doc.textContent).toContain('new');
+    expect(revisions(e.state.doc)).toEqual([]);
+  });
+
   it.each(REPLACE_CASES)('%s', async (_name, html, steps) => {
     const plain = open(html);
     await edit(plain, steps);

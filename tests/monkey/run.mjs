@@ -129,6 +129,8 @@ const drawHfOp = (r) => {
 
 const server = await devServer(PORT);
 const { browser, page, pageErrors } = await openApp(PORT);
+// Across every reload: without a picker the save ends in a download, which the run reads.
+await page.addInitScript(() => { window.showSaveFilePicker = undefined; });
 const consoleErrors = [];
 page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
 
@@ -489,10 +491,9 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
 
 try {
   await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'load' });
-  await page.evaluate(() => { localStorage.clear(); window.showSaveFilePicker = undefined; });
+  await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('.tiptap-host .tiptap', { timeout: 30_000 });
-  await page.evaluate(() => { window.showSaveFilePicker = undefined; });
 
   const retried = new Set();
   for (let run = 0; run < RUNS; run++) {
@@ -589,7 +590,7 @@ try {
       if (!/Execution context was destroyed|promise was garbage collected/.test(err.message) || retried.has(run)) throw err;
       retried.add(run);
       await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'load' });
-      await page.evaluate(() => { localStorage.clear(); window.showSaveFilePicker = undefined; });
+      await page.evaluate(() => localStorage.clear());
       await page.reload({ waitUntil: 'load' });
       await page.waitForSelector('.tiptap-host .tiptap', { timeout: 30_000 });
       run--;
