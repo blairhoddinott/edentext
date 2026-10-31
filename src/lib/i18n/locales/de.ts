@@ -1134,6 +1134,7 @@ const de: Messages = {
     tableColumn: 'Tabellenspalte',
     inserted: 'Eingefügt',
     deleted: 'Gelöscht',
+    moved: 'Verschoben',
     formatted: 'Formatiert',
   },
   notesDialog: {

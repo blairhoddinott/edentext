@@ -1143,6 +1143,7 @@ const uk: Messages = {
     tableColumn: 'Стовпець таблиці',
     inserted: 'Додано',
     deleted: 'Видалено',
+    moved: 'Переміщено',
     formatted: 'Відформатовано',
   },
   notesDialog: {

@@ -1128,6 +1128,7 @@ const zhHans: Messages = {
     tableColumn: '表格列',
     inserted: '插入',
     deleted: '删除',
+    moved: '已移动',
     formatted: '格式更改',
   },
   notesDialog: {

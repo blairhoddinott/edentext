@@ -1144,6 +1144,7 @@ const el: Messages = {
     tableColumn: 'Στήλη πίνακα',
     inserted: "Εισαγάχθηκε",
     deleted: "Διαγράφηκε",
+    moved: 'Μετακινήθηκε',
     formatted: "Μορφοποιήθηκε",
   },
   notesDialog: {

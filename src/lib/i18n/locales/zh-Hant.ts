@@ -1129,6 +1129,7 @@ const zhHant: Messages = {
     tableColumn: '表格欄',
     inserted: '插入',
     deleted: '刪除',
+    moved: '已移動',
     formatted: '格式變更',
   },
   notesDialog: {

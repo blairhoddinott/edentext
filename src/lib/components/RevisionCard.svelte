@@ -18,6 +18,7 @@
 
   const FORMAT_NAMES = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strikethrough' } as const;
   const kind = $derived.by(() => {
+    if (r.moved) return t().revisions.moved;
     if (r.kind !== 'formatChange') return r.kind === 'insertion' ? t().revisions.inserted : t().revisions.deleted;
     const names = (r.changed ?? []).flatMap((m) => (m in FORMAT_NAMES ? [t().toolbar[FORMAT_NAMES[m as keyof typeof FORMAT_NAMES]]] : []));
     return [t().revisions.formatted, names.join(', ')].filter(Boolean).join(': ');

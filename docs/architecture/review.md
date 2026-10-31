@@ -45,6 +45,16 @@ DOCX ids are unique per part only, so the importer scopes a zone's by its part (
 
 Authors share one colour table over the body and all zones, the body's first; the stored zones repaint when it changes.
 
+## Moves
+
+A move is a deletion and an insertion sharing a `moveId`, each a change of its own in the document; `moved` says both halves are there, and then the pane lists one row, either half settles both (`wholeChanges`) and both draw double. A half whose partner went (its author took the insertion back) is a plain change.
+
+A drop and a chapter moved in the navigator are recorded (`MOVING`, `replayTracked`); text the author inserted moves for real, as it would be deleted. Typing beside moved text is a change of its own. When a document's last blocks move away, the mark before them goes in their stead, since the last block has none. Cut and paste is a deletion and an insertion, as in both word processors.
+
+**DOCX:** `w:moveFrom`/`w:moveTo` inside a `w:moveFromRangeStart`/`w:moveToRangeStart` pair of one `w:name`, which is what pairs them. LibreOffice ignores the move forms in a paragraph mark (probed: its reject leaves the block split), so ours stay `w:ins`/`w:del` under the id of the move's text, and the importer finds the move through that id; Word's, in `w:pPr` ahead of the range, take the range the paragraph opens.
+
+**ODF:** `<loext:move-id>` between `dc:creator` and `dc:date` in the change info, the same number on both halves, from 2 on: LibreOffice reads 1 as a half without a pair and drops it on the way out (probed).
+
 ## Views
 
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.
@@ -53,7 +63,7 @@ A merge whose two sides keep text stays two lines on the page: `display: inline`
 
 ## Formats
 
-**DOCX:** `w:ins`/`w:del` in `w:pPr/w:rPr`, a move's ends `w:moveFrom`/`w:moveTo`.
+**DOCX:** `w:ins`/`w:del` in `w:pPr/w:rPr`.
 
 **Character format:** DOCX `w:rPrChange`; ODF a `text:format-change` region around the run, with no old values, so rejecting after a reload drops the direct formatting, as in LibreOffice (probed: `old` null). A deleted run's format change goes unsaved in ODF.
 
@@ -74,6 +84,5 @@ The list cut of a table inserted in a list passes unrecorded; the monkey's recor
 ## Probed for later steps
 
 - **Column in DOCX:** LibreOffice drops `w:cellIns`/`w:cellDel`.
-- **Moves:** `loext:move-id` in the region's change info.
 
 The UNO API removes rows and columns unrecorded; a probe needs the dispatcher. pyuno does not run on macOS here, so the leg and the probes are Basic macros in a fresh profile's `Standard` library.

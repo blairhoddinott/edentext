@@ -48,9 +48,13 @@ export type Revision = {
   changed?: string[];
   /** The header or footer it is in (`zoneRevisions`); its positions are that zone's. */
   zone?: string;
+  /** Shared by the two halves of a move, the deletion where it was and the insertion where it went. */
+  moveId?: string;
+  /** Both halves are in the document: they show, and settle, as one change. */
+  moved?: boolean;
 };
 
-export type RevisionAttrs = { id: string; author: string; date: string };
+export type RevisionAttrs = { id: string; author: string; date: string; moveId?: string };
 export type RevMark = { insertion?: RevisionAttrs; deletion?: RevisionAttrs };
 /** One list around a block, outermost first. */
 export type ListLevel = { type: string; attrs: Record<string, unknown> };
@@ -69,6 +73,8 @@ export function newRevisionId(): string {
 export const RECORDING = new PluginKey<boolean>('trackChangesRecording');
 // Set on an edit that passed unrecorded because it only moves content, so none is marked.
 const MOVED = 'trackChangesMoved';
+/** Set on an edit that takes content from one place to another, as a drop does. */
+export const MOVING = 'trackChangesMoving';
 
 function revisionMark(name: RevisionKind, attr: string) {
   return Mark.create({
@@ -82,6 +88,7 @@ function revisionMark(name: RevisionKind, attr: string) {
         id: { default: '', parseHTML: (el) => el.getAttribute(attr) || '', renderHTML: (a) => ({ [attr]: String(a.id ?? '') }) },
         author: { default: '', parseHTML: (el) => el.getAttribute('data-rev-author') || '', renderHTML: (a) => ({ 'data-rev-author': String(a.author ?? '') }) },
         date: { default: '', parseHTML: (el) => el.getAttribute('data-rev-date') || '', renderHTML: (a) => ({ 'data-rev-date': String(a.date ?? '') }) },
+        moveId: { default: null, parseHTML: (el) => el.getAttribute('data-rev-move'), renderHTML: (a) => (a.moveId ? { 'data-rev-move': String(a.moveId) } : {}) },
       };
     },
 
@@ -137,6 +144,7 @@ export const sameBlockFormat = (a: BlockFormat, b: BlockFormat) => a.type === b.
 // A file numbers each run and paragraph mark of one edit on its own: touching stretches
 // by one author at one moment are one change, as both word processors show them.
 function sameChange(prev: Revision, attrs: RevisionAttrs): boolean {
+  if ((prev.moveId ?? null) !== (attrs.moveId ?? null)) return false;
   return prev.id === String(attrs.id ?? '') || (!!prev.date && prev.date === attrs.date && prev.author === attrs.author);
 }
 
@@ -173,6 +181,7 @@ export function revisions(doc: PMNode): Revision[] {
         date: String(mark.attrs.date ?? ''),
         from: pos, to: pos + node.nodeSize, text: node.text ?? '',
         spans: [[pos, pos + node.nodeSize]], marks: [],
+        ...(mark.attrs.moveId ? { moveId: String(mark.attrs.moveId) } : {}),
         ...(kind === 'formatChange' ? { changed: changedMarks(node, mark) } : {}),
       });
     }
@@ -218,7 +227,16 @@ export function revisions(doc: PMNode): Revision[] {
     return false;
   };
   doc.descendants(visit);
-  return gatherChanges(out);
+  const list = gatherChanges(out), halves = new Map<string, Set<RevisionKind>>();
+  for (const { moveId, kind } of list) if (moveId) halves.set(moveId, (halves.get(moveId) ?? new Set()).add(kind));
+  for (const r of list) if (r.moveId && halves.get(r.moveId)!.size === 2) r.moved = true;
+  return list;
+}
+
+// What `picked` settles: each move in it with its other half.
+function wholeChanges(list: Revision[], picked: Revision[]): Revision[] {
+  const moves = new Set(picked.flatMap((r) => (r.moved ? [r.moveId] : [])));
+  return moves.size ? list.filter((r) => picked.includes(r) || (r.moved && moves.has(r.moveId))) : picked;
 }
 
 // The marks a format change put on or took off `node`.
@@ -276,7 +294,7 @@ function targets(state: EditorState, all: boolean): Revision[] {
   const list = revisions(state.doc);
   if (all) return list;
   const { from, to } = state.selection;
-  return list.filter((r) => (from === to ? r.from <= from && from <= r.to : r.from < to && from < r.to));
+  return wholeChanges(list, list.filter((r) => (from === to ? r.from <= from && from <= r.to : r.from < to && from < r.to)));
 }
 
 // Applying changes runs from the end, mapped. The RECORDING meta keeps the plugin's hands
@@ -284,7 +302,7 @@ function targets(state: EditorState, all: boolean): Revision[] {
 // One change by id — every range of it, which is what a paragraph boundary splits a
 // change into and what the pane lists as a single revision.
 function byId(state: EditorState, tr: Transaction, dispatch: unknown, id: string, accept: boolean): boolean {
-  const list = revisions(state.doc).filter((r) => r.id === id);
+  const all = revisions(state.doc), list = wholeChanges(all, all.filter((r) => r.id === id));
   if (!list.length) return false;
   if (dispatch) apply(state, tr, list, accept);
   return true;
@@ -445,7 +463,8 @@ function goneBlocks(doc: PMNode): { pos: number; size: number; kind: RevisionKin
 /** The document with one change, or every one, accepted or rejected. */
 export function settledDoc(doc: PMNode, accept: boolean, id?: string): PMNode {
   const state = EditorState.create({ doc }), tr = state.tr;
-  apply(state, tr, revisions(doc).filter((r) => id == null || r.id === id), accept);
+  const all = revisions(doc);
+  apply(state, tr, id == null ? all : wholeChanges(all, all.filter((r) => r.id === id)), accept);
   return tr.doc;
 }
 
@@ -549,7 +568,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             const list = plain ? [] : revisions(state.doc);
             const gone = goneBlocks(state.doc).map(({ pos, size, kind }) => Decoration.node(pos, pos + size, { class: `pm-gone-${kind}` }));
             const set = DecorationSet.create(state.doc, gone.concat(list.flatMap((r) => {
-              const cls = `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}`, color = authorColor(colors, r.author);
+              const cls = `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}${r.moved ? ' pm-rev-move' : ''}`, color = authorColor(colors, r.author);
               if (r.kind === 'formatChange') return [
                 ...r.spans.map(([from, to]) => Decoration.inline(from, to, { class: 'pm-rev-format', style: `--rev-color: ${color}` })),
                 ...r.marks.map((pos) => Decoration.node(pos, pos + state.doc.nodeAt(pos)!.nodeSize, { class: 'pm-block-format', style: `--rev-color: ${color}` })),
@@ -837,12 +856,15 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
   const swapped = steps.map((s, i) => restyled(s, docs[i]));
   if (!steps.some((s, i) => !swapped[i] && s.to > s.from)) return null;
   const sel = state.selection, ui = tr.getMeta('uiEvent');
+  // What a move takes out and puts in carry one id, each half's change its own.
+  const moveId = ui === 'drop' || tr.getMeta(MOVING) ? newRevisionId() : null;
+  const fresh = () => ({ ...revisionAttrs(author), ...(moveId ? { moveId } : {}) });
   // One step is the user's edit over the selection, unless it rebuilds a block whole.
-  const user = (steps.length === 1 && !rebuilt(steps[0], docs[0])) || isPureDelete(tr, state) || ui === 'paste' || ui === 'drop' || ui === 'cut'
+  const user = (steps.length === 1 && !rebuilt(steps[0], docs[0])) || isPureDelete(tr, state) || ui === 'paste' || ui === 'cut' || !!moveId
     || (!sel.empty && steps[0].from === sel.from && steps[0].to === sel.to)
     || steps.every((s, i) => swapped[i] || s.to === s.from || inlineOnly(docs[i], s.from, s.to));
   if (!user) return null;
-  const marked = state.tr, line = revisionAttrs(author);
+  const marked = state.tr, line = fresh();
   // A position of the document before the current step, in the marked one as it stands.
   let at: (p: number, assoc: number) => number = (p, a) => marked.mapping.map(p, a);
   let back: { pos: number; steps: number } | null = null;
@@ -863,14 +885,17 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
     }
     let end = prev(step.to, -1);
     if (step.to > step.from) {
-      const from = prev(step.from, 1), before = marked.steps.length;
+      let from = prev(step.from, 1);
+      const before = marked.steps.length;
+      // The document's last blocks moved away: the mark before them goes, as the last one cannot.
+      if (moveId && end === marked.doc.content.size && marked.doc.resolve(from).nodeBefore?.isTextblock) { from--; end--; }
       const node = marked.doc.nodeAt(from);
-      if (end > from) markDeleted(marked, from, end, adjacentDeletion(marked.doc, from, end, author) ?? (node && tableLine(node) ? line : revisionAttrs(author)));
+      if (end > from) markDeleted(marked, from, end, (moveId ? null : adjacentDeletion(marked.doc, from, end, author)) ?? (node && tableLine(node) ? line : fresh()));
       end = marked.mapping.slice(before).map(end, -1);
       back = { pos: marked.mapping.slice(before).map(from, 1), steps: marked.steps.length };
     }
     const start = end;
-    if (step.slice.size && !reopensOnly(step.slice)) end = insertTracked(marked, start, step.slice, revisionAttrs(author));
+    if (step.slice.size && !reopensOnly(step.slice)) end = insertTracked(marked, start, step.slice, fresh());
     const steady = marked.steps.length, { from, to } = step, size = step.slice.size;
     at = (p, a) => {
       if (p < from) return prev(p, a);
@@ -1044,7 +1069,7 @@ function adjacentInsertion(doc: PMNode, pos: number, author: string): RevisionAt
   const $pos = doc.resolve(pos), before = pos > 0 ? $pos.nodeBefore : null;
   const mark = before?.marks.find((m) => m.type.name === 'insertion');
   const attrs = mark?.attrs ?? (blockBefore($pos)?.attrs.revMark as RevMark | null | undefined)?.insertion;
-  if (!attrs || String(attrs.author ?? '') !== author) return null;
+  if (!attrs || attrs.moveId || String(attrs.author ?? '') !== author) return null;
   return { id: String(attrs.id), author, date: String(attrs.date) };
 }
 
@@ -1061,7 +1086,7 @@ function adjacentDeletion(doc: PMNode, from: number, to: number, author: string)
     atEnd ? ($to.parent.attrs.revMark as RevMark | null | undefined)?.deletion : undefined,
   ];
   for (const attrs of beside) {
-    if (attrs && String(attrs.author ?? '') === author) return { id: String(attrs.id), author, date: String(attrs.date) };
+    if (attrs && !attrs.moveId && String(attrs.author ?? '') === author) return { id: String(attrs.id), author, date: String(attrs.date) };
   }
   return null;
 }

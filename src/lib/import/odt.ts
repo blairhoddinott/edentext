@@ -2540,7 +2540,7 @@ function odfRecordChanges(body: Element): boolean {
   return !!registry && registry.getAttributeNS(NS.text, 'track-changes') !== 'false';
 }
 
-type OdfRevision = { kind: 'insertion' | 'deletion' | 'formatChange'; author: string; date: string; text: string; paras: Element[]; under?: { author: string; date: string } };
+type OdfRevision = { kind: 'insertion' | 'deletion' | 'formatChange'; author: string; date: string; moveId?: string; text: string; paras: Element[]; under?: { author: string; date: string } };
 
 // The <text:tracked-changes> registry: one entry per change id. A deletion carries the
 // text it removed (the body has only a point marker), an insertion only who and when.
@@ -2562,12 +2562,14 @@ function odfRevisions(body: Element): Map<string, OdfRevision> {
     const blocks = (el: Element): Element[] => Array.from(el.children).flatMap((c) => c.namespaceURI !== NS.text ? []
       : c.localName === 'p' || c.localName === 'h' ? [c] : /^list(-item|-header)?$/.test(c.localName) ? blocks(c) : []);
     const paras = blocks(kindEl);
+    const move = kindEl.getElementsByTagNameNS(NS.loext as string, 'move-id')[0]?.textContent?.trim();
     // A deletion of another's insertion carries that insertion after it, in the same region.
     const under = kindEl.localName === 'deletion'
       ? Array.from(region.children).find((c) => c.localName === 'insertion') : undefined;
     out.set(id, {
       kind: kindEl.localName === 'deletion' ? 'deletion' : kindEl.localName === 'format-change' ? 'formatChange' : 'insertion',
       ...who(kindEl),
+      ...(move ? { moveId: move } : {}),
       text: paras.map((n) => n.textContent ?? '').join('\n'),
       paras,
       ...(under ? { under: who(under) } : {}),
@@ -2856,7 +2858,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             const id = e.getAttributeNS(NS.text, 'change-id');
             const rev = id ? ctx.revisions.get(id) : undefined;
             if (id && rev?.kind === 'insertion') {
-              if (e.localName === 'change-start') ctx.openInsertions.set(id, { id, author: rev.author, date: rev.date });
+              if (e.localName === 'change-start') ctx.openInsertions.set(id, { id, author: rev.author, date: rev.date, ...(rev.moveId ? { moveId: rev.moveId } : {}) });
               else ctx.openInsertions.delete(id);
             }
             if (id && rev?.kind === 'formatChange') {
@@ -2872,7 +2874,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             const id = e.getAttributeNS(NS.text, 'change-id');
             const rev = id ? ctx.revisions.get(id) : undefined;
             if (id && rev?.kind === 'deletion' && (rev.paras.length || rev.text)) {
-              const del = [{ type: 'deletion', attrs: { id, author: rev.author, date: rev.date } },
+              const del = [{ type: 'deletion', attrs: { id, author: rev.author, date: rev.date, ...(rev.moveId ? { moveId: rev.moveId } : {}) } },
                 ...(rev.under ? [{ type: 'insertion', attrs: { id: `${id}-ins`, ...rev.under } }] : [])];
               if (!rev.paras.length) {
                 out.push({ type: 'text', text: rev.text, marks: [...marksFor(props, ctx.resolver, defaults), ...del] });

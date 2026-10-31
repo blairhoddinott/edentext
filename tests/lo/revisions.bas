@@ -29,8 +29,10 @@ End Sub
 ' The kinds of change LibreOffice read from a file.
 Sub Kinds(name)
   Dim a(0) As New com.sun.star.beans.PropertyValue
+  Dim b(0) As New com.sun.star.beans.PropertyValue
   Dim d, e, s
   a(0).Name = "Hidden" : a(0).Value = True
+  b(0).Name = "FilterName" : b(0).Value = "writer8"
   d = StarDesktop.loadComponentFromURL(ConvertToURL(Environ("LO_REV_DIR") & "/" & name), "_blank", 0, a())
   s = ""
   e = d.Redlines.createEnumeration()
@@ -38,6 +40,7 @@ Sub Kinds(name)
     s = s & "|" & e.nextElement().RedlineType
   Loop
   Print #Out, name & " Kinds " & s
+  d.storeToURL(ConvertToURL(Environ("LO_REV_DIR") & "/" & name & ".resaved.odt"), b())
   d.close(True)
 End Sub
 

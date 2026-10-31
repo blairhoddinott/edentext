@@ -1127,6 +1127,7 @@ const pt: Messages = {
     tableColumn: 'Coluna da tabela',
     inserted: 'Inserido',
     deleted: 'Eliminado',
+    moved: 'Movido',
     formatted: 'Formatado',
   },
   notesDialog: {

@@ -676,6 +676,8 @@ function replacePlaceholderFields(node: TiptapNode, labels: string[]): TiptapNod
 // One recorded revision. Runs of the same change share an id, so the registry holds one
 // entry per id and a deletion's text is the concatenation of its runs.
 type RevisionExport = { kind: 'insertion' | 'deletion' | 'formatChange'; id: string; author: string; date: string; text: string; nodes: TiptapNode[];
+  /** Shared by a move's two halves. */
+  moveId?: string;
   /** The insertion a deletion struck through, which LibreOffice stacks in the same region. */
   under?: { author: string; date: string };
   /** The outline level of the heading a deletion was cut from. */
@@ -777,7 +779,7 @@ function revisionOwner(a: Record<string, unknown>): { author: string; date: stri
 }
 
 function revisionEntry(kind: RevisionExport['kind'], id: string, a: Record<string, unknown>, block: TiptapNode): RevisionExport {
-  return { kind, id, ...revisionOwner(a), text: '', nodes: [], ...(block.type === 'heading' ? { level: Number(block.attrs?.level ?? 1) } : {}) };
+  return { kind, id, ...revisionOwner(a), text: '', nodes: [], ...(a.moveId ? { moveId: String(a.moveId) } : {}), ...(block.type === 'heading' ? { level: Number(block.attrs?.level ?? 1) } : {}) };
 }
 
 const REV_LIST_NODES = new Set(['listItem', 'bulletList', 'orderedList']);
@@ -843,6 +845,7 @@ function carryParagraphMarks(doc: TiptapNode, out: Map<string, RevisionExport>):
     for (let index = 0; index < (node.content?.length ?? 0); index++) {
       const child = node.content![index], here = [...chain, { parent: node, index }];
       if (!isParagraphNode(child)) { if (child.content) walk(child, here); continue; }
+      let side = child;
       for (;;) {
         const rev = child.attrs?.revMark as { insertion?: Record<string, string>; deletion?: Record<string, string> } | null | undefined;
         const after = rev && next(here);
@@ -859,7 +862,9 @@ function carryParagraphMarks(doc: TiptapNode, out: Map<string, RevisionExport>):
         }
         const owner = after[after.length - 1].parent;
         if (owner.type === 'listItem' && owner.content!.length > 1) break;
-        const shapes = [shapeOf(child), shapeOf(following)];
+        // Each mark parts the blocks on its two sides, whatever the merged block looks like.
+        const shapes = [shapeOf(side), shapeOf(following)];
+        side = following;
         const merged = [...(child.content ?? []), { type: REV_BREAK, attrs: { rev: rev.deletion, ...(rev.insertion ? { under: rev.insertion } : {}), shapes, listed: owner.type === 'listItem' && node.type === 'listItem' && owner !== node } }, ...(following.content ?? [])];
         const look = child.content?.some(stays) ? child : following;
         remove(after);
@@ -933,10 +938,12 @@ function applyRevisions(odtBytes: Uint8Array, list: Map<string, RevisionExport>,
     });
   content = keepSpacesAcross(content, 'text:change(?:-start|-end)?');
 
+  // A move's two halves name one number, from 2 on: LibreOffice keeps 1 for a half without a pair (probed).
+  const moves = new Map([...new Set([...list.values()].flatMap((r) => r.moveId ?? []))].map((id, i) => [id, i + 2]));
   const regions = [...list.values()].map((r) => {
     const ct = odfId.get(r.id)!;
-    const info = (c: { author: string; date: string }) => `<office:change-info><dc:creator>${escapeXml(c.author)}</dc:creator>`
-      + `<dc:date>${escapeXml(c.date.replace(/\.\d+Z?$/, ''))}</dc:date></office:change-info>`;
+    const info = (c: { author: string; date: string; moveId?: string }) => `<office:change-info><dc:creator>${escapeXml(c.author)}</dc:creator>`
+      + (c.moveId ? `<loext:move-id>${moves.get(c.moveId)}</loext:move-id>` : '') + `<dc:date>${escapeXml(c.date.replace(/\.\d+Z?$/, ''))}</dc:date></office:change-info>`;
     const runs = registrySpaces(hoisted.get(r.id) ?? escapeXml(r.text));
     // The deleted text goes back as the block it was cut from, as LibreOffice writes it (probed).
     const side = (i: number) => {
@@ -6100,7 +6107,7 @@ function declareLoext(odtBytes: Uint8Array): Uint8Array {
     if (!xml) continue;
     const before = xml;
     for (const [prefix, uri] of Object.entries(EXTENSION_NS)) {
-      if (!new RegExp(`\\s${prefix}:`).test(xml) || xml.includes(`xmlns:${prefix}=`)) continue;
+      if (!new RegExp(`[\\s<]${prefix}:`).test(xml) || xml.includes(`xmlns:${prefix}=`)) continue;
       xml = xml.replace(/<office:document-(?:content|styles)\b/, `$& xmlns:${prefix}="${uri}"`);
     }
     if (xml !== before) files[name] = strToU8(xml);

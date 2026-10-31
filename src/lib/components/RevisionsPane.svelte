@@ -21,7 +21,10 @@
   let list = $derived.by<Revision[]>(() => {
     if (tick < 0 || !editor) return [];
     const seen = new Set<string>();
-    return listedRevisions(editor.state.doc).filter((r) => !seen.has(r.id) && seen.add(r.id));
+    return listedRevisions(editor.state.doc).filter((r) => {
+      const key = r.moved ? r.moveId! : r.id;
+      return !seen.has(key) && seen.add(key);
+    });
   });
 
   let colors = $derived.by(() => (tick < 0 || !editor ? new Map<string, string>() : authorColors(editor.state.doc)));

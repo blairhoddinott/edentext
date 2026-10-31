@@ -86,6 +86,23 @@ export const LIST_CASES: [string, string, Act[]][] = [
   ['an item one level up', LEVELS, ranged(11, 11, (e) => e.commands.liftListItem('listItem'))],
 ];
 
+const CHAPTERS = '<h1>A</h1><p>aa</p><h1>B</h1><p>bb</p><h1>C</h1><p>cc</p>';
+// A drop deletes the selection and puts it down elsewhere, as ProseMirror does.
+const drop = (from: number, to: number, at: number): Act => (e) => {
+  const { tr, doc } = e.state, slice = doc.slice(from, to);
+  tr.delete(from, to).insert(tr.mapping.map(at), slice.content);
+  e.view.dispatch(tr.setMeta('uiEvent', 'drop'));
+};
+
+/** Edits that carry content elsewhere: a deletion and an insertion that are one change. */
+export const MOVE_CASES: [string, string, Act[]][] = [
+  ['a chapter moved down', CHAPTERS, [(e) => e.commands.moveChapter(0, 1)]],
+  ['a chapter moved up', CHAPTERS, [(e) => e.commands.moveChapter(7, -1)]],
+  ['the last chapter moved up', CHAPTERS, [(e) => e.commands.moveChapter(14, -1)]],
+  ['words dropped elsewhere', THREE, [drop(2, 4, 9)]],
+  ['words dropped into another paragraph, across a mark', THREE, [drop(4, 9, 14)]],
+];
+
 export const CASES: [string, string, Act[]][] = [
   ['a selection across two paragraphs', THREE, del(3, 9)],
   ['a whole paragraph with its mark', THREE, del(7, 13)],

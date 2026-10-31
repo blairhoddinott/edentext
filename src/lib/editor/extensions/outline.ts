@@ -5,6 +5,7 @@ import { MAX_HEADING_LEVEL } from '../../styles/headings';
 import { outlineIsEmpty, outlineLabel, type OutlineNumbering } from '../../styles/outlineNumbering';
 import { formatOrdinal } from '../../utils/orderedListTypes';
 import { sequenceFieldText } from './caption';
+import { MOVING } from './trackChanges';
 
 // The document's chapters, as LibreOffice's Navigator and Word's Navigation pane show
 // them: every top-level heading, each owning the blocks up to the next heading of its
@@ -165,6 +166,7 @@ export const Outline = Extension.create<{ maxLevel: number }>({
         const slice = state.doc.slice(plan.from, plan.to);
         tr.delete(plan.from, plan.to);
         tr.insert(plan.at, slice.content);
+        tr.setMeta(MOVING, true);
         return true;
       },
 

@@ -1143,6 +1143,7 @@ const ru: Messages = {
     tableColumn: 'Столбец таблицы',
     inserted: 'Добавлено',
     deleted: 'Удалено',
+    moved: 'Перемещено',
     formatted: 'Отформатировано',
   },
   notesDialog: {

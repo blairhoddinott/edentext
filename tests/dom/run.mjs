@@ -1465,6 +1465,35 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.revisions-pane li').length === 3, null, { timeout: 5000 }).catch(() => {});
   check((await rows()).length === 3, `one undo brings every settled zone back (${await rows()})`);
 
+  // Moved text is one change in the pane, recorded from a real drag.
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('edentext-markup-change-place', 'pane');
+  });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.tiptap-host .tiptap');
+  await page.evaluate(() => document.querySelector('.tiptap-host .tiptap').editor.commands.setContent('<p>first words here</p><p>second line</p>'));
+  await reviewTab();
+  await page.locator('[data-cmd="trackChanges"]').first().click();
+  const word = await page.evaluate(() => {
+    const ed = document.querySelector('.tiptap-host .tiptap').editor;
+    ed.chain().focus().setTextSelection({ from: 7, to: 12 }).run();
+    const a = ed.view.coordsAtPos(9), b = ed.view.coordsAtPos(21);
+    return { x: a.left, y: (a.top + a.bottom) / 2, tx: b.left, ty: (b.top + b.bottom) / 2 };
+  });
+  await page.waitForTimeout(200);
+  await page.mouse.move(word.x, word.y);
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+  await page.mouse.move(word.x + 15, word.y + 8, { steps: 5 });
+  await page.waitForTimeout(100);
+  await page.mouse.move(word.tx, word.ty, { steps: 10 });
+  await page.waitForTimeout(100);
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelector('.revisions-pane li'), null, { timeout: 5000 }).catch(() => {});
+  const movedWord = await page.evaluate(() => ({ text: document.querySelector('.tiptap-host .tiptap').textContent, double: getComputedStyle(document.querySelector('.tiptap-host .pm-rev-move') ?? document.body).textDecorationStyle }));
+  check(String(await rows()) === 'Moved' && movedWord.double === 'double', `a dragged word is one recorded move (${await rows()}, ${JSON.stringify(movedWord)})`);
+
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);
 } finally {

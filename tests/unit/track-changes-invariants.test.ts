@@ -3,7 +3,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { zoneExtensions } from '../../src/lib/editor/extensions';
-import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
+import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc } from '../../src/lib/editor/extensions/trackChanges';
 import { setRecordChanges } from '../../src/lib/storage/trackChanges.svelte';
 import { buildDocx } from '../../src/lib/export/docx';
@@ -128,6 +128,36 @@ describe('recording keeps its promise', () => {
       expect(reread.getJSON(), 'DOCX, rejected').toEqual(open(await docx(open(html).getJSON())).getJSON());
     }
     e.commands.acceptRevisions(true);
+    expect(e.getJSON()).toEqual(plain.getJSON());
+  });
+
+  it.each(MOVE_CASES)('%s', async (_name, html, steps) => {
+    const plain = open(html);
+    await edit(plain, steps);
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, steps);
+    setRecordChanges(false);
+    const moved = revisions(e.state.doc);
+    expect(moved.map((r) => r.moved)).toEqual([true, true]);
+    expect(moved[0].moveId).toBe(moved[1].moveId);
+    const recorded = e.getJSON();
+    // One half settles the pair.
+    const rejected = open(recorded);
+    rejected.commands.rejectRevision(moved[1].id);
+    expect(rejected.getJSON()).toEqual(open(html).getJSON());
+    for (const [format, through] of FORMATS) {
+      const reread = open(await through(recorded));
+      const halves = revisions(reread.state.doc);
+      expect(halves.every((r) => r.moved), format).toBe(true);
+      expect(new Set(halves.map((r) => r.moveId)).size, format).toBe(1);
+      reread.commands.acceptRevision(halves[0].id);
+      expect(reread.getJSON(), `${format}, accepted`).toEqual(open(await through(plain.getJSON())).getJSON());
+      const back = open(await through(recorded));
+      back.commands.rejectRevision(halves[0].id);
+      expect(back.getJSON(), `${format}, rejected`).toEqual(open(await through(open(html).getJSON())).getJSON());
+    }
+    e.commands.acceptRevision(moved[0].id);
     expect(e.getJSON()).toEqual(plain.getJSON());
   });
 

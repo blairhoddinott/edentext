@@ -3,8 +3,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { strFromU8, unzipSync } from 'fflate';
 import type { Editor } from '@tiptap/core';
-import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, TABLE_CASES, edit, open } from './trackChangesCases';
+import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, MOVE_CASES, TABLE_CASES, edit, open } from './trackChangesCases';
 import { setRecordChanges } from '../src/lib/storage/trackChanges.svelte';
 import { buildOdt } from '../src/lib/export/odt';
 import { buildDocx } from '../src/lib/export/docx';
@@ -36,7 +37,7 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
     rmSync(DIR, { recursive: true, force: true });
     mkdirSync(DIR, { recursive: true });
     const want = new Map<string, string[]>();
-    const cases = [...CASES, ...TABLE_CASES, ...FORMAT_CASES, ...BLOCK_FORMAT_CASES];
+    const cases = [...CASES, ...TABLE_CASES, ...FORMAT_CASES, ...BLOCK_FORMAT_CASES, ...MOVE_CASES];
     for (const [i, [name, html, steps]] of cases.entries()) {
       const plain = open(html);
       await edit(plain, steps);
@@ -102,9 +103,16 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
     }));
     expect(unread).toEqual([]);
     const blocks = BLOCK_FORMAT_CASES.flatMap(([name], i) => {
-      const kinds = got.get(`c${bodyCases - BLOCK_FORMAT_CASES.length + i}.docx Kinds`) ?? [];
+      const kinds = got.get(`c${bodyCases - MOVE_CASES.length - BLOCK_FORMAT_CASES.length + i}.docx Kinds`) ?? [];
       return kinds.length && kinds.every((k) => k === 'ParagraphFormat') ? [] : [`${name}: ${kinds}`];
     });
     expect(blocks).toEqual([]);
+    // LibreOffice read a move as one: saved again, its two halves name one number.
+    const unpaired = MOVE_CASES.flatMap(([name], i) => ['odt', 'docx'].flatMap((ext) => {
+      const saved = unzipSync(readFileSync(`${DIR}/c${bodyCases - MOVE_CASES.length + i}.${ext}.resaved.odt`));
+      const ids = [...strFromU8(saved['content.xml']).matchAll(/<loext:move-id>(\d+)</g)].map((m) => m[1]);
+      return ids.length >= 2 && ids.every((id) => ids.filter((o) => o === id).length >= 2) ? [] : [`${name}, ${ext}: ${ids}`];
+    }));
+    expect(unpaired).toEqual([]);
   });
 });

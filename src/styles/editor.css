@@ -1431,6 +1431,7 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
 
 .tiptap .pm-rev-ins { text-decoration: underline; }
 .tiptap .pm-rev-del { text-decoration: line-through; }
+.tiptap .pm-rev-move { text-decoration-style: double; }
 /* Only the line tells a format change: the text's own colour may be what changed. */
 .tiptap .pm-rev-format { text-decoration: underline dotted var(--rev-color); }
 

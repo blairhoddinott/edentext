@@ -128,6 +128,8 @@ type Ctx = {
   openComments: Map<string, Record<string, unknown>>;
   // word/comments.xml, by id.
   commentDefs: Map<string, Record<string, unknown>>;
+  /** Each w:moveFrom and w:moveTo of the part, by the move it belongs to. */
+  moveNames: Map<Element, string>;
   // The bibliography sources of the custom-XML part, by tag; a CITATION names one.
   bibSources: Map<string, BibSource>;
   // word/footnotes.xml and endnotes.xml by w:id, and the notes the body referenced, in
@@ -318,7 +320,7 @@ export function importDocx(bytes: Uint8Array, convertedImages: ConvertedImages =
   const contentWidthCm = sectionContentWidthCm(sectPr);
   const leftMarginCm = twipToCm(intAttr(fc(sectPr, 'pgMar'), W, 'left') ?? 1440);
   const rightMarginCm = twipToCm(intAttr(fc(sectPr, 'pgMar'), W, 'right') ?? 1440);
-  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), headingNumPr: new Map(), bodyNumLevels: new Set(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, rightMarginCm, ...sectionHeightsCm(sectPr), pageRtl: sectPrRtl(sectPr), mainLang: docLangs.main, hyphenate: docSetting(files, 'autoHyphenation'), mathJc: docMathJc(files), cellSpacing: {}, compatMode: wordCompatMode(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), themeLineWidths: Array.from(themeDoc?.getElementsByTagNameNS(A, 'lnStyleLst')[0]?.children ?? [], (ln) => (Number(ln.getAttribute('w')) || 12700) / 12700), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
+  const ctx: Ctx = { styles, styleNames, usedStyles: new Set(), charStyleNames, usedCharStyles: new Set(), warnings, files, rels: parseRels(files['word/_rels/document.xml.rels']), imageCache: new Map(), convertedImages, listCounters: new Map(), headingNumPr: new Map(), bodyNumLevels: new Set(), usedListStyles: new Map(), contentWidthCm, leftMarginCm, rightMarginCm, ...sectionHeightsCm(sectPr), pageRtl: sectPrRtl(sectPr), mainLang: docLangs.main, hyphenate: docSetting(files, 'autoHyphenation'), mathJc: docMathJc(files), cellSpacing: {}, compatMode: wordCompatMode(files), accents: themeAccents(themeDoc), themeColors: themeColors(themeDoc), themeLineWidths: Array.from(themeDoc?.getElementsByTagNameNS(A, 'lnStyleLst')[0]?.children ?? [], (ln) => (Number(ln.getAttribute('w')) || 12700) / 12700), openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: docxComments(files), moveNames: moveNames(body), bibSources: docxSources(files), citationStyle: docxCitationStyle(files), notes: [], noteParts: {
     footnote: noteParts(files, 'footnotes', 'footnote'),
     endnote: noteParts(files, 'endnotes', 'endnote'),
   }, noteBookmarks: new Map() };
@@ -1566,7 +1568,7 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
     for (const key of ['spaceBefore', 'spaceAfter', 'lineHeight']) if (attrs[key] === def[key]) delete attrs[key];
   }
   applyContextualSpacing(el, ppr, ctx, styleId, attrs);
-  const revMark = paragraphMarkRevisions(ppr);
+  const revMark = paragraphMarkRevisions(ppr, ctx);
   if (revMark) attrs.revMark = revMark;
   const change = fc(ppr, 'pPrChange');
   if (change) {
@@ -1728,16 +1730,47 @@ function keepRunDefault(content: Node[], key: 'fontSize' | 'fontFamily', value: 
 }
 
 // A recorded paragraph mark (w:pPr/w:rPr/w:ins|del, a move's two ends w:moveFrom|moveTo).
-function paragraphMarkRevisions(ppr: Element | null) {
-  return revMarkIn(fc(ppr, 'rPr'), [['ins', 'insertion'], ['moveTo', 'insertion'], ['del', 'deletion'], ['moveFrom', 'deletion']]);
+function paragraphMarkRevisions(ppr: Element | null, ctx: Ctx) {
+  return revMarkIn(fc(ppr, 'rPr'), [['ins', 'insertion'], ['moveTo', 'insertion'], ['del', 'deletion'], ['moveFrom', 'deletion']], ctx.moveNames);
+}
+
+// A move's name sits on the range around its w:moveFrom or w:moveTo, which is what pairs the
+// two. A paragraph's own mark stands before the range the paragraph opens; ours is a w:ins
+// or w:del under the id of the move's text.
+function moveNames(root: Element): Map<Element, string> {
+  const out = new Map<Element, string>(), open = new Map<string, string>(), byId = new Map<string, string>();
+  let waiting: Element[] = [];
+  if (!root.getElementsByTagNameNS(W, 'moveFromRangeStart').length) return out;
+  for (const el of Array.from(root.getElementsByTagNameNS(W, '*'))) {
+    const id = el.getAttributeNS(W, 'id') ?? '';
+    if (el.localName === 'moveFromRangeStart' || el.localName === 'moveToRangeStart') {
+      const name = el.getAttributeNS(W, 'name') ?? '';
+      open.set(id, name);
+      for (const mark of waiting) if (el.parentElement?.contains(mark)) out.set(mark, name);
+      waiting = [];
+    } else if (el.localName === 'moveFromRangeEnd' || el.localName === 'moveToRangeEnd') open.delete(id);
+    else if (el.localName === 'moveFrom' || el.localName === 'moveTo') {
+      if (open.size) {
+        out.set(el, [...open.values()].pop()!);
+        byId.set(id, out.get(el)!);
+      } else waiting.push(el);
+    }
+  }
+  for (const name of ['ins', 'del']) {
+    for (const el of Array.from(root.getElementsByTagNameNS(W, name))) {
+      const move = byId.get(el.getAttributeNS(W, 'id') ?? '');
+      if (move && el.parentElement?.localName === 'rPr') out.set(el, move);
+    }
+  }
+  return out;
 }
 
 // The revisions a property element holds, as `revMark`: a paragraph mark's, a row's, a cell's.
-function revMarkIn(pr: Element | null, names: string[][]): Record<string, { id: string; author: string; date: string }> | undefined {
-  const out: Record<string, { id: string; author: string; date: string }> = {};
+function revMarkIn(pr: Element | null, names: string[][], moves?: Map<Element, string>): RevMark | undefined {
+  const out: RevMark = {};
   for (const [name, kind] of names) {
-    const el = fc(pr, name);
-    if (el) out[kind] = { id: el.getAttributeNS(W, 'id') ?? '', author: el.getAttributeNS(W, 'author') ?? '', date: el.getAttributeNS(W, 'date') ?? '' };
+    const el = fc(pr, name), moveId = el && moves?.get(el);
+    if (el) out[kind as keyof RevMark] = { id: el.getAttributeNS(W, 'id') ?? '', author: el.getAttributeNS(W, 'author') ?? '', date: el.getAttributeNS(W, 'date') ?? '', ...(moveId ? { moveId } : {}) };
   }
   return Object.keys(out).length ? out : undefined;
 }
@@ -2125,6 +2158,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
       id: el.getAttributeNS(W, 'id') ?? '',
       author: el.getAttributeNS(W, 'author') ?? '',
       date: el.getAttributeNS(W, 'date') ?? '',
+      ...(ctx.moveNames.has(el) ? { moveId: ctx.moveNames.get(el) } : {}),
     };
     const before = out.length;
     handleRuns(el, linkHref);
@@ -4444,7 +4478,7 @@ function convertHfPart(relId: string | null, ctx: Ctx, sect: Element | null): Hf
   if (!root) return null;
   const zoneCtx: Ctx = {
     ...ctx, zone: true, rels: parseRels(ctx.files[path.replace(/^word\/(.*)$/, 'word/_rels/$1.rels')]),
-    openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: new Map(),
+    openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), commentDefs: new Map(), moveNames: moveNames(root),
     listCounters: new Map(), cellSpacing: {},
     contentWidthCm: sectionContentWidthCm(sect), leftMarginCm: twipToCm(intAttr(fc(sect, 'pgMar'), W, 'left') ?? 1440), rightMarginCm: twipToCm(intAttr(fc(sect, 'pgMar'), W, 'right') ?? 1440),
     ...sectionHeightsCm(sect),

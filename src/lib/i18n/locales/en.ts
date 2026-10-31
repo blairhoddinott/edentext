@@ -1143,6 +1143,7 @@ const en = {
     tableColumn: 'Table column',
     inserted: 'Inserted',
     deleted: 'Deleted',
+    moved: 'Moved',
     formatted: 'Formatted',
   },
   notesDialog: {

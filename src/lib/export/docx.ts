@@ -2101,6 +2101,54 @@ function applyStackedRevisionsDocx(bytes: Uint8Array): Uint8Array {
   return zipSync(out);
 }
 
+// The changes each move is made of, by revision id: the deletion's and the insertion's.
+function collectMoves(node: TiptapNode, out: Map<string, { del: Set<string>; ins: Set<string> }>): void {
+  const note = (kind: string, a: Record<string, unknown> | undefined) => {
+    if (!a?.moveId) return;
+    const move = out.get(String(a.moveId)) ?? { del: new Set<string>(), ins: new Set<string>() };
+    (kind === 'deletion' ? move.del : move.ins).add(String(a.id));
+    out.set(String(a.moveId), move);
+  };
+  for (const m of node.marks ?? []) if (m.type === 'insertion' || m.type === 'deletion') note(m.type, m.attrs);
+  const rev = node.attrs?.revMark as Record<string, Record<string, unknown>> | null | undefined;
+  note('insertion', rev?.insertion);
+  note('deletion', rev?.deletion);
+  node.content?.forEach((child) => collectMoves(child, out));
+}
+
+// Post-pack pass: a move's w:del and w:ins runs become w:moveFrom and w:moveTo, each side inside
+// one named range, and a moved text's deleted form is plain text again. Paragraph marks stay
+// w:del and w:ins under the same id: LibreOffice ignores the move forms there (probed).
+function applyMovesDocx(bytes: Uint8Array, doc: TiptapNode): Uint8Array {
+  const moves = new Map<string, { del: Set<string>; ins: Set<string> }>();
+  collectMoves(doc, moves);
+  const pairs = [...moves.values()].filter((m) => m.del.size && m.ins.size);
+  if (!pairs.length) return bytes;
+  const files = unzipSync(bytes);
+  const ATTRS = '((?:\\s+[\\w:]+="[^"]*")*)';
+  for (const path of textParts(files)) {
+    let xml = strFromU8(files[path]);
+    pairs.forEach((move, n) => {
+      for (const [ids, el, side] of [[move.del, 'w:del', 'From'], [move.ins, 'w:ins', 'To']] as const) {
+        const nums = [...ids].map((id) => docRevisionIds.get(id)).filter((id) => id != null).join('|');
+        if (!nums) continue;
+        const tag = `w:move${side}`;
+        xml = xml.replace(new RegExp(`<${el} w:id="(${nums})"${ATTRS}>([\\s\\S]*?)</${el}>`, 'g'), (_m, id: string, attrs: string, inner: string) =>
+            `<${tag} w:id="${id}"${attrs}>${inner.replace(/<(\/?)w:delText\b/g, '<$1w:t').replace(/<(\/?)w:delInstrText\b/g, '<$1w:instrText')}</${tag}>`);
+        const parts = [...xml.matchAll(new RegExp(`<${tag} w:id="(?:${nums})"${ATTRS}>`, 'g'))];
+        if (!parts.length) continue;
+        const first = parts[0], range = docRevisionId(`move range ${n} ${side} ${path}`);
+        const start = first.index, end = xml.indexOf(`</${tag}>`, parts[parts.length - 1].index) + tag.length + 3;
+        xml = `${xml.slice(0, start)}<w:move${side}RangeStart w:id="${range}"${first[1]} w:name="move${n + 1}"/>${xml.slice(start, end)}<w:move${side}RangeEnd w:id="${range}"/>${xml.slice(end)}`;
+      }
+    });
+    files[path] = strToU8(xml);
+  }
+  const out: Record<string, [Uint8Array, { level: 6 }]> = {};
+  for (const [path, data] of Object.entries(files)) out[path] = [data, { level: 6 }];
+  return zipSync(out);
+}
+
 function applyCommentsExtendedDocx(bytes: Uint8Array): Uint8Array {
   const threaded = docComments.filter((c) => c.resolved || c.parent !== undefined);
   if (!threaded.length) return bytes;
@@ -3819,7 +3867,7 @@ export async function buildDocx(
   // own in settings.xml — a document numbering its first footnote from 3 must still say so.
   const withNotePr = applyNotePrDocx(cited, notesSettings);
   const withNotes = docNoteIds.size ? applyEndnoteImagesDocx(applyNoteMarksDocx(applyNoteBookmarksDocx(withNotePr))) : withNotePr;
-  const threaded = applyStackedRevisionsDocx(applyAtomRevisionsDocx(applyCommentsExtendedDocx(withNotes)));
+  const threaded = applyMovesDocx(applyStackedRevisionsDocx(applyAtomRevisionsDocx(applyCommentsExtendedDocx(withNotes))), withZones);
   // Word mirrors the whole document or nothing: any mirrored section mirrors it.
   const mirrorAny = margins.mirrored || !!hf?.sections?.some((s) => s.margins?.mirrored);
   const mirrored = mirrorAny ? applyMirrorMarginsDocx(threaded) : threaded;
