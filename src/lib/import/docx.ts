@@ -1,3 +1,4 @@
+import { UNFORMATTED_MARKS } from '../editor/extensions/trackChanges';
 import { strFromU8 } from 'fflate';
 import en from '../i18n/locales/en';
 import { DocxStyles, parseRunProps, mergeRunProps, readNumPr, readSpacing, readTabStops, toggle as onOff, wVal, W, R, WP, A, B, WPS, WPG, MC, VML, O, W10, PKG_REL, type RunProps, type ParaSpacing } from './docxStyles';
@@ -2084,6 +2085,17 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
       // its own. Only our exporter's blue is an editor link — it is stripped above.
       const ours = hexColor(props.color)?.toUpperCase() === LINK_BLUE;
       marks.push({ type: 'link', attrs: { href: linkHref, ...(ours ? {} : { plain: true }) } });
+    }
+    const change = ctx.zone ? null : fc(rPr, 'rPrChange');
+    if (change) {
+      const before = r.ownerDocument.createElementNS(W, 'r'), old = fc(change, 'rPr');
+      if (old) before.appendChild(old.cloneNode(true));
+      marks.push({ type: 'formatChange', attrs: {
+        id: change.getAttributeNS(W, 'id') ?? '',
+        author: change.getAttributeNS(W, 'author') ?? '',
+        date: change.getAttributeNS(W, 'date') ?? '',
+        old: runMarks(before).filter((m) => !UNFORMATTED_MARKS.has(m.type)),
+      } });
     }
     return marks;
   };

@@ -61,9 +61,19 @@ describe('recording keeps its promise', () => {
     await edit(e, steps);
     expect(revisions(e.state.doc).map((r) => r.kind)).toEqual(['formatChange']);
     setRecordChanges(false);
-    const rejected = open(e.getJSON());
+    const recorded = e.getJSON(), start = open(html).getJSON();
+    const rejected = open(recorded);
     rejected.commands.rejectRevisions(true);
-    expect(rejected.getJSON()).toEqual(open(html).getJSON());
+    expect(rejected.getJSON()).toEqual(start);
+    for (const [format, through] of FORMATS.slice(0, 1)) {
+      const reread = open(await through(recorded));
+      expect(revisions(reread.state.doc).map((r) => r.kind), format).toContain('formatChange');
+      reread.commands.rejectRevisions(true);
+      expect(reread.getJSON(), `${format}, rejected`).toEqual(open(await through(start)).getJSON());
+      const taken = open(await through(recorded));
+      taken.commands.acceptRevisions(true);
+      expect(taken.getJSON(), `${format}, accepted`).toEqual(open(await through(plain.getJSON())).getJSON());
+    }
     e.commands.acceptRevisions(true);
     expect(e.getJSON()).toEqual(plain.getJSON());
   });

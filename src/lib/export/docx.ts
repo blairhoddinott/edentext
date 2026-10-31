@@ -658,13 +658,21 @@ function textNodeToRuns(node: TiptapNode, force: TextProps): Inline[] {
   const opts = text.includes('\t')
     ? { children: tabbedChildren(text), ...props }
     : { text, ...props };
-  return [revisedRun(node, opts)];
+  return [revisedRun(node, opts, force)];
+}
+
+// A format change is the run's w:rPrChange, the earlier properties from the same builder.
+function formatRevision(node: TiptapNode, force: TextProps): Pick<IRunOptions, 'revision'> {
+  const m = node.marks?.find((x) => x.type === 'formatChange');
+  if (!m) return {};
+  const a = m.attrs as { id: string; author: string; date: string; old: TiptapNode['marks'] | null };
+  return { revision: { ...runPropsFromMarks(a.old ?? [], force), id: docRevisionId(a.id), author: a.author, date: a.date } };
 }
 
 // A recorded revision wraps the run: w:ins keeps its text, w:del turns it into
 // w:delText — the package's own two run kinds. A line break takes its mark the same way.
-function revisedRun(node: TiptapNode, opts: IRunOptions): TextRun | InsertedTextRun | DeletedTextRun {
-  const rev = revisionOf(node), under = stackedOf(node);
+function revisedRun(node: TiptapNode, plain: IRunOptions, force: TextProps = {}): TextRun | InsertedTextRun | DeletedTextRun {
+  const rev = revisionOf(node), under = stackedOf(node), opts = { ...plain, ...formatRevision(node, force) };
   if (!rev) return new TextRun(opts);
   const attrs = { id: under ? stackedDelId(rev, under) : docRevisionId(rev.attrs.id), author: rev.attrs.author, date: rev.attrs.date };
   return rev.kind === 'insertion'
