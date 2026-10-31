@@ -97,6 +97,16 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
     entries.push({ kind: 'sep' });
   }
 
+  // The change under the caret, or all the selection touches.
+  if (editor.can().acceptRevisions()) {
+    const { accept, reject } = t().revisions;
+    entries.push(
+      { kind: 'item', label: accept, run: () => editor.chain().focus().acceptRevisions().run() },
+      { kind: 'item', label: reject, run: () => editor.chain().focus().rejectRevisions().run() },
+      { kind: 'sep' },
+    );
+  }
+
   const hasSelection = !editor.state.selection.empty;
   entries.push(
     { kind: 'item', label: m.cut, hint: withShortcut('Ctrl+X'), disabled: !hasSelection, run: () => clipboardCommand(editor, 'cut') },
@@ -119,9 +129,9 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
     );
   }
 
-  // The body only: a header or footer has no tracked changes for the assistant's edits.
-  // Shown while the assistant is off too, greyed, so the way to turn it on is findable.
-  if (editor.schema.marks.insertion) {
+  // The body only: the assistant does not work in a header or footer, whose schema has no
+  // comment mark. Shown while it is off too, greyed, so the way to turn it on is findable.
+  if (editor.schema.marks.comment) {
     const ai = t().ai;
     const chat = (prefill: string, send = false) => () => window.dispatchEvent(new CustomEvent(OPEN_AI_CHAT_EVENT, { detail: { prefill, send } }));
     entries.push(

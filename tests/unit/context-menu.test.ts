@@ -2,7 +2,7 @@
 // entries are built against a live selection, exactly as Editor.svelte does.
 import { describe, it, expect } from 'vitest';
 import { Editor } from '@tiptap/core';
-import { extensions } from '../../src/lib/editor/extensions';
+import { extensions, zoneExtensions } from '../../src/lib/editor/extensions';
 import { buildContextMenu, type MenuEntry } from '../../src/lib/editor/contextMenuItems';
 import { setAi } from '../../src/lib/storage/ai.svelte';
 
@@ -73,6 +73,30 @@ describe('context menu items', () => {
     item(buildContextMenu(editor), 'Clear Formatting')!.run();
     expect(JSON.stringify(editor.getJSON())).not.toContain('20pt');
     editor.destroy();
+  });
+
+  it('settles the changes the selection touches, and offers that only on a change', () => {
+    const inserted = [{ type: 'insertion', attrs: { id: 'a', author: 'A', date: '2020-01-01T00:00:00Z' } }];
+    const content = { type: 'doc', content: [{ type: 'paragraph', content: [
+      { type: 'text', text: 'old ' }, { type: 'text', text: 'new', marks: inserted }, { type: 'text', text: ' tail' },
+    ] }] };
+    for (const [label, left] of [['Accept', 'old new tail'], ['Reject', 'old  tail']]) {
+      const editor = makeEditor(content);
+      editor.commands.setTextSelection(2);
+      expect(item(buildContextMenu(editor), label)).toBeUndefined();
+      editor.commands.setTextSelection({ from: 2, to: 8 });
+      item(buildContextMenu(editor), label)!.run();
+      expect(editor.state.doc.textContent).toBe(left);
+      expect(JSON.stringify(editor.getJSON())).not.toContain('insertion');
+      editor.destroy();
+    }
+  });
+
+  it('leaves the assistant out of a header or footer', () => {
+    const el = document.body.appendChild(document.createElement('div'));
+    const zone = new Editor({ element: el, extensions: zoneExtensions(''), content: para('Hello') });
+    expect(buildContextMenu(zone).some((e) => e.kind === 'sub')).toBe(false);
+    zone.destroy();
   });
 
   it('groups the AI actions in a submenu, greyed with a hint while the assistant is off', () => {

@@ -41,6 +41,7 @@ the tooltips (via `withShortcut`, which localizes Ctrl/Shift/Alt and swaps in ‚å
   sub/superscript follow LO (`Mod-Shift-b`/`Mod-Shift-p`) because Word's `Ctrl+=` pair
   collides with zoom; formatting marks use LO's `Ctrl+F10` (Word's `Ctrl+Shift+8` is
   TipTap's bullet list). `Ctrl+N` is unbindable in Chrome and therefore absent.
+- `recordChanges` is LibreOffice's Ctrl+Shift+C; Word's Ctrl+Shift+E is TipTap's centring.
 - `tests/unit/shortcuts.test.ts` asserts the table has no duplicate combo (the bindings
   are spread over several files, so nothing else can catch a collision) and covers
   `matchesEvent`.
@@ -64,5 +65,6 @@ copy handler builds the clipboard payload; paste reads `navigator.clipboard` and
 back to an alert where the browser blocks it. The menu clamps itself into the viewport
 via transforms, measured from layout offsets so the correction can't feed back into the
 next measurement.
+On a change (the caret in it, or a selection touching it) the menu starts with Accept and Reject.
 In an ordered list it adds Continue/Restart Numbering on the outermost list (`outerOrderedListAt`,
 `listStyle.ts`): `continueNumbering` counts on from the ordered list before it in the same parent.
