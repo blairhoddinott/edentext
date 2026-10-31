@@ -20,7 +20,8 @@ Sub Run1(name, cmd)
       s = s & "|" & o.getString()
     End If
   Loop
-  Print #Out, name & " " & cmd & " " & s
+  ' LibreOffice keeps the U+200D it puts into a new empty cell; Print encodes by the locale.
+  Print #Out, name & " " & cmd & " " & Join(Split(s, Chr(8205)), "")
   ps = d.StyleFamilies.getByName("PageStyles").getByName(d.Text.getStart().PageStyleName)
   If ps.HeaderIsOn Then Print #Out, name & " " & cmd & "#header |" & Join(Split(Join(Split(ps.HeaderText.getString(), Chr(13)), ""), Chr(10)), "|")
   d.close(True)

@@ -94,8 +94,7 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
 
     const got = new Map(readFileSync(`${DIR}/out.txt`, 'utf8').trim().split('\n').map((line) => {
       const [name, cmd, ...rest] = line.split(' ');
-      // LibreOffice keeps the U+200D it puts into a new empty cell.
-      return [`${name} ${cmd}`, rest.join(' ').replace(/\u200D/g, '').split('|').slice(1)] as const;
+      return [`${name} ${cmd}`, rest.join(' ').split('|').slice(1)] as const;
     }));
     const wrong = [...want].filter(([key, paras]) => JSON.stringify(got.get(key)) !== JSON.stringify(paras))
       .map(([key, paras]) => `${cases[+key.match(/c(\d+)/)![1]][0]} — ${key}: LibreOffice ${JSON.stringify(got.get(key))}, ours ${JSON.stringify(paras)}`);
