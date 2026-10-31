@@ -305,12 +305,12 @@ export function pageLayout(view: EditorView, blocks: Block[]): PageLayout | null
   return { pages, lastFill: Math.max(0, Math.min(100, lastFill)) };
 }
 
-type ZoneNode = { type?: string; text?: string; content?: ZoneNode[] };
+type ZoneNode = { type?: string; text?: string; marks?: { type: string }[]; content?: ZoneNode[] };
 const ZONE_FIELDS: Record<string, string> = { pageNumber: '{page}', pageCount: '{pages}', chapterField: '{chapter}' };
 
 function zoneText(doc: HfDoc): string {
   const lines: string[] = [];
-  const inline = (n: ZoneNode) => (n.type === 'text' ? n.text ?? '' : n.type === 'hardBreak' ? ' ⏎ ' : ZONE_FIELDS[n.type ?? ''] ?? '');
+  const inline = (n: ZoneNode) => (n.marks?.some((m) => m.type === 'deletion') ? '' : n.type === 'text' ? n.text ?? '' : n.type === 'hardBreak' ? ' ⏎ ' : ZONE_FIELDS[n.type ?? ''] ?? '');
   const walk = (n: ZoneNode) => {
     if (n.type === 'paragraph' || n.type === 'heading') lines.push((n.content ?? []).map(inline).join('').trim());
     else n.content?.forEach(walk);

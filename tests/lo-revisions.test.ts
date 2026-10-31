@@ -9,6 +9,8 @@ import { setRecordChanges } from '../src/lib/storage/trackChanges.svelte';
 import { buildOdt } from '../src/lib/export/odt';
 import { buildDocx } from '../src/lib/export/docx';
 import { DEFAULT_MARGINS } from '../src/lib/storage/pageMargins';
+import { Editor as Zone } from '@tiptap/core';
+import { zoneExtensions } from '../src/lib/editor/extensions';
 
 const SOFFICE = (() => {
   try { execSync('command -v soffice', { stdio: 'ignore' }); return true; } catch { return false; }
@@ -52,6 +54,29 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
       }
     }
 
+    // The same edits in a header, every other one shared by the running and the even pages.
+    const body = open('<p>body</p>').getJSON() as any;
+    const zone = (content: string, live = false) =>
+      new Zone({ element: document.body.appendChild(document.createElement('div')), extensions: zoneExtensions('', live), content });
+    const headerCases = [...CASES, ...FORMAT_CASES].filter(([, html]) => html.startsWith('<p>'));
+    for (const [j, [, html, steps]] of headerCases.entries()) {
+      const plain = zone(html);
+      await edit(plain, steps);
+      setRecordChanges(true);
+      const recorded = zone(html, true);
+      await edit(recorded, steps);
+      setRecordChanges(false);
+      const doc = recorded.getJSON() as any, i = cases.length + j;
+      const hf = { header: doc, footer: null, pageCount: 1, ...(j % 2 ? { headerEven: doc, differentOddEven: true } : {}) };
+      writeFileSync(`${DIR}/c${i}.odt`, await buildOdt(body, DEFAULT_MARGINS, 'portrait', hf));
+      writeFileSync(`${DIR}/c${i}.docx`, await buildDocx(body, DEFAULT_MARGINS, 'portrait', hf));
+      for (const ext of ['odt', 'docx']) {
+        want.set(`c${i}.${ext} .uno:AcceptAllTrackedChanges#header`, paragraphs(plain));
+        want.set(`c${i}.${ext} .uno:RejectAllTrackedChanges#header`, paragraphs(zone(html)));
+      }
+    }
+    cases.push(...headerCases);
+
     soffice('--terminate_after_init');
     const lib = `${PROFILE}/user/basic/Standard`;
     writeFileSync(`${lib}/script.xlb`, `<?xml version="1.0" encoding="UTF-8"?>
@@ -70,13 +95,14 @@ describe.skipIf(!SOFFICE)('recorded changes in LibreOffice (needs soffice)', () 
     const wrong = [...want].filter(([key, paras]) => JSON.stringify(got.get(key)) !== JSON.stringify(paras))
       .map(([key, paras]) => `${cases[+key.match(/c(\d+)/)![1]][0]} — ${key}: LibreOffice ${JSON.stringify(got.get(key))}, ours ${JSON.stringify(paras)}`);
     expect(wrong).toEqual([]);
+    const bodyCases = cases.length - headerCases.length;
     const unread = FORMAT_CASES.flatMap(([name], i) => ['odt', 'docx'].flatMap((ext) => {
       const kinds = got.get(`c${CASES.length + TABLE_CASES.length + i}.${ext} Kinds`) ?? [];
       return kinds.length && kinds.every((k) => k === 'Format') ? [] : [`${name}, ${ext}: ${kinds}`];
     }));
     expect(unread).toEqual([]);
     const blocks = BLOCK_FORMAT_CASES.flatMap(([name], i) => {
-      const kinds = got.get(`c${cases.length - BLOCK_FORMAT_CASES.length + i}.docx Kinds`) ?? [];
+      const kinds = got.get(`c${bodyCases - BLOCK_FORMAT_CASES.length + i}.docx Kinds`) ?? [];
       return kinds.length && kinds.every((k) => k === 'ParagraphFormat') ? [] : [`${name}: ${kinds}`];
     });
     expect(blocks).toEqual([]);

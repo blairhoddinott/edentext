@@ -4,7 +4,7 @@ Dim Out As Integer
 
 Sub Run1(name, cmd)
   Dim a(0) As New com.sun.star.beans.PropertyValue
-  Dim none(), d, e, o, s, c
+  Dim none(), d, e, o, s, c, ps
   a(0).Name = "Hidden" : a(0).Value = True
   d = StarDesktop.loadComponentFromURL(ConvertToURL(Environ("LO_REV_DIR") & "/" & name), "_blank", 0, a())
   createUnoService("com.sun.star.frame.DispatchHelper").executeDispatch(d.CurrentController.Frame, cmd, "", 0, none())
@@ -21,6 +21,8 @@ Sub Run1(name, cmd)
     End If
   Loop
   Print #Out, name & " " & cmd & " " & s
+  ps = d.StyleFamilies.getByName("PageStyles").getByName(d.Text.getStart().PageStyleName)
+  If ps.HeaderIsOn Then Print #Out, name & " " & cmd & "#header |" & Join(Split(Join(Split(ps.HeaderText.getString(), Chr(13)), ""), Chr(10)), "|")
   d.close(True)
 End Sub
 

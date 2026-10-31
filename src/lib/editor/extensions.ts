@@ -328,20 +328,20 @@ export const extensions = [
 ];
 
 // What a header or footer has no use for: the page flow, notes, generated indexes,
-// review, and the typing aids that watch the body.
+// comments, and the typing aids that watch the body.
 const BODY_ONLY = new Set([
   'doc', 'placeholder', 'noteRef', 'note', 'noteSection', 'notes', 'pageBreak', 'pageBreaks',
-  'columns', 'columnsFlow', 'tableOfContents', 'outline', 'comment', 'insertion', 'deletion', 'formatChange',
-  'trackChanges', 'searchReplace', 'autoText', 'wordCompletion', 'autoCorrect', 'spellCheck', 'grammarCheck',
+  'columns', 'columnsFlow', 'tableOfContents', 'outline', 'comment', 'searchReplace', 'autoText', 'wordCompletion', 'autoCorrect', 'spellCheck', 'grammarCheck',
   // A zone's live editor undoes on the body's stack (stateHistory.ts).
   'undoRedo', 'stateHistory',
 ]);
 
 // A header or footer is a text area like the body, with the page fields on top.
-export function zoneExtensions(placeholder = '') {
+// Only a zone being edited records: the others show a stored zone, never an edit of it.
+export function zoneExtensions(placeholder = '', live = false) {
   return [
     Document.extend({ content: 'block+' }),
-    ...extensions.filter((e) => !BODY_ONLY.has(e.name)),
+    ...extensions.filter((e) => !BODY_ONLY.has(e.name)).map((e) => (e.name === 'trackChanges' && !live ? (e as typeof TrackChanges).configure({ recording: () => false }) : e)),
     PageNumber,
     PageCount,
     // The running head's chapter name, resolved per page by HeaderFooterLayer.

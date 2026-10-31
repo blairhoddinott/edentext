@@ -217,7 +217,7 @@ type Ctx = {
   notes: { id: string; kind: NoteKind; label: string | null; text: string; content: Node[]; styleName: string | null }[];
   // Set when a header carries the export's named fold-mark lines (storage/foldMarks.ts).
   foldMarks: boolean;
-  // Converting a header/footer zone: page fields, no notes, comments or revisions.
+  // Converting a header/footer zone: page fields, no notes or comments.
   zone?: boolean;
 };
 
@@ -1298,7 +1298,7 @@ function hfSetOfMasterPage(
 function convertHfZone(zoneEl: Element, ctx: Ctx, geo: Parameters<typeof contentWidthOf>[0], bandCm = 0, footer = false): HfDoc {
   const zoneCtx: Ctx = {
     ...ctx, zone: true, contentWidthCm: contentWidthOf(geo), leftMarginCm: geo?.margins.left ?? ctx.leftMarginCm, ...heightsOf(geo), foldMarks: false,
-    openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), openInsertions: new Map(), openFormats: new Map(),
+    openBookmarks: new Map(), pointBookmarks: new Set(), openComments: new Map(), openInsertions: new Map(), openFormats: new Map(), revisions: odfRevisions(zoneEl),
   };
   const blocks = convertBlocks(Array.from(zoneEl.children), zoneCtx, 'zone');
   if (zoneCtx.foldMarks) ctx.foldMarks = true;
@@ -2852,15 +2852,14 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             continue;
           case 'change-start':
           case 'change-end': {
-            // A recorded insertion brackets its runs; the registry holds who and when. The
-            // zone schema records no revisions.
+            // A recorded insertion brackets its runs; the registry holds who and when.
             const id = e.getAttributeNS(NS.text, 'change-id');
             const rev = id ? ctx.revisions.get(id) : undefined;
-            if (!ctx.zone && id && rev?.kind === 'insertion') {
+            if (id && rev?.kind === 'insertion') {
               if (e.localName === 'change-start') ctx.openInsertions.set(id, { id, author: rev.author, date: rev.date });
               else ctx.openInsertions.delete(id);
             }
-            if (!ctx.zone && id && rev?.kind === 'formatChange') {
+            if (id && rev?.kind === 'formatChange') {
               if (e.localName === 'change-start') ctx.openFormats.set(id, { id, author: rev.author, date: rev.date, old: null });
               else ctx.openFormats.delete(id);
             }
@@ -2872,7 +2871,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
             // are real styled runs, so they convert like any inline content.
             const id = e.getAttributeNS(NS.text, 'change-id');
             const rev = id ? ctx.revisions.get(id) : undefined;
-            if (!ctx.zone && id && rev?.kind === 'deletion' && (rev.paras.length || rev.text)) {
+            if (id && rev?.kind === 'deletion' && (rev.paras.length || rev.text)) {
               const del = [{ type: 'deletion', attrs: { id, author: rev.author, date: rev.date } },
                 ...(rev.under ? [{ type: 'insertion', attrs: { id: `${id}-ins`, ...rev.under } }] : [])];
               if (!rev.paras.length) {

@@ -2090,8 +2090,7 @@ function applyAtomRevisionsDocx(bytes: Uint8Array): Uint8Array {
 function applyStackedRevisionsDocx(bytes: Uint8Array): Uint8Array {
   if (!docStacked.size) return bytes;
   const files = unzipSync(bytes);
-  for (const path of ['word/document.xml', 'word/footnotes.xml', 'word/endnotes.xml']) {
-    if (!files[path]) continue;
+  for (const path of textParts(files)) {
     files[path] = strToU8(strFromU8(files[path]).replace(/<w:del w:id="(\d+)"[^>]*>[\s\S]*?<\/w:del>/g, (m, id: string) => {
       const ins = docStacked.get(Number(id));
       return ins ? `<w:ins w:id="${ins.id}" w:author="${escapeXml(ins.author)}" w:date="${escapeXml(ins.date)}">${m}</w:ins>` : m;

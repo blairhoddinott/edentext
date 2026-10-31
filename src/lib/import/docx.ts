@@ -1,4 +1,4 @@
-import { UNFORMATTED_MARKS, blockFormat } from '../editor/extensions/trackChanges';
+import { UNFORMATTED_MARKS, blockFormat, type RevMark } from '../editor/extensions/trackChanges';
 import { strFromU8 } from 'fflate';
 import en from '../i18n/locales/en';
 import { DocxStyles, parseRunProps, mergeRunProps, readNumPr, readSpacing, readTabStops, toggle as onOff, wVal, W, R, WP, A, B, WPS, WPG, MC, VML, O, W10, PKG_REL, type RunProps, type ParaSpacing } from './docxStyles';
@@ -1566,9 +1566,9 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
     for (const key of ['spaceBefore', 'spaceAfter', 'lineHeight']) if (attrs[key] === def[key]) delete attrs[key];
   }
   applyContextualSpacing(el, ppr, ctx, styleId, attrs);
-  const revMark = kind === 'zone' ? undefined : paragraphMarkRevisions(ppr);
+  const revMark = paragraphMarkRevisions(ppr);
   if (revMark) attrs.revMark = revMark;
-  const change = kind === 'zone' ? null : fc(ppr, 'pPrChange');
+  const change = fc(ppr, 'pPrChange');
   if (change) {
     const before = el.ownerDocument.createElementNS(W, 'p'), old = fc(change, 'pPr');
     if (old) before.appendChild(old.cloneNode(true));
@@ -2096,7 +2096,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
       const ours = hexColor(props.color)?.toUpperCase() === LINK_BLUE;
       marks.push({ type: 'link', attrs: { href: linkHref, ...(ours ? {} : { plain: true }) } });
     }
-    const change = ctx.zone ? null : fc(rPr, 'rPrChange');
+    const change = fc(rPr, 'rPrChange');
     if (change) {
       const before = r.ownerDocument.createElementNS(W, 'r'), old = fc(change, 'rPr');
       if (old) before.appendChild(old.cloneNode(true));
@@ -2128,11 +2128,8 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
     };
     const before = out.length;
     handleRuns(el, linkHref);
-    // The zone schema records no revisions.
-    if (!ctx.zone) {
-      for (let i = before; i < out.length; i++) {
-        out[i].marks = [...(out[i].marks ?? []), { type: kind, attrs }];
-      }
+    for (let i = before; i < out.length; i++) {
+      out[i].marks = [...(out[i].marks ?? []), { type: kind, attrs }];
     }
   };
 
@@ -4453,5 +4450,16 @@ function convertHfPart(relId: string | null, ctx: Ctx, sect: Element | null): Hf
     ...sectionHeightsCm(sect),
   };
   const zone: HfDoc = { type: 'doc', content: convertBlocks(Array.from(root.children), zoneCtx, 'zone') };
-  return hfIsEmpty(zone) ? null : zone;
+  if (hfIsEmpty(zone)) return null;
+  zone.content?.forEach((block) => scopeRevisions(block as Node, target));
+  return zone;
+}
+
+// Revision ids need only be unique within a part, and the pane lists every part's changes.
+function scopeRevisions(node: Node, part: string): void {
+  const scoped = (a: Record<string, unknown>) => { a.id = `${part}:${a.id}`; };
+  for (const m of node.marks ?? []) if (m.type === 'insertion' || m.type === 'deletion' || m.type === 'formatChange') scoped(m.attrs as Record<string, unknown>);
+  const { revMark, revFormat } = (node.attrs ?? {}) as { revMark?: RevMark; revFormat?: Record<string, unknown> };
+  for (const attrs of [revMark?.insertion, revMark?.deletion, revFormat]) if (attrs) scoped(attrs);
+  node.content?.forEach((child) => scopeRevisions(child, part));
 }

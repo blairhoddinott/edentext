@@ -848,6 +848,8 @@ function carryParagraphMarks(doc: TiptapNode, out: Map<string, RevisionExport>):
         const after = rev && next(here);
         if (!rev || !after) break;
         const following = blockAt(after);
+        // The body's or a zone's last block: the zones ride behind it between their markers.
+        if (following.content?.[0]?.text?.startsWith(HFZ)) break;
         if (!rev.deletion) {
           const id = `${rev.insertion!.id}¶${out.size}`, sentinel = { type: 'text', text: `${TCI}${id}${TCI}` };
           out.set(id, revisionEntry('insertion', id, rev.insertion!, { type: 'paragraph' }));
@@ -6292,8 +6294,15 @@ function cutZones(odtBytes: Uint8Array, count: number): { bytes: Uint8Array; xml
     const open = markerAt(`S${i}`);
     const close = markerAt(`E${i}`);
     if (!open || !close) { xml.push(''); continue; }
-    xml.push(content.slice(open.end, close.start).replace(/\s(?:xml:id|text:continue-list)="[^"]*"/g, ''));
+    const blocks = content.slice(open.end, close.start);
     content = content.slice(0, open.start) + content.slice(close.end);
+    // A zone's changes are registered in the zone, as first child of its header or footer.
+    const regions = [...new Set([...blocks.matchAll(/<text:change(?:-start)? text:change-id="([^"]*)"/g)].map((m) => m[1]))].flatMap((id) => {
+      const region = new RegExp(`<text:changed-region\\b[^>]*\\btext:id="${id}"[\\s\\S]*?</text:changed-region>`).exec(content)?.[0];
+      if (region) content = content.replace(region, () => '');
+      return region ? [region] : [];
+    }).join('');
+    xml.push((regions ? `<text:tracked-changes>${regions}</text:tracked-changes>` : '') + blocks.replace(/\s(?:xml:id|text:continue-list)="[^"]*"/g, ''));
   }
   content = content.split(HFZ).join('');
 

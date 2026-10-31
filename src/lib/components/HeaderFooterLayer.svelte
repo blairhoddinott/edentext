@@ -5,6 +5,7 @@
   import { FORCE_PAGE_RECALC } from '../editor/extensions/pageBreaks';
   import { zoneExtensions } from '../editor/extensions';
   import { StateStep, ZoneHistory } from '../editor/extensions/stateHistory';
+  import { RECORDING } from '../editor/extensions/trackChanges';
   import { isHistoryTransaction } from '@tiptap/pm/history';
   import { TextSelection, type Transaction } from '@tiptap/pm/state';
   import { plainPastedSpaces, unwrapPastedBoxes } from '../editor/paste';
@@ -512,7 +513,7 @@
     const ed = new Editor({
       element: mount,
       extensions: [
-        ...zoneExtensions(zone === 'header' ? t().hf.headerPlaceholder : t().hf.footerPlaceholder),
+        ...zoneExtensions(zone === 'header' ? t().hf.headerPlaceholder : t().hf.footerPlaceholder, true),
         ZoneHistory.configure({ body: () => bodyEditor, id: liveId }),
       ],
       content: startingDoc(editingIndex, zone, editingVariant, editingPage) as Content,
@@ -558,7 +559,7 @@
         const ed = hfEditor;
         if (!ed || step.id !== liveId) continue;
         const at = ed.state.selection.from;
-        ed.chain().setMeta('addToHistory', false).setContent((step.to ?? emptyDoc()) as Content, { emitUpdate: false })
+        ed.chain().setMeta('addToHistory', false).setMeta(RECORDING, true).setContent((step.to ?? emptyDoc()) as Content, { emitUpdate: false })
           .command(({ tr }) => { tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(at, tr.doc.content.size)))); return true; })
           .run();
       }

@@ -1,7 +1,8 @@
 // What recording promises, for every kind of edit: accepting all gives what the same edit
 // gives unrecorded, rejecting all gives the document back.
 import { describe, it, expect, afterEach } from 'vitest';
-import type { Editor } from '@tiptap/core';
+import { Editor } from '@tiptap/core';
+import { zoneExtensions } from '../../src/lib/editor/extensions';
 import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc } from '../../src/lib/editor/extensions/trackChanges';
 import { setRecordChanges } from '../../src/lib/storage/trackChanges.svelte';
@@ -128,6 +129,38 @@ describe('recording keeps its promise', () => {
     }
     e.commands.acceptRevisions(true);
     expect(e.getJSON()).toEqual(plain.getJSON());
+  });
+
+  // A header goes through both files by its own path: the same promise, there.
+  it.each(CASES)('in a header: %s', async (_name, html, steps) => {
+    const zone = (content: unknown, live = false) => {
+      const element = document.body.appendChild(document.createElement('div'));
+      return new Editor({ element, extensions: zoneExtensions('', live), content: content as string });
+    };
+    const plain = zone(html);
+    await edit(plain, steps);
+    setRecordChanges(true);
+    const e = zone(html, true);
+    await edit(e, steps);
+    expect(revisions(e.state.doc).length).toBeGreaterThan(0);
+    setRecordChanges(false);
+    const recorded = e.getJSON(), start = zone(html).getJSON();
+    const body = open('<p>body</p>').getJSON() as any;
+    const hf = (header: unknown) => ({ header, footer: null, pageCount: 1 }) as any;
+    const files: [string, (doc: unknown) => Promise<unknown>][] = [
+      ['DOCX', async (doc) => importDocx(await buildDocx(body, DEFAULT_MARGINS, 'portrait', hf(doc))).header],
+      ['ODT', async (doc) => importOdt(await buildOdt(body, DEFAULT_MARGINS, 'portrait', hf(doc))).header],
+    ];
+    for (const [format, through] of files) {
+      if (format === 'ODT' && /from a list|sub-list$/.test(_name) && !_name.startsWith('Enter')) continue;
+      const rejected = zone(await through(recorded));
+      expect(revisions(rejected.state.doc).length, format).toBeGreaterThan(0);
+      rejected.commands.rejectRevisions(true);
+      expect(rejected.getJSON(), `${format}, rejected`).toEqual(zone(await through(start)).getJSON());
+      const accepted = zone(await through(recorded));
+      accepted.commands.acceptRevisions(true);
+      expect(accepted.getJSON(), `${format}, accepted`).toEqual(zone(await through(plain.getJSON())).getJSON());
+    }
   });
 
   it('a format put back leaves no change, and the first record stands', async () => {
