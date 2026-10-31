@@ -441,7 +441,10 @@ function removeParagraphMark(tr: Transaction, pos: number): void {
   const line = tableLine(block);
   if (line) { removeTableLine(tr, pos, line); return; }
   const next = nextParagraph(tr.doc, end), $pos = tr.doc.resolve(pos);
-  if (!block.content.size && (next !== null || $pos.parent.childCount > 1)) {
+  // Past the lists that hold only it: a list item alone in a cell can go with its list.
+  let depth = $pos.depth;
+  while (depth > 0 && LIST_NODES.has($pos.node(depth).type.name) && $pos.node(depth).childCount === 1) depth--;
+  if (!block.content.size && (next !== null || $pos.node(depth).childCount > 1)) {
     tr.deleteRange(pos, pos + block.nodeSize);
     return;
   }

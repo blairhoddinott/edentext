@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_SHORTCUTS, matchesEvent, shortcutHint } from '../../src/lib/editor/shortcuts';
+import { open, select } from '../trackChangesCases';
 
 // Two ids on one combo means one of them silently never fires — the table is the only
 // place that can catch it, since the bindings are spread over extensions and App.svelte.
@@ -16,6 +17,19 @@ describe('shortcut table', () => {
     expect(shortcutHint('heading1')).toBe('Ctrl+Alt+1');
     expect(shortcutHint('alignCenter')).toBe('Ctrl+E');
     expect(shortcutHint('softHyphen')).toBe('Ctrl+Shift+-');
+  });
+});
+
+describe('Delete', () => {
+  it.each([
+    ['in a cell', '<table><tr><td><p style="text-align: center"></p></td></tr></table>', 3],
+    ['in the document', '<p style="text-align: center"></p>', 1],
+  ])('keeps an empty block alone %s', (_name, html, at) => {
+    const editor = open(html);
+    select(editor, at);
+    editor.commands.keyboardShortcut('Delete');
+    expect(JSON.stringify(editor.getJSON())).toContain('"textAlign":"center"');
+    editor.destroy();
   });
 });
 

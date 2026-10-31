@@ -2,7 +2,8 @@ import type { CommandProps } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
-import { TextSelection } from '@tiptap/pm/state';
+import type { Node as PMNode, Slice } from '@tiptap/pm/model';
+import { Plugin, TextSelection } from '@tiptap/pm/state';
 import Bold from '@tiptap/extension-bold';
 import Italic from '@tiptap/extension-italic';
 import { TextEffects, UnderlineStyled, StrikeStyled } from './extensions/textEffects';
@@ -95,6 +96,13 @@ const pxToPt = (size: string): string | null => {
   const px = /^([\d.]+)px$/.exec(size)?.[1];
   return px ? `${Math.round(Number(px) * 0.75 * 10) / 10}pt` : size || null;
 };
+
+// A selection running over cells: dropped, its open rows would split the table it lands in.
+function cutsCells(slice: Slice): boolean {
+  const open = (node: PMNode | null | undefined, depth: number, next: (n: PMNode) => PMNode | null): boolean =>
+    depth > 0 && !!node && (!!node.type.spec.tableRole || open(next(node), depth - 1, next));
+  return open(slice.content.firstChild, slice.openStart, (n) => n.firstChild) || open(slice.content.lastChild, slice.openEnd, (n) => n.lastChild);
+}
 
 const CELL_CONTENT = '(paragraph | heading | bulletList | orderedList | table)+';
 // An item opening with a sub-list is ODF's item without a paragraph of its own: no label,
@@ -235,6 +243,9 @@ export const extensions = [
   // and a columns section may hold one. In a list it goes between the list's two parts, as in both word
   // processors: neither format keeps one in a list item, and the second part counts on.
   Table.extend({
+    addProseMirrorPlugins() {
+      return [...(this.parent?.() ?? []), new Plugin({ props: { handleDrop: (_view, _event, slice) => cutsCells(slice) } })];
+    },
     addCommands() {
       const parent = this.parent?.() ?? {};
       // A split cell regroups a table as a merge does; neither has a form for a change.

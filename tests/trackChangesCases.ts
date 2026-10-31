@@ -125,6 +125,8 @@ export const CASES: [string, string, Act[]][] = [
   ['typing over two paragraphs', THREE, [(e) => select(e, 3, 9), (e) => e.commands.insertContent('z')]],
   ['Enter in a list item', LIST, enter(5)],
   ['a selection across list items', LIST, del(5, 11)],
+  ['a new paragraph in a cell made a list', TABLE, [inCell(6), (e) => e.commands.keyboardShortcut('Enter'), (e) => e.commands.insertContent('b'), (e) => e.commands.toggleBulletList()]],
+  ['Delete on an empty list item', LIST, [(e) => select(e, 6), (e) => e.commands.keyboardShortcut('Enter'), (e) => e.commands.keyboardShortcut('Delete')]],
   ['a whole list item', LIST, del(3, 10)],
   ['from a list into the text after it', LIST, del(10, 17)],
   ['from an item into its sub-list', NESTED, del(5, 12)],

@@ -75,12 +75,22 @@ export const Shortcuts = Extension.create({
   priority: 1000,
 
   addKeyboardShortcuts() {
-    return Object.fromEntries(
-      Object.entries(BINDINGS).map(([id, run]) => [
-        DEFAULT_SHORTCUTS[id as ShortcutId],
-        () => run(this.editor),
-      ]),
-    );
+    return {
+      ...Object.fromEntries(
+        Object.entries(BINDINGS).map(([id, run]) => [
+          DEFAULT_SHORTCUTS[id as ShortcutId],
+          () => run(this.editor),
+        ]),
+      ),
+      // TipTap deletes the empty block the caret is in, but alone in its parent it comes back
+      // as a fresh one without its attrs. A list item goes whole; elsewhere it stays.
+      Delete: ({ editor }) => {
+        const { state, view } = editor, { $from, empty } = state.selection;
+        if (!empty || !$from.parent.isTextblock || $from.parent.content.size || $from.node(-1).childCount > 1) return false;
+        if ($from.node(-1).type.name === 'listItem') view.dispatch(state.tr.deleteRange($from.before(), $from.after()).scrollIntoView());
+        return true;
+      },
+    };
   },
 
   addProseMirrorPlugins() {

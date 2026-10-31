@@ -67,7 +67,7 @@ list or a paragraph dropped its text); Enter over a selection deletes it before 
 the split (`pageBreak.ts`), or one ending in an empty block split between blocks and threw; a table ending a columns section keeps a
 paragraph after it, as at the document end; a table inserted in
 a list cuts the list instead (`splitListAt`, see `docs/architecture/tables.md`), and a cell
-may nest one (`CELL_CONTENT`); a selection stops at the notes' boundary (`clampToSide`); the notes
+may nest one (`CELL_CONTENT`); a selection stops at the notes' boundary (`clampToSide`); a selection running over cells does not drop, its open rows would split the table it lands in (`cutsCells`); Delete on an empty block alone in its parent takes a list item whole and otherwise does nothing, as TipTap would hand back a fresh block without its attrs; the notes
 plugin's repairs ride the history event they follow. An anchor that lands where a note
 cannot live — inside a note, or inside a text box — is dropped by `strayRefs`, and its note
 goes with it: Word writes no note in a shape's text, so the `.docx` lost both silently.
