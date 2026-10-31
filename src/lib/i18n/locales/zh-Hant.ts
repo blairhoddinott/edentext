@@ -1129,6 +1129,7 @@ const zhHant: Messages = {
     tableColumn: '表格欄',
     inserted: '插入',
     deleted: '刪除',
+    formatted: '格式變更',
   },
   notesDialog: {
     title: '註腳與章節附註',

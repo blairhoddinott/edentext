@@ -1143,6 +1143,7 @@ const en = {
     tableColumn: 'Table column',
     inserted: 'Inserted',
     deleted: 'Deleted',
+    formatted: 'Formatted',
   },
   notesDialog: {
     title: 'Footnotes and Endnotes',

@@ -1127,6 +1127,7 @@ const pt: Messages = {
     tableColumn: 'Coluna da tabela',
     inserted: 'Inserido',
     deleted: 'Eliminado',
+    formatted: 'Formatado',
   },
   notesDialog: {
     title: 'Notas de rodapé e notas de fim',

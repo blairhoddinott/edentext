@@ -1130,6 +1130,7 @@ const ja: Messages = {
     tableColumn: '表の列',
     inserted: '挿入',
     deleted: '削除',
+    formatted: '書式変更',
   },
   notesDialog: {
     title: '脚注と文末脚注',

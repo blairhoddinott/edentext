@@ -1143,6 +1143,7 @@ const ru: Messages = {
     tableColumn: 'Столбец таблицы',
     inserted: 'Добавлено',
     deleted: 'Удалено',
+    formatted: 'Отформатировано',
   },
   notesDialog: {
     title: 'Сноски и концевые сноски',

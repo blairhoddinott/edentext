@@ -1129,6 +1129,7 @@ const es: Messages = {
     tableColumn: 'Columna de tabla',
     inserted: 'Insertado',
     deleted: 'Eliminado',
+    formatted: 'Con formato',
   },
   notesDialog: {
     title: 'Notas al pie y notas finales',

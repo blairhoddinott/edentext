@@ -88,7 +88,7 @@ import { noteSettings } from '../storage/notes.svelte';
 import { recordChanges } from '../storage/trackChanges.svelte';
 import { markupView } from '../storage/markup.svelte';
 import { loadDocProperties } from '../storage/docProperties';
-import { Insertion, Deletion, TrackChanges } from './extensions/trackChanges';
+import { Insertion, Deletion, FormatChange, TrackChanges } from './extensions/trackChanges';
 
 const pxToPt = (size: string): string | null => {
   const px = /^([\d.]+)px$/.exec(size)?.[1];
@@ -312,6 +312,7 @@ export const extensions = [
   // marked. Round-trips to ODF <text:tracked-changes> and DOCX w:ins/w:del.
   Insertion,
   Deletion,
+  FormatChange,
   TrackChanges.configure({
     recording: recordChanges,
     author: () => loadDocProperties().author.trim(),
@@ -330,7 +331,7 @@ export const extensions = [
 // review, and the typing aids that watch the body.
 const BODY_ONLY = new Set([
   'doc', 'placeholder', 'noteRef', 'note', 'noteSection', 'notes', 'pageBreak', 'pageBreaks',
-  'columns', 'columnsFlow', 'tableOfContents', 'outline', 'comment', 'insertion', 'deletion',
+  'columns', 'columnsFlow', 'tableOfContents', 'outline', 'comment', 'insertion', 'deletion', 'formatChange',
   'trackChanges', 'searchReplace', 'autoText', 'wordCompletion', 'autoCorrect', 'spellCheck', 'grammarCheck',
   // A zone's live editor undoes on the body's stack (stateHistory.ts).
   'undoRedo', 'stateHistory',

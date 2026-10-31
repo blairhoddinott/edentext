@@ -15,6 +15,13 @@
     onSelect: () => void;
   } = $props();
 
+  const FORMAT_NAMES = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strikethrough' } as const;
+  const kind = $derived.by(() => {
+    if (r.kind !== 'formatChange') return r.kind === 'insertion' ? t().revisions.inserted : t().revisions.deleted;
+    const names = (r.changed ?? []).flatMap((m) => (m in FORMAT_NAMES ? [t().toolbar[FORMAT_NAMES[m as keyof typeof FORMAT_NAMES]]] : []));
+    return [t().revisions.formatted, names.join(', ')].filter(Boolean).join(': ');
+  });
+
   // The stored ISO date, in the reader's locale — an imported file may carry any format.
 </script>
 
@@ -23,7 +30,7 @@
     <b style:color={color}>{r.author || author || t().revisions.unknownAuthor}</b>
     <span>{formatMoment(r.date)}</span>
   </div>
-  <div class="kind">{r.kind === 'insertion' ? t().revisions.inserted : t().revisions.deleted}</div>
+  <div class="kind">{kind}</div>
   <div class="quote" class:struck={r.kind === 'deletion'} style:color={color}>{r.text.replace(/\n/g, '¶') || (r.table ? t().revisions[r.table === 'row' ? 'tableRow' : 'tableColumn'] : '¶')}</div>
 </button>
 <div class="actions">

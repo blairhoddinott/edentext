@@ -1,5 +1,5 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core';
-import { Slice, type Fragment, type Mark as PMMark, type Node as PMNode } from '@tiptap/pm/model';
+import { Mark as PMMark, Slice, type Fragment, type Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
 import { CellSelection, TableMap, removeColumn, removeRow } from '@tiptap/pm/tables';
@@ -20,8 +20,11 @@ import { authorColor, authorColors } from '../authorColors';
 // A paragraph mark is no text, so a mark cannot carry its change: the `revMark` attr of the
 // block it ends does, holding the insertion, the deletion or both. A table row and a cell of
 // a recorded column carry theirs the same way.
+//
+// A format change is the `formatChange` mark, which holds the marks its text had before.
 
-export type RevisionKind = 'insertion' | 'deletion';
+export type RevisionKind = 'insertion' | 'deletion' | 'formatChange';
+type MarkedKind = 'insertion' | 'deletion';
 const KINDS = ['insertion', 'deletion'] as const;
 
 export type Revision = {
@@ -40,6 +43,8 @@ export type Revision = {
   marks: number[];
   /** Set when the change is a table's: its rows, or a column of cells. */
   table?: 'row' | 'column';
+  /** A format change: the names of the marks that differ from what the text had. */
+  changed?: string[];
 };
 
 export type RevisionAttrs = { id: string; author: string; date: string };
@@ -84,6 +89,25 @@ function revisionMark(name: RevisionKind, attr: string) {
 export const Insertion = revisionMark('insertion', 'data-insertion');
 export const Deletion = revisionMark('deletion', 'data-deletion');
 
+// `old` is the marks the text had, as JSON; null when the file does not say (ODF).
+export const FormatChange = revisionMark('formatChange', 'data-format-change').extend({
+  excludes: 'formatChange',
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      old: {
+        default: null,
+        parseHTML: (el) => { try { return JSON.parse(el.getAttribute('data-rev-old') ?? 'null'); } catch { return null; } },
+        renderHTML: (a) => (a.old ? { 'data-rev-old': JSON.stringify(a.old) } : {}),
+      },
+    };
+  },
+});
+
+/** Marks that say nothing about how text looks. */
+export const UNFORMATTED_MARKS = new Set(['link', 'bookmark', 'comment', 'insertion', 'deletion', 'formatChange']);
+const formatOf = (marks: readonly PMMark[]) => marks.filter((m) => !UNFORMATTED_MARKS.has(m.type.name));
+
 // A file numbers each run and paragraph mark of one edit on its own: touching stretches
 // by one author at one moment are one change, as both word processors show them.
 function sameChange(prev: Revision, attrs: RevisionAttrs): boolean {
@@ -100,11 +124,11 @@ const tableLine = (node: PMNode): 'row' | 'column' | null => {
 // both: the insertion and its deletion.
 export function revisions(doc: PMNode): Revision[] {
   const out: Revision[] = [];
-  const last: Record<RevisionKind, Revision | null> = { insertion: null, deletion: null };
+  const last: Record<RevisionKind, Revision | null> = { insertion: null, deletion: null, formatChange: null };
   // The changes whose paragraph mark closed the block before: they reach the next one's start.
   let bridging: Revision[] = [];
   const inline = (node: PMNode, pos: number) => {
-    for (const kind of KINDS) {
+    for (const kind of [...KINDS, 'formatChange'] as const) {
       const mark = node.marks.find((m) => m.type.name === kind);
       if (!mark) { last[kind] = null; continue; }
       const prev = last[kind];
@@ -123,6 +147,7 @@ export function revisions(doc: PMNode): Revision[] {
         date: String(mark.attrs.date ?? ''),
         from: pos, to: pos + node.nodeSize, text: node.text ?? '',
         spans: [[pos, pos + node.nodeSize]], marks: [],
+        ...(kind === 'formatChange' ? { changed: changedMarks(node, mark) } : {}),
       });
     }
   };
@@ -143,7 +168,7 @@ export function revisions(doc: PMNode): Revision[] {
       // so does a text box, with everything in it.
       const recorded = child.marks.some((m) => m.type.name === 'insertion' || m.type.name === 'deletion');
       if (child.isLeaf || recorded) { inline(child, at); return; }
-      last.insertion = last.deletion = null;
+      last.insertion = last.deletion = last.formatChange = null;
       child.descendants((n, p) => visit(n, at + 1 + p));
     });
     const end = pos + node.nodeSize - 1, marks = node.attrs.revMark as RevMark | null | undefined;
@@ -162,21 +187,29 @@ export function revisions(doc: PMNode): Revision[] {
     return false;
   };
   doc.descendants(visit);
-  return gatherTableChanges(out);
+  return gatherChanges(out);
+}
+
+// The marks a format change put on or took off `node`.
+function changedMarks(node: PMNode, change: PMMark): string[] {
+  const old = (change.attrs.old ?? []) as { type: string }[], now = formatOf(node.marks).map((m) => m.toJSON() as { type: string });
+  const has = (list: unknown[], m: unknown) => list.some((o) => JSON.stringify(o) === JSON.stringify(m));
+  return [...new Set([...now.filter((m) => !has(old, m)), ...old.filter((m) => !has(now, m))].map((m) => m.type))];
 }
 
 // A row or column change is one change over its cells and all the text in them, which no
-// adjacency in the document joins.
-function gatherTableChanges(list: Revision[]): Revision[] {
+// adjacency in the document joins; so is one format change over runs it left out.
+function gatherChanges(list: Revision[]): Revision[] {
   const hosts: Revision[] = [];
-  const hostOf = (r: Revision) => hosts.find((h) => h.kind === r.kind && sameChange(h, r));
-  for (const r of list) if (r.table && !hostOf(r)) hosts.push(r);
+  const hostOf = (r: Revision) => hosts.find((h) => h.kind === r.kind && (r.kind === 'formatChange' ? h.id === r.id : sameChange(h, r)));
+  for (const r of list) if ((r.table || r.kind === 'formatChange') && !hostOf(r)) hosts.push(r);
   return list.filter((r) => {
     const host = hostOf(r);
     if (!host || host === r) return true;
     host.spans.push(...r.spans);
     host.marks.push(...r.marks);
     host.text += r.text;
+    if (r.changed) host.changed = [...new Set([...host.changed!, ...r.changed])];
     host.from = Math.min(host.from, r.from);
     host.to = Math.max(host.to, r.to);
     return false;
@@ -236,9 +269,12 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
     const from = tr.mapping.map(f, 1), to = tr.mapping.map(t, -1);
     if (to <= from) continue;
     if (r.kind === drop) tr.delete(from, to);
-    else tr.removeMark(from, to, state.schema.marks[r.kind]);
+    else {
+      if (r.kind === 'formatChange' && !accept) restoreFormat(tr, from, to);
+      tr.removeMark(from, to, state.schema.marks[r.kind]);
+    }
   }
-  const marks = list.flatMap((r) => r.marks.map((pos) => ({ pos, kind: r.kind })));
+  const marks = list.flatMap((r) => (r.kind === 'formatChange' ? [] : r.marks.map((pos) => ({ pos, kind: r.kind as MarkedKind }))));
   marks.sort((a, b) => b.pos - a.pos || Number(a.kind === drop) - Number(b.kind === drop));
   for (const { pos, kind } of marks) {
     const { pos: at, deleted } = tr.mapping.mapResult(pos, 1);
@@ -251,6 +287,20 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
     }
   }
   tr.setMeta(RECORDING, true);
+}
+
+// Puts back what each run of a format change held. Without a record it loses its direct
+// formatting, as in LibreOffice after a reload (probed).
+function restoreFormat(tr: Transaction, from: number, to: number): void {
+  const { schema } = tr.doc.type;
+  tr.doc.nodesBetween(from, to, (node, pos) => {
+    if (!isMarkable(node)) return true;
+    const a = Math.max(pos, from), b = Math.min(pos + node.nodeSize, to);
+    const change = node.marks.find((m) => m.type.name === 'formatChange');
+    for (const mark of formatOf(node.marks)) tr.removeMark(a, b, mark);
+    for (const old of (change?.attrs.old ?? []) as Record<string, unknown>[]) tr.addMark(a, b, schema.markFromJSON(old));
+    return false;
+  });
 }
 
 const LIST_NODES = new Set(['listItem', 'bulletList', 'orderedList']);
@@ -415,6 +465,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             const gone = goneBlocks(state.doc).map(({ pos, size, kind }) => Decoration.node(pos, pos + size, { class: `pm-gone-${kind}` }));
             const set = DecorationSet.create(state.doc, gone.concat(list.flatMap((r) => {
               const cls = `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}`, color = authorColor(colors, r.author);
+              if (r.kind === 'formatChange') return r.spans.map(([from, to]) => Decoration.inline(from, to, { class: 'pm-rev-format', style: `--rev-color: ${color}` }));
               return [
                 ...r.spans.map(([from, to]) => Decoration.inline(from, to, { class: cls, style: `color: ${color}` })),
                 // A widget factory: a split view draws the decoration twice.
@@ -460,22 +511,22 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           // restore a recorded state: the history carries the marks along.
           if (transactions.some((t) => t.getMeta(RECORDING) || fromHistory(t))) return null;
           const ranges = insertedRanges(transactions);
-          if (!ranges.length) return null;
           const tr = newState.tr;
           const author = options.author(), fresh = revisionAttrs(author);
-          const { insertion, deletion } = newState.schema.marks;
+          const { insertion, deletion, formatChange } = newState.schema.marks;
           for (const [from, to] of ranges) {
             // Anything freshly in the document is this author's insertion — never struck
             // through or another's, which typing inside such a run would inherit. Typing
             // joins the run it continues, so a sentence is one change.
             const attrs = adjacentInsertion(tr.doc, from, author) ?? fresh;
-            tr.removeMark(from, to, deletion).removeMark(from, to, insertion);
+            tr.removeMark(from, to, deletion).removeMark(from, to, insertion).removeMark(from, to, formatChange);
             markRange(tr, from, to, insertion.create(attrs));
             markInsertedParagraphs(tr, from, to, attrs);
           }
           markInsertedLines(tr, ranges, fresh);
+          recordFormats(tr, transactions, fresh);
           // In the history with the edit it marks, so undo and redo take both together.
-          return tr.setMeta(RECORDING, true);
+          return tr.steps.length ? tr.setMeta(RECORDING, true) : null;
         },
 
         // A deletion must not reach the document: mark the range instead. Text already
@@ -509,6 +560,49 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
     ];
   },
 });
+
+// What a mark step reaches: text and inline atoms.
+const isMarkable = (node: PMNode) => node.isInline && node.isAtom;
+
+// Every run a formatting step touched keeps the format it had before the edit: the first
+// record stands, text the author just inserted is new anyway, and text back at its old
+// format has no change left.
+function recordFormats(tr: Transaction, transactions: readonly Transaction[], attrs: RevisionAttrs): void {
+  const { formatChange } = tr.doc.type.schema.marks;
+  const changeOf = (node: PMNode) => node.marks.find((m) => m.type === formatChange);
+  const touched: [number, number][] = [];
+  transactions.forEach((t, ti) => {
+    if (t.getMeta('appendedTransaction') || t.getMeta(MOVED)) return;
+    t.steps.forEach((step, i) => {
+      if (!(step instanceof AddMarkStep || step instanceof RemoveMarkStep) || UNFORMATTED_MARKS.has(step.mark.type.name)) return;
+      const onward = [t.mapping.slice(i + 1), ...transactions.slice(ti + 1).map((u) => u.mapping), tr.mapping];
+      const final = (pos: number, assoc: number) => onward.reduce((at, m) => m.map(at, assoc), pos);
+      t.docs[i].nodesBetween(step.from, step.to, (node, pos) => {
+        if (!isMarkable(node)) return true;
+        const from = final(Math.max(pos, step.from), 1), to = final(Math.min(pos + node.nodeSize, step.to), -1);
+        if (to <= from) return false;
+        const mark = formatChange.create({ ...attrs, old: formatOf(node.marks).map((m) => m.toJSON()) });
+        tr.doc.nodesBetween(from, to, (now, at) => {
+          if (!isMarkable(now)) return true;
+          const own = now.marks.some((m) => m.type.name === 'insertion' && m.attrs.author === attrs.author);
+          if (!own && !changeOf(now)) tr.addMark(Math.max(at, from), Math.min(at + now.nodeSize, to), mark);
+          return false;
+        });
+        touched.push([from, to]);
+        return false;
+      });
+    });
+  });
+  for (const [from, to] of touched) tr.doc.nodesBetween(from, to, (node, at) => {
+    if (!isMarkable(node)) return true;
+    const old = changeOf(node)?.attrs.old as Record<string, unknown>[] | null | undefined;
+    const schema = tr.doc.type.schema;
+    if (old && PMMark.sameSet(formatOf(node.marks), PMMark.setFrom(old.map((m) => schema.markFromJSON(m))))) {
+      tr.removeMark(Math.max(at, from), Math.min(at + node.nodeSize, to), formatChange);
+    }
+    return false;
+  });
+}
 
 // Undo and redo, and what other plugins append to them.
 function fromHistory(tr: Transaction): boolean {
@@ -948,10 +1042,10 @@ function insertTracked(tr: Transaction, at: number, slice: Slice, attrs: Revisio
   tr.replace(at, at, slice);
   // The ranges the fitted replace actually inserted: it may close and reopen blocks
   // around the slice, so its size says nothing about where the new content lies.
-  const { insertion, deletion } = tr.doc.type.schema.marks;
+  const { insertion, deletion, formatChange } = tr.doc.type.schema.marks;
   const ranges = newRanges(tr, before);
   for (const [from, to] of ranges) {
-    tr.removeMark(from, to, deletion).removeMark(from, to, insertion);
+    tr.removeMark(from, to, deletion).removeMark(from, to, insertion).removeMark(from, to, formatChange);
     markRange(tr, from, to, insertion.create(attrs));
     markInsertedParagraphs(tr, from, to, attrs);
   }
@@ -967,6 +1061,12 @@ export function trackedReplace(tr: Transaction, from: number, to: number, slice:
   const start = tr.steps.length;
   if (to > from) markDeleted(tr, from, to, revisionAttrs(author));
   if (slice?.size) insertTracked(tr, tr.mapping.slice(start).map(to), slice, revisionAttrs(author));
+  return tr.setMeta(RECORDING, true);
+}
+
+/** Records the formatting steps `tr` holds as `author`'s, whether or not recording is on. */
+export function trackedFormat(tr: Transaction, author: string): Transaction {
+  recordFormats(tr, [tr], revisionAttrs(author));
   return tr.setMeta(RECORDING, true);
 }
 

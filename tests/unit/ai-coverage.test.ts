@@ -313,6 +313,11 @@ const SCHEMA: Record<string, Entry> = {
   'mark:deletion.id': same('mark:insertion'),
   'mark:deletion.author': same('mark:insertion'),
   'mark:deletion.date': same('mark:insertion'),
+  'mark:formatChange': check(fmt({ bold: true }), hasMark('formatChange')),
+  'mark:formatChange.id': same('mark:formatChange'),
+  'mark:formatChange.author': same('mark:formatChange'),
+  'mark:formatChange.date': same('mark:formatChange'),
+  'mark:formatChange.old': same('mark:formatChange'),
 };
 
 // Ribbon commands: the document features the schema covers point there; the rest says why not.

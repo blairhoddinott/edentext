@@ -2,7 +2,7 @@
 // gives unrecorded, rejecting all gives the document back.
 import { describe, it, expect, afterEach } from 'vitest';
 import type { Editor } from '@tiptap/core';
-import { CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
+import { CASES, FORMAT_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc } from '../../src/lib/editor/extensions/trackChanges';
 import { setRecordChanges } from '../../src/lib/storage/trackChanges.svelte';
 import { buildDocx } from '../../src/lib/export/docx';
@@ -51,6 +51,38 @@ describe('recording keeps its promise', () => {
 
     accepted.commands.acceptRevisions(true);
     expect(accepted.getJSON()).toEqual(plain.getJSON());
+  });
+
+  it.each(FORMAT_CASES)('%s', async (_name, html, steps) => {
+    const plain = open(html);
+    await edit(plain, steps);
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, steps);
+    expect(revisions(e.state.doc).map((r) => r.kind)).toEqual(['formatChange']);
+    setRecordChanges(false);
+    const rejected = open(e.getJSON());
+    rejected.commands.rejectRevisions(true);
+    expect(rejected.getJSON()).toEqual(open(html).getJSON());
+    e.commands.acceptRevisions(true);
+    expect(e.getJSON()).toEqual(plain.getJSON());
+  });
+
+  it('a format put back leaves no change, and the first record stands', async () => {
+    setRecordChanges(true);
+    const e = open(THREE);
+    await edit(e, [(ed) => select(ed, 2, 4), (ed) => ed.commands.setBold(), (ed) => ed.commands.unsetBold()]);
+    expect(revisions(e.state.doc)).toEqual([]);
+    await edit(e, [(ed) => ed.commands.setBold(), (ed) => ed.commands.setItalic()]);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(THREE).getJSON());
+  });
+
+  it('formatting the own insertion is no change of its own', async () => {
+    setRecordChanges(true);
+    const e = open(THREE);
+    await edit(e, [(ed) => select(ed, 3), (ed) => ed.commands.insertContent('new'), (ed) => select(ed, 3, 6), (ed) => ed.commands.setBold()]);
+    expect(revisions(e.state.doc).map((r) => r.kind)).toEqual(['insertion']);
   });
 
   it.each(TABLE_CASES)('%s', async (_name, html, steps) => {

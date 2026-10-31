@@ -25,7 +25,7 @@ export function authorColors(doc: PMNode): Map<string, string> {
     if (!node.isText) return true;
     for (const m of node.marks) {
       const name = m.type.name;
-      if (name !== 'insertion' && name !== 'deletion' && name !== 'comment') continue;
+      if (name !== 'insertion' && name !== 'deletion' && name !== 'formatChange' && name !== 'comment') continue;
       add(m.attrs.author);
       if (name === 'comment') for (const r of repliesOf(m.attrs.replies)) add(r?.author);
     }

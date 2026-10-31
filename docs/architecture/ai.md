@@ -90,8 +90,8 @@ The tools, how each edit lands, and the coverage matrix with its prompt budget:
   that question on go, the tracked changes they left pending are rejected, and the history is
   cut to the question's `historyAt`; a command keeps the selection it was first sent with.
 - **Keep / Undo** under a reply accept or reject the tracked changes that turn made (`revs`,
-  the assistant's revision ids new after `runTurn`) in one step. Direct formatting is not a
-  revision, so Undo leaves it; Ctrl+Z takes it back.
+  the assistant's revision ids new after `runTurn`) in one step, the `format` tool's run formatting too (`trackedFormat`).
+  Its `clear` argument and table actions are no revisions, so Undo leaves them; Ctrl+Z takes them back.
 
 ## Attached files
 

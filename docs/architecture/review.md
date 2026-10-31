@@ -25,6 +25,12 @@ A table cutting a paragraph records the split as a mark in front of it, which no
 
 A note anchor and a text box take a change as an atom does: `revisions()` treats a recorded box as one inline piece with everything in it, and a mark step never reaches a box, so `markRange` sets it with `setNodeMarkup`. The note's body follows its anchor through the notes' own repair. In ODF a deletion's registry block holds the whole `text:note` or frame, and a region around a frame says nothing about the paragraphs in it.
 
+## Formatting
+
+The `formatChange` mark holds the format marks its run had (`old`, JSON). A mark step of a transaction is the record (`recordFormats`): each run it touches keeps what it had before the transaction, the first record stands, a run back at its old format loses the change, and the author's own insertion takes none. One transaction is one change, however many runs and blocks it covers (`gatherChanges`, by id).
+
+Accepting drops the mark; rejecting puts `old` back run by run. "Original" shows the current format, since a mark cannot be undone by CSS; the print path prints `settledDoc`.
+
 ## Views
 
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.

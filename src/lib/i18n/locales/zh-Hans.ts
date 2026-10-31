@@ -1128,6 +1128,7 @@ const zhHans: Messages = {
     tableColumn: '表格列',
     inserted: '插入',
     deleted: '删除',
+    formatted: '格式更改',
   },
   notesDialog: {
     title: '脚注和尾注',

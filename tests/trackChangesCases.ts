@@ -46,6 +46,20 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['a table inserted', THREE, [(e) => select(e, 7), (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false })]],
 ];
 
+const ranged = (from: number, to: number, act: Act): Act[] => [(e) => select(e, from, to), act];
+const STYLED = '<p>a<strong>bb</strong>c <em>dd</em></p><p>tail</p>';
+
+/** Edits of a run's format. */
+export const FORMAT_CASES: [string, string, Act[]][] = [
+  ['bold set', THREE, ranged(2, 4, (e) => e.commands.setBold())],
+  ['bold across paragraphs', THREE, ranged(3, 9, (e) => e.commands.setBold())],
+  ['bold taken off', STYLED, ranged(2, 4, (e) => e.commands.unsetBold())],
+  ['bold over mixed runs', STYLED, ranged(1, 8, (e) => e.commands.toggleBold())],
+  ['a font size changed', STYLED, ranged(2, 8, (e) => e.commands.setMark('textStyle', { fontSize: '20pt' }))],
+  ['formatting cleared', STYLED, ranged(1, 8, (e) => e.commands.clearDirectFormatting())],
+  ['two formats, one after the other', STYLED, [...ranged(2, 4, (e) => e.commands.setItalic()), (e) => e.commands.setUnderline()]],
+];
+
 export const CASES: [string, string, Act[]][] = [
   ['a selection across two paragraphs', THREE, del(3, 9)],
   ['a whole paragraph with its mark', THREE, del(7, 13)],

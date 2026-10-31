@@ -1,6 +1,6 @@
 // What the assistant may do to the document, and the chat turn that lets it. Text edits
 // are tracked changes under the assistant's own author, for the user to accept or reject
-// in the Review pane; formatting cannot be tracked and applies directly (undoable).
+// in the Review pane, formatting too.
 
 import type { Editor } from '@tiptap/core';
 import { Fragment, Slice, type Mark, type Node as PMNode } from '@tiptap/pm/model';
@@ -9,7 +9,7 @@ import { NodeSelection, type Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { isPaginating } from '../editor/extensions/pageBreaks';
 import { CellSelection, TableMap } from '@tiptap/pm/tables';
-import { trackedReplace } from '../editor/extensions/trackChanges';
+import { trackedFormat, trackedReplace } from '../editor/extensions/trackChanges';
 import { applyFormat, FORMAT_MARKS, type FormatSpec } from '../editor/extensions/searchReplace';
 import { comments } from '../editor/extensions/comment';
 import { putStyle, setOutline, styleSheet } from '../styles/sheet.svelte';
@@ -488,7 +488,7 @@ function guardRevisions(ctx: TurnContext, from: number, to: number): void {
   if (foreign) throw new ToolError('the passage holds tracked changes by someone else; ask the user to accept or reject them first');
 }
 
-const plainMarks = (marks: readonly Mark[]) => marks.filter((m) => !['insertion', 'deletion', 'comment'].includes(m.type.name));
+const plainMarks = (marks: readonly Mark[]) => marks.filter((m) => !['insertion', 'deletion', 'formatChange', 'comment'].includes(m.type.name));
 
 function setList(ctx: TurnContext, from: number, to: number, kind: string): void {
   const ed = ctx.editor;
@@ -802,6 +802,7 @@ function run(ctx: TurnContext, call: ToolCall): ToolResult {
           const pos = tr.mapping.map(p.pos);
           for (const [attr, value] of Object.entries(block)) if (attr in p.node.attrs) tr.setNodeAttribute(pos, attr, value);
         }
+        trackedFormat(tr, ctx.author);
       });
       const listRange = () => ({ from: current(ctx, fromN).pos + 1, to: contentRange(current(ctx, toN))[1] });
       if (a.list != null && a.list !== '') setList(ctx, listRange().from, listRange().to, String(a.list).toLowerCase());

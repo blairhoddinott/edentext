@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core';
 import { headingStyleName, type StyleSheet } from '../../styles/styleSheet';
 import { DEFAULT_SHORTCUTS } from '../shortcuts';
 import { inNote } from './notes';
+import { UNFORMATTED_MARKS } from './trackChanges';
 
 // The named paragraph style a block uses (LibreOffice's style:style / Word's w:pStyle).
 // Rendered as data-style so the generated document stylesheet (styleCss) can target it;
@@ -16,8 +17,6 @@ const DIRECT_ATTRS = [
   'backgroundColor', 'borderTop', 'borderRight', 'borderBottom', 'borderLeft',
 ];
 
-// Marks Ctrl+M keeps: they carry content, not formatting.
-const KEPT_MARKS = new Set(['link', 'bookmark', 'comment', 'insertion', 'deletion']);
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -81,7 +80,7 @@ export const ParagraphStyle = Extension.create<{ types: string[]; sheet: () => S
         // Formatting only: a link, a bookmark, a comment and a tracked change are content,
         // not formatting, and neither word processor drops them here.
         for (const mark of Object.keys(editor.schema.marks)) {
-          if (!KEPT_MARKS.has(mark)) run.unsetMark(mark);
+          if (!UNFORMATTED_MARKS.has(mark)) run.unsetMark(mark);
         }
         for (const type of this.options.types) run.resetAttributes(type, DIRECT_ATTRS);
         if (start !== end) run.setTextSelection({ from, to });

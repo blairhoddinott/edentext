@@ -1134,6 +1134,7 @@ const de: Messages = {
     tableColumn: 'Tabellenspalte',
     inserted: 'Eingefügt',
     deleted: 'Gelöscht',
+    formatted: 'Formatiert',
   },
   notesDialog: {
     title: 'Fuß- und Endnoten',
