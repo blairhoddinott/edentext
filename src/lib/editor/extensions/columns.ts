@@ -2,6 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
+import { REBUILDING } from './trackChanges';
 
 // A multi-column (newspaper) section: content flows through balanced CSS columns.
 // The doc may hold it as adjacent equal-attr fragments (a "chain") so columnsFlow.ts
@@ -378,7 +379,7 @@ export const Columns = Node.create({
             const gapCm = (found?.node.attrs.gapCm as number | undefined) ?? DEFAULT_COLUMN_GAP_CM;
             const tr = state.tr;
             if (!applyToSelection(state, tr, count <= 1 ? null : { count: clampColumnCount(count), gapCm })) return false;
-            if (dispatch) dispatch(tr.scrollIntoView());
+            if (dispatch) dispatch(tr.setMeta(REBUILDING, true).scrollIntoView());
             return true;
           }
           if (found) {
@@ -394,7 +395,7 @@ export const Columns = Node.create({
                 const attrs = { ...found.node.attrs, count: clampColumnCount(count) };
                 for (const f of chain) tr.setNodeMarkup(f.pos, undefined, attrs);
               }
-              dispatch(tr.scrollIntoView());
+              dispatch(tr.setMeta(REBUILDING, true).scrollIntoView());
             }
             return true;
           }
@@ -404,7 +405,7 @@ export const Columns = Node.create({
           if (!applyToWholeDoc(state, tr, attrs)) return false;
           if (dispatch) {
             tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min($from.pos, tr.doc.content.size))));
-            dispatch(tr.scrollIntoView());
+            dispatch(tr.setMeta(REBUILDING, true).scrollIntoView());
           }
           return true;
         },

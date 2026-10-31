@@ -3,9 +3,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { zoneExtensions } from '../../src/lib/editor/extensions';
-import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
+import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, REBUILD_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc } from '../../src/lib/editor/extensions/trackChanges';
 import { setRecordChanges } from '../../src/lib/storage/trackChanges.svelte';
+import { searchKey } from '../../src/lib/editor/extensions/searchReplace';
 import { buildDocx } from '../../src/lib/export/docx';
 import { importDocx } from '../../src/lib/import/docx';
 import { buildOdt } from '../../src/lib/export/odt';
@@ -317,6 +318,24 @@ describe('recording keeps its promise', () => {
     expect(settledDoc(doc, false).toJSON()).toEqual(open(THREE).getJSON());
   });
 
+  it.each(REBUILD_CASES)('nothing to record: %s', async (_name, html, steps) => {
+    const plain = open(html);
+    await edit(plain, steps);
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, steps);
+    expect(revisions(e.state.doc)).toEqual([]);
+    expect(shape(e)).toEqual(shape(plain));
+  });
+
+  it('a list a paragraph joins stays what it was', () => {
+    const e = open('<p>more</p><ul data-list-style-name="Named"><li><p>one</p></li></ul>');
+    select(e, 2);
+    e.commands.toggleBulletList();
+    expect(e.state.doc.firstChild!.attrs.listStyleName).toBe('Named');
+    expect(e.state.doc.firstChild!.childCount).toBe(2);
+  });
+
   it('a block split in two hands its mark to the second half', async () => {
     setRecordChanges(true);
     const e = open(THREE);
@@ -324,5 +343,68 @@ describe('recording keeps its promise', () => {
     setRecordChanges(false);
     e.commands.rejectRevisions(true);
     expect(e.getJSON()).toEqual(open(THREE).getJSON());
+  });
+});
+
+// Struck text waits to go: whatever reads the document reads it as gone.
+describe('struck text is not there', () => {
+  const NUMS = '<table><tbody><tr><td><p>10</p></td></tr><tr><td><p>20</p></td></tr><tr><td><p></p></td></tr></tbody></table><p>tail</p>';
+  const struck = async (html: string, from: number, to: number) => {
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, del(from, to));
+    setRecordChanges(false);
+    return e;
+  };
+  const texts = (e: Editor) => { const o: string[] = []; e.state.doc.descendants((n) => { if (n.isTextblock) o.push(n.textContent); return !n.isTextblock; }); return o; };
+  const find = (e: Editor, term: string) => {
+    e.commands.setSearch({ term, matchCase: false, wholeWord: false, useRegex: false });
+    return searchKey.getState(e.state)!.matches.length;
+  };
+
+  it('a formula does not count it', async () => {
+    const e = await struck(NUMS, 4, 5);
+    await edit(e, [(ed) => select(ed, 20), (ed) => ed.commands.setCellFormula('=SUM(A1:A2)')]);
+    await new Promise((r) => setTimeout(r));
+    expect(texts(e)[2]).toBe('20');
+  });
+
+  it('typing does not read it', async () => {
+    const e = await struck('<p>foo bar. now</p><p>t</p>', 5, 9);
+    select(e, 13);
+    e.view.someProp('handleTextInput', (f) => f(e.view, 13, 13, ' ', () => e.state.tr));
+    expect(e.state.doc.firstChild!.textContent).not.toContain('Now');
+  });
+
+  it('a sort does not read it', async () => {
+    const e = await struck('<table><tbody><tr><td><p>xb</p></td></tr><tr><td><p>a</p></td></tr></tbody></table><p>t</p>', 4, 5);
+    await edit(e, [(ed) => select(ed, 4), (ed) => ed.commands.sortTable({ keys: [{ column: 0, type: 'text', descending: true }], headerRow: false })]);
+    expect(texts(e)[0]).toBe('xb');
+  });
+
+  it('a search reads past it and leaves it', async () => {
+    const e = await struck('<p>aXXb foo</p><p>t</p>', 2, 4);
+    expect(find(e, 'xx')).toBe(0);
+    expect(find(e, 'ab')).toBe(1);
+    setRecordChanges(true);
+    await edit(e, [(ed) => ed.commands.replaceAll('q')]);
+    setRecordChanges(false);
+    const rejected = open(e.getJSON()), accepted = open(e.getJSON());
+    rejected.commands.rejectRevisions(true);
+    accepted.commands.acceptRevisions(true);
+    expect(texts(rejected)[0]).toBe('aXXb foo');
+    expect(texts(accepted)[0]).toBe('q foo');
+  });
+
+  it.each([
+    ['part of a selection', 1, 5, 'ab'],
+    ['all of a selection', 2, 4, 'XX'],
+  ])('a copy leaves it out: %s', async (_name, from, to, text) => {
+    const e = await struck('<p>aXXb</p><p>t</p>', 2, 4);
+    const { dom } = e.view.serializeForClipboard(e.state.doc.slice(from, to));
+    const pasted = open('<p></p>');
+    pasted.view.pasteHTML(dom.innerHTML, new Event('paste') as ClipboardEvent);
+    expect(texts(pasted)[0]).toBe(text);
+    expect(revisions(pasted.state.doc)).toEqual([]);
   });
 });

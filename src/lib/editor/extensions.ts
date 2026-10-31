@@ -1,3 +1,4 @@
+import type { CommandProps } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
@@ -88,7 +89,7 @@ import { noteSettings } from '../storage/notes.svelte';
 import { recordChanges, recordLock } from '../storage/trackChanges.svelte';
 import { markupView } from '../storage/markup.svelte';
 import { loadDocProperties } from '../storage/docProperties';
-import { Insertion, Deletion, FormatChange, TrackChanges } from './extensions/trackChanges';
+import { Insertion, Deletion, FormatChange, REBUILDING, TrackChanges } from './extensions/trackChanges';
 
 const pxToPt = (size: string): string | null => {
   const px = /^([\d.]+)px$/.exec(size)?.[1];
@@ -236,7 +237,12 @@ export const extensions = [
   Table.extend({
     addCommands() {
       const parent = this.parent?.() ?? {};
-      return { ...parent, insertTable: (options) => (props) => {
+      // A split cell regroups a table as a merge does; neither has a form for a change.
+      const rebuilding = (command: keyof typeof parent) => () => (props: CommandProps) => {
+        props.tr.setMeta(REBUILDING, true);
+        return (parent[command] as () => (p: CommandProps) => boolean)()(props);
+      };
+      return { ...parent, splitCell: rebuilding('splitCell'), mergeOrSplit: rebuilding('mergeOrSplit'), insertTable: (options) => (props) => {
         if (inNote(props.state)) return false;
         const { $from } = props.state.selection;
         let item = 0;

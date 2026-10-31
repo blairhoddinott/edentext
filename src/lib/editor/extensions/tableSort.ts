@@ -3,6 +3,7 @@ import type { CommandProps } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { selectedRect, isInTable } from '@tiptap/pm/tables';
 import { cellGrid } from './tableFormula';
+import { liveText } from './trackChanges';
 import { parseCellNumber, type NumberLocale } from '../../utils/tableFormula';
 import { tableLanguage, tableNumberLocale } from '../../storage/tableOptions.svelte';
 
@@ -86,7 +87,8 @@ export function sortedRows(
   const keyed = rows.slice(first).map((row, i) => ({
     row,
     cells: keys.map((k) => {
-      const text = grid.nodeAt({ row: first + i, col: k.column })?.textContent.trim() ?? '';
+      const cell = grid.nodeAt({ row: first + i, col: k.column });
+      const text = cell ? liveText(cell).trim() : '';
       return { text, num: k.type === 'text' ? null : parseCellNumber(text, loc) };
     }),
   }));

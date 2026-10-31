@@ -99,7 +99,7 @@ const drawRecorded = (r, size) => {
   return pick(r, [{ cmd: 'toggleBold' }, { cmd: 'toggleItalic' }, { cmd: 'setFontSize', args: ['18pt'] }, { cmd: 'setTextAlign', args: ['center'] },
     { cmd: 'toggleBulletList' }, { cmd: 'toggleOrderedList' }, { cmd: 'sinkListItem', args: ['listItem'] }, { cmd: 'liftListItem', args: ['listItem'] },
     { cmd: 'setParagraphStyle', args: ['Heading 2'] }, { cmd: 'insertNote', args: ['footnote'] }, { cmd: 'insertTextBox' }, { cmd: 'addRowAfter' }, { cmd: 'addColumnBefore' }, { cmd: 'deleteRow' }, { cmd: 'deleteColumn' }, { cmd: 'deleteTable' },
-    { cmd: 'insertTable', args: [{ rows: 2, cols: 2, withHeaderRow: false }] }]);
+    { cmd: 'insertTable', args: [{ rows: 2, cols: 2, withHeaderRow: false }] }, { cmd: 'moveChapter', args: [0, 1] }, { cmd: 'moveChapter', args: [0, -1] }]);
 };
 
 // The zone's own schema — one paragraph of runs, breaks, fields and inline images — so it
@@ -560,7 +560,7 @@ try {
   }
 
   for (let run = 0; run < RUNS; run++) {
-    const seed = SEED + 100 + run, doc = ['02-blocks.odt', '08-lists.odt', '04-table.odt'][run % 3], r = mulberry32(seed);
+    const seed = SEED + 100 + run, doc = ['02-blocks.odt', '08-lists.odt', '04-table.odt', '15-chapters.odt'][run % 4], r = mulberry32(seed);
     const before = await docJson();
     await page.setInputFiles('input.file-input[accept*=".odt"]', join(ROOT, 'tests/corpus', doc));
     await page.waitForFunction((b) => JSON.stringify(document.querySelector('.tiptap-host .tiptap').editor.getJSON()) !== b, before, { timeout: 30_000 });

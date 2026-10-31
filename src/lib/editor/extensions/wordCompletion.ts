@@ -4,6 +4,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { isWordChar, suggestCompletion, wordBefore } from '../../utils/wordCompletion';
 import { rememberWord, wordCompletion } from '../../storage/wordCompletion.svelte';
 import { volatile } from '../../storage/docScope';
+import { typedText } from './trackChanges';
 
 // LibreOffice's Word Completion: the words this document has used are offered back
 // while typing, Enter takes the offer. It is drawn as grey text after the caret
@@ -27,7 +28,7 @@ function suggestionAt(state: EditorState): Suggestion {
   // that is already there.
   const after = $from.parent.textBetween($from.parentOffset, $from.parent.content.size, undefined, ' ');
   if (after && isWordChar(after[0])) return null;
-  const prefix = wordBefore($from.parent.textBetween(0, $from.parentOffset, undefined, ' '));
+  const prefix = wordBefore(typedText($from));
   const tail = suggestCompletion(opts.words, prefix);
   return tail ? { pos: $from.pos, text: tail } : null;
 }
@@ -36,7 +37,7 @@ function suggestionAt(state: EditorState): Suggestion {
 function collectAt(state: EditorState, pos: number): void {
   const $pos = state.doc.resolve(pos);
   if (!$pos.parent.isTextblock) return;
-  rememberWord(wordBefore($pos.parent.textBetween(0, $pos.parentOffset, undefined, ' ')));
+  rememberWord(wordBefore(typedText($pos)));
 }
 
 export const WordCompletion = Extension.create({
@@ -88,7 +89,7 @@ export const WordCompletion = Extension.create({
             }
             if (!s) { collectAt(view.state, view.state.selection.from); return false; }
             const $pos = view.state.doc.resolve(s.pos);
-            const word = wordBefore($pos.parent.textBetween(0, $pos.parentOffset, undefined, ' ')) + s.text;
+            const word = wordBefore(typedText($pos)) + s.text;
             const space = wordCompletion().appendSpace ? ' ' : '';
             view.dispatch(view.state.tr.insertText(s.text + space, s.pos).scrollIntoView());
             rememberWord(word);

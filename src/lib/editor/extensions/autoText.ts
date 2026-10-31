@@ -1,5 +1,6 @@
 import { Extension, type Editor } from '@tiptap/core';
 import { wordBefore } from '../../utils/wordCompletion';
+import { typedText } from './trackChanges';
 import { entryForShortcut, type AutoTextEntry } from '../../storage/autoText';
 import { autoTextEntries } from '../../storage/autoText.svelte';
 
@@ -20,7 +21,7 @@ declare module '@tiptap/core' {
 function shortcutAt(editor: Editor): { entry: AutoTextEntry; from: number; to: number } | null {
   const { empty, $from } = editor.state.selection;
   if (!empty || !$from.parent.isTextblock) return null;
-  const word = wordBefore($from.parent.textBetween(0, $from.parentOffset, undefined, ' '));
+  const word = wordBefore(typedText($from));
   const entry = word ? entryForShortcut(autoTextEntries(), word) : null;
   return entry ? { entry, from: $from.pos - word.length, to: $from.pos } : null;
 }

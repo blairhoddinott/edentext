@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core';
+import { REBUILDING } from './trackChanges';
 import { styleSheet } from '../../styles/sheet.svelte';
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
@@ -175,8 +176,11 @@ export const TableOfContents = Node.create({
     return {
       setTableOfContents:
         (index = 'toc') =>
-        ({ commands }) =>
-          commands.insertContent({ type: this.name, attrs: { index, title: indexTitle(index), entries: null } }),
+        ({ commands, state, tr }) => {
+          // An index has no form for a change; over a selection the text goes recorded.
+          if (state.selection.empty) tr.setMeta(REBUILDING, true);
+          return commands.insertContent({ type: this.name, attrs: { index, title: indexTitle(index), entries: null } });
+        },
       // Every index of the document regenerates, as LibreOffice's Update All does; 'pages'
       // keeps each index's rows and renews only their page numbers, Word's other choice.
       updateIndexes:

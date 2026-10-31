@@ -11,6 +11,7 @@ import {
 import { formatCellValue, isCellFormat, type CellFormat } from '../../utils/cellFormat';
 import { numberRecognition, tableLanguage, tableNumberLocale } from '../../storage/tableOptions.svelte';
 import { t } from '../../i18n/i18n.svelte';
+import { liveText } from './trackChanges';
 
 // A cell's formula, on the cell itself — which is where ODF puts it
 // (`table:formula`), Word keeping it in a field inside the cell instead. The
@@ -63,7 +64,7 @@ export function evaluateTable(table: PMNode, loc: NumberLocale, error: string, l
     if (off == null || !node) return null;
     if (cache.has(off)) return cache.get(off) ?? null;
     const formula = node.attrs.formula as string | null;
-    if (!formula) return parseCellNumber(node.textContent, loc);
+    if (!formula) return parseCellNumber(liveText(node), loc);
     if (busy.has(off)) return null;
     busy.add(off);
     const value = evalFormula(formula, {
@@ -127,7 +128,7 @@ function formulaEdits(doc: PMNode, loc: NumberLocale, lang: string): Edit[] {
 function recognitionEdit(doc: PMNode, cellPos: number, loc: NumberLocale): Edit | null {
   const cell = doc.nodeAt(cellPos);
   const role = cell?.type.spec.tableRole;
-  if (!cell || (role !== 'cell' && role !== 'header_cell') || cell.attrs.formula) return null;
+  if (!cell || (role !== 'cell' && role !== 'header_cell') || cell.attrs.formula || liveText(cell) !== cell.textContent) return null;
   const value = parseCellNumber(cell.textContent, loc);
   if (value == null) return null;
   const text = formatCellNumber(value, loc);
@@ -224,7 +225,7 @@ export function guessFormula(state: EditorState): string {
   const loc = tableNumberLocale();
   const numeric = (ref: CellRef): boolean => {
     const node = grid.nodeAt(ref);
-    return !!node && !node.attrs.formula && parseCellNumber(node.textContent, loc) != null;
+    return !!node && !node.attrs.formula && parseCellNumber(liveText(node), loc) != null;
   };
   if (rect.top > 0 && numeric({ row: rect.top - 1, col: rect.left })) return '=SUM(ABOVE)';
   if (rect.left > 0 && numeric({ row: rect.top, col: rect.left - 1 })) return '=SUM(LEFT)';

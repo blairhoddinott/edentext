@@ -84,6 +84,9 @@ export const LIST_CASES: [string, string, Act[]][] = [
   ['an item one level down', ITEMS, ranged(11, 11, (e) => e.commands.sinkListItem('listItem'))],
   ['a nested list off', LEVELS, ranged(4, 20, (e) => e.commands.toggleBulletList())],
   ['an item one level up', LEVELS, ranged(11, 11, (e) => e.commands.liftListItem('listItem'))],
+  ['a paragraph made a list, joining the one after it', '<p>more</p><ul data-list-style-name="Named"><li><p>one</p></li><li><p>two</p></li></ul>', ranged(2, 2, (e) => e.commands.toggleBulletList())],
+  ['another bullet', ITEMS, ranged(4, 4, (e) => e.commands.setBulletChar('*'))],
+  ['another numbering', ITEMS.replace(/ul>/g, 'ol>'), ranged(4, 4, (e) => e.commands.setOrderedListType('lower-alpha'))],
 ];
 
 const CHAPTERS = '<h1>A</h1><p>aa</p><h1>B</h1><p>bb</p><h1>C</h1><p>cc</p>';
@@ -122,4 +125,17 @@ export const CASES: [string, string, Act[]][] = [
   ['from a list into the text after it', LIST, del(10, 17)],
   ['from an item into its sub-list', NESTED, del(5, 12)],
   ['Enter before a sub-list', NESTED, enter(6)],
+];
+
+const TALL = '<table><tbody><tr><td colspan="2"><p>a</p></td></tr><tr><td><p>b</p></td><td><p>c</p></td></tr></tbody></table><p>t</p>';
+
+/** Commands that regroup what is there: unrecorded, and no change left behind. */
+export const REBUILD_CASES: [string, string, Act[]][] = [
+  ['columns over the document', THREE, [(e) => select(e, 2), (e) => e.commands.setColumns(2)]],
+  ['columns over a selection', THREE, [(e) => select(e, 2, 9), (e) => e.commands.setColumns(2)]],
+  ['columns taken off', '<div data-columns="2" data-column-gap="0.5"><p>aa</p><p>bb</p></div><p>t</p>', [(e) => select(e, 3), (e) => e.commands.setColumns(1)]],
+  ['a merged cell split', TALL, [(e) => select(e, 4), (e) => e.commands.splitCell()]],
+  ['a cell split into two', TALL, [(e) => select(e, 4), (e) => e.commands.splitCellInto(2, 1)]],
+  ['an index at a heading start', '<h1>Head</h1><p>x</p>', [(e) => select(e, 1), (e) => e.commands.setTableOfContents()]],
+  ['an index in a paragraph', THREE, [(e) => select(e, 7), (e) => e.commands.setTableOfContents()]],
 ];

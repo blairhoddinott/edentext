@@ -1,4 +1,5 @@
 // The document as the model reads it, and the model's HTML as editor content. Every
+import { copiedSlice } from '../editor/extensions/trackChanges';
 // textblock is one numbered line, so a tool can name a paragraph by its number; text
 // struck through as a deletion is left out — the model sees the text as it would read.
 
@@ -461,7 +462,7 @@ export function trackedChanges(doc: PMNode): Revision[] {
 export function selectionHtml(state: EditorState): string {
   const { from, to } = state.selection;
   const div = document.createElement('div');
-  div.appendChild(DOMSerializer.fromSchema(state.schema).serializeFragment(state.doc.slice(from, to).content));
+  div.appendChild(DOMSerializer.fromSchema(state.schema).serializeFragment(copiedSlice(state.doc.slice(from, to), false).content));
   return div.innerHTML;
 }
 

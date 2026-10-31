@@ -1,11 +1,12 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core';
-import { Mark as PMMark, NodeRange, Slice, type Fragment, type Node as PMNode } from '@tiptap/pm/model';
+import { Fragment, Mark as PMMark, NodeRange, Slice, type Node as PMNode, type ResolvedPos } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
 import { CellSelection, TableMap, removeColumn, removeRow } from '@tiptap/pm/tables';
 import { AddMarkStep, AttrStep, Mapping, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, liftTarget, type Step, type StepMap } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
+import { markupView } from '../../storage/markup.svelte';
 
 // Recorded revisions, as both word processors keep them: an insertion is text marked as
 // added, a deletion is text still in the document but marked as removed — nothing is
@@ -75,6 +76,8 @@ export function newRevisionId(): string {
 export const RECORDING = new PluginKey<boolean>('trackChangesRecording');
 // Set on an edit that passed unrecorded because it only moves content, so none is marked.
 const MOVED = 'trackChangesMoved';
+/** Set on a command that regroups what is there (columns, a split cell): nothing to record. */
+export const REBUILDING = 'trackChangesRebuilding';
 /** Set on an edit that takes content from one place to another, as a drop does. */
 export const MOVING = 'trackChangesMoving';
 
@@ -140,7 +143,7 @@ function listChain(doc: PMNode, pos: number): ListLevel[] {
   }
   return out;
 }
-const sameLists = (a: ListLevel[] | undefined, b: ListLevel[]) => !a || a.map((l) => l.type).join() === b.map((l) => l.type).join();
+const sameLists = (a: ListLevel[] | undefined, b: ListLevel[]) => !a || JSON.stringify(a) === JSON.stringify(b);
 export const sameBlockFormat = (a: BlockFormat, b: BlockFormat) => a.type === b.type
   && Object.keys({ ...a.attrs, ...b.attrs }).every((k) => JSON.stringify(a.attrs[k]) === JSON.stringify(b.attrs[k]));
 
@@ -519,6 +522,25 @@ export function settledRange(doc: PMNode, accept: boolean, from: number, to: num
   return { doc: tr.doc, from: start, to: Math.max(start, tr.mapping.map(to, -1)) };
 }
 
+/** The text of a node as accepting would leave it: what a value or a sort key reads. */
+export function liveText(node: PMNode): string {
+  let out = '';
+  node.descendants((child) => { if (child.isText && !child.marks.some((m) => m.type.name === 'deletion')) out += child.text; });
+  return out;
+}
+
+/** The block's text before `$pos`, offsets kept: struck runs and atoms are no characters of it. */
+export function typedText($pos: ResolvedPos): string {
+  let out = '';
+  $pos.parent.forEach((child, offset) => {
+    const size = Math.min(child.nodeSize, $pos.parentOffset - offset);
+    if (size <= 0) return;
+    const hidden = !child.isText || child.marks.some((m) => m.type.name === 'deletion');
+    out += hidden ? '\uFFFC'.repeat(size) : child.text!.slice(0, size);
+  });
+  return out;
+}
+
 // A row or column gone for good; with its last one the table goes.
 function removeTableLine(tr: Transaction, pos: number, line: 'row' | 'column'): void {
   const $pos = tr.doc.resolve(pos), depth = line === 'row' ? $pos.depth : $pos.depth - 1;
@@ -649,6 +671,8 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
       new Plugin({
         key: RECORDING,
         props: {
+          // A copy is text, not a change: it holds what the view reads as the document.
+          transformCopied: (slice) => copiedSlice(slice, markupView().hideInsertions),
           handleDOMEvents: {
             compositionstart: (view) => {
               settle(view);
@@ -697,7 +721,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
         // marked as the author's own insertion is simply removed, which is what both
         // word processors do.
         filterTransaction: (tr, state) => {
-          if (!options.recording() || tr.getMeta(RECORDING) || !tr.docChanged || fromHistory(tr)) return true;
+          if (!options.recording() || tr.getMeta(RECORDING) || !tr.docChanged || fromHistory(tr) || rebuilds(tr)) return true;
           // A plugin's repair after an edit (the notes' own section, say) is no edit of
           // the user's; replayed, the repair would run again on the replay, without end.
           // It is filtered against the state the edit made, not the view's.
@@ -724,6 +748,29 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
     ];
   },
 });
+
+// `slice` as settling it would leave it, with no record of the changes. Taken wholly from
+// what settling removes (a struck word selected to reuse it), the text stays.
+export function copiedSlice(slice: Slice, original: boolean): Slice {
+  const gone = original ? 'insertion' : 'deletion';
+  const markup = new Set(['insertion', 'deletion', 'formatChange']);
+  const clean = (fragment: Fragment, drop: boolean): Fragment => {
+    const out: PMNode[] = [];
+    fragment.forEach((node) => {
+      if (drop && node.isInline && node.marks.some((m) => m.type.name === gone)) return;
+      const marks = node.marks.filter((m) => !markup.has(m.type.name));
+      const attrs = { ...node.attrs };
+      for (const key of ['revMark', 'revFormat']) if (key in attrs) attrs[key] = null;
+      const content = clean(node.content, drop);
+      if (drop && !content.size && (node.attrs.revMark as RevMark | null)?.[gone as 'insertion'] && hasParagraphMark(node)) return;
+      out.push(node.isText ? node.mark(marks) : node.type.create(attrs, content, marks));
+    });
+    return Fragment.fromArray(out);
+  };
+  let live = false;
+  slice.content.descendants((node) => { live ||= node.isInline && !node.marks.some((m) => m.type.name === gone); });
+  return new Slice(clean(slice.content, live), slice.openStart, slice.openEnd);
+}
 
 // What a mark step reaches: text and inline atoms.
 const isMarkable = (node: PMNode) => node.isInline && node.isAtom;
@@ -797,6 +844,9 @@ function recordBlockFormat(tr: Transaction, at: number, doc: PMNode, pos: number
   else if (!rec && !same) tr.setNodeAttribute(at, 'revFormat', { ...attrs, old });
 }
 
+// No edit of the user's: a command regrouping what is there, or a repair outside the history.
+const rebuilds = (tr: Transaction) => !!tr.getMeta(REBUILDING) || tr.getMeta('addToHistory') === false;
+
 // Undo and redo, and what other plugins append to them.
 function fromHistory(tr: Transaction): boolean {
   const root = tr.getMeta('appendedTransaction') as Transaction | undefined;
@@ -809,7 +859,7 @@ function fromHistory(tr: Transaction): boolean {
 function insertedRanges(transactions: readonly Transaction[]): [number, number][] {
   const out: [number, number][] = [];
   transactions.forEach((t, ti) => {
-    if (t.getMeta('appendedTransaction') || t.getMeta(MOVED)) return;
+    if (t.getMeta('appendedTransaction') || t.getMeta(MOVED) || rebuilds(t)) return;
     const later = transactions.slice(ti + 1).map((u) => u.mapping);
     for (let [from, to] of newRanges(t)) {
       for (const m of later) { from = m.map(from, 1); to = m.map(to, -1); }

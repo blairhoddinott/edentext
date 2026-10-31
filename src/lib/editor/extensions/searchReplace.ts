@@ -5,6 +5,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { Node as PmNode, Schema } from '@tiptap/pm/model';
 import { blockStyleName } from './paragraphStyle';
+import { markupView } from '../../storage/markup.svelte';
 import type { StyleSheet } from '../../styles/styleSheet';
 
 // Find & Replace: highlights all matches via decorations, navigates/replaces via commands.
@@ -129,6 +130,8 @@ export function regexRanges(text: string, re: RegExp): [number, number, string[]
 function findMatches(doc: PmNode, re: RegExp | null, format?: FormatSpec): Match[] {
   const wanted = markNames(format);
   if (!re && !hasFormat(format)) return [];
+  // Struck text is no text to find or replace, unless the view shows the original.
+  const unread = markupView().hideInsertions ? 'insertion' : 'deletion';
   const matches: Match[] = [];
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true;
@@ -137,6 +140,7 @@ function findMatches(doc: PmNode, re: RegExp | null, format?: FormatSpec): Match
     const map: number[] = []; // map[i] = doc position of char i
     const ok: boolean[] = []; // ok[i] = char i carries every mark the search asks for
     node.forEach((child, offset) => {
+      if (child.marks.some((m) => m.type.name === unread)) return;
       const marked = !format || runMatches(child.marks, format, wanted);
       if (child.isText) {
         const t = child.text ?? '';

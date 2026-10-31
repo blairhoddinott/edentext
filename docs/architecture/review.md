@@ -31,7 +31,7 @@ The `formatChange` mark holds the format marks its run had (`old`, JSON). A mark
 
 A block's own format (type, style, alignment, spacing, indents, tabs: all attrs but `UNFORMATTED_ATTRS`) is its `revFormat`, read from attr, markup and swap steps the same way: the first record stands and a block back at it has none.
 
-Lists are part of a block's format: `old.list` holds the lists around it, outermost first, so toggling a list, moving an item a level and changing the list type are all a `revFormat`, read from any `ReplaceAroundStep`. Rejecting lifts the block out and wraps it back, into the lists beside it (`restoreLists`), from the document start so nested items find their parents.
+Lists are part of a block's format: `old.list` holds the lists around it, outermost first, so toggling a list, moving an item a level and changing the list type or its bullet or numbering are all a `revFormat`, read from any `ReplaceAroundStep`. Rejecting lifts the block out and wraps it back, into the lists beside it (`restoreLists`), from the document start so nested items find their parents.
 
 Accepting drops the mark; rejecting puts `old` back run by run, a block's attrs and type with it. "Original" shows the current format, since a mark cannot be undone by CSS; the print path prints `settledDoc`.
 
@@ -69,6 +69,10 @@ Compare and Merge in the review tab take a file and write what separates it from
 
 Only text and structure differ: format does not, so a block differing in that alone is the same, and neither do headers, footers or the notes' text. A table of another shape is replaced whole, as is a long stretch with nothing in common (`MAX_CELLS`). A block without a form for a change, such as an index, passes unrecorded, and a table or list inserted at the very end leaves an empty paragraph when rejected, since the last block has no mark of its own.
 
+## Reading struck text
+
+What reads the document as text reads it as accepting would leave it: formulas and sort keys (`liveText`), find and replace, and typing's word and sentence rules (`typedText`, which keeps offsets). In "Original" find reads the other way round: inserted text is what is gone. A copy, and the passage an AI rewrite is sent, is plain text as the view reads it (`copiedSlice`, the `transformCopied` prop), with no record of the changes; a selection wholly inside what would go keeps its text, so a struck word can be reused.
+
 ## Views
 
 Word counts (`shownStats`), index rows, the navigator and references (`blockText`) read as the view does: what it hides is not there. The cached rows of an index change on its next update.
@@ -96,6 +100,8 @@ Our export writes LibreOffice's form with each side's real format in its registr
 ## Not recorded yet
 
 The list cut of a table inserted in a list passes unrecorded; the monkey's recording pass skips it. A link autolink sets on what typing made of the text before it stays when the typing is rejected.
+
+Regrouping what is there passes unrecorded (`REBUILDING`, and any transaction outside the history): columns, a split or merged cell, a sort, an index inserted, the columns flow's own cuts. So do what neither format records as a change or this one has no form for: links, bookmarks, comments, a table's own format and header row. A selection an index replaces goes recorded.
 
 ## Probed for later steps
 
