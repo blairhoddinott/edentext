@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { Editor, type Content } from '@tiptap/core';
   import { layOutZoneTabs, zoneDefaultStops } from '../editor/extensions/tabStops';
   import { FORCE_PAGE_RECALC } from '../editor/extensions/pageBreaks';
   import { zoneExtensions } from '../editor/extensions';
   import { StateStep, ZoneHistory } from '../editor/extensions/stateHistory';
   import { RECORDING } from '../editor/extensions/trackChanges';
+  import { ZONE_SETTLED, connectZones } from '../editor/zoneReview';
+  import { authorColors } from '../editor/authorColors';
   import { isHistoryTransaction } from '@tiptap/pm/history';
   import { TextSelection, type Transaction } from '@tiptap/pm/state';
   import { plainPastedSpaces, unwrapPastedBoxes } from '../editor/paste';
@@ -208,8 +210,19 @@
   // markers, table columns and frames render as they do in the live zone.
   let sources = $state<Record<string, HTMLElement>>({});
   let sourceVersion = $state(0);
+  const stored = new Set<Editor>();
+  // Authors share one colour table: a new one in any part repaints the stored zones.
+  let palette = '';
+  function repaint() {
+    const body = bodyEditor?.state.doc;
+    const now = body ? [...authorColors(body).keys()].join('\n') : '';
+    if (now === palette) return;
+    palette = now;
+    for (const ed of stored) ed.view.dispatch(ed.state.tr);
+  }
   function staticZone(node: HTMLElement, [id, doc]: [string, HfDoc]) {
     const ed = new Editor({ element: node, editable: false, extensions: renderExts, content: doc as Content });
+    stored.add(ed);
     let raf = 0;
     const bump = () => {
       cancelAnimationFrame(raf);
@@ -228,6 +241,7 @@
         cancelAnimationFrame(raf);
         mo.disconnect();
         delete sources[id];
+        stored.delete(ed);
         ed.destroy();
       },
     };
@@ -550,7 +564,7 @@
     const body = bodyEditor;
     if (!interactive || !body) return;
     const restore = ({ transaction }: { transaction: Transaction }) => {
-      if (!isHistoryTransaction(transaction)) return;
+      if (!isHistoryTransaction(transaction) && !transaction.getMeta(ZONE_SETTLED)) return;
       for (const step of transaction.steps) {
         if (!(step instanceof StateStep)) continue;
         const [kind, index, key] = step.id.split(':');
@@ -567,6 +581,41 @@
     body.on('transaction', restore);
     return () => body.off('transaction', restore);
   });
+
+  // The review reaches every zone the pages show, open or not.
+  $effect(() => {
+    if (!interactive) return;
+    const disconnect = connectZones({
+      body: () => bodyEditor,
+      list: () => sets.flatMap((s, i) => HF_ZONE_KEYS
+        .filter((key) => (!key.endsWith('First') || s.differentFirstPage) && (!key.endsWith('Even') || s.differentOddEven))
+        .map((key) => ({ id: `hf:${i}:${key}`, doc: s[key] }))),
+      open: openZoneOf,
+    });
+    const body = bodyEditor;
+    body?.on('update', repaint);
+    untrack(repaint);
+    return () => { body?.off('update', repaint); disconnect(); };
+  });
+  $effect(() => {
+    void setSig;
+    untrack(repaint);
+  });
+
+  // The first page that shows the zone, in the zone's editor.
+  async function openZoneOf(id: string, ready: (editor: Editor) => void) {
+    const [, section, key] = id.split(':');
+    const index = Number(section), variant: HfVariant = key.endsWith('First') ? 'first' : key.endsWith('Even') ? 'even' : 'default';
+    const page = Array.from({ length: numPages }, (_, i) => i + 1).find((p) => sectionOf(p) === index && variantFor(p, index) === variant);
+    if (!page) return;
+    if (!hfEditor || liveId !== id) {
+      hfActive = null;
+      await tick();
+      startEdit(key.startsWith('header') ? 'header' : 'footer', page);
+      await tick();
+    }
+    if (hfEditor) ready(hfEditor);
+  }
 
   // The field texts the live zone last showed; a change in them is not a document change,
   // so nothing else tells its tab plugin that the advances it measured are stale.

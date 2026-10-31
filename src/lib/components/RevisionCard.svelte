@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import type { Revision } from '../editor/extensions/trackChanges';
+  import { settleRevision } from './reviewItems';
   import { t } from '../i18n/i18n.svelte';
   import { formatMoment } from '../storage/dateFormat.svelte';
 
@@ -22,6 +23,9 @@
     return [t().revisions.formatted, names.join(', ')].filter(Boolean).join(': ');
   });
 
+  const ZONE_NAMES = { header: 'headerLabel', footer: 'footerLabel', headerFirst: 'firstPageHeader', footerFirst: 'firstPageFooter', headerEven: 'evenPageHeader', footerEven: 'evenPageFooter' } as const;
+  const place = $derived(r.zone ? t().hf[ZONE_NAMES[r.zone.split(':')[2] as keyof typeof ZONE_NAMES]] : '');
+
   // The stored ISO date, in the reader's locale — an imported file may carry any format.
 </script>
 
@@ -30,12 +34,12 @@
     <b style:color={color}>{r.author || author || t().revisions.unknownAuthor}</b>
     <span>{formatMoment(r.date)}</span>
   </div>
-  <div class="kind">{kind}</div>
+  <div class="kind">{[place, kind].filter(Boolean).join(' · ')}</div>
   <div class="quote" class:struck={r.kind === 'deletion'} style:color={color}>{r.text.replace(/\n/g, '¶') || (r.table ? t().revisions[r.table === 'row' ? 'tableRow' : 'tableColumn'] : '¶')}</div>
 </button>
 <div class="actions">
-  <button onclick={() => editor?.chain().focus(null, { scrollIntoView: false }).acceptRevision(r.id).run()}>{t().revisions.accept}</button>
-  <button onclick={() => editor?.chain().focus(null, { scrollIntoView: false }).rejectRevision(r.id).run()}>{t().revisions.reject}</button>
+  <button onclick={() => editor && settleRevision(editor, r, true)}>{t().revisions.accept}</button>
+  <button onclick={() => editor && settleRevision(editor, r, false)}>{t().revisions.reject}</button>
 </div>
 
 <style>

@@ -35,6 +35,16 @@ Lists are part of a block's format: `old.list` holds the lists around it, outerm
 
 Accepting drops the mark; rejecting puts `old` back run by run, a block's attrs and type with it. "Original" shows the current format, since a mark cannot be undone by CSS; the print path prints `settledDoc`.
 
+## Headers and footers
+
+A zone records like the body while its editor is open; a stored zone's editor (`zoneExtensions` without `live`) only shows it, so setting its content marks nothing.
+
+Most zones have no editor, so the review reads the stored docs (`editor/zoneReview.ts`): the pane lists the body's changes, then each shown zone's, with `Revision.zone` naming the zone, and a click opens the zone on the first page showing it and selects the change. Accepting or rejecting a zone's change settles the stored doc (`settledDoc`) and writes it as a `StateStep` in a body transaction, so "all" over body and zones is one undo step, and an open zone takes the result over like an undo (`ZONE_SETTLED`). The margin bars, balloons and Next/Previous stay on the body: in balloons a zone's change shows only in the zone. A zone shared by sections or by running and even pages is one row by id, and settling reaches each copy.
+
+DOCX ids are unique per part only, so the importer scopes a zone's by its part (`scopeRevisions`). In ODT a zone's changes sit in a `text:tracked-changes` of its own, first child of `style:header`/`style:footer`; `cutZones` moves them there with the zone, and a zone in several master pages repeats the registry under the same ids, which LibreOffice reads per zone (probed).
+
+Authors share one colour table over the body and all zones, the body's first; the stored zones repaint when it changes.
+
 ## Views
 
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.
@@ -64,7 +74,6 @@ The list cut of a table inserted in a list passes unrecorded; the monkey's recor
 ## Probed for later steps
 
 - **Column in DOCX:** LibreOffice drops `w:cellIns`/`w:cellDel`.
-- **Header and footer:** a `text:tracked-changes` of its own as first child of `style:header`/`style:footer` in `styles.xml`.
 - **Moves:** `loext:move-id` in the region's change info.
 
 The UNO API removes rows and columns unrecorded; a probe needs the dispatcher. pyuno does not run on macOS here, so the leg and the probes are Basic macros in a fresh profile's `Standard` library.

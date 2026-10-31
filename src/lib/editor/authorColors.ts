@@ -7,20 +7,32 @@ export const AUTHOR_COLORS = [
 ];
 
 // Walks the marks itself rather than revisions()/comments(): both extensions colour by it.
-const colorsOf = new WeakMap<PMNode, Map<string, string>>();
+const authorsOf = new WeakMap<PMNode, Set<string>>();
+
+// The body and its headers and footers share one author table, the body's authors first.
+type Shared = () => { body: PMNode | null; zones: PMNode[] };
+let shared: Shared | null = null;
+export function shareAuthors(next: Shared | null): void { shared = next; }
 
 /**
  * Author → colour over the whole document, revisions and comments (with their answers)
  * alike, so one reviewer keeps one colour everywhere and hiding markup recolours nothing.
  */
 export function authorColors(doc: PMNode): Map<string, string> {
-  const known = colorsOf.get(doc);
-  if (known) return known;
+  const { body, zones } = shared?.() ?? { body: null, zones: [] };
+  const parts = body && body.type.schema !== doc.type.schema ? [body, ...zones, doc] : [doc, ...zones];
   const out = new Map<string, string>();
-  const add = (author: unknown) => {
-    const a = String(author ?? '');
-    if (!out.has(a)) out.set(a, AUTHOR_COLORS[out.size % AUTHOR_COLORS.length]);
-  };
+  for (const part of parts) {
+    for (const a of authorsIn(part)) if (!out.has(a)) out.set(a, AUTHOR_COLORS[out.size % AUTHOR_COLORS.length]);
+  }
+  return out;
+}
+
+function authorsIn(doc: PMNode): Set<string> {
+  const known = authorsOf.get(doc);
+  if (known) return known;
+  const out = new Set<string>();
+  const add = (author: unknown) => out.add(String(author ?? ''));
   doc.descendants((node) => {
     if (!node.isText) return true;
     for (const m of node.marks) {
@@ -31,7 +43,7 @@ export function authorColors(doc: PMNode): Map<string, string> {
     }
     return false;
   });
-  colorsOf.set(doc, out);
+  authorsOf.set(doc, out);
   return out;
 }
 

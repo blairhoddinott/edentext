@@ -3,6 +3,8 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import { comments, commentRanges, type CommentRange } from '../editor/extensions/comment';
 import { revisions, type Revision } from '../editor/extensions/trackChanges';
+import { flushPending } from '../editor/extensions/stateHistory';
+import { bodyEditor, settleZones, zoneRevisions } from '../editor/zoneReview';
 import { markupView, showResolved } from '../storage/markup.svelte';
 
 // What the review views may show, in one place: bars, balloons, leader line and both
@@ -22,6 +24,33 @@ export function visibleCommentRanges(doc: PMNode): CommentRange[] {
 
 export function visibleRevisions(doc: PMNode): Revision[] {
   return markupView().changes ? revisions(doc) : [];
+}
+
+/** What the pane lists: the body's changes, then the headers' and footers'. */
+export function listedRevisions(doc: PMNode): Revision[] {
+  return markupView().changes ? [...revisions(doc), ...zoneRevisions()] : [];
+}
+
+/** Whether the document holds a change, wherever `editor` is working. */
+export function hasRevisions(editor: Editor): boolean {
+  return revisions((bodyEditor() ?? editor).state.doc).length > 0 || zoneRevisions().length > 0;
+}
+
+/** Accepts or rejects every change, zones included, in one undo step. */
+export function settleAll(editor: Editor, accept: boolean): void {
+  flushPending();
+  const chain = (bodyEditor() ?? editor).chain().command(({ tr }) => { settleZones(tr, accept); return true; });
+  (accept ? chain.acceptRevisions(true) : chain.rejectRevisions(true)).run();
+  editor.commands.focus();
+}
+
+/** Accepts or rejects one change, in whichever part of the document it is. */
+export function settleRevision(editor: Editor, r: Revision, accept: boolean): void {
+  flushPending();
+  const body = bodyEditor() ?? editor;
+  if (r.zone) { body.chain().command(({ tr }) => { settleZones(tr, accept, r.id); return true; }).run(); return; }
+  const chain = body === editor ? body.chain().focus(null, { scrollIntoView: false }) : body.chain();
+  (accept ? chain.acceptRevision(r.id) : chain.rejectRevision(r.id)).run();
 }
 
 /** Select a marked range and scroll it smoothly into view — what a click on any of its

@@ -5,7 +5,7 @@
   import LanguagePicker from '../LanguagePicker.svelte';
   import GrammarToggle from '../GrammarToggle.svelte';
   import { closeMenu } from '../ribbon/menu.svelte';
-  import { goToMarkup } from '../reviewItems';
+  import { goToMarkup, hasRevisions, settleAll } from '../reviewItems';
   import { countText, type TextStats } from '../../utils/wordCount';
   import type { DocumentLanguage } from '../../storage/documentLanguage';
   import { recordChanges, setRecordChanges } from '../../storage/trackChanges.svelte';
@@ -16,7 +16,6 @@
     commentPlace, setCommentPlace, changePlace, setChangePlace, showResolved, setShowResolved,
     type MarkupMode, type MarkupPlace,
   } from '../../storage/markup.svelte';
-  import { revisions } from '../../editor/extensions/trackChanges';
   import { comments } from '../../editor/extensions/comment';
   import { OPEN_THESAURUS_EVENT } from '../../spell/thesaurus';
   import { shortcutHint } from '../../editor/shortcuts';
@@ -35,7 +34,7 @@
 
   let hasSelection = $derived(tick >= 0 && !!editor && !editor.state.selection.empty);
   // Accepting a change stays possible even where the view hides it, as it is in Word.
-  let hasRevisions = $derived(tick >= 0 && !!editor && revisions(editor.state.doc).length > 0);
+  let anyRevisions = $derived(tick >= 0 && !!editor && hasRevisions(editor));
   let hasComments = $derived(tick >= 0 && !!editor && comments(editor.state.doc).length > 0);
 
   const PLACE_LABEL: Record<MarkupPlace, () => string> = {
@@ -125,16 +124,16 @@
     {/each}
   </IslandMenu>
   {@render showKind('changePlace', t().revisions.showPane, showChanges(), () => setShowChanges(!showChanges()), changePlace(), setChangePlace, false)}
-  <IslandMenu id="accept" icon="check" cmd="accept" caretCmd="acceptMenu" title={t().revisions.acceptHint} disabled={!hasRevisions} onclick={() => editor?.chain().focus().acceptRevisions().run()}>
+  <IslandMenu id="accept" icon="check" cmd="accept" caretCmd="acceptMenu" title={t().revisions.acceptHint} disabled={!anyRevisions} onclick={() => editor?.chain().focus().acceptRevisions().run()}>
     <button onclick={() => { closeMenu(); editor?.chain().focus().acceptRevisions().run(); }}>{t().revisions.accept}</button>
-    <button data-cmd="acceptAll" onclick={() => { closeMenu(); editor?.chain().focus().acceptRevisions(true).run(); }}>{t().revisions.acceptAll}</button>
+    <button data-cmd="acceptAll" onclick={() => { closeMenu(); editor && settleAll(editor, true); }}>{t().revisions.acceptAll}</button>
   </IslandMenu>
-  <IslandMenu id="reject" icon="close" cmd="reject" caretCmd="rejectMenu" title={t().revisions.rejectHint} disabled={!hasRevisions} onclick={() => editor?.chain().focus().rejectRevisions().run()}>
+  <IslandMenu id="reject" icon="close" cmd="reject" caretCmd="rejectMenu" title={t().revisions.rejectHint} disabled={!anyRevisions} onclick={() => editor?.chain().focus().rejectRevisions().run()}>
     <button onclick={() => { closeMenu(); editor?.chain().focus().rejectRevisions().run(); }}>{t().revisions.reject}</button>
-    <button data-cmd="rejectAll" onclick={() => { closeMenu(); editor?.chain().focus().rejectRevisions(true).run(); }}>{t().revisions.rejectAll}</button>
+    <button data-cmd="rejectAll" onclick={() => { closeMenu(); editor && settleAll(editor, false); }}>{t().revisions.rejectAll}</button>
   </IslandMenu>
-  <IslandButton icon="chevronLeft" cmd="prevChange" title={`${t().ribbon.groups.revisions}: ${t().revisions.prev}`} disabled={!hasRevisions} onclick={() => go('revision', -1)} />
-  <IslandButton icon="chevronRight" cmd="nextChange" title={`${t().ribbon.groups.revisions}: ${t().revisions.next}`} disabled={!hasRevisions} onclick={() => go('revision', 1)} />
+  <IslandButton icon="chevronLeft" cmd="prevChange" title={`${t().ribbon.groups.revisions}: ${t().revisions.prev}`} disabled={!anyRevisions} onclick={() => go('revision', -1)} />
+  <IslandButton icon="chevronRight" cmd="nextChange" title={`${t().ribbon.groups.revisions}: ${t().revisions.next}`} disabled={!anyRevisions} onclick={() => go('revision', 1)} />
   <!-- A checkbox, not a button: it settles what the next printout carries, it does not print. -->
   <label class="check" data-cmd="printMarkup" title={t().revisions.printMarkupHint}>
     <input type="checkbox" checked={printMarkup()} onchange={(e) => setPrintMarkup(e.currentTarget.checked)} />

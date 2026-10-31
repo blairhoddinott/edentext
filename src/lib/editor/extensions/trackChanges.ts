@@ -46,6 +46,8 @@ export type Revision = {
   table?: 'row' | 'column';
   /** A format change: the names of the marks that differ from what the text had. */
   changed?: string[];
+  /** The header or footer it is in (`zoneRevisions`); its positions are that zone's. */
+  zone?: string;
 };
 
 export type RevisionAttrs = { id: string; author: string; date: string };
@@ -440,10 +442,10 @@ function goneBlocks(doc: PMNode): { pos: number; size: number; kind: RevisionKin
   return out;
 }
 
-/** The document with every change accepted or rejected, for a page built from it. */
-export function settledDoc(doc: PMNode, accept: boolean): PMNode {
+/** The document with one change, or every one, accepted or rejected. */
+export function settledDoc(doc: PMNode, accept: boolean, id?: string): PMNode {
   const state = EditorState.create({ doc }), tr = state.tr;
-  apply(state, tr, revisions(doc), accept);
+  apply(state, tr, revisions(doc).filter((r) => id == null || r.id === id), accept);
   return tr.doc;
 }
 
@@ -519,7 +521,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
     // The mark cannot know the document's other authors, so the colour is a decoration
     // (`authorColors`). Cached on the doc — the walk is the whole document, and this runs
     // on every view update.
-    let cache: { doc: PMNode; plain: boolean; set: DecorationSet } | null = null;
+    let cache: { doc: PMNode; plain: boolean; palette: string; set: DecorationSet } | null = null;
     // An IME composes over a selection in place: that composition's steps (ProseMirror's
     // `composition` meta) pass unrecorded, and once it ends what it took out of the selection
     // (`kept` is the rest) goes back struck through, in the same history event.
@@ -540,12 +542,11 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
       new Plugin({
         props: {
           decorations(state) {
-            // `plain` is in the key: a display mode changes what this draws without
-            // touching the document, and the cached set would otherwise stand.
-            const plain = options.plain();
-            if (cache?.doc === state.doc && cache.plain === plain) return cache.set;
+            // `plain` and the palette are in the key: a display mode, or an author elsewhere
+            // in the document, changes what this draws without touching this doc.
+            const plain = options.plain(), colors = authorColors(state.doc), palette = [...colors.keys()].join('\n');
+            if (cache?.doc === state.doc && cache.plain === plain && cache.palette === palette) return cache.set;
             const list = plain ? [] : revisions(state.doc);
-            const colors = authorColors(state.doc);
             const gone = goneBlocks(state.doc).map(({ pos, size, kind }) => Decoration.node(pos, pos + size, { class: `pm-gone-${kind}` }));
             const set = DecorationSet.create(state.doc, gone.concat(list.flatMap((r) => {
               const cls = `pm-rev-${r.kind === 'insertion' ? 'ins' : 'del'}`, color = authorColor(colors, r.author);
@@ -564,7 +565,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
                 }, { side: -1, ignoreSelection: true, key: `${r.kind}${pos}${color}` }))),
               ];
             })));
-            cache = { doc: state.doc, plain, set };
+            cache = { doc: state.doc, plain, palette, set };
             return set;
           },
         },

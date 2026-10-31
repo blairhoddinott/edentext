@@ -2,7 +2,8 @@
   import type { Editor } from '@tiptap/core';
   import { revisionIdAt, type Revision } from '../editor/extensions/trackChanges';
   import { authorColor, authorColors } from '../editor/authorColors';
-  import { selectRange, visibleRevisions } from './reviewItems';
+  import { listedRevisions, selectRange } from './reviewItems';
+  import { openZone } from '../editor/zoneReview';
   import RevisionCard from './RevisionCard.svelte';
   import { t } from '../i18n/i18n.svelte';
 
@@ -20,7 +21,7 @@
   let list = $derived.by<Revision[]>(() => {
     if (tick < 0 || !editor) return [];
     const seen = new Set<string>();
-    return visibleRevisions(editor.state.doc).filter((r) => !seen.has(r.id) && seen.add(r.id));
+    return listedRevisions(editor.state.doc).filter((r) => !seen.has(r.id) && seen.add(r.id));
   });
 
   let colors = $derived.by(() => (tick < 0 || !editor ? new Map<string, string>() : authorColors(editor.state.doc)));
@@ -42,7 +43,8 @@
   }
 
   function jumpTo(r: Revision) {
-    if (editor) selectRange(editor, r.from, r.to);
+    if (r.zone) openZone(r.zone, (zone) => selectRange(zone, r.from, r.to));
+    else if (editor) selectRange(editor, r.from, r.to);
   }
 </script>
 

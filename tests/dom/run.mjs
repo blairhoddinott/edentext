@@ -1426,6 +1426,45 @@ try {
   check(left.length === 1 && left[0] === 'stays', `the blocks a hidden deletion empties go, list items too (${left.length} left)`);
   await page.evaluate(() => { const p = document.querySelector('.paper'); p.removeAttribute('data-hide-deletions'); document.querySelector('.tiptap-host .tiptap').editor.commands.setContent('<p>aa</p><p>bbbb</p><p>cc</p>'); });
 
+  // A header's and a footer's changes are the document's: listed, jumped to, settled at once.
+  const rev = (id, author) => ({ id, author, date: '2026-01-01T00:00:00Z' });
+  const zoneDoc = (text, type, attrs) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'keep ' }, { type: 'text', text, marks: [{ type, attrs }] }] }] });
+  await page.evaluate(([head, foot]) => {
+    localStorage.clear();
+    localStorage.setItem('edentext-header', JSON.stringify(head));
+    localStorage.setItem('edentext-footer', JSON.stringify(foot));
+    localStorage.setItem('edentext-markup-change-place', 'pane');
+  }, [zoneDoc('added', 'insertion', rev('h1', 'Ann')), zoneDoc('struck', 'deletion', rev('f1', 'Ben'))]);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.revisions-pane li');
+  const rows = () => page.evaluate(() => [...document.querySelectorAll('.revisions-pane li .kind')].map((e) => e.textContent));
+  const reviewTab = () => page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Review').click());
+  await page.waitForFunction(() => document.querySelector('.hf-header .pm-rev-ins')?.style.color !== document.querySelector('.hf-footer .pm-rev-del')?.style.color, null, { timeout: 3000 }).catch(() => {});
+  const zoneColors = await page.evaluate(() => [document.querySelector('.hf-header .pm-rev-ins')?.style.color, document.querySelector('.hf-footer .pm-rev-del')?.style.color]);
+  check(String(await rows()) === 'Header · Inserted,Footer · Deleted' && zoneColors[0] && zoneColors[1] && zoneColors[0] !== zoneColors[1],
+    `the pane lists the zones' changes, each author in a colour of the one table (${await rows()}, ${zoneColors})`);
+  await reviewTab();
+  await page.locator('[data-cmd="trackChanges"]').first().click();
+  await page.locator('.revisions-pane li .card').first().click();
+  await page.waitForSelector('.hf-active.hf-header .tiptap');
+  await page.waitForFunction(() => window.getSelection()?.toString() === 'added', null, { timeout: 5000 }).catch(() => {});
+  check(await page.evaluate(() => window.getSelection()?.toString() === 'added'), 'a change in the pane opens its zone and selects it');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.type('more');
+  await page.waitForFunction(() => document.querySelectorAll('.revisions-pane li').length === 3, null, { timeout: 5000 }).catch(() => {});
+  check((await rows()).length === 3, `typing in the open zone is recorded (${await rows()})`);
+  await reviewTab();
+  await page.locator('[data-cmd="rejectAll"]').first().click({ force: true }).catch(() => {});
+  await page.evaluate(() => document.querySelector('[data-cmd="rejectAll"]')?.click());
+  await page.waitForFunction(() => !document.querySelector('.revisions-pane li'), null, { timeout: 5000 }).catch(() => {});
+  const rejected = await page.evaluate(() => ({ live: document.querySelector('.hf-active .tiptap')?.textContent, foot: document.querySelector('.hf-footer')?.textContent, rows: document.querySelectorAll('.revisions-pane li').length }));
+  check(rejected.rows === 0 && rejected.live === 'keep ' && rejected.foot === 'keep struck', `reject all reaches the open zone and the closed one (${JSON.stringify(rejected)})`);
+  await page.keyboard.press('Escape');
+  await page.locator('.tiptap-host .tiptap').first().click();
+  await page.keyboard.press(`${MOD}+z`);
+  await page.waitForFunction(() => document.querySelectorAll('.revisions-pane li').length === 3, null, { timeout: 5000 }).catch(() => {});
+  check((await rows()).length === 3, `one undo brings every settled zone back (${await rows()})`);
+
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);
 } finally {

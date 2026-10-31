@@ -1462,6 +1462,12 @@ img[data-color-mode='watermark'] { filter: brightness(2); opacity: 0.15; }
    author colour is off in these modes too (trackChanges.ts), the mark's tint is not. */
 .paper[data-plain-markup] .tiptap .pm-insertion,
 .paper[data-plain-markup] .tiptap .pm-deletion { color: inherit; }
+/* A zone on the page is a copy of its decorations, whichever view they were drawn in. */
+.paper[data-plain-markup] .hf-zone .pm-rev-ins,
+.paper[data-plain-markup] .hf-zone .pm-rev-del,
+.paper[data-plain-markup] .hf-zone .pm-rev-format { color: inherit !important; text-decoration: none; }
+.paper[data-plain-markup] .hf-zone .pm-para-mark { display: none; }
+.paper[data-plain-markup] .hf-zone .pm-block-format { box-shadow: none; }
 
 .paper[data-hide-comments] .tiptap .pm-comment,
 .paper[data-hide-comments] .tiptap .pm-comment-tint {
