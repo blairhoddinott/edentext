@@ -1131,6 +1131,12 @@ const ja: Messages = {
     inserted: '挿入',
     deleted: '削除',
     moved: '移動',
+    filterAuthor: '作成者',
+    filterKind: '種類',
+    filterSince: '以降',
+    filterAny: 'すべて',
+    acceptShown: '表示中の変更を反映',
+    rejectShown: '表示中の変更を元に戻す',
     formatted: '書式変更',
   },
   notesDialog: {

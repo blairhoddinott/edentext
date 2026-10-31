@@ -1129,6 +1129,12 @@ const zhHans: Messages = {
     inserted: '插入',
     deleted: '删除',
     moved: '已移动',
+    filterAuthor: '作者',
+    filterKind: '类型',
+    filterSince: '起始日期',
+    filterAny: '全部',
+    acceptShown: '接受所显示的',
+    rejectShown: '拒绝所显示的',
     formatted: '格式更改',
   },
   notesDialog: {

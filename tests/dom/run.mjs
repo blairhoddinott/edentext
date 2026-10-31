@@ -1443,8 +1443,13 @@ try {
   const zoneColors = await page.evaluate(() => [document.querySelector('.hf-header .pm-rev-ins')?.style.color, document.querySelector('.hf-footer .pm-rev-del')?.style.color]);
   check(String(await rows()) === 'Header · Inserted,Footer · Deleted' && zoneColors[0] && zoneColors[1] && zoneColors[0] !== zoneColors[1],
     `the pane lists the zones' changes, each author in a colour of the one table (${await rows()}, ${zoneColors})`);
+  await page.selectOption('.revisions-pane .filter select >> nth=0', { label: 'Ben' });
+  await page.waitForFunction(() => document.querySelectorAll('.revisions-pane li').length === 1, null, { timeout: 3000 }).catch(() => {});
+  check(String(await rows()) === 'Footer · Deleted' && await page.getByRole('button', { name: 'Accept shown' }).count() === 1, `the pane filters by author and offers what it shows (${await rows()})`);
+  await page.selectOption('.revisions-pane .filter select >> nth=0', { label: 'All' });
+  await page.keyboard.press(`${MOD}+Shift+c`);
   await reviewTab();
-  await page.locator('[data-cmd="trackChanges"]').first().click();
+  check(await page.locator('[data-cmd="trackChanges"].active, [data-cmd="trackChanges"][aria-pressed="true"]').count() > 0, 'the record key turns recording on');
   await page.locator('.revisions-pane li .card').first().click();
   await page.waitForSelector('.hf-active.hf-header .tiptap');
   await page.waitForFunction(() => window.getSelection()?.toString() === 'added', null, { timeout: 5000 }).catch(() => {});

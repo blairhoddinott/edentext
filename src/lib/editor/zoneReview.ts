@@ -55,11 +55,11 @@ export function zoneRevisions(): Revision[] {
   });
 }
 
-/** Settles one change of the zones, or all of them, within a body transaction. */
-export function settleZones(tr: Transaction, accept: boolean, id?: string): void {
+/** Settles the changes named, or every one, within a body transaction. */
+export function settleZones(tr: Transaction, accept: boolean, id?: string | string[]): void {
   for (const zone of host?.list() ?? []) {
     const node = nodeOf(zone.doc);
-    if (!node || !revisions(node).some((r) => id == null || r.id === id)) continue;
+    if (!node || !revisions(node).some((r) => id == null || [id].flat().includes(r.id))) continue;
     tr.step(new StateStep(zone.id, zone.doc, settledDoc(node, accept, id).toJSON()));
   }
   tr.setMeta(RECORDING, true).setMeta(ZONE_SETTLED, true);

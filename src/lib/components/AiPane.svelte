@@ -267,9 +267,8 @@
   function settle(e: Entry, accept: boolean) {
     const ids = pending(e);
     if (!editor || !ids.length) return;
-    let chain = editor.chain();
-    for (const id of ids) chain = accept ? chain.acceptRevision(id) : chain.rejectRevision(id);
-    chain.run();
+    if (accept) editor.commands.acceptRevision(ids);
+    else editor.commands.rejectRevision(ids);
   }
 
   // Sends question i again, as typed or edited: the replies after it go, and with them

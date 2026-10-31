@@ -280,12 +280,17 @@ declare module '@tiptap/core' {
       acceptRevisions: (all?: boolean) => ReturnType;
       /** Reject the change under the cursor, or every one when `all`. */
       rejectRevisions: (all?: boolean) => ReturnType;
-      /** Accept every range of one change, wherever the reviewing pane lists it. */
-      acceptRevision: (id: string) => ReturnType;
-      /** Reject every range of one change. */
-      rejectRevision: (id: string) => ReturnType;
+      /** Accept every range of one change or several, as the reviewing pane lists them. */
+      acceptRevision: (id: string | string[]) => ReturnType;
+      /** Reject every range of one change or several. */
+      rejectRevision: (id: string | string[]) => ReturnType;
     };
   }
+}
+
+function withIds(all: Revision[], id: string | string[]): Revision[] {
+  const ids = [id].flat();
+  return wholeChanges(all, all.filter((r) => ids.includes(r.id)));
 }
 
 // The revisions a command applies to: all of them, or the ones the selection touches
@@ -299,10 +304,11 @@ function targets(state: EditorState, all: boolean): Revision[] {
 
 // Applying changes runs from the end, mapped. The RECORDING meta keeps the plugin's hands
 // off it: without it the delete below is read as a fresh user deletion and marked up again.
-// One change by id — every range of it, which is what a paragraph boundary splits a
-// change into and what the pane lists as a single revision.
-function byId(state: EditorState, tr: Transaction, dispatch: unknown, id: string, accept: boolean): boolean {
-  const all = revisions(state.doc), list = wholeChanges(all, all.filter((r) => r.id === id));
+// Changes by id — every range of each, which is what a paragraph boundary splits a change
+// into and what the pane lists as a single revision. Several go in one call, as `apply`
+// maps over the whole transaction and cannot follow an earlier call in a chain.
+function byId(state: EditorState, tr: Transaction, dispatch: unknown, id: string | string[], accept: boolean): boolean {
+  const list = withIds(revisions(state.doc), id);
   if (!list.length) return false;
   if (dispatch) apply(state, tr, list, accept);
   return true;
@@ -460,11 +466,11 @@ function goneBlocks(doc: PMNode): { pos: number; size: number; kind: RevisionKin
   return out;
 }
 
-/** The document with one change, or every one, accepted or rejected. */
-export function settledDoc(doc: PMNode, accept: boolean, id?: string): PMNode {
+/** The document with the changes named, or every one, accepted or rejected. */
+export function settledDoc(doc: PMNode, accept: boolean, id?: string | string[]): PMNode {
   const state = EditorState.create({ doc }), tr = state.tr;
   const all = revisions(doc);
-  apply(state, tr, id == null ? all : wholeChanges(all, all.filter((r) => r.id === id)), accept);
+  apply(state, tr, id == null ? all : withIds(all, id), accept);
   return tr.doc;
 }
 

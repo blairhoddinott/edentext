@@ -1144,6 +1144,12 @@ const en = {
     inserted: 'Inserted',
     deleted: 'Deleted',
     moved: 'Moved',
+    filterAuthor: 'Author',
+    filterKind: 'Type',
+    filterSince: 'Since',
+    filterAny: 'All',
+    acceptShown: 'Accept shown',
+    rejectShown: 'Reject shown',
     formatted: 'Formatted',
   },
   notesDialog: {

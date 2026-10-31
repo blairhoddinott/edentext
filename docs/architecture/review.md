@@ -55,6 +55,10 @@ A drop and a chapter moved in the navigator are recorded (`MOVING`, `replayTrack
 
 **ODF:** `<loext:move-id>` between `dc:creator` and `dc:date` in the change info, the same number on both halves, from 2 on: LibreOffice reads 1 as a half without a pair and drops it on the way out (probed).
 
+## Reviewing
+
+The pane filters by author, kind and day (`filterRevisions`), a move counting as a kind of its own; with a filter set it accepts or rejects what it shows, in one undo step (`settleRevisions`). The filter is the pane's alone: the page and the ribbon's "all" go on covering everything.
+
 ## Views
 
 "No markup" and "Original" hide a kind of change with CSS. A block with nothing left, all its text and a paragraph mark on either end being of that kind, goes too (`goneBlocks`, the classes `pm-gone-*`), with a list item holding only it.

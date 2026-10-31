@@ -2,7 +2,7 @@
   import type { Editor } from '@tiptap/core';
   import { revisionIdAt, type Revision } from '../editor/extensions/trackChanges';
   import { authorColor, authorColors } from '../editor/authorColors';
-  import { listedRevisions, selectRange } from './reviewItems';
+  import { filterRevisions, listedRevisions, selectRange, settleRevisions, type RevisionFilter } from './reviewItems';
   import { openZone } from '../editor/zoneReview';
   import RevisionCard from './RevisionCard.svelte';
   import { t } from '../i18n/i18n.svelte';
@@ -17,11 +17,17 @@
     onClose: () => void;
   } = $props();
 
+  let filter = $state<RevisionFilter>({ author: null, kind: null, since: '' });
+  let filtered = $derived(filter.author != null || filter.kind != null || !!filter.since);
+
+  let all = $derived.by<Revision[]>(() => (tick < 0 || !editor ? [] : listedRevisions(editor.state.doc)));
+  // The author asked for stays an option after their last change went.
+  let authors = $derived([...new Set([...all.map((r) => r.author), ...(filter.author == null ? [] : [filter.author])])]);
+
   // One row per change, not per range: a paragraph boundary splits one change in two.
   let list = $derived.by<Revision[]>(() => {
-    if (tick < 0 || !editor) return [];
     const seen = new Set<string>();
-    return listedRevisions(editor.state.doc).filter((r) => {
+    return filterRevisions(all, filter).filter((r) => {
       const key = r.moved ? r.moveId! : r.id;
       return !seen.has(key) && seen.add(key);
     });
@@ -59,6 +65,35 @@
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
     </button>
   </header>
+
+  {#if all.length || filtered}
+    <div class="filter">
+      <label>{t().revisions.filterAuthor}
+        <select bind:value={filter.author}>
+          <option value={null}>{t().revisions.filterAny}</option>
+          {#each authors as a}<option value={a}>{a || author || t().revisions.unknownAuthor}</option>{/each}
+        </select>
+      </label>
+      <label>{t().revisions.filterKind}
+        <select bind:value={filter.kind}>
+          <option value={null}>{t().revisions.filterAny}</option>
+          <option value="insertion">{t().revisions.inserted}</option>
+          <option value="deletion">{t().revisions.deleted}</option>
+          <option value="formatChange">{t().revisions.formatted}</option>
+          <option value="moved">{t().revisions.moved}</option>
+        </select>
+      </label>
+      <label>{t().revisions.filterSince}
+        <input type="date" bind:value={filter.since} />
+      </label>
+      {#if filtered && list.length}
+        <div class="settle">
+          <button onclick={() => editor && settleRevisions(editor, list, true)}>{t().revisions.acceptShown}</button>
+          <button onclick={() => editor && settleRevisions(editor, list, false)}>{t().revisions.rejectShown}</button>
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   {#if !list.length}
     <p class="empty">{t().revisions.empty}</p>
@@ -108,6 +143,21 @@
     cursor: pointer;
   }
   .close:hover { background: var(--color-btn-hover); color: var(--color-text); }
+
+  .filter { display: grid; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--color-border); }
+  .filter label { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); align-items: center; color: var(--color-text-muted); }
+  .filter select, .filter input { min-width: 0; font: inherit; }
+  .settle { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+  .settle button {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: none;
+    color: inherit;
+    padding: 2px 6px;
+    font: inherit;
+    cursor: pointer;
+  }
+  .settle button:hover { background: var(--color-btn-hover); }
 
   .empty { padding: 12px 10px; color: var(--color-text-muted); }
 

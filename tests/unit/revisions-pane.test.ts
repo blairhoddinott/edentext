@@ -10,6 +10,7 @@ import Text from '@tiptap/extension-text';
 import { TrackChanges, Insertion, Deletion, revisions } from '../../src/lib/editor/extensions/trackChanges';
 import { Comment } from '../../src/lib/editor/extensions/comment';
 import { authorColors } from '../../src/lib/editor/authorColors';
+import { filterRevisions, settleRevisions } from '../../src/lib/components/reviewItems';
 
 type N = any;
 
@@ -52,6 +53,28 @@ describe('revisions for the reviewing pane', () => {
     const left = revisions(editor.state.doc);
     expect(left.map((r) => r.id)).toEqual(['r2']);
     expect(editor.state.doc.textContent).toBe('a onetwo b gone');
+    editor.destroy();
+  });
+
+  it('filters by author, kind and day, and settles what is left in one step', () => {
+    const editor = makeEditor(doc);
+    const list = revisions(editor.state.doc);
+    const none = { author: null, kind: null, since: '' };
+    const ids = (filter: Parameters<typeof filterRevisions>[1]) => [...new Set(filterRevisions(list, filter).map((r) => r.id))];
+    expect(ids(none)).toEqual(['r1', 'r2']);
+    expect(ids({ ...none, author: 'Grace' })).toEqual(['r2']);
+    expect(ids({ ...none, kind: 'insertion' })).toEqual(['r1']);
+    expect(ids({ ...none, kind: 'moved' })).toEqual([]);
+    expect(ids({ ...none, since: '2026-08-14' })).toEqual(['r1', 'r2']);
+    expect(ids({ ...none, since: '2026-08-15' })).toEqual([]);
+
+    // The second change's positions lie behind what the first one removes.
+    let steps = 0;
+    editor.on('transaction', () => steps++);
+    settleRevisions(editor, list, false);
+    expect(editor.state.doc.textContent).toBe('a  b gone');
+    expect(revisions(editor.state.doc)).toHaveLength(0);
+    expect(steps).toBe(1);
     editor.destroy();
   });
 

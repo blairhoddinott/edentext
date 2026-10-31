@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Editor } from '@tiptap/core';
   import type { Revision } from '../editor/extensions/trackChanges';
-  import { settleRevision } from './reviewItems';
+  import { settleRevisions } from './reviewItems';
   import { t } from '../i18n/i18n.svelte';
   import { formatMoment } from '../storage/dateFormat.svelte';
 
@@ -39,8 +39,8 @@
   <div class="quote" class:struck={r.kind === 'deletion'} style:color={color}>{r.text.replace(/\n/g, '¶') || (r.table ? t().revisions[r.table === 'row' ? 'tableRow' : 'tableColumn'] : '¶')}</div>
 </button>
 <div class="actions">
-  <button onclick={() => editor && settleRevision(editor, r, true)}>{t().revisions.accept}</button>
-  <button onclick={() => editor && settleRevision(editor, r, false)}>{t().revisions.reject}</button>
+  <button onclick={() => editor && settleRevisions(editor, [r], true)}>{t().revisions.accept}</button>
+  <button onclick={() => editor && settleRevisions(editor, [r], false)}>{t().revisions.reject}</button>
 </div>
 
 <style>

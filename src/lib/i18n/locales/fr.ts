@@ -1134,6 +1134,12 @@ const fr: Messages = {
     inserted: 'Inséré',
     deleted: 'Supprimé',
     moved: 'Déplacé',
+    filterAuthor: 'Auteur',
+    filterKind: 'Type',
+    filterSince: 'Depuis',
+    filterAny: 'Tout',
+    acceptShown: 'Accepter ce qui est affiché',
+    rejectShown: 'Refuser ce qui est affiché',
     formatted: 'Mis en forme',
   },
   notesDialog: {

@@ -1144,6 +1144,12 @@ const uk: Messages = {
     inserted: 'Додано',
     deleted: 'Видалено',
     moved: 'Переміщено',
+    filterAuthor: 'Автор',
+    filterKind: 'Тип',
+    filterSince: 'Від дати',
+    filterAny: 'Усі',
+    acceptShown: 'Прийняти показані',
+    rejectShown: 'Відхилити показані',
     formatted: 'Відформатовано',
   },
   notesDialog: {

@@ -1145,6 +1145,12 @@ const el: Messages = {
     inserted: "Εισαγάχθηκε",
     deleted: "Διαγράφηκε",
     moved: 'Μετακινήθηκε',
+    filterAuthor: 'Συντάκτης',
+    filterKind: 'Είδος',
+    filterSince: 'Από',
+    filterAny: 'Όλα',
+    acceptShown: 'Αποδοχή εμφανιζόμενων',
+    rejectShown: 'Απόρριψη εμφανιζόμενων',
     formatted: "Μορφοποιήθηκε",
   },
   notesDialog: {

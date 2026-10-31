@@ -1135,6 +1135,12 @@ const de: Messages = {
     inserted: 'Eingefügt',
     deleted: 'Gelöscht',
     moved: 'Verschoben',
+    filterAuthor: 'Autor',
+    filterKind: 'Art',
+    filterSince: 'Seit',
+    filterAny: 'Alle',
+    acceptShown: 'Angezeigte annehmen',
+    rejectShown: 'Angezeigte ablehnen',
     formatted: 'Formatiert',
   },
   notesDialog: {

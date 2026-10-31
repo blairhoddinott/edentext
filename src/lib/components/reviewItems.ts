@@ -2,7 +2,7 @@ import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import { comments, commentRanges, type CommentRange } from '../editor/extensions/comment';
-import { revisions, type Revision } from '../editor/extensions/trackChanges';
+import { revisions, type Revision, type RevisionKind } from '../editor/extensions/trackChanges';
 import { flushPending } from '../editor/extensions/stateHistory';
 import { bodyEditor, settleZones, zoneRevisions } from '../editor/zoneReview';
 import { markupView, showResolved } from '../storage/markup.svelte';
@@ -44,13 +44,24 @@ export function settleAll(editor: Editor, accept: boolean): void {
   editor.commands.focus();
 }
 
-/** Accepts or rejects one change, in whichever part of the document it is. */
-export function settleRevision(editor: Editor, r: Revision, accept: boolean): void {
+/** Accepts or rejects these changes, wherever each is, in one undo step. */
+export function settleRevisions(editor: Editor, list: Revision[], accept: boolean): void {
   flushPending();
-  const body = bodyEditor() ?? editor;
-  if (r.zone) { body.chain().command(({ tr }) => { settleZones(tr, accept, r.id); return true; }).run(); return; }
-  const chain = body === editor ? body.chain().focus(null, { scrollIntoView: false }) : body.chain();
-  (accept ? chain.acceptRevision(r.id) : chain.rejectRevision(r.id)).run();
+  const body = bodyEditor() ?? editor, zones = list.flatMap((r) => (r.zone ? [r.id] : [])), inBody = list.flatMap((r) => (r.zone ? [] : [r.id]));
+  let chain = body === editor ? body.chain().focus(null, { scrollIntoView: false }) : body.chain();
+  if (zones.length) chain = chain.command(({ tr }) => { settleZones(tr, accept, zones); return true; });
+  if (inBody.length) chain = accept ? chain.acceptRevision(inBody) : chain.rejectRevision(inBody);
+  chain.run();
+}
+
+/** What the pane's filter asks for; null and '' ask for nothing. `since` is a day, YYYY-MM-DD. */
+export type RevisionFilter = { author: string | null; kind: RevisionKind | 'moved' | null; since: string };
+
+export function filterRevisions(list: Revision[], { author, kind, since }: RevisionFilter): Revision[] {
+  const from = since ? new Date(`${since}T00:00`).getTime() : null;
+  return list.filter((r) => (author == null || r.author === author)
+    && (kind == null || (kind === 'moved' ? r.moved : !r.moved && r.kind === kind))
+    && (from == null || new Date(r.date).getTime() >= from));
 }
 
 /** Select a marked range and scroll it smoothly into view — what a click on any of its

@@ -1144,6 +1144,12 @@ const ru: Messages = {
     inserted: 'Добавлено',
     deleted: 'Удалено',
     moved: 'Перемещено',
+    filterAuthor: 'Автор',
+    filterKind: 'Тип',
+    filterSince: 'С даты',
+    filterAny: 'Все',
+    acceptShown: 'Принять показанные',
+    rejectShown: 'Отклонить показанные',
     formatted: 'Отформатировано',
   },
   notesDialog: {

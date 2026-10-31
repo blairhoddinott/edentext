@@ -1130,6 +1130,12 @@ const zhHant: Messages = {
     inserted: '插入',
     deleted: '刪除',
     moved: '已移動',
+    filterAuthor: '作者',
+    filterKind: '類型',
+    filterSince: '起始日期',
+    filterAny: '全部',
+    acceptShown: '接受所顯示的',
+    rejectShown: '拒絕所顯示的',
     formatted: '格式變更',
   },
   notesDialog: {

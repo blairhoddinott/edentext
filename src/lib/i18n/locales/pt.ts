@@ -1128,6 +1128,12 @@ const pt: Messages = {
     inserted: 'Inserido',
     deleted: 'Eliminado',
     moved: 'Movido',
+    filterAuthor: 'Autor',
+    filterKind: 'Tipo',
+    filterSince: 'Desde',
+    filterAny: 'Todos',
+    acceptShown: 'Aceitar os mostrados',
+    rejectShown: 'Rejeitar os mostrados',
     formatted: 'Formatado',
   },
   notesDialog: {
