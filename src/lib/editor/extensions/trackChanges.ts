@@ -1267,8 +1267,10 @@ function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs
     if (node.attrs.revFormat && pos >= from && pos + node.nodeSize <= to) tr.setNodeAttribute(pos, 'revFormat', null);
     return !node.isTextblock;
   });
+  // The fitted replace gives that half the slice's attrs, which name another block's mark.
   const first = blocks[0].rev, after = nextParagraph(tr.doc, blocks[blocks.length - 1].end);
-  if (first && after !== null) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first);
+  const split = blocks[0].pos < from && after !== null && after <= to;
+  if ((first || split) && after !== null) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first ?? null);
 }
 
 // The rows and the columns that came in whole: a column only as a new cell in every row,
