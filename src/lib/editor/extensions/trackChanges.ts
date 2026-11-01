@@ -479,6 +479,13 @@ function nextParagraph(doc: PMNode, end: number): number | null {
   return null;
 }
 
+// Whether `second` is what an Enter in `first` opened: a page break or a box stays above the
+// cut, all else passes on. An Enter taken back leaves the block that was there.
+function splitFrom(first: PMNode, second: PMNode): boolean {
+  return first.type === second.type && Object.keys(first.attrs).every((k) =>
+    k === 'revMark' || k === 'revFormat' || second.attrs[k] == null || second.attrs[k] === first.attrs[k]);
+}
+
 // A paragraph mark gone for good, as LibreOffice does it (probed): a block left empty goes
 // and the next stays as it is; else the next one's text joins it, under the first block's
 // format and the second's mark. Where nothing follows, the block just loses its mark.
@@ -490,9 +497,10 @@ function removeParagraphMark(tr: Transaction, pos: number, undoing = false): voi
   // Past the lists that hold only it: a list item alone in a cell can go with its list.
   let depth = $pos.depth;
   while (depth > 0 && LIST_NODES.has($pos.node(depth).type.name) && $pos.node(depth).childCount === 1) depth--;
-  // An Enter taken back between two empty blocks leaves the one that was there.
-  const blank = undoing && next !== null && !tr.doc.resolve(next).parent.content.size;
-  if (!block.content.size && !blank && (next !== null || $pos.node(depth).childCount > 1)) {
+  // An Enter opens the block right below, with nothing around it to tear.
+  const nextBlock = next === end + 2 ? tr.doc.resolve(next).parent : null;
+  const halves = undoing && !!nextBlock && (!nextBlock.content.size || splitFrom(block, nextBlock));
+  if (!block.content.size && !halves && (next !== null || $pos.node(depth).childCount > 1)) {
     tr.deleteRange(pos, pos + block.nodeSize);
     return;
   }

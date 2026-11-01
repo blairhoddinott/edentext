@@ -10,7 +10,7 @@ Only a mark with a next paragraph can be recorded (`nextParagraph`): a cell, a f
 
 Removing a mark follows LibreOffice (probed, accept and reject alike):
 
-- a block left empty goes, and the next stays unchanged; an Enter rejected between two empty blocks leaves the first, the one that was there;
+- a block left empty goes, and the next stays unchanged; an Enter rejected leaves the first half when both are empty or the second is what the Enter opened, as a page break stays above the cut (`splitFrom`);
 - otherwise the next block's text joins it, under the first block's format and the second's mark.
 
 Deleted `Heading first` + `body second` across the mark gives one heading; with the whole heading deleted, the body keeps its own format. The author's own pending mark goes at once; a joined block of only inserted text takes over the second block's format record, since rejecting leaves that block.
