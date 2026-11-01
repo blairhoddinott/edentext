@@ -36,6 +36,12 @@ export function setRecordChanges(on: boolean): void {
   else docStore.removeItem(KEY);
 }
 
+/** Runs what settles changes; under protection the password comes first, then it runs. */
+export function whenUnlocked(run: () => void): void {
+  if (lock) window.dispatchEvent(new CustomEvent(OPEN_RECORD_LOCK_EVENT, { detail: run }));
+  else run();
+}
+
 export function recordLock(): RecordLock | null {
   return lock;
 }

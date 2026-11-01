@@ -37,7 +37,7 @@
   import { t } from '../i18n/i18n.svelte';
   import { aiConfig, aiSettings, docBudget, setAi } from '../storage/ai.svelte';
   import { showChanges, setShowChanges } from '../storage/markup.svelte';
-  import { recordLock } from '../storage/trackChanges.svelte';
+  import { whenUnlocked } from '../storage/trackChanges.svelte';
   import { revisions, shownRange } from '../editor/extensions/trackChanges';
   import { aiErrorText, isAbort, streamChat } from '../ai/client';
   import { blockTexts, contentToDom, htmlToSlice, stripFences } from '../ai/doc';
@@ -268,8 +268,8 @@
   function settle(e: Entry, accept: boolean) {
     const ids = pending(e);
     if (!editor || !ids.length) return;
-    if (accept) editor.commands.acceptRevision(ids);
-    else editor.commands.rejectRevision(ids);
+    const ready = editor;
+    whenUnlocked(() => (accept ? ready.commands.acceptRevision(ids) : ready.commands.rejectRevision(ids)));
   }
 
   // Sends question i again, as typed or edited: the replies after it go, and with them
@@ -501,8 +501,8 @@
           {#if pending(e).length && !(busy && i === replying)}
             <div class="acts round">
               <span class="tool">{t().ai.pendingChanges(pending(e).length)}</span>
-              <button class="act primary" disabled={!!recordLock()} onclick={() => settle(e, true)}>{t().ai.keepChanges}</button>
-              <button class="act" disabled={!!recordLock()} onclick={() => settle(e, false)}>{t().ai.undoChanges}</button>
+              <button class="act primary" onclick={() => settle(e, true)}>{t().ai.keepChanges}</button>
+              <button class="act" onclick={() => settle(e, false)}>{t().ai.undoChanges}</button>
             </div>
           {/if}
           {#if !(busy && i === replying) && (e.text || (i === entries.length - 1 && entries[i - 1]?.historyAt != null))}

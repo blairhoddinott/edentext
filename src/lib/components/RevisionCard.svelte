@@ -4,7 +4,6 @@
   import { commentRevision, settleRevisions } from './reviewItems';
   import { t } from '../i18n/i18n.svelte';
   import { formatMoment } from '../storage/dateFormat.svelte';
-  import { recordLock } from '../storage/trackChanges.svelte';
 
   // One recorded change as both reviewing views show it: what it did, to which text, and
   // accept / reject, which return focus to the text without scrolling there. Shared by the
@@ -60,8 +59,8 @@
 {/if}
 <div class="actions">
   {#if !editing && !r.comment}<button onclick={() => (editing = true)}>{t().revisions.comment}</button>{/if}
-  <button disabled={!!recordLock()} onclick={() => editor && settleRevisions(editor, [r], true)}>{t().revisions.accept}</button>
-  <button disabled={!!recordLock()} onclick={() => editor && settleRevisions(editor, [r], false)}>{t().revisions.reject}</button>
+  <button onclick={() => editor && settleRevisions(editor, [r], true)}>{t().revisions.accept}</button>
+  <button onclick={() => editor && settleRevisions(editor, [r], false)}>{t().revisions.reject}</button>
 </div>
 
 <style>

@@ -48,6 +48,7 @@ const pt: Messages = {
     pageLabelsHint: 'O número da folha em baixo, à direita de cada página; não é impresso',
     userName: 'O seu nome',
     userNameHint: 'Aparece nos seus comentários e alterações registadas',
+    userNameAsk: 'Os comentários e as alterações registadas mantêm este nome. Fica guardado no documento e é visível para quem receber o ficheiro.',
     commentsHint: 'Marcar o texto comentado e mostrar os comentários',
     commentPlace: 'Onde ficam os comentários',
     resolvedHint: 'Manter os comentários resolvidos, a cinzento e recolhidos; caso contrário, só aquele onde está o cursor',

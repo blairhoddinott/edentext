@@ -35,7 +35,7 @@
   import { CHUNK_FAILURE, reportLoadFailure } from './lib/utils/loadFailure';
   import { resetHistoryLog } from './lib/utils/historyLog.svelte';
   import type { TextStats } from './lib/utils/wordCount';
-  import { shownStats } from './lib/components/reviewItems';
+  import { ensureUserName, shownStats, toggleRecordChanges } from './lib/components/reviewItems';
   import type { Node as PmNode } from 'prosemirror-model';
   import { clampZoom, wheelZoomFactor, MIN_ZOOM, MAX_ZOOM } from './lib/utils/zoom';
   import { loadTheme, saveTheme, applyTheme, loadToolbarExpanded, saveToolbarExpanded, loadToolbarCategory, saveToolbarCategory, loadChromeMode, saveChromeMode, loadFormattingMarks, saveFormattingMarks, loadFieldShading, saveFieldShading, loadPageLabels, savePageLabels, loadRuler, saveRuler, loadSplitView, saveSplitView, loadPageColumns, savePageColumns, type ThemeMode, type ChromeMode } from './lib/storage/theme';
@@ -759,6 +759,8 @@
   let compareTheirs: boolean | null = null;
   let recordLockOpen = $state(false);
   let recordLockWrong = $state(false);
+  // What asked for the password: accepting or rejecting goes on once it is given.
+  let afterUnlock: (() => void) | null = null;
   let passwordSetOpen = $state(false);
   let setResolve: ((decided: boolean) => void) | null = null;
   let passwordAskOpen = $state(false);
@@ -978,9 +980,11 @@
   }
 
   // A lock without a key holds nothing to check a password against.
-  function openRecordLock(): void {
+  async function openRecordLock(e: Event): Promise<void> {
+    afterUnlock = (e as CustomEvent<(() => void) | null>).detail ?? null;
     const lock = recordLock();
-    if (lock && !lock.key) { setRecordLock(null); return; }
+    if (lock && !lock.key) { setRecordLock(null); afterUnlock?.(); return; }
+    if (!lock && !(await ensureUserName())) return;
     recordLockWrong = false;
     recordLockOpen = true;
   }
@@ -994,6 +998,7 @@
       setRecordChanges(true);
     } else if (await recordKeyMatches(lock.key!, password)) {
       setRecordLock(null);
+      afterUnlock?.();
     } else {
       recordLockWrong = true;
       recordLockOpen = true;
@@ -1069,7 +1074,7 @@
   // The differences to another file, recorded here. Compared, that file is the older one
   // and the changes lead up to this document; merged in, they lead to that file.
   async function compareWith(bytes: Uint8Array, name: string, theirs: boolean) {
-    if (!editor) return;
+    if (!editor || (!theirs && !(await ensureUserName()))) return;
     try {
       if (isProtected(bytes)) {
         const opened = await unprotect(bytes);
@@ -1173,6 +1178,7 @@
       // The file says whether it goes on recording; ours is not the setting that counts.
       setRecordLock(result.recordLock);
       setRecordChanges(result.recordChanges);
+      if (result.recordChanges) void ensureUserName();
       // Adopt the document's spell-check language (the $effect switches the
       // controller + loads its dictionary). null = file declared none; keep ours.
       if (result.language) {
@@ -1245,8 +1251,8 @@
 
   // The comment is written beside its text, which stays in view; a second New Comment
   // moves the open card to the new selection and keeps what is typed in it.
-  function addComment() {
-    if (!editor || editor.state.selection.empty) return;
+  async function addComment() {
+    if (!editor || editor.state.selection.empty || !(await ensureUserName()) || !editor) return;
     const fresh = !commentDraft(editor.state);
     // A comment nobody can see is worse than none: the new one brings its kind back.
     setShowComments(true);
@@ -1639,7 +1645,7 @@
       [DEFAULT_SHORTCUTS.navigator, () => (navigatorOpen = !navigatorOpen)],
       [DEFAULT_SHORTCUTS.thesaurus, () => (thesaurusOpen = true)],
       [DEFAULT_SHORTCUTS.splitView, () => (splitView = !splitView)],
-      [DEFAULT_SHORTCUTS.recordChanges, () => setRecordChanges(!recordChanges())],
+      [DEFAULT_SHORTCUTS.recordChanges, toggleRecordChanges],
       [DEFAULT_SHORTCUTS.zoomIn, () => setZoom(zoom + 10)],
       [DEFAULT_SHORTCUTS.zoomOut, () => setZoom(zoom - 10)],
       [DEFAULT_SHORTCUTS.zoomReset, () => setZoom(100)],

@@ -49,6 +49,7 @@ const en = {
     pageLabelsHint: 'The sheet number at the bottom right of each page; not printed',
     userName: 'Your name',
     userNameHint: 'Stands on your comments and recorded changes',
+    userNameAsk: "Comments and recorded changes keep this name. It's saved in the document, so anyone who gets the file can see it.",
     commentsHint: 'Mark commented text and show the comments',
     commentPlace: 'Where comments go',
     resolvedHint: 'Keep resolved comments, greyed and folded; otherwise only the one the cursor is in',

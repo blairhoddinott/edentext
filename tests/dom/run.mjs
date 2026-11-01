@@ -1447,9 +1447,17 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.revisions-pane li').length === 1, null, { timeout: 3000 }).catch(() => {});
   check(String(await rows()) === 'Footer · Deleted' && await page.getByRole('button', { name: 'Accept shown' }).count() === 1, `the pane filters by author and offers what it shows (${await rows()})`);
   await page.selectOption('.revisions-pane .filter select >> nth=0', { label: 'All' });
+  const recording = () => page.locator('[data-cmd="trackChanges"].active, [data-cmd="trackChanges"][aria-pressed="true"]').count();
   await page.keyboard.press(`${MOD}+Shift+c`);
+  await page.waitForSelector('dialog[open] input');
+  await page.keyboard.press('Escape');
   await reviewTab();
-  check(await page.locator('[data-cmd="trackChanges"].active, [data-cmd="trackChanges"][aria-pressed="true"]').count() > 0, 'the record key turns recording on');
+  check(await recording() === 0, 'declining to give a name leaves recording off');
+  await page.keyboard.press(`${MOD}+Shift+c`);
+  await page.fill('dialog[open] input', 'Test Autor');
+  await page.keyboard.press('Enter');
+  await reviewTab();
+  check(await recording() > 0 && await page.evaluate(() => localStorage.getItem('edentext-user-name')) === 'Test Autor', 'the record key asks for the name, then turns recording on');
   await page.locator('.revisions-pane li .card').first().click();
   await page.waitForSelector('.hf-active.hf-header .tiptap');
   await page.waitForFunction(() => window.getSelection()?.toString() === 'added', null, { timeout: 5000 }).catch(() => {});
@@ -1474,6 +1482,7 @@ try {
   await page.evaluate(() => {
     localStorage.clear();
     localStorage.setItem('edentext-markup-change-place', 'pane');
+    localStorage.setItem('edentext-user-name', 'Test Autor');
   });
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('.tiptap-host .tiptap');
@@ -1529,8 +1538,14 @@ try {
   await lockDialog.getByRole('button', { name: 'OK' }).click();
   await page.waitForFunction(() => document.querySelector('[data-cmd="trackChanges"]')?.disabled, null, { timeout: 3000 }).catch(() => {});
   const shut = await page.evaluate(() => ({ record: document.querySelector('[data-cmd="trackChanges"]').disabled, accept: document.querySelector('[data-cmd="accept"]')?.disabled, card: document.querySelector('.revisions-pane .actions button:last-child').disabled }));
-  check(shut.record && shut.accept && shut.card, `protected changes can be neither turned off nor settled (${JSON.stringify(shut)})`);
-  await lockButton.click();
+  check(shut.record && !shut.accept && !shut.card, `protected changes cannot be turned off, and rejecting one asks instead of doing nothing (${JSON.stringify(shut)})`);
+  const lockedRows = await paneRows();
+  const rejectCard = page.locator('.revisions-pane .actions button:last-child').first();
+  await rejectCard.click();
+  await lockDialog.getByRole('button', { name: 'Cancel' }).click();
+  await page.waitForTimeout(200);
+  check(await paneRows() === lockedRows && await page.locator('[data-cmd="trackChanges"]').first().isDisabled(), 'declining the password settles nothing');
+  await rejectCard.click();
   await lockDialog.locator('input').first().fill('wrong');
   await lockDialog.getByRole('button', { name: 'OK' }).click();
   await page.waitForSelector('dialog[open] .wrong', { timeout: 3000 }).catch(() => {});
@@ -1538,7 +1553,8 @@ try {
   await lockDialog.locator('input').first().fill('secret');
   await lockDialog.getByRole('button', { name: 'OK' }).click();
   await page.waitForFunction(() => !document.querySelector('[data-cmd="trackChanges"]')?.disabled, null, { timeout: 3000 }).catch(() => {});
-  check(await page.locator('[data-cmd="trackChanges"]').first().isEnabled(), 'the right password lifts it');
+  await page.waitForFunction((n) => document.querySelectorAll('.revisions-pane li').length < n, lockedRows, { timeout: 3000 }).catch(() => {});
+  check(await page.locator('[data-cmd="trackChanges"]').first().isEnabled() && await paneRows() < lockedRows, 'the right password lifts it, and the rejection goes through');
 
 } catch (err) {
   check(false, `dom run threw: ${err.message ?? err}`);

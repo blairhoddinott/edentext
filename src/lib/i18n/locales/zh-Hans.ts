@@ -49,6 +49,7 @@ const zhHans: Messages = {
     pageLabelsHint: '每页右下角旁显示的页序号，不会打印',
     userName: '用户名',
     userNameHint: '显示在您的批注和记录的修订上',
+    userNameAsk: '批注和记录的修订会保留此名称。名称保存在文档中，收到文件的人都能看到。',
     commentsHint: '突出显示带批注的文字并显示批注',
     commentPlace: '批注位置',
     resolvedHint: '以灰色折叠方式保留已解决的批注；否则只显示光标所在的那条',

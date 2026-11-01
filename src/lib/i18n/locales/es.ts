@@ -48,6 +48,7 @@ const es: Messages = {
     pageLabelsHint: 'El número de hoja abajo a la derecha de cada página; no se imprime',
     userName: 'Su nombre',
     userNameHint: 'Aparece en sus comentarios y cambios registrados',
+    userNameAsk: 'Los comentarios y los cambios registrados conservan este nombre. Se guarda en el documento y lo verá cualquiera que reciba el archivo.',
     commentsHint: 'Marcar el texto comentado y mostrar los comentarios',
     commentPlace: 'Dónde van los comentarios',
     resolvedHint: 'Mantener los comentarios resueltos, en gris y plegados; si no, solo aquel en el que está el cursor',

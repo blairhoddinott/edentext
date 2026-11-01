@@ -2,12 +2,15 @@ import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import { commentIdAt, comments, commentRanges, pickComment, type CommentRange } from '../editor/extensions/comment';
-import { revisions, settledRange, type Revision, type RevisionKind } from '../editor/extensions/trackChanges';
+import { changesAt, revisions, settledRange, type Revision, type RevisionKind } from '../editor/extensions/trackChanges';
 import { countText, type TextStats } from '../utils/wordCount';
 import { flushPending } from '../editor/extensions/stateHistory';
 import { bodyEditor, commentZones, liveZone, openZone, settleZones, zoneRevisions } from '../editor/zoneReview';
 import { markupView, showResolved } from '../storage/markup.svelte';
-import { recordLock } from '../storage/trackChanges.svelte';
+import { recordChanges, recordLock, setRecordChanges, whenUnlocked } from '../storage/trackChanges.svelte';
+import { setUserName, userName } from '../storage/userName.svelte';
+import { t } from '../i18n/i18n.svelte';
+import { askText } from './PromptDialog.svelte';
 
 // What the review views may show, in one place: bars, balloons, leader line and both
 // panes ask here instead of each carrying its own reading of the markup settings.
@@ -18,6 +21,19 @@ export function visibleComments(doc: PMNode, activeId: string | null = null): Co
   if (!markupView().comments) return [];
   const all = comments(doc);
   return showResolved() ? all : all.filter((c) => !c.resolved || c.id === activeId);
+}
+
+/** Asks for the name first where there is none: what is recorded keeps it for good.
+ *  False when it was not given, and the caller leaves what it was about to do. */
+export async function ensureUserName(): Promise<boolean> {
+  if (userName()) return true;
+  const name = (await askText(t().settings.userName, '', t().settings.userNameAsk))?.trim();
+  if (name) setUserName(name);
+  return !!name;
+}
+
+export async function toggleRecordChanges(): Promise<void> {
+  if (recordChanges() || await ensureUserName()) setRecordChanges(!recordChanges());
 }
 
 export function visibleCommentRanges(doc: PMNode): CommentRange[] {
@@ -46,9 +62,18 @@ export function hasRevisions(editor: Editor): boolean {
   return revisions((bodyEditor() ?? editor).state.doc).length > 0 || zoneRevisions().length > 0;
 }
 
+/** Accepts or rejects what the selection touches; with nothing there no password is asked. */
+export function settleHere(editor: Editor, accept: boolean): void {
+  if (!changesAt(editor.state)) return;
+  whenUnlocked(() => {
+    const chain = editor.chain().focus();
+    (accept ? chain.acceptRevisions() : chain.rejectRevisions()).run();
+  });
+}
+
 /** Accepts or rejects every change, zones included, in one undo step. */
 export function settleAll(editor: Editor, accept: boolean): void {
-  if (recordLock()) return;
+  if (recordLock()) return whenUnlocked(() => settleAll(editor, accept));
   flushPending();
   const chain = (bodyEditor() ?? editor).chain().command(({ tr }) => { settleZones(tr, accept); return true; });
   (accept ? chain.acceptRevisions(true) : chain.rejectRevisions(true)).run();
@@ -57,7 +82,7 @@ export function settleAll(editor: Editor, accept: boolean): void {
 
 /** Accepts or rejects these changes, wherever each is, in one undo step. */
 export function settleRevisions(editor: Editor, list: Revision[], accept: boolean): void {
-  if (recordLock()) return;
+  if (recordLock()) return whenUnlocked(() => settleRevisions(editor, list, accept));
   flushPending();
   const body = bodyEditor() ?? editor, zones = list.flatMap((r) => (r.zone ? [r.id] : [])), inBody = list.flatMap((r) => (r.zone ? [] : [r.id]));
   let chain = body === editor ? body.chain().focus(null, { scrollIntoView: false }) : body.chain();

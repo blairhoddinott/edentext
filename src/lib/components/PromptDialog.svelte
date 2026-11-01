@@ -1,11 +1,11 @@
 <script lang="ts" module>
   // window.prompt() as a modal: Electron does not implement prompt(), so every text the
   // app asks for goes through askText(). Resolves to null on cancel, as prompt() does.
-  let request = $state<{ label: string; value: string; done: (text: string | null) => void } | null>(null);
+  let request = $state<{ label: string; value: string; hint: string; done: (text: string | null) => void } | null>(null);
 
-  export function askText(label: string, value = ''): Promise<string | null> {
+  export function askText(label: string, value = '', hint = ''): Promise<string | null> {
     request?.done(null);
-    return new Promise((done) => (request = { label, value, done }));
+    return new Promise((done) => (request = { label, value, hint, done }));
   }
 </script>
 
@@ -43,6 +43,7 @@
         <span>{request.label}</span>
         <input bind:this={inputEl} bind:value={request.value} onkeydown={(e) => e.key === 'Enter' && finish(request!.value)} />
       </label>
+      {#if request.hint}<p>{request.hint}</p>{/if}
       <div class="actions">
         <button onclick={() => finish(null)}>{t().common.cancel}</button>
         <button class="primary" onclick={() => finish(request!.value)}>{t().common.ok}</button>
@@ -63,6 +64,8 @@
   }
 
   label { display: flex; flex-direction: column; gap: 6px; }
+
+  p { margin: 0; color: var(--color-text-muted); }
 
   input {
     border: 1px solid var(--color-border);

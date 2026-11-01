@@ -6,6 +6,7 @@
   import { aiAnswering, aiEnabled, AI_COMMENT_EVENT } from '../storage/ai.svelte';
   import { mentionsAi } from '../ai/tools';
   import Icon from './ribbon/Icon.svelte';
+  import { ensureUserName } from './reviewItems';
   import { authorColor } from '../editor/authorColors';
   import { autosize, isSubmitKey } from '../utils/autosize';
 
@@ -143,7 +144,7 @@
   </div>
 {:else if !editing && !folded}
   <div class="actions">
-    <button onclick={() => (replying = true)}>{t().comments.reply}</button>
+    <button onclick={async () => (replying = await ensureUserName())}>{t().comments.reply}</button>
   </div>
 {/if}
 

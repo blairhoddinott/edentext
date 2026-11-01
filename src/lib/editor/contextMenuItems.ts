@@ -8,6 +8,8 @@ import { OPEN_BOOKMARK_DIALOG_EVENT, bookmarkNames } from './extensions/bookmark
 import { OPEN_CROSS_REF_DIALOG_EVENT, hasRefTargets } from './extensions/crossReference';
 import { OPEN_THESAURUS_EVENT } from '../spell/thesaurus';
 import { outerOrderedListAt } from './extensions/listStyle';
+import { changesAt } from './extensions/trackChanges';
+import { whenUnlocked } from '../storage/trackChanges.svelte';
 import { aiEnabled, OPEN_AI_CHAT_EVENT } from '../storage/ai.svelte';
 import { COMMANDS } from '../ai/commands';
 
@@ -98,11 +100,11 @@ export function buildContextMenu(editor: Editor, opts: { spell?: SpellSection; g
   }
 
   // The change under the caret, or all the selection touches.
-  if (editor.can().acceptRevisions()) {
+  if (changesAt(editor.state)) {
     const { accept, reject } = t().revisions;
     entries.push(
-      { kind: 'item', label: accept, run: () => editor.chain().focus().acceptRevisions().run() },
-      { kind: 'item', label: reject, run: () => editor.chain().focus().rejectRevisions().run() },
+      { kind: 'item', label: accept, run: () => whenUnlocked(() => editor.chain().focus().acceptRevisions().run()) },
+      { kind: 'item', label: reject, run: () => whenUnlocked(() => editor.chain().focus().rejectRevisions().run()) },
       { kind: 'sep' },
     );
   }

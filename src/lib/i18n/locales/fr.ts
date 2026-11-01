@@ -48,6 +48,7 @@ const fr: Messages = {
     pageLabelsHint: 'Le numéro de feuille en bas à droite de chaque page ; non imprimé',
     userName: 'Votre nom',
     userNameHint: 'Figure sur vos commentaires et vos modifications enregistrées',
+    userNameAsk: 'Les commentaires et les modifications enregistrées conservent ce nom. Il est stocké dans le document et visible par toute personne qui reçoit le fichier.',
     commentsHint: 'Marquer le texte commenté et afficher les commentaires',
     commentPlace: 'Emplacement des commentaires',
     resolvedHint: 'Garder les commentaires résolus, grisés et repliés ; sinon seulement celui où se trouve le curseur',

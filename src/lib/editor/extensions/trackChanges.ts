@@ -319,6 +319,11 @@ export function revisionIdAt(state: EditorState, list?: Revision[]): string | nu
   return (list ?? revisions(state.doc)).find((r) => r.from <= from && to <= r.to)?.id ?? null;
 }
 
+/** Whether accepting or rejecting has something under the caret or selection. */
+export function changesAt(state: EditorState): boolean {
+  return targets(state, false).length > 0;
+}
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     trackChanges: {

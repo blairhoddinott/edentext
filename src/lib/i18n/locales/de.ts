@@ -48,6 +48,7 @@ const de: Messages = {
     pageLabelsHint: 'Die Blattnummer rechts unten neben jeder Seite; wird nicht gedruckt',
     userName: 'Ihr Name',
     userNameHint: 'Steht an Ihren Kommentaren und aufgezeichneten Änderungen',
+    userNameAsk: 'Kommentare und aufgezeichnete Änderungen behalten diesen Namen. Er wird im Dokument gespeichert und ist für alle sichtbar, die die Datei bekommen.',
     commentsHint: 'Kommentierten Text markieren und die Kommentare zeigen',
     commentPlace: 'Ort der Kommentare',
     resolvedHint: 'Erledigte Kommentare ausgegraut und eingeklappt behalten; sonst nur den, in dem der Cursor steht',
