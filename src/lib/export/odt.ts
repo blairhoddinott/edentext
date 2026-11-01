@@ -4697,6 +4697,8 @@ function exportTable(node: TiptapNode, doc: OdtDocument, contentWidthCm: number,
   // allows one length there. A cell's own attr overrides the table's.
   const tablePad = parseCellPadding(node.attrs?.cellPadding) ?? DEFAULT_CELL_PADDING;
   const padValue = (p: CellPadding) => p.map(n => `${n}cm`).join(' ');
+  // LibreOffice's reject takes the whole table for a column some row has no cell of (probed).
+  const mergedColumn = rows.some((row) => !row.attrs?.revMark && !row.content?.some((c) => c.attrs?.revMark));
   doc.addTable((t: TableBuilder) => {
     for (const row of rows) {
       t.addRow((r: RowBuilder) => {
@@ -4705,7 +4707,7 @@ function exportTable(node: TiptapNode, doc: OdtDocument, contentWidthCm: number,
           // Emit the cell's runs (SEG-separated) and record its descriptor; addCell is
           // synchronous, so the push stays in document order, matching applyCellBlocks'
           // walk. Spans make odf-kit emit covered cells, which its cell regex never matches.
-          const opts: CellOptions = { padding: padValue(parseCellPadding(cell.attrs?.cellPadding) ?? tablePad) + (cell.attrs?.revMark ? ` ${REV_CELL}` : '') };
+          const opts: CellOptions = { padding: padValue(parseCellPadding(cell.attrs?.cellPadding) ?? tablePad) + (cell.attrs?.revMark && !mergedColumn ? ` ${REV_CELL}` : '') };
           const colspan = (cell.attrs?.colspan as number) ?? 1;
           const rowspan = (cell.attrs?.rowspan as number) ?? 1;
           if (colspan > 1) opts.colSpan = colspan;

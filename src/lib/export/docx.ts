@@ -2995,6 +2995,8 @@ function cellBlocksToDocx(content: TiptapNode[] = [], force: TextProps, num: Num
 
 function tableToDocx(node: TiptapNode, contentWidthCm: number, num: Numbering, float?: ITableFloatOptions): Table {
   const rows = (node.content ?? []).filter((r) => r.type === 'tableRow');
+  // LibreOffice's reject takes the whole table for a column some row has no cell of (probed).
+  const mergedColumn = rows.some((row) => !row.attrs?.revMark && !row.content?.some((c) => c.attrs?.revMark));
   // The named table style, if the registry still knows it: Word gets the reference
   // (w:tblStyle) plus the baked cell formatting, since w:tblStylePr isn't emitted.
   const styleName = typeof node.attrs?.tableStyle === 'string' ? node.attrs.tableStyle : null;
@@ -3032,7 +3034,7 @@ function tableToDocx(node: TiptapNode, contentWidthCm: number, num: Numbering, f
       const ownPad = parseCellPadding(cell.attrs?.cellPadding);
       const content = formulaCellContent(cell) ?? cell.content;
       cells.push(new TableCell({
-        ...revMarkRevisions(cell.attrs?.revMark),
+        ...(mergedColumn ? {} : revMarkRevisions(cell.attrs?.revMark)),
         columnSpan: colspan > 1 ? colspan : undefined,
         rowSpan: rowspan > 1 ? rowspan : undefined,
         margins: ownPad

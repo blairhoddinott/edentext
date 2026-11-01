@@ -44,7 +44,6 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['the table deleted', TABLE, [inCell(14), (e) => e.commands.deleteTable()]],
   ['a row inserted', TABLE, [inCell(14), (e) => e.commands.addRowAfter()]],
   ['a column inserted', TABLE, [inCell(14), (e) => e.commands.addColumnBefore()]],
-  ['a column through a merged cell', TALL, [inCell(11), (e) => e.commands.addColumnAfter()]],
   ['a note inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertNote('footnote')]],
   ['a text box inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertTextBox()]],
   ['Enter in a cell', TABLE, [inCell(5), (e) => e.commands.splitBlock()]],
@@ -70,6 +69,7 @@ export const REPLACE_CASES: [string, string, Act[]][] = [
   ['typing over one\'s own heading\'s mark', THREE, [...enter(7), (e) => select(e, 7), (e) => e.commands.insertContent('xy'), (e) => e.commands.setParagraphStyle('Heading 1'), (e) => select(e, 8, 12), (e) => e.commands.insertContent('z')]],
   ['typing over one\'s own list item\'s mark', LIST, [...enter(17), (e) => select(e, 17), (e) => e.commands.insertContent('xy'), (e) => e.commands.toggleBulletList(), (e) => select(e, 18, 24), (e) => e.commands.insertContent('z')]],
   ['words of two lists dropped behind a paragraph', '<p>head</p><ul><li><p>one</p></li></ul><p>nn</p><ol><li><p>two</p></li></ol><p>end</p>', [(e) => select(e, 10, 23), fittedDrop(10, 23, 5)]],
+  ['a column through a merged cell', TALL, [inCell(11), (e) => e.commands.addColumnAfter()]],
   ['blocks in an empty paragraph', BLANK, [(e) => select(e, 7), (e) => e.commands.insertContent('<p>x</p><p>y</p>')]],
 ];
 
