@@ -4,7 +4,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { zoneExtensions } from '../../src/lib/editor/extensions';
-import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, REBUILD_CASES, REPLACE_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
+import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, REBUILD_CASES, REPLACE_CASES, TABLE_CASES, THREE, cells, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc, shownRange } from '../../src/lib/editor/extensions/trackChanges';
 import { commentDraft, comments } from '../../src/lib/editor/extensions/comment';
 import { deriveFilename } from '../../src/lib/storage/documentName';
@@ -24,6 +24,10 @@ const FORMATS: [string, (doc: any) => Promise<unknown>][] = [
   ['DOCX', async (doc) => importDocx(await buildDocx(doc, DEFAULT_MARGINS)).content],
   ['ODT', async (doc) => importOdt(await buildOdt(doc, DEFAULT_MARGINS)).content],
 ];
+
+const TABLE = '<table><tbody><tr><td><p>a1</p></td><td><p>b1</p></td></tr><tr><td><p>a2</p></td><td><p>b2</p></td></tr></tbody></table><p>tail</p>';
+const GRID = '<table><tbody><tr><td><p>a</p></td><td><p>b</p></td><td><p>c</p></td></tr><tr><td><p>d</p></td><td><p>e</p></td><td><p>f</p></td></tr></tbody></table><p>tail</p>';
+type Act = (e: Editor) => unknown;
 
 afterEach(() => setRecordChanges(false));
 
@@ -462,6 +466,40 @@ describe('recording keeps its promise', () => {
     await edit(e, steps);
     expect(revisions(e.state.doc)).toEqual([]);
     expect(shape(e)).toEqual(shape(plain));
+  });
+
+  // What the merge took in goes with its change; all else stays, however the cells lay.
+  it.each<[string, string, Act[], boolean, string]>([
+    ['a struck row', TABLE, [(x) => select(x, 19), (x) => x.commands.deleteRow(), cells(0, 2)], true, 'a1b1'],
+    ['a struck row above', TABLE, [(x) => select(x, 5), (x) => x.commands.deleteRow(), cells(0, 2)], true, 'a2b2'],
+    ['a struck column on the right', TABLE, [(x) => select(x, 10), (x) => x.commands.deleteColumn(), cells(0, 1)], true, 'a1a2'],
+    ['a struck column on the left', TABLE, [(x) => select(x, 5), (x) => x.commands.deleteColumn(), cells(0, 1)], true, 'b1b2'],
+    ['two struck columns', GRID, [cells(0, 1), (x) => x.commands.deleteColumn(), cells(0, 1)], true, 'cf'],
+    ['a cell of struck text', TABLE, [(x) => select(x, 4, 6), (x) => x.commands.deleteSelection(), cells(0, 1)], true, 'b1a2b2'],
+    ['a new column on the left', TABLE, [(x) => select(x, 5), (x) => x.commands.addColumnBefore(), cells(0, 1)], false, 'a1b1a2b2'],
+    ['a new column on the right', TABLE, [(x) => select(x, 5), (x) => x.commands.addColumnAfter(), cells(0, 1)], false, 'a1b1a2b2'],
+    ['a new row', TABLE, [(x) => select(x, 5), (x) => x.commands.addRowBefore(), cells(0, 2)], false, 'a1b1a2b2'],
+    ['a cell of new text', TABLE, [(x) => select(x, 6), (x) => x.commands.insertContent('n'), cells(0, 1)], false, 'a1b1a2b2'],
+  ])('merging cells with %s', async (_name, html, steps, accepting, left) => {
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, [...steps, (x) => x.commands.mergeCells()]);
+    const recorded = e.getJSON();
+    setRecordChanges(false);
+    const inTable = (x: Editor) => x.state.doc.firstChild!.type.name === 'table' ? x.state.doc.firstChild! : null;
+    const letters = (x: Editor) => [...(inTable(x)?.textContent ?? '')].sort();
+    const emptyBeside = (x: Editor) => {
+      let extra = 0;
+      inTable(x)!.descendants((n) => { if (n.type.spec.tableRole === 'cell' && n.childCount > 1) n.forEach((b) => { if (!b.textContent) extra++; }); });
+      return extra;
+    };
+    for (const [format, through] of [['here', async (doc: unknown) => doc], ...FORMATS] as typeof FORMATS) {
+      const settled = open(await through(recorded));
+      if (accepting) settled.commands.acceptRevisions(true); else settled.commands.rejectRevisions(true);
+      expect(letters(settled), format).toEqual([...left].sort());
+      expect(emptyBeside(settled), format).toBe(0);
+      expect(revisions(settled.state.doc), format).toEqual([]);
+    }
   });
 
   it.each([['an item with text', 12], ['an empty item', 7]])('Backspace at the start of %s', async (_name, at) => {

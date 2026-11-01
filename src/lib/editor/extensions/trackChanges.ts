@@ -1,7 +1,7 @@
 import { Extension, Mark, mergeAttributes } from '@tiptap/core';
 import { Fragment, Mark as PMMark, NodeRange, Slice, type Node as PMNode, type ResolvedPos } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
-import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
+import { EditorState, Plugin, PluginKey, type Selection, TextSelection, type Transaction } from '@tiptap/pm/state';
 import { CellSelection, TableMap, removeColumn, removeRow } from '@tiptap/pm/tables';
 import { AddMarkStep, AttrStep, Mapping, type MapResult, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, liftTarget, type Step, type StepMap } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
@@ -776,7 +776,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
         // Typing is intercepted here rather than by a keymap: every path that inserts
         // text — a paste, an input rule, a drop — goes through appendTransaction, and
         // each would otherwise need its own hook.
-        appendTransaction: (transactions, _oldState, newState) => {
+        appendTransaction: (transactions, oldState, newState) => {
           if (composed) for (const t of transactions) {
             composed.pos = t.mapping.map(composed.pos, -1);
             for (const map of t.mapping.maps) composed.kept = keptThrough(map, composed.kept);
@@ -787,6 +787,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           if (transactions.some((t) => t.getMeta(RECORDING) || fromHistory(t))) return null;
           const tr = newState.tr;
           keepRecords(tr, transactions);
+          recordMerged(tr, oldState.selection);
           if (!options.recording()) return tr.steps.length ? tr.setMeta(RECORDING, true) : null;
           const ranges = insertedRanges(transactions);
           const author = options.author(), fresh = revisionAttrs(author);
@@ -1024,6 +1025,48 @@ function keepRecords(tr: Transaction, transactions: readonly Transaction[]): voi
       if (old.attrs[key] && !now.attrs[key]) tr.setNodeAttribute(at, key, old.attrs[key]);
     }
   }));
+}
+
+// Merged cells lose what would have taken a recorded one out. What it held wholly as one
+// change goes with that change: its blocks end in a recorded mark, as an empty cell adds
+// nothing to a merge. The merged cell itself only stays on a line all its cells were on.
+function recordMerged(tr: Transaction, before: Selection): void {
+  const sel = tr.selection;
+  if (!(before instanceof CellSelection) || before.$anchorCell.pos === before.$headCell.pos) return;
+  if (!(sel instanceof CellSelection) || sel.$anchorCell.pos !== sel.$headCell.pos) return;
+  const all: PMNode[] = [], cellPos = sel.$anchorCell.pos, merged = sel.$anchorCell.nodeAfter!;
+  before.forEachCell((cell) => all.push(cell));
+  const sources = all.filter((cell) => cell.childCount > 1 || cell.firstChild!.childCount);
+  const marked: RevMark = { ...(merged.attrs.revMark as RevMark | null) };
+  for (const kind of ['deletion', 'insertion'] as const) {
+    if (!all.every((cell) => (cell.attrs.revMark as RevMark | null)?.[kind])) delete marked[kind];
+    const goes = sources.flatMap((cell) => Array.from({ length: cell.childCount }, () => wholly(cell, kind)));
+    if (merged.childCount !== goes.length) continue;
+    let tail = goes.length;
+    while (tail > 0 && goes[tail - 1]) tail--;
+    merged.forEach((_block, offset, i) => {
+      const attrs = i === goes.length - 1 ? null : i >= tail - 1 ? goes[Math.max(i, tail)] : goes[i];
+      const at = cellPos + 1 + offset, block = tr.doc.nodeAt(at)!;
+      if (attrs && block.isTextblock) tr.setNodeAttribute(at, 'revMark', { ...(block.attrs.revMark as RevMark | null), [kind]: attrs });
+    });
+  }
+  if (Object.keys(marked).length !== Object.keys(merged.attrs.revMark ?? {}).length) {
+    tr.setNodeAttribute(cellPos, 'revMark', Object.keys(marked).length ? marked : null);
+  }
+}
+
+// The change of `kind` all of a cell's content lies under, if any.
+function wholly(cell: PMNode, kind: MarkedKind): RevisionAttrs | null {
+  let attrs: RevisionAttrs | null = null, whole = true;
+  cell.forEach((block) => { whole &&= block.isTextblock; });
+  cell.descendants((node) => {
+    if (!node.isInline) return true;
+    const mark = node.marks.find((m) => m.type.name === kind);
+    whole &&= !!mark;
+    attrs ??= (mark?.attrs ?? null) as RevisionAttrs | null;
+    return false;
+  });
+  return whole ? attrs : null;
 }
 
 // A node given other attributes around the same content (`setNodeMarkup`).
