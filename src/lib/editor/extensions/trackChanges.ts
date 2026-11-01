@@ -3,7 +3,7 @@ import { Fragment, Mark as PMMark, NodeRange, Slice, type Node as PMNode, type R
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
 import { CellSelection, TableMap, removeColumn, removeRow } from '@tiptap/pm/tables';
-import { AddMarkStep, AttrStep, Mapping, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, liftTarget, type Step, type StepMap } from '@tiptap/pm/transform';
+import { AddMarkStep, AttrStep, Mapping, type MapResult, RemoveMarkStep, ReplaceAroundStep, ReplaceStep, liftTarget, type Step, type StepMap } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 import { markupView } from '../../storage/markup.svelte';
@@ -353,46 +353,51 @@ function targets(state: EditorState, all: boolean): Revision[] {
 // Applying changes runs from the end, mapped. The RECORDING meta keeps the plugin's hands
 // off it: without it the delete below is read as a fresh user deletion and marked up again.
 // Changes by id — every range of each, which is what a paragraph boundary splits a change
-// into and what the pane lists as a single revision. Several go in one call, as `apply`
-// maps over the whole transaction and cannot follow an earlier call in a chain.
+// into and what the pane lists as a single revision.
 function byId(state: EditorState, tr: Transaction, dispatch: unknown, id: string | string[], accept: boolean): boolean {
   const list = withIds(revisions(state.doc), id);
   if (!list.length) return false;
-  if (dispatch) apply(state, tr, list, accept);
+  if (dispatch) apply(tr, list, accept);
   return true;
 }
 
 // An insertion and the deletion struck through it share their range, hence the mapping.
 // Paragraph marks go last, from the end: whether a block merges or goes depends on the text
 // left in it, and a merge takes over the mark of the block it swallowed.
-function apply(state: EditorState, tr: Transaction, list: Revision[], accept: boolean): void {
+// A recorded box is one change with all in it, so what it held is listed once it is settled.
+function settleEverything(tr: Transaction, accept: boolean): void {
+  for (let pass = 0, rest = revisions(tr.doc); rest.length && pass < 3; pass++, rest = revisions(tr.doc)) apply(tr, rest, accept);
+}
+
+function apply(tr: Transaction, list: Revision[], accept: boolean): void {
   const drop = accept ? 'deletion' : 'insertion';
+  const doc = tr.doc, start = tr.steps.length, moved = () => tr.mapping.slice(start);
   const stretches = list.flatMap((r) => r.spans.map(([from, to]) => ({ r, from, to })));
   for (const { r, from: f, to: t } of stretches.sort((a, b) => b.from - a.from)) {
-    const from = tr.mapping.map(f, 1), to = tr.mapping.map(t, -1);
+    const from = moved().map(f, 1), to = moved().map(t, -1);
     if (to <= from) continue;
     if (r.kind === drop) tr.delete(from, to);
     else {
       if (r.kind === 'formatChange' && !accept) restoreFormat(tr, from, to);
-      tr.removeMark(from, to, state.schema.marks[r.kind]);
+      tr.removeMark(from, to, tr.doc.type.schema.marks[r.kind]);
     }
   }
   const marks = list.flatMap((r) => (r.kind === 'formatChange' ? [] : r.marks.map((pos) => ({ pos, kind: r.kind as MarkedKind }))));
   marks.sort((a, b) => b.pos - a.pos || Number(a.kind === drop) - Number(b.kind === drop));
   for (const { pos, kind } of marks) {
-    const { pos: at, deleted } = tr.mapping.mapResult(pos, 1);
+    const { pos: at, deleted } = moved().mapResult(pos, 1);
     const rev = tr.doc.nodeAt(at)?.attrs.revMark as RevMark | null | undefined;
     if (deleted || !rev?.[kind]) continue;
-    if (kind === drop && !(accept && holdsNew(state.doc.nodeAt(pos)!))) removeParagraphMark(tr, at, !accept);
+    if (kind === drop && !(accept && holdsNew(doc.nodeAt(pos)!))) removeParagraphMark(tr, at, !accept);
     else {
       const { [kind]: _gone, ...rest } = rev;
       tr.setNodeAttribute(at, 'revMark', Object.keys(rest).length ? rest : null);
     }
   }
-  if (!accept) for (const { pos } of marks) rejoinCut(tr, tr.mapping.map(pos, -1));
+  if (!accept) for (const { pos } of marks) rejoinCut(tr, moved().map(pos, -1));
   // From the start: a block going back into a list joins the lists before it.
   const formats = list.flatMap((r) => (r.kind === 'formatChange' ? r.marks : []));
-  for (const pos of formats.sort((a, b) => a - b)) settleBlockFormat(tr, pos, accept);
+  for (const pos of formats.sort((a, b) => a - b)) settleBlockFormat(tr, moved().mapResult(pos, 1), accept);
   tr.setMeta(RECORDING, true);
 }
 
@@ -417,8 +422,8 @@ function restoreFormat(tr: Transaction, from: number, to: number): void {
   });
 }
 
-function settleBlockFormat(tr: Transaction, pos: number, accept: boolean): void {
-  const { pos: at, deleted } = tr.mapping.mapResult(pos, 1), node = tr.doc.nodeAt(at);
+function settleBlockFormat(tr: Transaction, { pos: at, deleted }: MapResult, accept: boolean): void {
+  const node = tr.doc.nodeAt(at);
   const old = (node?.attrs.revFormat as RevFormat | null | undefined)?.old;
   if (deleted || !node?.attrs.revFormat) return;
   if (accept || !old) { tr.setNodeAttribute(at, 'revFormat', null); return; }
@@ -583,16 +588,16 @@ export function commentedDoc(doc: PMNode, id: string, comment: string): PMNode {
 
 /** The document with the changes named, or every one, accepted or rejected. */
 export function settledDoc(doc: PMNode, accept: boolean, id?: string | string[]): PMNode {
-  const state = EditorState.create({ doc }), tr = state.tr;
-  const all = revisions(doc);
-  apply(state, tr, id == null ? all : withIds(all, id), accept);
+  const { tr } = EditorState.create({ doc });
+  if (id == null) settleEverything(tr, accept);
+  else apply(tr, withIds(revisions(doc), id), accept);
   return tr.doc;
 }
 
 /** The document as a view hiding one kind of change shows it, with a range carried over. */
 export function settledRange(doc: PMNode, accept: boolean, from: number, to: number): { doc: PMNode; from: number; to: number } {
   const state = EditorState.create({ doc }), tr = state.tr;
-  apply(state, tr, revisions(doc), accept);
+  settleEverything(tr, accept);
   const start = tr.mapping.map(from);
   return { doc: tr.doc, from: start, to: Math.max(start, tr.mapping.map(to, -1)) };
 }
@@ -672,13 +677,13 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
       acceptRevisions: (all = false) => ({ state, tr, dispatch }) => {
         const list = targets(state, all);
         if (!list.length || !open()) return false;
-        if (dispatch) apply(state, tr, list, true);
+        if (dispatch) { if (all) settleEverything(tr, true); else apply(tr, list, true); }
         return true;
       },
       rejectRevisions: (all = false) => ({ state, tr, dispatch }) => {
         const list = targets(state, all);
         if (!list.length || !open()) return false;
-        if (dispatch) apply(state, tr, list, false);
+        if (dispatch) { if (all) settleEverything(tr, false); else apply(tr, list, false); }
         return true;
       },
       acceptRevision: (id) => ({ state, tr, dispatch }) => open() && byId(state, tr, dispatch, id, true),
@@ -874,7 +879,7 @@ const isMarkable = (node: PMNode) => node.isInline && node.isAtom;
 function recordFormats(tr: Transaction, transactions: readonly Transaction[], attrs: RevisionAttrs): void {
   const { formatChange } = tr.doc.type.schema.marks;
   const changeOf = (node: PMNode) => node.marks.find((m) => m.type === formatChange);
-  const touched: [number, number][] = [];
+  const touched: [number, number][] = [], settled = new Set<number>();
   transactions.forEach((t, ti) => {
     if (t.getMeta('appendedTransaction')) return;
     t.steps.forEach((step, i) => {
@@ -882,11 +887,11 @@ function recordFormats(tr: Transaction, transactions: readonly Transaction[], at
       const final = (pos: number, assoc: number) => onward.reduce((at, m) => m.map(at, assoc), pos);
       const doc = t.docs[i];
       const block = formattedBlock(step, doc);
-      if (block != null) { if (!bornIn(t, i, block)) recordBlockFormat(tr, final(block, 1), doc, block, attrs); return; }
+      if (block != null) { if (!bornIn(t, i, block)) recordBlockFormat(tr, final(block, 1), doc, block, attrs, settled); return; }
       // What moves in or out of a list, or under another list type.
       if (step instanceof ReplaceAroundStep) {
         doc.nodesBetween(step.from, step.to, (node, pos) => {
-          if (hasParagraphMark(node)) recordBlockFormat(tr, final(pos, 1), doc, pos, attrs);
+          if (hasParagraphMark(node)) recordBlockFormat(tr, final(pos, 1), doc, pos, attrs, settled);
           return !node.isTextblock;
         });
         return;
@@ -938,15 +943,17 @@ function bornIn(t: Transaction, step: number, pos: number): boolean {
 }
 
 // The first record stands, and a block back at it has no change left.
-function recordBlockFormat(tr: Transaction, at: number, doc: PMNode, pos: number, attrs: RevisionAttrs): void {
+// `settled` holds the blocks found back at their record: a later step of the same edit
+// starts from a halfway state, which is no format to go back to.
+function recordBlockFormat(tr: Transaction, at: number, doc: PMNode, pos: number, attrs: RevisionAttrs, settled?: Set<number>): void {
   const now = tr.doc.nodeAt(at), before = doc.nodeAt(pos)!;
-  if (!now || !hasParagraphMark(now)) return;
+  if (!now || !hasParagraphMark(now) || settled?.has(at)) return;
   // The author's own new empty block has no format to go back to.
   if (!now.content.size && (now.attrs.revMark as RevMark | null)?.insertion?.author === attrs.author) return;
   const rec = now.attrs.revFormat as RevFormat | null;
   const old = rec ? rec.old : { ...blockFormat(before.type.name, before.attrs), list: listChain(doc, pos) };
   const same = !!old && sameBlockFormat(blockFormat(now.type.name, now.attrs), old) && sameLists(old.list, listChain(tr.doc, at));
-  if (rec && same) tr.setNodeAttribute(at, 'revFormat', null);
+  if (rec && same) { tr.setNodeAttribute(at, 'revFormat', null); settled?.add(at); }
   else if (!rec && !same) tr.setNodeAttribute(at, 'revFormat', { ...attrs, old });
 }
 

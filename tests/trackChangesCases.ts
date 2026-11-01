@@ -87,6 +87,8 @@ export const REPLACE_CASES: [string, string, Act[]][] = [
   ['words of two lists dropped behind a paragraph', '<p>head</p><ul><li><p>one</p></li></ul><p>nn</p><ol><li><p>two</p></li></ol><p>end</p>', [(e) => select(e, 10, 23), fittedDrop(10, 23, 5)]],
   ['a column through a merged cell', TALL, [inCell(11), (e) => e.commands.addColumnAfter()]],
   ['blocks in an empty paragraph', BLANK, [(e) => select(e, 7), (e) => e.commands.insertContent('<p>x</p><p>y</p>')]],
+  ['a list taken off again by a selection into a table', `<p>head</p>${TABLE}`, [(e) => select(e, 2), (e) => e.commands.toggleBulletList(), (e) => select(e, 3, 15), (e) => e.commands.toggleOrderedList()]],
+  ['a format inside a new text box', THREE, [(e) => select(e, 2), (e) => e.commands.insertTextBox(), (e) => e.commands.setTextAlign('center')]],
   ['a text box in front of a selection', THREE, [(e) => select(e, 2, 4), (e) => e.commands.insertTextBox()]],
   ['a text box in front of a selection into a table', `<p>head</p>${TABLE}`, [(e) => select(e, 3, 28), (e) => e.commands.insertTextBox()]],
 ];

@@ -368,6 +368,7 @@ describe('recording keeps its promise', () => {
     rejected.commands.rejectRevisions(true);
     expect(rejected.getJSON()).toEqual(open(html).getJSON());
     e.commands.acceptRevisions(true);
+    expect(revisions(e.state.doc)).toEqual([]);
     expect(shape(e)).toEqual(shape(plain));
   });
 
