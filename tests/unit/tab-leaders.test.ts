@@ -39,6 +39,18 @@ describe('tab leaders', () => {
     expect(stopsOfFirst(importOdt(bytes).content)).toBe('6l.;12r_');
   });
 
+  it.each([
+    ['a list item', (b: any) => ({ type: 'bulletList', content: [{ type: 'listItem', content: [b] }] })],
+    ['a cell', (b: any) => ({ type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [b] }] }] })],
+  ])('rides a paragraph in %s, with what else its style holds', async (_name, wrap) => {
+    const block = { type: 'paragraph', attrs: { tabStops: '6l.;12d', widowControl: false, keepLines: true }, content: [{ type: 'text', text: 'x' }] };
+    const read = importOdt(await buildOdt({ type: 'doc', content: [wrap(block), { type: 'paragraph' }] })).content as any;
+    const found: any[] = [];
+    const walk = (n: any) => { if (n.content?.[0]?.text === 'x') found.push(n); n.content?.forEach?.(walk); };
+    walk(read);
+    expect(found[0].attrs).toMatchObject(block.attrs);
+  });
+
   it('keeps two stops at one position apart', async () => {
     // odf-kit mints one automatic style per option set, so without the leader riding
     // style:type both paragraphs would share a style — and with it one leader.

@@ -1711,6 +1711,10 @@ type ParaStyle = {
   langAsian: string | null;
   // Off the page's line grid (style:snap-to-layout-grid="false").
   noSnap: boolean;
+  noWidow: boolean;
+  keepLines: boolean;
+  // The block's tab stops, in the attr's form; they are a child of the paragraph properties.
+  tabStops: string | null;
 };
 
 // A list item's blocks, its first included: each one's own style, its heading level, and
@@ -1728,12 +1732,12 @@ function noParaProps(s: ParaStyle): boolean {
     && s.background === null && s.borderTop === null && s.borderRight === null
     && s.borderBottom === null && s.borderLeft === null && s.dir === null
     && s.indent === null && s.indentFirst === null && s.indentFirstChars === null && s.indentChars === null && s.indentRightChars === null && s.indentRight === null && !s.breakBefore && s.keepNext === null
-    && s.lang === null && s.langAsian === null && !s.noSnap;
+    && s.lang === null && s.langAsian === null && !s.noSnap && !s.noWidow && !s.keepLines && s.tabStops === null;
 }
 
 // What a minted style is deduped on — every emitted property, the language included.
 function paraStyleKey(style: ParaStyle): string {
-  return `${paraStyleProps(style).join('|')}|${style.lang ?? ''}|${style.langAsian ?? ''}`;
+  return `${paraStyleProps(style).join('|')}|${style.lang ?? ''}|${style.langAsian ?? ''}|${style.tabStops ?? ''}`;
 }
 
 // A minted paragraph override as one style element.
@@ -1741,8 +1745,15 @@ function paraStyleDef(name: string, parent: string, style: ParaStyle): string {
   const para = paraStyleProps(style).join(' ');
   const langs = Object.entries(langPairAttrs(style)).map(([k, v]) => `${k}="${v}"`).join(' ');
   const text = langs ? `<style:text-properties ${langs}/>` : '';
+  const stops = parseTabStops(style.tabStops ?? undefined).map((s) => {
+    const leader = normalizeLeader(s.leader);
+    return `<style:tab-stop style:position="${s.pos}cm" style:type="${s.align === 'decimal' ? 'char" style:char=".' : s.align}"`
+      + `${leader ? ` style:leader-style="${ODF_LEADER_STYLE[leader]}" style:leader-text="${leader}"` : ''}/>`;
+  }).join('');
+  const props = stops ? `<style:paragraph-properties ${para}><style:tab-stops>${stops}</style:tab-stops></style:paragraph-properties>`
+    : para ? `<style:paragraph-properties ${para}/>` : '';
   return `<style:style style:name="${name}" style:family="paragraph" style:parent-style-name="${parent}">`
-    + (para ? `<style:paragraph-properties ${para}/>` : '') + text + '</style:style>';
+    + props + text + '</style:style>';
 }
 
 // ODF writes a direction as a writing mode; the vertical ones are not ours to emit.
@@ -1787,6 +1798,9 @@ function paraStyleFromAttrs(attrs: TiptapNode['attrs'], withIndents = true): Par
     lang: typeof attrs?.lang === 'string' && attrs.lang ? attrs.lang : null,
     langAsian: typeof attrs?.langAsian === 'string' && attrs.langAsian ? attrs.langAsian : null,
     noSnap: attrs?.snapToGrid === false,
+    noWidow: attrs?.widowControl === false,
+    keepLines: attrs?.keepLines === true,
+    tabStops: typeof attrs?.tabStops === 'string' && attrs.tabStops ? attrs.tabStops : null,
   };
 }
 
@@ -1829,6 +1843,8 @@ function paraStyleProps(style: ParaStyle): string[] {
   // The pair LibreOffice writes: the mode alone leaves the block left-aligned (probed).
   if (style.dir === 'rtl' && !style.align) props.push('fo:text-align="end"');
   if (style.noSnap) props.push('style:snap-to-layout-grid="false"');
+  if (style.noWidow) props.push('fo:orphans="0"', 'fo:widows="0"');
+  if (style.keepLines) props.push('fo:keep-together="always"');
   return props;
 }
 
@@ -4796,7 +4812,7 @@ function applyInlineSentinels(odtBytes: Uint8Array): Uint8Array {
     .replace(new RegExp(`${PGC}(\\d*)${PGC}`, 'g'), '<text:page-count>$1</text:page-count>')
     .replace(new RegExp(`${CHP}(\\d)${CHP}([\\s\\S]*?)${CHP}`, 'g'),
       (_m, level: string, name: string) => `<text:chapter text:display="name" text:outline-level="${level}">${name}</text:chapter>`);
-  content = content.split(CHAR_TAB_STOP).join(`${CHAR_TAB_STOP} style:char="."`);
+  content = content.replace(new RegExp(`${CHAR_TAB_STOP}(?! style:char)`, 'g'), `${CHAR_TAB_STOP} style:char="."`);
   files['content.xml'] = strToU8(content);
   return rezipOdt(files);
 }
