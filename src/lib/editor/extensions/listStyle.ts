@@ -259,7 +259,7 @@ export function keepingListBelow(props: CommandProps, toggle: () => boolean): bo
   const { $to } = props.state.selection;
   const below = $to.depth ? props.state.doc.resolve($to.after()).nodeAfter : null;
   if (!toggle()) return false;
-  if (!below || !props.dispatch) return true;
+  if (!below?.type.spec.group?.includes('list') || !props.dispatch) return true;
   const $now = props.tr.selection.$to;
   for (let d = $now.depth; d > 0; d--) {
     const list = $now.node(d);
