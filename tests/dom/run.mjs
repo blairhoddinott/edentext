@@ -1483,6 +1483,8 @@ try {
   const word = await page.evaluate(() => {
     const ed = document.querySelector('.tiptap-host .tiptap').editor;
     ed.chain().focus().setTextSelection({ from: 7, to: 12 }).run();
+    // Firefox keeps the scroll across a reload, which leaves the line under the sticky ruler.
+    document.querySelector('.editor').scrollTop = 0;
     const a = ed.view.coordsAtPos(9), b = ed.view.coordsAtPos(21);
     return { x: a.left, y: (a.top + a.bottom) / 2, tx: b.left, ty: (b.top + b.bottom) / 2 };
   });
@@ -1507,6 +1509,9 @@ try {
   const paneRows = () => page.evaluate(() => document.querySelectorAll('.revisions-pane li').length);
   const before = await paneRows();
   await page.locator('[data-cmd="compareDocument"]').first().click();
+  // Without a save picker the app asks through its file input instead.
+  if (!(await page.evaluate(() => typeof window.showSaveFilePicker === 'function')))
+    await page.setInputFiles('input.file-input[accept*=".odt"]', join(ROOT, 'tests/corpus/01-flow.odt'));
   await page.waitForFunction((n) => document.querySelectorAll('.revisions-pane li').length > n, before, { timeout: 8000 }).catch(() => {});
   const compared = await paneRows();
   check(compared > before, `comparing lists the differences as changes (${before} → ${compared})`);

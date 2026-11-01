@@ -156,6 +156,9 @@ try {
   const spill = await menuSpill();
   await page.click('.balloon .edit');
   await settle();
+  // The card grows at once, the ones below glide after it; a slow runner is still there.
+  await page.waitForFunction(() => [...document.querySelectorAll('.balloon')].map((e) => e.getBoundingClientRect())
+    .every((r, i, all) => !i || r.top >= all[i - 1].bottom - 0.5), null, { timeout: 3000 }).catch(() => {});
   const opened = await menuSpill();
   check(spill.count === 7 && spill.out.length === 0 && opened.out.length === 0,
     `margin balloons hold their content (${spill.count} balloons${[...spill.out, ...opened.out].length ? ': ' + [...spill.out, ...opened.out].join(', ') : ''})`);
