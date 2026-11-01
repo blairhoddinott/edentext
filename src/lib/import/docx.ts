@@ -1559,7 +1559,7 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   // over the table style's w:pPr (probed: that ranks *below* the paragraph style). A
   // header/footer paragraph carries none either, and bakes its Header/Footer style in.
   const baked = kind === 'cell' || kind === 'zone';
-  const attrs = blockAttrs(ppr, kind, level, directJc || baked || mathJc ? jcVal : null,
+  const attrs = blockAttrs(ppr, kind, level, directJc || baked || kind === 'list' || mathJc ? jcVal : null,
     baked || kind === 'list' ? ctx.styles.paragraphSpacing(styleId, kind === 'cell' ? ctx.cellSpacing : undefined) : {},
     bidi ?? ctx.pageRtl, kind === 'zone' ? null : styleJc);
   // A list item carries no style name either and renders the default style's spacing,

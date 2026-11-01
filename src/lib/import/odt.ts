@@ -586,7 +586,7 @@ function textBoxContent(children: Element[], ctx: Ctx, widthCm: number | null, a
   const blocks = children.map(c => c.namespaceURI === (NS.loext as string) && c.localName === 'table' ? asOdfTable(c) : c)
     .filter(c => c.namespaceURI === NS.text || (c.namespaceURI === NS.table && c.localName === 'table'));
   const tables = blocks.filter(c => c.namespaceURI === NS.table);
-  if (tables.length === 1 && textChildren.every(c => !c.textContent?.trim())) {
+  if (tables.length === 1 && textChildren.every(c => c.localName !== 'list' && !c.textContent?.trim())) {
     const outerCm = ctx.contentWidthCm;
     if (widthCm) ctx.contentWidthCm = widthCm;
     let table: Node | null;

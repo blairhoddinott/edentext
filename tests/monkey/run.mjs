@@ -378,6 +378,13 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
   // named style resolves to, and bold in a header cell.
   const { resolveStyle } = await import('/src/lib/styles/styleSheet.ts');
   const sheet = editor.extensionManager.extensions.find((e) => e.name === 'paragraphStyle')?.options.sheet();
+  const plainText = (n) => n.text ?? (n.content ?? []).map(plainText).join('');
+  const nameless = new Set();
+  const lookless = (n) => {
+    if (n.type === 'paragraph' && nameless.has(plainText(n))) { n.attrs = {}; for (const c of n.content ?? []) delete c.marks; }
+    (n.content ?? []).forEach(lookless);
+    return n;
+  };
   const styled = (n, header = false, framed = false, text = {}, nested = false) => {
     // getJSON hands out the nodes' and marks' own attrs, which blocks can share.
     if (n.attrs) n.attrs = { ...n.attrs };
@@ -389,8 +396,9 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
       const own = resolveStyle(sheet, style, 'paragraph');
       for (const [k, v] of Object.entries(n.attrs)) if (k !== 'styleName' && own.para?.[k] === v) delete n.attrs[k];
       text = own.text ?? {};
-      // A block in a list or a cell loses the name to its effect (import/CLAUDE.md).
-      if (nested && n.type === 'paragraph' && n.attrs?.styleName) for (const k of ['spaceBefore', 'spaceAfter', 'lineHeight']) if (own.para?.[k] != null) n.attrs[k] ??= own.para[k];
+      // A block in a list or a cell loses the name to its effect (import/CLAUDE.md), which
+      // both files compare without, by the block's text.
+      if (nested && n.type === 'paragraph' && n.attrs?.styleName) nameless.add(plainText(n));
     }
     if (header && n.type === 'text' && n.marks) n.marks = n.marks.filter((m) => m.type !== 'bold');
     // A formula alone in its block is a display formula to both files — a note holds its
@@ -486,7 +494,7 @@ const roundTrip = (bytes, ext) => ed(async ({ b64, ext }) => {
     kids.forEach(cellTail);
     return n;
   };
-  const flat = (n) => stripFontHoist(normalize(ext === 'docx' ? cellTail(stripBreakSpace(stripBoxGrowth(flatLists(n)))) : n));
+  const flat = (n) => stripFontHoist(normalize(lookless(ext === 'docx' ? cellTail(stripBreakSpace(stripBoxGrowth(flatLists(n)))) : n)));
   // The zones the app holds (its own storage is what it exports from) against the ones
   // the file gives back — a zone is no part of the document compared above.
   const { loadHfDoc, loadExtraHfSections, loadDifferentFirstPage, loadDifferentOddEven, hfIsEmpty, EMPTY_HF_SET } = hfStore;

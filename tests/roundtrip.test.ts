@@ -3130,6 +3130,17 @@ describe('block attrs by context', () => {
   const formats: [string, (d: N) => Promise<Uint8Array>, (b: Uint8Array) => N][] = [['ODT', buildOdt as N, importOdt as N], ['DOCX', buildDocx as N, importDocx as N]];
   const blocksOf = (n: N): N[] => [...(n.type === 'paragraph' || n.type === 'heading' ? [n] : []), ...(n.content ?? []).flatMap(blocksOf)];
 
+  it.each(formats)('%s keeps what a list block\'s style aligns and an empty list in a box', async (_name, build, read) => {
+    const block = { type: 'paragraph', attrs: { styleName: 'Title' }, content: [{ type: 'text', text: 'x' }] };
+    const inList = blocksOf((await read(await build({ type: 'doc', content: [list(block), { type: 'paragraph' }] }))).content);
+    expect(inList[0].attrs.textAlign).toBe('center');
+    const table = cell({ type: 'paragraph', content: [{ type: 'text', text: 'c' }] });
+    const empty = { type: 'orderedList', content: [{ type: 'listItem', content: [{ type: 'paragraph' }] }] };
+    const held = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'textBox', attrs: { width: 200, height: 100 }, content: [empty, table] }] }, { type: 'paragraph' }] };
+    const types = (await read(await build(held))).content.content[0].content[0].content.map((n: N) => n.type);
+    expect(types).toContain('orderedList');
+  });
+
   it('keeps the recorded changes of a DOCX box', async () => {
     const rev = { id: 'r1', author: 'Ann', date: '2026-01-02T03:04:05Z' };
     const block = (attrs: N, text: string, marks?: N[]) => ({ type: 'paragraph', attrs, content: [{ type: 'text', text, ...(marks ? { marks } : {}) }] });
