@@ -524,6 +524,15 @@ describe('recording keeps its promise', () => {
     expect(e.getJSON()).toEqual(open(THREE).getJSON());
   });
 
+  it('striking one\'s own Enter keeps a page break', async () => {
+    setRecordChanges(true);
+    const html = '<p>aa</p><h1 data-page-break-before="page">Head</h1><p>tail</p>';
+    const e = open(html);
+    await edit(e, [(x) => select(x, 5), (x) => x.commands.insertContent('new'), (x) => x.commands.splitBlock(), (x) => select(x, 2, 15), (x) => x.commands.deleteSelection()]);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(html).getJSON());
+  });
+
   it('a paragraph before an empty one can become a list', () => {
     for (const [html, at] of [['<p>a</p><p></p>', 1], ['<p></p><p>c</p>', 1]] as const) {
       const e = open(html);

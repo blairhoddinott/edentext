@@ -1438,7 +1438,7 @@ function removeOwnMark(tr: Transaction, pos: number, attrs: RevisionAttrs): void
   const doc = tr.doc, block = doc.nodeAt(pos)!, next = nextParagraph(doc, pos + block.nodeSize - 1);
   let inserted = block.content.size > 0;
   block.forEach((node) => { inserted &&= node.marks.some((m) => m.type.name === 'insertion'); });
-  removeParagraphMark(tr, pos);
+  removeParagraphMark(tr, pos, true);
   if (!inserted || next === null || splitFrom(block, doc.nodeAt(next - 1)!)) return;
   tr.setNodeAttribute(pos, 'revFormat', doc.nodeAt(next - 1)!.attrs.revFormat);
   recordBlockFormat(tr, pos, doc, next - 1, attrs);
