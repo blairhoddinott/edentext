@@ -152,6 +152,7 @@ const { browser, page, pageErrors } = await openApp(PORT);
 // Across every reload: without a picker the save ends in a download, which the run reads.
 await page.addInitScript(() => { window.showSaveFilePicker = undefined; });
 const consoleErrors = [];
+let lostBefore = false;
 page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
 
 const ed = (fn, arg) => page.evaluate(fn, arg);
@@ -642,6 +643,7 @@ try {
       }
       await page.waitForTimeout(5);
       broken ??= await docCheck();
+      if (consoleErrors.some((m) => m.startsWith('Recording would lose')) && !lostBefore) { broken ??= 'the recorder lost an edit'; lostBefore = true; }
     }
     const zonesBefore = await zoneKeys();
     if (!broken) {

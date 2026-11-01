@@ -156,7 +156,6 @@ export const CASES: [string, string, Act[]][] = [
   ['Enter inside a paragraph', THREE, enter(3)],
   ['Enter at a paragraph start', THREE, enter(7)],
   ['Enter in an empty heading', '<h1></h1><p>body</p>', enter(1)],
-  ['typing over a paragraph and an item with a sub-list', `<p>aa</p>${NESTED}<p>t</p>`, [(e) => select(e, 2, 9), (e) => e.commands.insertContent('n')]],
   ['Enter ahead of a page break', '<p>aa</p><h1 data-page-break-before="page">Head</h1>', [(e) => select(e, 5), (e) => e.commands.splitBlock()]],
   ['typing and Enter ahead of a page break', '<p>aa</p><h1 data-page-break-before="page">Head</h1>', [(e) => select(e, 5), (e) => e.commands.insertContent('new'), (e) => e.commands.splitBlock()]],
   ['cells cleared, one of them empty', grid(['a', ''], ['c', 'd']), [cells(0, 1), (e) => deleteCellSelection(e.state, (tr) => e.view.dispatch(tr))]],

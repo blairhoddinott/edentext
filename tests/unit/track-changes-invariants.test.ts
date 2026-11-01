@@ -457,6 +457,46 @@ describe('recording keeps its promise', () => {
     expect(e.getJSON()).toEqual(open(html).getJSON());
   });
 
+  it.each([
+    ['struck text', '<p>1. text</p>', (e: Editor) => { select(e, 1, 3); e.commands.deleteSelection(); }, 3],
+    ['text that was there', '<p>1.</p>', () => {}, 3],
+  ])('an input rule leaves alone %s', async (_name, html, before, at) => {
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, [before, (x) => select(x, at), (x) => x.view.someProp('handleTextInput', (f) => f(x.view, at, at, ' '))]);
+    expect(e.state.doc.firstChild!.type.name).toBe('paragraph');
+    expect(e.getText()).toContain(' ');
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(html).getJSON());
+  });
+
+  it('rejecting brings a lifted item back to its sub-list', async () => {
+    setRecordChanges(true);
+    const html = '<p>x</p><ul><li><p>one</p><ul><li><p>sub</p></li></ul></li></ul><p>t</p>';
+    const e = open(html);
+    await edit(e, [(x) => select(x, 6), (x) => x.commands.liftListItem('listItem')]);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(html).getJSON());
+  });
+
+  it('typing over a paragraph and an item with a sub-list rejects whole', async () => {
+    setRecordChanges(true);
+    const html = '<p>aa</p><ul><li><p>one</p><ul><li><p>sub</p></li></ul></li><li><p>two</p></li></ul><p>t</p>';
+    const e = open(html);
+    await edit(e, [(x) => select(x, 2, 9), (x) => x.commands.insertContent('n')]);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(html).getJSON());
+  });
+
+  it('a block coming in whole leaves the next one its mark', async () => {
+    setRecordChanges(true);
+    const e = open('<p>aa</p><p>bb</p>');
+    const rev = { insertion: { id: 'x', author: 'Other', date: '2026-05-06T07:08:00Z' } };
+    const block = e.schema.nodes.paragraph.create({ revMark: rev }, e.schema.text('new'));
+    await edit(e, [(x) => x.view.dispatch(x.state.tr.insert(4, block))]);
+    expect(e.state.doc.child(2).attrs.revMark).toBeNull();
+  });
+
   it('a paragraph before an empty one can become a list', () => {
     for (const [html, at] of [['<p>a</p><p></p>', 1], ['<p></p><p>c</p>', 1]] as const) {
       const e = open(html);

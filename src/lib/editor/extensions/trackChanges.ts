@@ -389,6 +389,7 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
       tr.setNodeAttribute(at, 'revMark', Object.keys(rest).length ? rest : null);
     }
   }
+  if (!accept) for (const { pos } of marks) rejoinCut(tr, tr.mapping.map(pos, -1));
   // From the start: a block going back into a list joins the lists before it.
   const formats = list.flatMap((r) => (r.kind === 'formatChange' ? r.marks : []));
   for (const pos of formats.sort((a, b) => a - b)) settleBlockFormat(tr, pos, accept);
@@ -453,6 +454,21 @@ function restoreLists(tr: Transaction, pos: number, levels: ListLevel[]): void {
     if (!LISTS.has($at.node(d).type.name)) continue;
     const at = $at.after(d);
     if (sameBeside(tr.doc.resolve(at).nodeAfter, $at.node(d))) tr.join(at);
+  }
+  rejoinCut(tr, here());
+}
+
+// Rejoins at `pos` and up from it what a removed block cut: an item starting with a list is
+// the rest of the item before it, and of lists that meet, the second part of the first.
+function rejoinCut(tr: Transaction, pos: number): void {
+  const start = tr.steps.length, $pos = tr.doc.resolve(pos), points = [pos];
+  for (let d = $pos.depth; d > 0; d--) if (LIST_NODES.has($pos.node(d).type.name)) points.push($pos.after(d));
+  for (const point of points) {
+    const at = tr.mapping.slice(start).map(point), { nodeBefore: a, nodeAfter: b } = tr.doc.resolve(at);
+    if (!a || !b || a.type !== b.type) continue;
+    const opensWithList = (a.type.name === 'listItem' && !b.firstChild!.isTextblock)
+      || (LISTS.has(a.type.name) && !b.firstChild!.firstChild!.isTextblock);
+    if (opensWithList || cutList(tr.doc, at)) rejoinList(tr, at);
   }
 }
 
@@ -795,6 +811,14 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
             return true;
           }
           const author = options.author();
+          // A rule rewrites text with no change to show for it: only new text may go that
+          // way (see autolink), everything else stays what was typed.
+          const rule = state.plugins.find((p) => p.spec.isInputRules);
+          const typed = rule && (tr.getMeta(rule) as { from: number; to: number; text: string } | undefined);
+          if (typed && takesOthers(tr, author)) {
+            queueMicrotask(() => this.editor.view.dispatch(this.editor.state.tr.insertText(typed.text, typed.from, typed.to)));
+            return false;
+          }
           // Taking back one's own pending text goes as it is (appendTransaction marks what
           // replaces it): a replay a microtask later would break an IME's running composition.
           if (ownOnly(tr, author)) return true;
@@ -1029,6 +1053,19 @@ function keptThrough(map: StepMap, [from, to]: [number, number]): [number, numbe
     if (to > os && to <= oe) end = ns;
   });
   return [start, Math.max(start, end)];
+}
+
+// Whether a step takes out inline content that is not `author`'s pending insertion.
+function takesOthers(tr: Transaction, author: string): boolean {
+  let others = false;
+  tr.steps.forEach((step, i) => step.getMap().forEach((from, to) => {
+    if (to > from) tr.docs[i].nodesBetween(from, to, (node) => {
+      if (!node.isInline) return true;
+      others ||= !node.marks.some((m) => m.type.name === 'insertion' && String(m.attrs.author ?? '') === author);
+      return false;
+    });
+  }));
+  return others;
 }
 
 // Every step removes only text of one textblock that `author` inserted and nobody struck.
@@ -1424,7 +1461,10 @@ function markInsertedParagraphs(tr: Transaction, from: number, to: number, attrs
   // The fitted replace gives that half the slice's attrs, which name another block's mark.
   const first = blocks[0].rev, after = nextParagraph(tr.doc, blocks[blocks.length - 1].end);
   const split = blocks[0].pos < from && after !== null && after <= to;
-  if ((first || split) && after !== null) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first ?? null);
+  // Blocks that came in whole behind it: the last one ends where the block did.
+  const whole = blocks[0].pos < from && blocks[blocks.length - 1].pos >= from;
+  if (split) tr.setNodeAttribute(tr.doc.resolve(after).before(), 'revMark', first ?? null);
+  else if (first && whole) tr.setNodeAttribute(blocks[blocks.length - 1].pos, 'revMark', first);
   // Enter at a block's start: the block is the second half, and its format change with it.
   const head = tr.doc.nodeAt(blocks[0].pos)!;
   if (split && !head.content.size && head.attrs.revFormat) {
