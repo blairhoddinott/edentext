@@ -51,6 +51,11 @@
     open = false;
     onCancel?.();
   }
+
+  // A close event is queued: a wrong password can have reopened the dialog before it lands.
+  function closed() {
+    if (!dialogEl?.open) cancel();
+  }
 </script>
 
 {#snippet peek()}
@@ -72,7 +77,7 @@
 
 <dialog
   bind:this={dialogEl}
-  onclose={cancel}
+  onclose={closed}
   onclick={(e) => e.target === dialogEl && cancel()}
   aria-label={heading}
 >
