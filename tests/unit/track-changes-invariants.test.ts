@@ -1,6 +1,6 @@
 // What recording promises, for every kind of edit: accepting all gives what the same edit
 // gives unrecorded, rejecting all gives the document back.
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { zoneExtensions } from '../../src/lib/editor/extensions';
@@ -369,6 +369,21 @@ describe('recording keeps its promise', () => {
     expect(rejected.getJSON()).toEqual(open(html).getJSON());
     e.commands.acceptRevisions(true);
     expect(shape(e)).toEqual(shape(plain));
+  });
+
+  it('records a note put over a selection into a table', async () => {
+    const lost = vi.spyOn(console, 'error');
+    const html = '<p>head</p><table><tbody><tr><td><p>a1</p></td></tr><tr><td><p>a2long</p></td></tr></tbody></table><p>tail</p>';
+    setRecordChanges(true);
+    const e = open(html);
+    await edit(e, [(ed) => select(ed, 3, 21), (ed) => ed.commands.insertNote('footnote')]);
+    const recorded = e.getJSON();
+    setRecordChanges(false);
+    expect(lost.mock.calls.filter(([m]) => String(m).startsWith('Recording would lose'))).toEqual([]);
+    lost.mockRestore();
+    const rejected = open(recorded);
+    rejected.commands.rejectRevisions(true);
+    expect(rejected.getJSON()).toEqual(open(html).getJSON());
   });
 
   it.each<[string, (e: Editor) => unknown]>([

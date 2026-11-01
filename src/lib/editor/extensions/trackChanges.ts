@@ -1087,10 +1087,12 @@ function ownOnly(tr: Transaction, author: string): boolean {
 }
 
 // Each character, object and cell in a document. Blocks are no part of it: accepting a
-// mark follows the file's rule, which merges them differently from a plain edit.
+// mark follows the file's rule, which merges them differently from a plain edit. Nor is a
+// note: its body follows the anchor, through the notes' own repair.
 function tally(doc: PMNode): Map<string, number> {
   const out = new Map<string, number>(), add = (key: string) => out.set(key, (out.get(key) ?? 0) + 1);
   doc.descendants((node) => {
+    if (node.type.name === 'noteSection' || node.type.name === 'note') return;
     if (node.isText) for (const char of node.text!) add(char);
     else if (/cell/.test(node.type.spec.tableRole ?? '')) add(`<cell ${node.attrs.colspan}x${node.attrs.rowspan}>`);
     else if (!node.isTextblock && !LIST_NODES.has(node.type.name) && node.type.spec.tableRole !== 'row') add(`<${node.type.name}>`);
@@ -1294,10 +1296,10 @@ function clearCells(tr: Transaction, state: EditorState, author: string): Transa
 // what the edit left in its place lands after it, the merge left out.
 function replaceSelection(tr: Transaction, state: EditorState, author: string): Transaction | null {
   const sel = state.selection;
-  const first = tr.steps[0] as Step & { from?: number };
+  const first = tr.steps[0] as Step & { from?: number; to?: number };
   // Only an edit that removes the selected content: a mark or a block attribute set over
-  // the selection starts there too.
-  if (sel.empty || first.from !== sel.from || isPureDelete(tr, state) || !tr.mapping.mapResult(sel.from, 1).deletedAfter) return null;
+  // the selection starts there too, and an object put in front of it leaves it standing.
+  if (sel.empty || first.from !== sel.from || first.to === first.from || isPureDelete(tr, state) || !tr.mapping.mapResult(sel.from, 1).deletedAfter) return null;
   const slice = editedContent(tr.doc, tr.mapping.map(sel.from, -1), tr.mapping.map(sel.to, 1));
   const marked = state.tr;
   trackedReplace(marked, sel.from, sel.to, slice, author);
