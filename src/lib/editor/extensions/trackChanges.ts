@@ -1102,10 +1102,10 @@ function tally(doc: PMNode): Map<string, number> {
 function keepsEdit(tr: Transaction, marked: Transaction): boolean {
   const simple = tr.steps.every((s, i) => !(s instanceof ReplaceStep) || (inlineOnly(tr.docs[i], s.from, s.to) && (!s.slice.size || !!s.slice.content.firstChild!.isInline)));
   if (simple) return true;
-  // A replay that changes nothing may only stand for what is gone anyway: struck text again.
-  if (!marked.docChanged && !settledDoc(tr.doc, true).eq(settledDoc(marked.doc, true))) return false;
-  const kept = tally(settledDoc(marked.doc, true));
-  return [...tally(settledDoc(tr.doc, true))].every(([key, count]) => (kept.get(key) ?? 0) >= count);
+  const edited = tally(settledDoc(tr.doc, true)), kept = tally(settledDoc(marked.doc, true));
+  // A replay that changes nothing may only stand for what is gone anyway: a struck mark again.
+  if (!marked.docChanged && [...kept].some(([key, count]) => edited.get(key) !== count)) return false;
+  return [...edited].every(([key, count]) => (kept.get(key) ?? 0) >= count);
 }
 
 // A user edit that removes text — a delete, typing or pasting over a selection, Enter over
@@ -1163,7 +1163,7 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
       if (blank && step.slice.size) end = back.pos;
     }
     const start = end;
-    if (step.slice.size && !reopensOnly(step.slice)) end = insertTracked(marked, start, step.slice, fresh());
+    if (step.slice.size && !reopensOnly(step.slice)) end = insertTracked(marked, start, step.to > step.from && !ui ? typedOnly(step.slice, marked.doc.resolve(start)) : step.slice, fresh());
     const steady = marked.steps.length, { from, to } = step, size = step.slice.size;
     at = (p, a) => {
       // The end of what lies before a struck range stays before it: a column left of a column.
@@ -1202,6 +1202,14 @@ function reopensOnly(slice: Slice): boolean {
   let inline = false;
   slice.content.descendants((n) => { inline ||= n.isInline; return !inline; });
   return !inline && slice.content.childCount === 1 && !slice.openStart && LIST_NODES.has(slice.content.firstChild!.type.name);
+}
+
+// A browser typing over blocks rebuilds the block it kept, with its lists: what lands in
+// the text after the struck range is the typed text alone.
+function typedOnly(slice: Slice, $at: ResolvedPos): Slice {
+  let node = slice.content.childCount === 1 ? slice.content.firstChild : null;
+  while (node && !node.isTextblock && node.childCount === 1) node = node.firstChild;
+  return node?.isTextblock && $at.parent.inlineContent ? new Slice(node.content, 0, 0) : slice;
 }
 
 // A paste over cells replaces each row's run of them whole (prosemirror-tables'
@@ -1431,7 +1439,7 @@ function removeOwnMark(tr: Transaction, pos: number, attrs: RevisionAttrs): void
   let inserted = block.content.size > 0;
   block.forEach((node) => { inserted &&= node.marks.some((m) => m.type.name === 'insertion'); });
   removeParagraphMark(tr, pos);
-  if (!inserted || next === null) return;
+  if (!inserted || next === null || splitFrom(block, doc.nodeAt(next - 1)!)) return;
   tr.setNodeAttribute(pos, 'revFormat', doc.nodeAt(next - 1)!.attrs.revFormat);
   recordBlockFormat(tr, pos, doc, next - 1, attrs);
 }

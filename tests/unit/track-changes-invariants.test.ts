@@ -2,6 +2,7 @@
 // gives unrecorded, rejecting all gives the document back.
 import { describe, it, expect, afterEach } from 'vitest';
 import { Editor } from '@tiptap/core';
+import { Fragment, Slice } from '@tiptap/pm/model';
 import { zoneExtensions } from '../../src/lib/editor/extensions';
 import { BLOCK_FORMAT_CASES, CASES, FORMAT_CASES, LIST_CASES, MOVE_CASES, REBUILD_CASES, REPLACE_CASES, TABLE_CASES, THREE, del, edit, enter, open, select } from '../trackChangesCases';
 import { revisions, settledDoc, shownRange } from '../../src/lib/editor/extensions/trackChanges';
@@ -495,6 +496,32 @@ describe('recording keeps its promise', () => {
     const block = e.schema.nodes.paragraph.create({ revMark: rev }, e.schema.text('new'));
     await edit(e, [(x) => x.view.dispatch(x.state.tr.insert(4, block))]);
     expect(e.state.doc.child(2).attrs.revMark).toBeNull();
+  });
+
+  it('typing over blocks and a browser rebuilding a list item is text', async () => {
+    setRecordChanges(true);
+    const html = '<p>head</p><ul><li><p>one</p><ul><li><p>sub</p></li></ul></li></ul><p>t</p>';
+    const e = open(html);
+    select(e, 1, 9);
+    await edit(e, [(x) => x.view.dispatch(x.state.tr.replace(0, 9, new Slice(Fragment.from(e.schema.nodes.bulletList.create(null, e.schema.nodes.listItem.create(null, e.schema.nodes.paragraph.create(null, e.schema.text('x'))))), 0, 3)))]);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(html).getJSON());
+  });
+
+  it('Delete at a struck paragraph mark leaves it struck', async () => {
+    setRecordChanges(true);
+    const e = open(THREE);
+    await edit(e, [(x) => select(x, 7), (x) => x.commands.joinBackward()]);
+    const marks = revisions(e.state.doc).length;
+    const error = console.error;
+    const errors: unknown[] = [];
+    console.error = (m) => errors.push(m);
+    await edit(e, [(x) => select(x, 5), (x) => x.commands.joinForward()]);
+    console.error = error;
+    expect(errors).toEqual([]);
+    expect(revisions(e.state.doc)).toHaveLength(marks);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(THREE).getJSON());
   });
 
   it('a paragraph before an empty one can become a list', () => {
