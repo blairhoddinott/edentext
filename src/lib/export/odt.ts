@@ -1704,8 +1704,10 @@ type ParaStyle = {
   indentRight: number | null;
   // A page break before the item — list paragraphs only; LibreOffice ignores one in a cell.
   breakBefore: boolean;
-  // Keep with next, where the block says so itself — list paragraphs only, as above.
+  // Keep with next, where the block says so itself.
   keepNext: boolean | null;
+  // The paragraph mark's font, in the FSZ payload's form.
+  font: string | null;
   // The block's language tags; ODF keeps them in the text properties, not the paragraph ones.
   lang: string | null;
   langAsian: string | null;
@@ -1731,20 +1733,21 @@ function noParaProps(s: ParaStyle): boolean {
   return s.align === null && s.spaceBefore === null && s.spaceAfter === null && s.lineHeight === null
     && s.background === null && s.borderTop === null && s.borderRight === null
     && s.borderBottom === null && s.borderLeft === null && s.dir === null
-    && s.indent === null && s.indentFirst === null && s.indentFirstChars === null && s.indentChars === null && s.indentRightChars === null && s.indentRight === null && !s.breakBefore && s.keepNext === null
+    && s.indent === null && s.indentFirst === null && s.indentFirstChars === null && s.indentChars === null && s.indentRightChars === null && s.indentRight === null && !s.breakBefore && s.keepNext === null && s.font === null
     && s.lang === null && s.langAsian === null && !s.noSnap && !s.noWidow && !s.keepLines && s.tabStops === null;
 }
 
 // What a minted style is deduped on — every emitted property, the language included.
 function paraStyleKey(style: ParaStyle): string {
-  return `${paraStyleProps(style).join('|')}|${style.lang ?? ''}|${style.langAsian ?? ''}|${style.tabStops ?? ''}`;
+  return `${paraStyleProps(style).join('|')}|${style.lang ?? ''}|${style.langAsian ?? ''}|${style.tabStops ?? ''}|${style.font ?? ''}`;
 }
 
 // A minted paragraph override as one style element.
 function paraStyleDef(name: string, parent: string, style: ParaStyle): string {
   const para = paraStyleProps(style).join(' ');
   const langs = Object.entries(langPairAttrs(style)).map(([k, v]) => `${k}="${v}"`).join(' ');
-  const text = langs ? `<style:text-properties ${langs}/>` : '';
+  const font = style.font ? fontSizeProps(escapeXml(style.font)) : '';
+  const text = langs || font ? `<style:text-properties ${[langs, font].filter(Boolean).join(' ')}/>` : '';
   const stops = parseTabStops(style.tabStops ?? undefined).map((s) => {
     const leader = normalizeLeader(s.leader);
     return `<style:tab-stop style:position="${s.pos}cm" style:type="${s.align === 'decimal' ? 'char" style:char=".' : s.align}"`
@@ -1765,7 +1768,8 @@ export function writingModeOf(dir: 'ltr' | 'rtl' | null | undefined): string | n
 // block carries is written too: its style may justify (importers set it only then).
 function paraStyleFromAttrs(attrs: TiptapNode['attrs'], withIndents = true): ParaStyle {
   const ta = attrs?.textAlign as AlignValue | undefined;
-  const cm = (v: unknown) => (withIndents && typeof v === 'number' && v !== 0 ? v : null);
+  const right = (v: unknown) => (typeof v === 'number' && v !== 0 ? v : null);
+  const cm = (v: unknown) => (withIndents ? right(v) : null);
   const sb = attrs?.spaceBefore;
   const sa = attrs?.spaceAfter;
   const lh = attrs?.lineHeight;
@@ -1791,10 +1795,12 @@ function paraStyleFromAttrs(attrs: TiptapNode['attrs'], withIndents = true): Par
     indentFirst: cm(attrs?.indentFirst),
     indentFirstChars: cm(attrs?.indentFirstChars),
     indentChars: cm(attrs?.indentChars),
-    indentRightChars: cm(attrs?.indentRightChars),
-    indentRight: cm(attrs?.indentRight),
+    // A list's numbering holds the left side only; the right one stays the block's.
+    indentRightChars: right(attrs?.indentRightChars),
+    indentRight: right(attrs?.indentRight),
     breakBefore: false,
-    keepNext: null,
+    keepNext: typeof attrs?.keepNext === 'boolean' ? attrs.keepNext : null,
+    font: markFontPayload(attrs) || null,
     lang: typeof attrs?.lang === 'string' && attrs.lang ? attrs.lang : null,
     langAsian: typeof attrs?.langAsian === 'string' && attrs.langAsian ? attrs.langAsian : null,
     noSnap: attrs?.snapToGrid === false,
@@ -1852,7 +1858,7 @@ function paraStyleProps(style: ParaStyle): string[] {
 // applyCellBlocks to rebuild real <text:h>/<text:p>/<text:list> from the SEG-segmented
 // <text:p> odf-kit emits. Each paragraph/heading/list item is one segment, in DFS order.
 // An item's paragraphs and sub-lists in order; one opening with a sub-list has no label.
-type CellListItem = { parts: ({ kind: 'paragraph'; style: ParaStyle } | CellListBlock)[]; labelless?: boolean };
+type CellListItem = { parts: ({ kind: 'paragraph'; style: ParaStyle; level: number | null } | CellListBlock)[]; labelless?: boolean };
 // listStyleType is the ordered list's raw attr (null = depth default / inherited
 // multilevel chain); bulletChar the bullet list's marker attr (null = default cycle).
 type CellListBlock = { kind: 'list'; ordered: boolean; start: number | null; continues: boolean; listStyleType: string | null; bulletChar: string | null; items: CellListItem[] };
@@ -1880,8 +1886,7 @@ function collectListItemStyles(node: TiptapNode, result: ParaStyle[], extras: Li
       b?.type === 'heading' ? `Heading ${(b.attrs?.level as number) ?? 1}` : (b?.attrs?.styleName as string | undefined) ?? DEFAULT_STYLE);
     const firstList = (node.content ?? []).findIndex(c => c.type === 'bulletList' || c.type === 'orderedList');
     // A list item's blocks break and keep like body ones (pageBreaks.ts walks into lists).
-    const flow = (b: TiptapNode) => ({ ...paired(b), ...namedStyle(b), breakBefore: b.attrs?.breakBefore === 'page',
-      keepNext: typeof b.attrs?.keepNext === 'boolean' ? b.attrs.keepNext : null });
+    const flow = (b: TiptapNode) => ({ ...paired(b), ...namedStyle(b), breakBefore: b.attrs?.breakBefore === 'page' });
     extras.push(blocks.map(b => ({ style: flow(b),
       level: b.type === 'heading' ? (b.attrs?.level as number) ?? 1 : null,
       afterList: firstList >= 0 && node.content!.indexOf(b) > firstList })));
@@ -3568,8 +3573,9 @@ function applyCellBlocks(odtBytes: Uint8Array, cellBlocks: CellBlock[][]): Uint8
       const startAttr = !isBullet && idx === 0 && list.start != null && !continued ? ` text:start-value="${list.start}"` : '';
       out += `<text:list-item${startAttr}>`;
       for (const part of item.parts) {
-        out += part.kind === 'list' ? buildList(part, segments, cur, depth + 1, ml, cChild)
-          : `<text:p text:style-name="${styleNameFor(paraParent, part.style)}">${segments[cur.i++] ?? ''}</text:p>`;
+        if (part.kind === 'list') out += buildList(part, segments, cur, depth + 1, ml, cChild);
+        else if (part.level != null) out += `<text:h text:style-name="${styleNameFor(`Heading_20_${part.level}`, part.style)}" text:outline-level="${part.level}">${segments[cur.i++] ?? ''}</text:h>`;
+        else out += `<text:p text:style-name="${styleNameFor(paraParent, part.style)}">${segments[cur.i++] ?? ''}</text:p>`;
       }
       out += '</text:list-item>';
     });
@@ -4433,6 +4439,7 @@ function buildCellContent(cell: TiptapNode, c: CellBuilder, force: TextProps = {
     const own: TextProps = { ...force };
     if (typeof attrs?.fontSize === 'string' && /pt$/.test(attrs.fontSize)) own.fontSizePt = parseFloat(attrs.fontSize);
     if (typeof attrs?.fontFamily === 'string' && attrs.fontFamily) own.fontFamily = attrs.fontFamily;
+    if (typeof attrs?.fontFamilyAsian === 'string' && attrs.fontFamilyAsian) own.fontFamilyAsian = attrs.fontFamilyAsian;
     applyRuns(c, content ?? [], own);
   };
 
@@ -4447,7 +4454,8 @@ function buildCellContent(cell: TiptapNode, c: CellBuilder, force: TextProps = {
         if (child.type === 'bulletList' || child.type === 'orderedList') parts.push(walkList(child));
         else if (child.type === 'paragraph' || child.type === 'heading') {
           emitSegment(child.content, child.attrs); // one segment per paragraph, in DFS order
-          parts.push({ kind: 'paragraph', style: { ...paraStyleFromAttrs(child.attrs, false), ...namedStyle(child) } });
+          parts.push({ kind: 'paragraph', style: { ...paraStyleFromAttrs(child.attrs, false), ...namedStyle(child) },
+            level: child.type === 'heading' ? (child.attrs?.level as number) ?? 1 : null });
         }
       }
       items.push({ parts, labelless: parts[0]?.kind === 'list' });

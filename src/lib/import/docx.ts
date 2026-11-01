@@ -1622,7 +1622,7 @@ function convertParagraph(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault:
   // lets the heading end a page; one the file only names is Word's built-in, which keeps.
   if (level && !kn && (directKn || !styleId || ctx.styles.definesParagraphStyle(styleId))) attrs.keepNext = false;
   const directKl = fc(ppr, 'keepLines');
-  if (!level && (directKl ? onOff(directKl) : ctx.styles.paragraphKeepLines(styleId))) attrs.keepLines = true;
+  if (directKl ? onOff(directKl) : !level && ctx.styles.paragraphKeepLines(styleId)) attrs.keepLines = true;
   // A direct w:pageBreakBefore is read in blockAttrs; the style's rides the block too.
   if ((kind === 'body' || kind === 'list') && !fc(ppr, 'pageBreakBefore') && ctx.styles.paragraphPageBreakBefore(styleId)) attrs.breakBefore = 'page';
   // Word 2013's layout (compatibilityMode 15) opens the page a paragraph breaks itself onto
@@ -1877,8 +1877,12 @@ function blockAttrs(ppr: Element | null, kind: BlockKind, headingLevel: number |
   const snap = fc(ppr, 'snapToGrid');
   if (snap && !onOff(snap)) attrs.snapToGrid = false;
 
+  const ind = fc(ppr, 'ind');
+  const right = ind ? intAttr(ind, W, 'right') ?? intAttr(ind, W, 'end') : null;
+  const rightChars = ind ? intAttr(ind, W, 'rightChars') ?? intAttr(ind, W, 'endChars') : null;
+  if (rightChars) attrs.indentRightChars = rightChars / 100;
+  else if (right != null) { const cm = round2(twipToCm(right)); if (cm > LIST_INDENT_EPS_CM || (kind !== 'cell' && cm < -LIST_INDENT_EPS_CM)) attrs.indentRight = cm; }
   if (kind !== 'list') {
-    const ind = fc(ppr, 'ind');
     // The *Chars attributes (hundredths of a character) win over the twips when nonzero.
     // A hanging count adds to the left one, where LibreOffice puts the text (probed).
     const hangingChars = ind ? intAttr(ind, W, 'hangingChars') : null;
@@ -1888,10 +1892,6 @@ function blockAttrs(ppr: Element | null, kind: BlockKind, headingLevel: number |
     // text inside its padding (probed: LibreOffice wraps such a line at the cell's width).
     if (leftChars || hangingChars) attrs.indentChars = ((leftChars ?? 0) + (hangingChars ?? 0)) / 100;
     else if (left != null) { const cm = round2(twipToCm(left)); if (cm > LIST_INDENT_EPS_CM || (kind !== 'cell' && cm < -LIST_INDENT_EPS_CM)) attrs.indent = cm; }
-    const right = ind ? intAttr(ind, W, 'right') ?? intAttr(ind, W, 'end') : null;
-    const rightChars = ind ? intAttr(ind, W, 'rightChars') ?? intAttr(ind, W, 'endChars') : null;
-    if (rightChars) attrs.indentRightChars = rightChars / 100;
-    else if (right != null) { const cm = round2(twipToCm(right)); if (cm > LIST_INDENT_EPS_CM || (kind !== 'cell' && cm < -LIST_INDENT_EPS_CM)) attrs.indentRight = cm; }
     // w:hanging outdents the first line, w:firstLine indents it; they are exclusive.
     const hanging = ind ? intAttr(ind, W, 'hanging') : null;
     const firstLine = ind ? intAttr(ind, W, 'firstLine') : null;

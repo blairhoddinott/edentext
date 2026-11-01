@@ -3113,3 +3113,33 @@ describe('ODT spaces', () => {
     expect(xml).toMatch(/a <text:span [^>]*><text:s\/>b/);
   });
 });
+
+// A block's formatting holds wherever the block sits; what a context takes elsewhere is
+// the left side of a list (the list's own) and a page break in a cell or a box.
+describe('block attrs by context', () => {
+  const attrs: Record<string, unknown> = {
+    textAlign: 'center', indentRight: 1.2, indentRightChars: 2, lineHeight: '1.5', spaceBefore: 6, spaceAfter: 8,
+    fontSize: '14pt', fontFamily: 'Courier New', fontFamilyAsian: 'Noto Sans CJK SC', tabStops: '6l.', widowControl: false,
+    keepLines: true, keepNext: true, dir: 'rtl', snapToGrid: false, lang: 'de-DE', langAsian: 'zh-CN', borderTop: '0.5pt solid #000000',
+  };
+  const list = (b: N) => ({ type: 'bulletList', content: [{ type: 'listItem', content: [b] }] });
+  const cell = (b: N) => ({ type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [b] }] }] });
+  const box = (b: N) => ({ type: 'paragraph', content: [{ type: 'textBox', attrs: { width: 200, height: 100 }, content: [b] }] });
+  const contexts: [string, (b: N) => N][] = [['body', (b) => b], ['list', list], ['cell', cell], ['box', box],
+    ['list in a cell', (b) => cell(list(b))], ['list in a box', (b) => box(list(b))]];
+  const formats: [string, (d: N) => Promise<Uint8Array>, (b: Uint8Array) => N][] = [['ODT', buildOdt as N, importOdt as N], ['DOCX', buildDocx as N, importDocx as N]];
+  const blocksOf = (n: N): N[] => [...(n.type === 'paragraph' || n.type === 'heading' ? [n] : []), ...(n.content ?? []).flatMap(blocksOf)];
+
+  describe.each(formats)('%s', (_name, build, read) => {
+    it.each(contexts)('in %s', async (_where, wrap) => {
+      for (const type of ['paragraph', 'heading']) for (const content of [[{ type: 'text', text: 'x' }], undefined]) for (const key of Object.keys(attrs)) {
+        const own = { [key]: key === 'keepNext' ? type === 'paragraph' : attrs[key], ...(type === 'heading' ? { level: 2 } : {}) };
+        const block = { type, attrs: own, ...(content ? { content } : {}) };
+        const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'lead' }] }, wrap(block), { type: 'paragraph' }] };
+        const blocks = blocksOf((await read(await build(doc))).content);
+        const found = blocks[blocks.length - 2];
+        check(`${type} ${key}${content ? '' : ' empty'}`, found.type === type && found.attrs?.[key] === own[key], found);
+      }
+    });
+  });
+});

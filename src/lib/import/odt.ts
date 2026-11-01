@@ -2221,7 +2221,7 @@ function convertParaLike(el: Element, ctx: Ctx, kind: BlockKind, boldByDefault =
   if (!isHeading && !defaults.keepNext && paraProps['fo:keep-with-next'] === 'always') attrs.keepNext = true;
   // Unless a heading style the file defines drops it; an undefined one is the built-in.
   if (isHeading && paraProps['fo:keep-with-next'] !== 'always' && resolver.namedAncestor(styleName)) attrs.keepNext = false;
-  if (!isHeading && !defaults.keepLines && paraProps['fo:keep-together'] === 'always') attrs.keepLines = true;
+  if (!defaults.keepLines && paraProps['fo:keep-together'] === 'always') attrs.keepLines = true;
   // "Don't hyphenate this paragraph" — only meaningful where the document hyphenates at
   // all; below that switch it is the default and no formatting.
   if (baseTextProps['fo:hyphenate'] === 'false' && resolver.documentHyphenation()) attrs.noHyphenation = true;
@@ -2354,9 +2354,9 @@ function blockAttrs(paraProps: PropMap, textProps: PropMap, defaults: BlockDefau
   // Left indent → fo:margin-left (cm). Skip lists: their indent lives in the
   // list-style level properties, not paraProps. What the style already indents is not
   // direct formatting.
+  // LibreOffice's font-relative loext: twins (in `ic`, characters) win over the fo: ones.
+  const ic = (v: string | undefined) => { const m = /^(-?[\d.]+)ic$/.exec(v ?? ''); return m ? parseFloat(m[1]) : 0; };
   if (kind !== 'list') {
-    // LibreOffice's font-relative loext: twins (in `ic`, characters) win over the fo: ones.
-    const ic = (v: string | undefined) => { const m = /^(-?[\d.]+)ic$/.exec(v ?? ''); return m ? parseFloat(m[1]) : 0; };
     const ml = lengthToPt(paraProps['fo:margin-left']) ?? 0;
     const leftChars = ic(paraProps['loext:margin-left']);
     if (leftChars > 0) attrs.indentChars = leftChars;
@@ -2366,11 +2366,11 @@ function blockAttrs(paraProps: PropMap, textProps: PropMap, defaults: BlockDefau
     const ti = lengthToCm(paraProps['fo:text-indent']);
     if (chars) attrs.indentFirstChars = chars;
     else if (ti != null && Math.abs(ti) > 0.02) attrs.indentFirst = Math.round(ti * 100) / 100;
-    const mr = lengthToCm(paraProps['fo:margin-right']);
-    const rightChars = ic(paraProps['loext:margin-right']);
-    if (rightChars > 0) attrs.indentRightChars = rightChars;
-    else if (mr != null && (mr > 0.02 || (kind !== 'cell' && mr < -0.02))) attrs.indentRight = Math.round(mr * 100) / 100;
   }
+  const mr = lengthToCm(paraProps['fo:margin-right']);
+  const rightChars = ic(paraProps['loext:margin-right']);
+  if (rightChars > 0) attrs.indentRightChars = rightChars;
+  else if (mr != null && (mr > 0.02 || (kind !== 'cell' && mr < -0.02))) attrs.indentRight = Math.round(mr * 100) / 100;
 
   // Manual page break (fo:break-before); the editor has no column breaks, so only
   // "page". A cell block can't carry one — LibreOffice ignores it inside a table.

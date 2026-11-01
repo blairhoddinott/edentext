@@ -1273,17 +1273,24 @@ function escapeXml(s: string): string {
 
 // Run properties for the hand-serialized txbxContent, in CT_RPr schema order
 // (rFonts, b, i, strike, color, sz, u, shd, vertAlign). Mirrors runPropsFromMarks.
-function txbxRunPropsXml(marks: TiptapNode['marks'] = [], blockLangs: unknown[] = []): string {
+function rFontsXml(font: NonNullable<ReturnType<typeof fontPair>>): string {
+  const slots = (['ascii', 'eastAsia', 'hAnsi', 'cs'] as const).filter((k) => font[k]);
+  return `<w:rFonts${slots.map((k) => ` w:${k}="${escapeXml(font[k]!)}"`).join('')}/>`;
+}
+
+function szXml(size: unknown): string {
+  const hp = size ? fontSizeToHalfPoints(String(size)) : undefined;
+  return hp ? `<w:sz w:val="${hp}"/><w:szCs w:val="${hp}"/>` : '';
+}
+
+function txbxRunPropsXml(marks: TiptapNode['marks'] = [], blockLangs: unknown[] = [], block: TiptapNode['attrs'] = {}): string {
   const ts = marks.find((m) => m.type === 'textStyle');
   const parts: string[] = [];
   // w:rStyle leads w:rPr; the run's own properties below still win, as in the body.
   const cs = marks.find((m) => m.type === 'charStyle')?.attrs?.name;
   if (typeof cs === 'string' && cs) parts.push(`<w:rStyle w:val="${escapeXml(docxStyleId(cs))}"/>`);
-  const font = fontPair(ts?.attrs?.fontFamily, ts?.attrs?.fontFamilyAsian, screenToDoc);
-  if (font) {
-    const slots = (['ascii', 'eastAsia', 'hAnsi', 'cs'] as const).filter((k) => font[k]);
-    parts.push(`<w:rFonts${slots.map((k) => ` w:${k}="${escapeXml(font[k]!)}"`).join('')}/>`);
-  }
+  const font = fontPair(ts?.attrs?.fontFamily ?? block?.fontFamily, ts?.attrs?.fontFamilyAsian ?? block?.fontFamilyAsian, screenToDoc);
+  if (font) parts.push(rFontsXml(font));
   let bold = markPresent(marks, 'bold');
   const fw = ts?.attrs?.fontWeight;
   if (fw != null) {
@@ -1306,11 +1313,8 @@ function txbxRunPropsXml(marks: TiptapNode['marks'] = [], blockLangs: unknown[] 
     const h = hexColor(String(col));
     if (h) parts.push(`<w:color w:val="${h}"/>`);
   }
-  const fs = ts?.attrs?.fontSize;
-  if (fs) {
-    const hp = fontSizeToHalfPoints(String(fs));
-    if (hp) parts.push(`<w:sz w:val="${hp}"/><w:szCs w:val="${hp}"/>`);
-  }
+  const sz = szXml(ts?.attrs?.fontSize ?? block?.fontSize);
+  if (sz) parts.push(sz);
   const u = marks.find((m) => m.type === 'underline');
   if (u) {
     const line = wordUnderline(u.attrs);
@@ -1386,7 +1390,16 @@ function txbxPPrXml(attrs: TiptapNode['attrs'], indentTwip: number, pt: number):
   }
   const shd = paraShadingOf(attrs);
   if (shd) out.push(`<w:shd w:val="clear" w:fill="${shd.fill}"/>`);
+  const stops = parseTabStops(attrs?.tabStops);
+  if (stops.length) {
+    out.push(`<w:tabs>${stops.map((t) => {
+      const leader = DOCX_LEADER[t.leader ?? ''];
+      return `<w:tab w:val="${DOCX_TAB_TYPE[t.align]}"${leader ? ` w:leader="${leader}"` : ''} w:pos="${cmToTwip(t.pos)}"/>`;
+    }).join('')}</w:tabs>`);
+  }
+  if (attrs?.noHyphenation === true) out.push('<w:suppressAutoHyphens/>');
   if (attrs?.dir === 'rtl') out.push('<w:bidi/>');
+  if (attrs?.snapToGrid === false) out.push('<w:snapToGrid w:val="0"/>');
   const s = spacingOf(attrs);
   if (s) {
     out.push(`<w:spacing${s.before != null ? ` w:before="${s.before}"` : ''}`
@@ -1408,8 +1421,9 @@ function txbxPPrXml(attrs: TiptapNode['attrs'], indentTwip: number, pt: number):
   const jc = ta === 'center' ? 'center' : ta === 'right' ? 'right' : ta === 'justify' ? 'both' : '';
   if (jc) out.push(`<w:jc w:val="${jc}"/>`);
   // w:rPr closes CT_PPr; it formats the paragraph mark and names the block's language.
-  const lang = langXml(attrs?.lang, attrs?.langAsian);
-  if (lang) out.push(`<w:rPr>${lang}</w:rPr>`);
+  const font = fontPair(attrs?.fontFamily, attrs?.fontFamilyAsian, screenToDoc);
+  const mark = [font ? rFontsXml(font) : '', szXml(attrs?.fontSize), langXml(attrs?.lang, attrs?.langAsian)].join('');
+  if (mark) out.push(`<w:rPr>${mark}</w:rPr>`);
   return out.join('');
 }
 
@@ -1425,8 +1439,9 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
   // CT_PPr puts both right after the style; an explicit off overrides a heading's keep.
   if (typeof attrs.keepNext === 'boolean') pPr.push(attrs.keepNext ? '<w:keepNext/>' : '<w:keepNext w:val="0"/>');
   if (attrs.keepLines === true) pPr.push('<w:keepLines/>');
+  if (attrs.widowControl === false) pPr.push('<w:widowControl w:val="0"/>');
   pPr.push(numPr, txbxPPrXml(attrs, indentTwip, blockPt(node)));
-  const runProps = (marks: TiptapNode['marks']) => txbxRunPropsXml(marks, [attrs.lang, attrs.langAsian]);
+  const runProps = (marks: TiptapNode['marks']) => txbxRunPropsXml(marks, [attrs.lang, attrs.langAsian], attrs);
   let runs = '';
   // Comment ranges and bookmarks bracket consecutive runs sharing the mark, as
   // inlineToRuns does for the body; the reference run is what Word draws the bubble from.
@@ -2789,13 +2804,13 @@ function paragraphProps(node: TiptapNode, opts: ParaOpts): IParagraphPropertiesO
   const attrs = node.attrs ?? {};
   const indent: Writable<IIndentAttributesProperties> = {};
   const pt = blockPt(node);
+  const right = rightCm(attrs, pt);
+  if (right !== 0) indent.right = cmToTwip(right);
   if (!opts.numbering) {
     const left = leftCm(attrs, pt);
     // An explicit 0 is kept: it overrides the named style's indent.
     if (left !== 0 || attrs.indent === 0) indent.left = cmToTwip(left);
     else if (opts.indentLeftTwip) indent.left = opts.indentLeftTwip;
-    const right = rightCm(attrs, pt);
-    if (right !== 0) indent.right = cmToTwip(right);
     // Word splits the first-line indent into two exclusive attributes by sign.
     const first = firstLineCm(attrs, pt);
     if (first < 0) indent.hanging = cmToTwip(-first);
@@ -2831,7 +2846,7 @@ function paragraphProps(node: TiptapNode, opts: ParaOpts): IParagraphPropertiesO
 
 function paragraphToDocx(node: TiptapNode, opts: ParaOpts = {}): Paragraph {
   const attrs = node.attrs ?? {};
-  const indChars = opts.numbering ? '' : indentCharsPayload(attrs);
+  const indChars = indentCharsPayload(opts.numbering ? { indentRightChars: attrs.indentRightChars } : attrs);
   // Of a list change only a paragraph made a list has a form here: no old numbering.
   const format = attrs.revFormat as RevFormat | null | undefined;
   const madeList = format?.old?.list?.length === 0 && !!opts.numbering;
