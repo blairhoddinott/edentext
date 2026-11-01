@@ -81,7 +81,7 @@
       icon="tocLevels"
       cmd="tocOptions"
       label={t().ribbon.tocOptions}
-      title={`${t().ribbon.indexes.toc} – ${t().ribbon.tocOptions}`}
+      title={toc ? `${t().ribbon.indexes.toc} – ${t().ribbon.tocOptions}` : t().ribbon.tocOptionsNeedsToc}
       disabled={!toc}
       caret
       active={isMenuOpen('tocLevels')}
@@ -111,7 +111,7 @@
     icon="update"
     cmd="tocUpdate"
     label={t().ribbon.tocUpdate}
-    title={t().ribbon.tocUpdateTitle}
+    title={hasIndex ? t().ribbon.tocUpdateTitle : t().ribbon.tocUpdateNeedsIndex}
     disabled={!hasIndex}
     onclick={() => (updateOpen = true)}
   />
@@ -168,7 +168,7 @@
     icon="citation"
     cmd="citation"
     label={t().ribbon.citation}
-    title={t().bibliography.title}
+    title={hfActive ? t().toolbarExpanded.citationNotInHf : t().bibliography.title}
     disabled={!editor || !!hfActive}
     onclick={() => (citationOpen = true)}
   />
@@ -204,7 +204,7 @@
     icon="caption"
     cmd="caption"
     label={t().ribbon.insertCaption}
-    title={t().caption.title}
+    title={hfActive ? t().toolbarExpanded.captionNotInHf : t().caption.title}
     disabled={!editor || !!hfActive}
     onclick={() => (captionOpen = true)}
   />

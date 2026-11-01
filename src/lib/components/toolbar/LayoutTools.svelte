@@ -208,7 +208,7 @@
     </label>
   </IslandMenu>
 
-  <IslandMenu id="breaks" icon="pageBreak" cmd="breaks" title={t().ribbon.breaks} disabled={!editor || !!hfActive} minWidth={230}>
+  <IslandMenu id="breaks" icon="pageBreak" cmd="breaks" title={hfActive ? t().toolbarExpanded.breaksNotInHf : t().ribbon.breaks} disabled={!editor || !!hfActive} minWidth={230}>
     <button onclick={() => { closeMenu(); editor?.chain().focus().insertPageBreak().run(); }}>
       {t().ribbon.pageBreak}<span class="menu-key">{shortcutHint('pageBreak')}</span>
     </button>

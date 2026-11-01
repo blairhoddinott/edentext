@@ -211,7 +211,7 @@
     icon="trackChanges"
     cmd="trackChanges"
     label={t().revisions.record}
-    title={`${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`}
+    title={recordLock() ? t().revisions.recordLocked : `${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`}
     active={recordChanges()}
     disabled={!!recordLock()}
     onclick={toggleRecordChanges}

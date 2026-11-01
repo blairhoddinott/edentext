@@ -77,7 +77,7 @@
   <div class="gap-grid">
     {#each [0, 2, 1, 3] as i}
       {@const side = GAPS[i]}
-      <label class="field" data-cmd={`wrapGap-${side.key}`}>
+      <label class="field" data-cmd={`wrapGap-${side.key}`} title={hasWrapGap(wrap) ? undefined : t().image.wrapGapNeedsWrap}>
         <span>{t().toolbarExpanded.hfField(side.label())}</span>
         <input
           type="number"

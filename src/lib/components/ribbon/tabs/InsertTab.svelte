@@ -104,7 +104,7 @@
     icon="pageBreak"
     cmd="pageBreak"
     label={t().ribbon.pageBreak}
-    title={`${t().ribbon.pageBreak} (${shortcutHint('pageBreak')})`}
+    title={hfActive ? t().toolbarExpanded.breaksNotInHf : `${t().ribbon.pageBreak} (${shortcutHint('pageBreak')})`}
     disabled={!editor || !!hfActive}
     onclick={() => editor?.chain().focus().insertPageBreak().run()}
   />

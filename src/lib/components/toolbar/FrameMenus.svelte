@@ -32,7 +32,7 @@
   {/each}
 </IslandMenu>
 
-<IslandMenu id={`${kind}-gap`} icon="margins" title={t().image.wrapGap} disabled={!hasWrapGap(wrap)} minWidth={200}>
+<IslandMenu id={`${kind}-gap`} icon="margins" title={hasWrapGap(wrap) ? t().image.wrapGap : t().image.wrapGapNeedsWrap} disabled={!hasWrapGap(wrap)} minWidth={200}>
   <div class="im-label">{t().image.wrapGap} (cm)</div>
   <div class="im-grid">
     {#each GAP_SIDES as side}

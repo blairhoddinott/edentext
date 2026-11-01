@@ -9,6 +9,8 @@ ProseMirror directly. Keep app-owned state flowing into `Editor.svelte` through 
 
 Only one view may measure and paginate in split or page-grid layouts. Plugin decorations
 shared by multiple views must create their DOM in a widget factory, never reuse one node.
+A control disabled for a reason the user cannot see says it in its `title` (`noteNotInHf`, `mergeNeedsCells`), in both chromes.
+
 `chromeMode` selects one of the modern toolbar island or `ribbon/`; both use
 `activeEditor`/`activeTick` and only one mounts at a time.
 `toolbar/` holds the island's Tools categories and menu primitives; logic shared with a ribbon tab lives in a plain `.ts` module beside them (see `docs/architecture/island.md`).

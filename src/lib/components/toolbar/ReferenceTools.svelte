@@ -41,7 +41,7 @@
     {/each}
   </IslandMenu>
   <!-- The menu stays open on a change, as the Layout menus' checkboxes do. -->
-  <IslandMenu id="tocLevels" icon="tocLevels" cmd="tocOptions" title={`${t().ribbon.indexes.toc} – ${t().ribbon.tocOptions}`} disabled={!toc}>
+  <IslandMenu id="tocLevels" icon="tocLevels" cmd="tocOptions" title={toc ? `${t().ribbon.indexes.toc} – ${t().ribbon.tocOptions}` : t().ribbon.tocOptionsNeedsToc} disabled={!toc}>
     <div class="im-label">{t().ribbon.tocMaxLevel}</div>
     <div class="levels">
       {#each HEADING_LEVELS as l}
@@ -53,7 +53,7 @@
       {t().ribbon.tocPageNumbers}
     </label>
   </IslandMenu>
-  <IslandButton icon="update" cmd="tocUpdate" title={t().ribbon.tocUpdateTitle} disabled={!anyIndex} onclick={() => (updateOpen = true)} />
+  <IslandButton icon="update" cmd="tocUpdate" title={anyIndex ? t().ribbon.tocUpdateTitle : t().ribbon.tocUpdateNeedsIndex} disabled={!anyIndex} onclick={() => (updateOpen = true)} />
   <IslandButton icon="headingNumbering" cmd="headingNumbering" title={t().ribbon.headingNumbering} disabled={!onHeadingNumbering} onclick={() => onHeadingNumbering?.()} />
 </div>
 
@@ -68,7 +68,7 @@
 <div class="toolbar-separator"></div>
 
 <div class="toolbar-group">
-  <IslandButton icon="citation" cmd="citation" title={t().bibliography.title} disabled={!editor || !!hfActive} onclick={() => (citationOpen = true)} />
+  <IslandButton icon="citation" cmd="citation" title={hfActive ? t().toolbarExpanded.citationNotInHf : t().bibliography.title} disabled={!editor || !!hfActive} onclick={() => (citationOpen = true)} />
   <IslandMenu id="citeStyle" label={t().bibliography.style} cmd="citationStyle" title={bibliography ? t().bibliography.style : t().bibliography.styleNeedsIndex} disabled={!editor || !bibliography}>
     {#each CITATION_STYLES as cs}
       <button class:selected={bibliography?.style === cs} onclick={() => { closeMenu(); if (editor && bibliography) setIndexAttrs(editor, bibliography.pos, { citationStyle: cs }); }}>
@@ -81,7 +81,7 @@
 <div class="toolbar-separator"></div>
 
 <div class="toolbar-group">
-  <IslandButton icon="caption" cmd="caption" title={t().caption.title} disabled={!editor || !!hfActive} onclick={() => (captionOpen = true)} />
+  <IslandButton icon="caption" cmd="caption" title={hfActive ? t().toolbarExpanded.captionNotInHf : t().caption.title} disabled={!editor || !!hfActive} onclick={() => (captionOpen = true)} />
   <IslandButton icon="bookmark" cmd="indexEntry" title={hasSelection ? t().ribbon.indexEntry : t().ribbon.indexEntryNeedsSelection} disabled={!editor || !!hfActive || !hasSelection} onclick={() => editor && markIndexEntry(editor)} />
 </div>
 

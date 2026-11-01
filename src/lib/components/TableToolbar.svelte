@@ -181,7 +181,7 @@
 
   <button
     class="tt-btn"
-    title={t().table.mergeCells}
+    title={canMerge ? t().table.mergeCells : t().table.mergeNeedsCells}
     data-cmd="mergeCells"
     aria-label={t().table.mergeCells}
     disabled={!canMerge}

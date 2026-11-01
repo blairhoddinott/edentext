@@ -113,7 +113,7 @@
         <div class="tsp-title">{t().table.styleOptions}</div>
         <!-- Without a style nothing is in effect yet, so the boxes read clear. -->
         {#each OPTIONS as region}
-          <label class="tsp-option" class:muted={!painted.has(region)}>
+          <label class="tsp-option" class:muted={!painted.has(region)} title={current ? undefined : t().table.styleOptionsNeedStyle}>
             <input
               type="checkbox"
               checked={!!current && !!look?.[region]}

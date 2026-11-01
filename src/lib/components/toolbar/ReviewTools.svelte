@@ -117,7 +117,7 @@
 <div class="toolbar-separator"></div>
 
 <div class="toolbar-group">
-  <IslandButton icon="trackChanges" cmd="trackChanges" title={`${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`} active={recordChanges()} disabled={!!recordLock()} onclick={toggleRecordChanges} />
+  <IslandButton icon="trackChanges" cmd="trackChanges" title={recordLock() ? t().revisions.recordLocked : `${t().revisions.recordHint} — ${shortcutHint('recordChanges')}`} active={recordChanges()} disabled={!!recordLock()} onclick={toggleRecordChanges} />
   <IslandButton icon="lock" cmd="protectChanges" title={recordLock() ? t().revisions.protectOff : t().revisions.protect} active={!!recordLock()} onclick={() => window.dispatchEvent(new Event(OPEN_RECORD_LOCK_EVENT))} />
   <IslandMenu id="markupDisplay" label={MODE_LABEL[markupMode()]().label} cmd="markupDisplay" title={t().revisions.display}>
     {#each MARKUP_MODES as m}

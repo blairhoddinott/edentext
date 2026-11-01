@@ -166,7 +166,7 @@
   <div class="ribbon-sep"></div>
 
   <RibbonGroup label={t().ribbon.groups.merge}>
-    <RibbonButton variant="big" icon="merge" cmd="mergeCells" label={t().table.mergeCells} disabled={!canMerge} onclick={() => run((c) => c.mergeCells())} />
+    <RibbonButton variant="big" icon="merge" cmd="mergeCells" label={t().table.mergeCells} title={canMerge ? t().table.mergeCells : t().table.mergeNeedsCells} disabled={!canMerge} onclick={() => run((c) => c.mergeCells())} />
     <span class="rb-menu-wrap" use:clickOutside={'tableSplit'}>
       <button class="split-trigger" onclick={() => toggleMenu('tableSplit')} title={t().table.splitCells}>
         <RibbonButton variant="big" icon="split" cmd="splitCells" label={t().table.splitCellsAria} />

@@ -92,7 +92,7 @@
 </script>
 
 <div class="toolbar-group">
-  <IslandButton icon="pageBreak" cmd="pageBreak" title={`${t().ribbon.pageBreak} (${shortcutHint('pageBreak')})`} disabled={!editor || !!hfActive} onclick={() => editor?.chain().focus().insertPageBreak().run()} />
+  <IslandButton icon="pageBreak" cmd="pageBreak" title={hfActive ? t().toolbarExpanded.breaksNotInHf : `${t().ribbon.pageBreak} (${shortcutHint('pageBreak')})`} disabled={!editor || !!hfActive} onclick={() => editor?.chain().focus().insertPageBreak().run()} />
   <span class="cmd" data-cmd="table"><TablePicker
     {editor}
     onOpen={closeMenu}

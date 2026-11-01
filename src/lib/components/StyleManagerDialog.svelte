@@ -702,7 +702,7 @@
             </div>
           {:else}
             <div class="row">
-              <label>{t().styles.numbering}
+              <label title={lStyle.multilevel ? t().styles.numberingFromMultilevel : undefined}>{t().styles.numbering}
                 <select
                   value={lLevel.numType ?? 'decimal'}
                   disabled={!!lStyle.multilevel}
@@ -1003,7 +1003,7 @@
           <button onclick={() => resetStyle(style.name, family)}>{t().styles.reset}</button>
         {:else}
           <button onclick={() => (editingName = style.name)}>{t().styles.rename}</button>
-          <button class="danger" onclick={remove} disabled={style.name === HEADING_PARENT}>{t().common.remove}</button>
+          <button class="danger" onclick={remove} disabled={style.name === HEADING_PARENT} title={style.name === HEADING_PARENT ? t().styles.headingParentStays : undefined}>{t().common.remove}</button>
         {/if}
       {/if}
     </footer>

@@ -282,7 +282,7 @@
       icon="pageBreak"
       cmd="breaks"
       label={t().ribbon.breaks}
-      title={t().ribbon.breaks}
+      title={hfActive ? t().toolbarExpanded.breaksNotInHf : t().ribbon.breaks}
       disabled={!editor || !!hfActive}
       caret
       active={isMenuOpen('breaks')}

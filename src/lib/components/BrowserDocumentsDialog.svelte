@@ -18,6 +18,11 @@
   });
 
 
+  function busyHint(d: BrowserDocument): string | undefined {
+    if (d.mine) return t().browserDocs.alreadyHere;
+    return d.held ? t().browserDocs.alreadyElsewhere : undefined;
+  }
+
   async function remove(id: string) {
     if (!confirm(t().browserDocs.confirmDelete)) return;
     await deleteDocument(id);
@@ -44,8 +49,8 @@
               {formatMoment(d.at)}{#if d.mine}{' · '}{t().browserDocs.thisTab}{:else if d.held}{' · '}{t().browserDocs.otherTab}{/if}
             </span>
           </div>
-          <button onclick={() => openDocument(d.id)} disabled={d.mine || d.held}>{t().browserDocs.open}</button>
-          <button onclick={() => remove(d.id)} disabled={d.mine || d.held}>{t().browserDocs.delete}</button>
+          <button onclick={() => openDocument(d.id)} disabled={d.mine || d.held} title={busyHint(d)}>{t().browserDocs.open}</button>
+          <button onclick={() => remove(d.id)} disabled={d.mine || d.held} title={busyHint(d)}>{t().browserDocs.delete}</button>
         </li>
       {/each}
     </ul>
