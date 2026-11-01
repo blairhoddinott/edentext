@@ -501,10 +501,10 @@ function nextParagraph(doc: PMNode, end: number): number | null {
 }
 
 // Whether `second` is what an Enter in `first` opened: a page break or a box stays above the
-// cut, all else passes on. An Enter taken back leaves the block that was there.
+// cut, all else passes on, a style included. An Enter taken back leaves the block that was there.
 function splitFrom(first: PMNode, second: PMNode): boolean {
   return first.type === second.type && Object.keys(first.attrs).every((k) =>
-    k === 'revMark' || k === 'revFormat' || second.attrs[k] == null || second.attrs[k] === first.attrs[k]);
+    k === 'revMark' || k === 'revFormat' || (second.attrs[k] == null && k !== 'styleName') || second.attrs[k] === first.attrs[k]);
 }
 
 // A paragraph mark gone for good, as LibreOffice does it (probed): a block left empty goes

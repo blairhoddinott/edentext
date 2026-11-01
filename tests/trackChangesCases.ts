@@ -88,6 +88,7 @@ export const REPLACE_CASES: [string, string, Act[]][] = [
   ['a column through a merged cell', TALL, [inCell(11), (e) => e.commands.addColumnAfter()]],
   ['blocks in an empty paragraph', BLANK, [(e) => select(e, 7), (e) => e.commands.insertContent('<p>x</p><p>y</p>')]],
   ['a list taken off again by a selection into a table', `<p>head</p>${TABLE}`, [(e) => select(e, 2), (e) => e.commands.toggleBulletList(), (e) => select(e, 3, 15), (e) => e.commands.toggleOrderedList()]],
+  ['a chapter moved under a styled Enter', '<h1>One</h1><p>a</p><h2>Two</h2><p>b</p>', [(e) => select(e, 1), (e) => e.commands.insertContent('x'), (e) => e.commands.setParagraphStyle('Heading 2'), (e) => e.commands.splitBlock(), (e) => e.commands.moveChapter(0, 1)]],
   ['a format, then Enter at the block\'s start', THREE, [(e) => select(e, 1), (e) => e.commands.setTextAlign('center'), (e) => e.commands.splitBlock()]],
   ['a format inside a new text box', THREE, [(e) => select(e, 2), (e) => e.commands.insertTextBox(), (e) => e.commands.setTextAlign('center')]],
   ['a text box in front of a selection', THREE, [(e) => select(e, 2, 4), (e) => e.commands.insertTextBox()]],
