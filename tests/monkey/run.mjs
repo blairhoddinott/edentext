@@ -97,6 +97,7 @@ const drawRecorded = (r, size) => {
   if (x < 0.8) return { key: pick(r, RECORDED_KEYS) };
   if (x < 0.85) return { cmd: 'focus', args: [int(r, 1, Math.max(1, size - 2))] };
   if (x < 0.88) return { drop: [r(), r(), r()] };
+  if (x < 0.92) return { cells: [r(), r(), r()] };
   return pick(r, [{ cmd: 'toggleBold' }, { cmd: 'toggleItalic' }, { cmd: 'setFontSize', args: ['18pt'] }, { cmd: 'setTextAlign', args: ['center'] },
     { cmd: 'toggleBulletList' }, { cmd: 'toggleOrderedList' }, { cmd: 'sinkListItem', args: ['listItem'] }, { cmd: 'liftListItem', args: ['listItem'] },
     { cmd: 'setParagraphStyle', args: ['Heading 2'] }, { cmd: 'insertNote', args: ['footnote'] }, { cmd: 'insertTextBox' }, { cmd: 'addRowAfter' }, { cmd: 'addColumnBefore' }, { cmd: 'deleteRow' }, { cmd: 'deleteColumn' }, { cmd: 'deleteTable' },
@@ -126,6 +127,25 @@ const drawHfOp = (r) => {
   for (const [w, draw] of HF_OPS_TABLE) { if ((x -= w) < 0) return draw(r); }
   return { key: 'ArrowRight' };
 };
+
+// A few cells of a table selected, then cleared or their rows or columns deleted. Merged
+// cells are regrouped unrecorded, so rejecting all could not give the file back.
+async function overCells([a, b, c]) {
+  const picked = await ed(async ({ a, b }) => {
+    const { cells } = await import('/tests/trackChangesCases.ts');
+    const editor = document.querySelector('.tiptap-host .tiptap').editor, at = [];
+    editor.state.doc.descendants((n, pos) => { if (n.type.spec.tableRole === 'cell') at.push(pos); });
+    if (at.length < 2) return false;
+    const i = Math.floor(a * (at.length - 1)), j = Math.min(at.length - 1, i + 1 + Math.floor(b * 3));
+    const table = (pos) => { const $at = editor.state.doc.resolve(pos); return $at.node($at.depth - 1); };
+    if (table(at[i]) !== table(at[j])) return false;
+    cells(i, j)(editor);
+    return true;
+  }, { a, b });
+  if (!picked) return;
+  if (c < 0.4) await press('Delete');
+  else await runCmd({ cmd: c < 0.7 ? 'deleteColumn' : 'deleteRow' });
+}
 
 const server = await devServer(PORT);
 const { browser, page, pageErrors } = await openApp(PORT);
@@ -611,17 +631,12 @@ try {
     for (let i = 0; i < OPS && !broken; i++) {
       const op = drawRecorded(r, await docSize());
       log.push(op);
-      // The cut a table puts into a list is not recorded.
-      const inList = await ed(() => {
-        const { $from } = document.querySelector('.tiptap-host .tiptap').editor.state.selection;
-        return Array.from({ length: $from.depth }, (_, d) => $from.node(d + 1).type.name).some((n) => /listItem|List$/.test(n));
-      });
-      if (op.cmd === 'insertTable' && inList) continue;
       if (op.cmd) await runCmd(op);
       else {
         const err = await focused();
         if (err) broken = `focus threw: ${err}`;
         else if (op.drop) await dropText(op.drop);
+        else if (op.cells) await overCells(op.cells);
         else if (op.type) await page.keyboard.type(op.type);
         else await press(op.key);
       }

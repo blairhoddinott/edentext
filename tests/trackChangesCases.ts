@@ -1,6 +1,7 @@
 // The edits every recording leg runs, unit and LibreOffice alike.
 import { Editor } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
+import { CellSelection, deleteCellSelection } from '@tiptap/pm/tables';
 import { extensions } from '../src/lib/editor/extensions';
 
 // jsdom has none, and a text box's view observes its size.
@@ -33,6 +34,14 @@ export const enter = (at: number): Act[] => [(e) => select(e, at), (e) => e.comm
 const TABLE = '<table><tbody><tr><td><p>a1</p></td><td><p>b1</p></td></tr><tr><td><p>a2</p></td><td><p>b2</p></td></tr></tbody></table><p>tail</p>';
 const TALL = '<table><tbody><tr><td colspan="2"><p>a</p></td></tr><tr><td><p>b</p></td><td><p>c</p></td></tr></tbody></table><p>t</p>';
 const inCell = (at: number): Act => (e) => select(e, at);
+const grid = (...rows: string[][]) => `<table><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td><p>${c}</p></td>`).join('')}</tr>`).join('')}</tbody></table><p>tail</p>`;
+// The cells from the `from`-th to the `to`-th in document order.
+export const cells = (from: number, to: number): Act => (e) => {
+  const at: number[] = [];
+  e.state.doc.descendants((n, pos) => { if (n.type.spec.tableRole === 'cell') at.push(pos); });
+  e.view.dispatch(e.state.tr.setSelection(CellSelection.create(e.state.doc, at[from], at[to])));
+};
+const merge: Act[] = [(e) => e.commands.mergeCells()];
 
 const table: Act = (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 const BLANK = '<p>aaaa</p><p></p><p>cccc</p>';
@@ -42,6 +51,8 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['a row deleted', TABLE, [inCell(14), (e) => e.commands.deleteRow()]],
   ['a column deleted', TABLE, [inCell(14), (e) => e.commands.deleteColumn()]],
   ['the table deleted', TABLE, [inCell(14), (e) => e.commands.deleteTable()]],
+  ['two columns deleted', grid(['a', 'b', 'c'], ['d', 'e', 'f']), [cells(0, 1), (e) => e.commands.deleteColumn()]],
+  ['two empty columns deleted', grid(['', '', 'c'], ['', '', 'f']), [cells(0, 1), (e) => e.commands.deleteColumn()]],
   ['a row inserted', TABLE, [inCell(14), (e) => e.commands.addRowAfter()]],
   ['a column inserted', TABLE, [inCell(14), (e) => e.commands.addColumnBefore()]],
   ['a note inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertNote('footnote')]],
@@ -49,6 +60,8 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['Enter in a cell', TABLE, [inCell(5), (e) => e.commands.splitBlock()]],
   ['a table inserted', THREE, [(e) => select(e, 7), (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false })]],
   ['a table in an empty document', '<p></p>', [(e) => select(e, 1), table]],
+  ['a table cutting a list', LIST, [(e) => select(e, 3), table]],
+  ['a table cutting a nested list', NESTED, [(e) => select(e, 10), table]],
 ];
 
 // As a drop that ProseMirror fits across lists.
@@ -142,6 +155,8 @@ export const CASES: [string, string, Act[]][] = [
   ['Delete at a block end', THREE, [(e) => select(e, 5), (e) => e.commands.joinForward()]],
   ['Enter inside a paragraph', THREE, enter(3)],
   ['Enter at a paragraph start', THREE, enter(7)],
+  ['Enter in an empty heading', '<h1></h1><p>body</p>', enter(1)],
+  ['cells cleared, one of them empty', grid(['a', ''], ['c', 'd']), [cells(0, 1), (e) => deleteCellSelection(e.state, (tr) => e.view.dispatch(tr))]],
   ['Enter at a paragraph end, then text', THREE, [...enter(5), (e) => e.commands.insertContent('new')]],
   ['two Enters', THREE, [...enter(3), ...enter(4)]],
   ['Enter over one\'s own empty paragraph', THREE, [...enter(7), (e) => select(e, 7, 9), (e) => e.commands.splitBlock()]],
@@ -166,6 +181,12 @@ export const REBUILD_CASES: [string, string, Act[]][] = [
   ['columns over a selection', THREE, [(e) => select(e, 2, 9), (e) => e.commands.setColumns(2)]],
   ['columns taken off', '<div data-columns="2" data-column-gap="0.5"><p>aa</p><p>bb</p></div><p>t</p>', [(e) => select(e, 3), (e) => e.commands.setColumns(1)]],
   ['a merged cell split', TALL, [(e) => select(e, 4), (e) => e.commands.splitCell()]],
+  ['cells with text merged', TABLE, [cells(0, 1), ...merge]],
+  ['empty cells merged', grid(['', ''], ['', '']), [cells(0, 1), ...merge]],
+  ['a cell merged with an empty one', grid(['a', ''], ['', 'b']), [cells(0, 1), ...merge]],
+  ['an empty cell merged with one holding text', grid(['', 'a'], ['b', '']), [cells(0, 1), ...merge]],
+  ['empty cells merged down', grid(['', ''], ['', '']), [cells(0, 2), ...merge]],
+  ['all empty cells merged', grid(['', ''], ['', '']), [cells(0, 3), ...merge]],
   ['a cell split into two', TALL, [(e) => select(e, 4), (e) => e.commands.splitCellInto(2, 1)]],
   ['an index at a heading start', '<h1>Head</h1><p>x</p>', [(e) => select(e, 1), (e) => e.commands.setTableOfContents()]],
   ['an index in a paragraph', THREE, [(e) => select(e, 7), (e) => e.commands.setTableOfContents()]],

@@ -156,6 +156,26 @@ function sameChange(prev: Revision, attrs: RevisionAttrs): boolean {
   return prev.id === String(attrs.id ?? '') || (!!prev.date && prev.date === attrs.date && prev.author === attrs.author);
 }
 
+// Whether the lists around `at` are the two parts a table put there cut one list into.
+function cutList(doc: PMNode, at: number): boolean {
+  const { nodeBefore: a, nodeAfter: b } = doc.resolve(at);
+  if (!a || !b || a.type !== b.type || !LISTS.has(a.type.name)) return false;
+  const same = Object.keys(a.attrs).every((k) => k === 'start' || k === 'continueNumbering' || a.attrs[k] === b.attrs[k]);
+  return same && (a.type.name !== 'orderedList' || !!b.attrs.continueNumbering);
+}
+
+// Joins the two parts, and within them what a cut in a nested list opened: an item starting
+// with a list is the rest of the item before it.
+function rejoinList(tr: Transaction, at: number): void {
+  tr.join(at);
+  for (let p = at - 1; p > 0; p--) {
+    const { nodeBefore: a, nodeAfter: b } = tr.doc.resolve(p);
+    const items = a?.type.name === 'listItem' && b?.type.name === 'listItem' && !b.firstChild!.isTextblock;
+    if (!items && !(a && b && a.type === b.type && LISTS.has(a.type.name))) return;
+    tr.join(p);
+  }
+}
+
 const tableLine = (node: PMNode): 'row' | 'column' | null => {
   const role = node.type.spec.tableRole;
   return role === 'row' ? 'row' : role === 'cell' || role === 'header_cell' ? 'column' : null;
@@ -363,7 +383,7 @@ function apply(state: EditorState, tr: Transaction, list: Revision[], accept: bo
     const { pos: at, deleted } = tr.mapping.mapResult(pos, 1);
     const rev = tr.doc.nodeAt(at)?.attrs.revMark as RevMark | null | undefined;
     if (deleted || !rev?.[kind]) continue;
-    if (kind === drop && !(accept && holdsNew(state.doc.nodeAt(pos)!))) removeParagraphMark(tr, at);
+    if (kind === drop && !(accept && holdsNew(state.doc.nodeAt(pos)!))) removeParagraphMark(tr, at, !accept);
     else {
       const { [kind]: _gone, ...rest } = rev;
       tr.setNodeAttribute(at, 'revMark', Object.keys(rest).length ? rest : null);
@@ -462,15 +482,17 @@ function nextParagraph(doc: PMNode, end: number): number | null {
 // A paragraph mark gone for good, as LibreOffice does it (probed): a block left empty goes
 // and the next stays as it is; else the next one's text joins it, under the first block's
 // format and the second's mark. Where nothing follows, the block just loses its mark.
-function removeParagraphMark(tr: Transaction, pos: number): void {
+function removeParagraphMark(tr: Transaction, pos: number, undoing = false): void {
   const block = tr.doc.nodeAt(pos)!, end = pos + block.nodeSize - 1;
   const line = tableLine(block);
-  if (line) { removeTableLine(tr, pos, line); return; }
+  if (line) { removeTableLine(tr, pos, line, undoing); return; }
   const next = nextParagraph(tr.doc, end), $pos = tr.doc.resolve(pos);
   // Past the lists that hold only it: a list item alone in a cell can go with its list.
   let depth = $pos.depth;
   while (depth > 0 && LIST_NODES.has($pos.node(depth).type.name) && $pos.node(depth).childCount === 1) depth--;
-  if (!block.content.size && (next !== null || $pos.node(depth).childCount > 1)) {
+  // An Enter taken back between two empty blocks leaves the one that was there.
+  const blank = undoing && next !== null && !tr.doc.resolve(next).parent.content.size;
+  if (!block.content.size && !blank && (next !== null || $pos.node(depth).childCount > 1)) {
     tr.deleteRange(pos, pos + block.nodeSize);
     return;
   }
@@ -571,11 +593,13 @@ export function typedText($pos: ResolvedPos): string {
 }
 
 // A row or column gone for good; with its last one the table goes.
-function removeTableLine(tr: Transaction, pos: number, line: 'row' | 'column'): void {
+function removeTableLine(tr: Transaction, pos: number, line: 'row' | 'column', undoing = false): void {
   const $pos = tr.doc.resolve(pos), depth = line === 'row' ? $pos.depth : $pos.depth - 1;
   const table = $pos.node(depth), tableStart = $pos.start(depth), map = TableMap.get(table);
   if ((line === 'row' ? map.height : map.width) === 1) {
-    tr.delete($pos.before(depth), $pos.after(depth));
+    const at = $pos.before(depth);
+    tr.delete(at, $pos.after(depth));
+    if (undoing && cutList(tr.doc, at)) rejoinList(tr, at);
     return;
   }
   const rect = { map, table, tableStart, left: 0, top: 0, right: 0, bottom: 0 };
@@ -766,7 +790,7 @@ export const TrackChanges = Extension.create<{ recording: () => boolean; author:
           // Taking back one's own pending text goes as it is (appendTransaction marks what
           // replaces it): a replay a microtask later would break an IME's running composition.
           if (ownOnly(tr, author)) return true;
-          const marked = pasteCells(tr, state, author) ?? replayFittedDrop(tr, state, author) ?? replayTracked(tr, state, author) ?? clearCells(tr, state, author)
+          const marked = pasteCells(tr, state, author) ?? clearCells(tr, state, author) ?? replayFittedDrop(tr, state, author) ?? replayTracked(tr, state, author)
             ?? replaceSelection(tr, state, author) ?? markPureDelete(tr, state, author);
           // What passes and removes content only moves or rebuilds it (a sort, merged
           // cells): its output is no insertion either.
@@ -1016,13 +1040,14 @@ function ownOnly(tr: Transaction, author: string): boolean {
   }) && tr.steps.some((s) => (s as ReplaceStep).to > (s as ReplaceStep).from);
 }
 
-// Each character and object in a document. Blocks are no part of it: accepting a mark
-// follows the file's rule, which merges them differently from a plain edit.
+// Each character, object and cell in a document. Blocks are no part of it: accepting a
+// mark follows the file's rule, which merges them differently from a plain edit.
 function tally(doc: PMNode): Map<string, number> {
   const out = new Map<string, number>(), add = (key: string) => out.set(key, (out.get(key) ?? 0) + 1);
   doc.descendants((node) => {
     if (node.isText) for (const char of node.text!) add(char);
-    else if (!node.isTextblock && !LIST_NODES.has(node.type.name) && !/row|cell/.test(node.type.spec.tableRole ?? '')) add(`<${node.type.name}>`);
+    else if (/cell/.test(node.type.spec.tableRole ?? '')) add(`<cell ${node.attrs.colspan}x${node.attrs.rowspan}>`);
+    else if (!node.isTextblock && !LIST_NODES.has(node.type.name) && node.type.spec.tableRole !== 'row') add(`<${node.type.name}>`);
   });
   return out;
 }
@@ -1032,6 +1057,8 @@ function tally(doc: PMNode): Map<string, number> {
 function keepsEdit(tr: Transaction, marked: Transaction): boolean {
   const simple = tr.steps.every((s, i) => !(s instanceof ReplaceStep) || (inlineOnly(tr.docs[i], s.from, s.to) && (!s.slice.size || !!s.slice.content.firstChild!.isInline)));
   if (simple) return true;
+  // A replay that changes nothing may only stand for what is gone anyway: struck text again.
+  if (!marked.docChanged && !settledDoc(tr.doc, true).eq(settledDoc(marked.doc, true))) return false;
   const kept = tally(settledDoc(marked.doc, true));
   return [...tally(settledDoc(tr.doc, true))].every(([key, count]) => (kept.get(key) ?? 0) >= count);
 }
@@ -1074,12 +1101,14 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
       at = (p, a) => marked.mapping.slice(before).map(prev(p, a), a);
       continue;
     }
-    let end = prev(step.to, -1);
+    let end = prev(step.to, step.to > step.from ? -1 : 1);
     if (step.to > step.from) {
       let from = prev(step.from, 1);
       const before = marked.steps.length;
-      // The document's last blocks moved away: the mark before them goes, as the last one cannot.
-      if (moveId && end === marked.doc.content.size && marked.doc.resolve(from).nodeBefore?.isTextblock) { from--; end--; }
+      // The document's last blocks gone: the mark before them goes, as the last one cannot.
+      if (end === marked.doc.content.size && marked.doc.resolve(from).nodeBefore?.isTextblock) { from--; end--; }
+      // A join of two list items takes only the list's walls: the mark before them stands for it.
+      else if (marked.doc.resolve(from).nodeBefore?.isTextblock && !step.slice.size && onlyWalls(marked.doc, from, end, author)) from--;
       const node = marked.doc.nodeAt(from);
       // Blocks taking an empty block's place go in front of it, where the plain edit puts them.
       const blank = !!node?.isTextblock && !node.content.size && from + node.nodeSize === end && !step.slice.openStart;
@@ -1092,7 +1121,8 @@ function replayTracked(tr: Transaction, state: EditorState, author: string): Tra
     if (step.slice.size && !reopensOnly(step.slice)) end = insertTracked(marked, start, step.slice, fresh());
     const steady = marked.steps.length, { from, to } = step, size = step.slice.size;
     at = (p, a) => {
-      if (p < from) return prev(p, a);
+      // The end of what lies before a struck range stays before it: a column left of a column.
+      if (p < from || (p === from && a < 0 && !size)) return prev(p, a);
       if (p > from + size) return prev(p - size + (to - from), a);
       // The fitted replace may close and reopen blocks before the slice.
       const fit = p > from ? Math.max(0, end - start - size) : 0;
@@ -1235,6 +1265,13 @@ function editedContent(doc: PMNode, from: number, to: number): Slice | null {
     return false;
   });
   return first >= 0 && doc.resolve(first).sameParent(doc.resolve(last)) ? doc.slice(first, last) : doc.slice(from, to);
+}
+
+// Nothing in [from,to) but the walls of blocks: no text, no object and no mark or line.
+function onlyWalls(doc: PMNode, from: number, to: number, author: string): boolean {
+  let inline = false;
+  if (to > from) doc.nodesBetween(from, to, (n) => { inline ||= n.isInline; return !inline; });
+  return to > from && !inline && !deleteRanges(doc, from, to, author).blocks.length;
 }
 
 // A delete made of other steps (a join): its ranges struck through, in the document it

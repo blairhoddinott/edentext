@@ -10,7 +10,7 @@ Only a mark with a next paragraph can be recorded (`nextParagraph`): a cell, a f
 
 Removing a mark follows LibreOffice (probed, accept and reject alike):
 
-- a block left empty goes, and the next stays unchanged;
+- a block left empty goes, and the next stays unchanged; an Enter rejected between two empty blocks leaves the first, the one that was there;
 - otherwise the next block's text joins it, under the first block's format and the second's mark.
 
 Deleted `Heading first` + `body second` across the mark gives one heading; with the whole heading deleted, the body keeps its own format. The author's own pending mark goes at once; a joined block of only inserted text takes over the second block's format record, since rejecting leaves that block.
@@ -103,11 +103,11 @@ Our export writes LibreOffice's form with each side's real format in its registr
 
 ## Not recorded yet
 
-An edit the recorder would lose passes unrecorded and logs an error (`keepsEdit`): what accepting the replay leaves is held against what the edit leaves, blocks and text only, for everything but text replaced within a block. The monkey fails on that error.
+An edit the recorder would lose passes unrecorded and logs an error (`keepsEdit`): what accepting the replay leaves is held against what the edit leaves, text, objects and spanned cells, for everything but text replaced within a block, and a replay that changes nothing may only stand for an edit taking out what is gone anyway. The monkey fails on that error.
 
-The list cut of a table inserted in a list passes unrecorded; the monkey's recording pass skips it. A table or list inserted at the document's very end leaves an empty paragraph when rejected, since the last block has no mark of its own. While recording, autolink only links what is all new text, as a link has no change of its own to go with the typing.
+A table inserted in a list cuts it unrecorded; rejecting the table joins the parts again (`rejoinList`), by their attrs and, for a numbered list, the second part counting on. Accepting keeps the cut. A table or list inserted at the document's very end leaves an empty paragraph when rejected, since the last block has no mark of its own. While recording, autolink only links what is all new text, as a link has no change of its own to go with the typing.
 
-Regrouping what is there passes unrecorded (`REBUILDING`, and any transaction outside the history): columns, a split or merged cell, a sort, an index inserted, the columns flow's own cuts. So do what neither format records as a change or this one has no form for: links, bookmarks, comments, a table's own format and header row. A selection an index replaces goes recorded.
+Regrouping what is there passes unrecorded (`REBUILDING`, and any transaction outside the history): columns, a split or merged cell, a sort, an index inserted, the columns flow's own cuts. So do what neither format records as a change or this one has no form for: links, bookmarks, comments, a table's own format and header row. A selection an index replaces goes recorded. A merge taking in a struck column or row moves its struck text along, so accepting leaves an empty paragraph in the merged cell.
 
 ## Probed for later steps
 

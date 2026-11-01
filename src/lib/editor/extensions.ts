@@ -253,7 +253,7 @@ export const extensions = [
         props.tr.setMeta(REBUILDING, true);
         return (parent[command] as () => (p: CommandProps) => boolean)()(props);
       };
-      return { ...parent, splitCell: rebuilding('splitCell'), mergeOrSplit: rebuilding('mergeOrSplit'), insertTable: (options) => (props) => {
+      return { ...parent, mergeCells: rebuilding('mergeCells'), splitCell: rebuilding('splitCell'), mergeOrSplit: rebuilding('mergeOrSplit'), insertTable: (options) => (props) => {
         if (inNote(props.state)) return false;
         const { $from } = props.state.selection;
         let item = 0;

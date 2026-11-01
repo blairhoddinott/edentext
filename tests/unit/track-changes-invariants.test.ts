@@ -447,6 +447,25 @@ describe('recording keeps its promise', () => {
     expect(shape(e)).toEqual(shape(plain));
   });
 
+  it.each([['an item with text', 12], ['an empty item', 7]])('Backspace at the start of %s', async (_name, at) => {
+    setRecordChanges(true);
+    const html = at === 7 ? '<ul><li><p>a</p></li><li><p></p></li></ul><p>t</p>' : '<ul><li><p>one</p></li><li><p>two</p></li></ul><p>t</p>';
+    const e = open(html);
+    await edit(e, [(x) => select(x, at === 7 ? 8 : at), (x) => x.commands.joinItemBackward()]);
+    expect(revisions(e.state.doc)).toHaveLength(1);
+    e.commands.rejectRevisions(true);
+    expect(e.getJSON()).toEqual(open(html).getJSON());
+  });
+
+  it('a paragraph before an empty one can become a list', () => {
+    for (const [html, at] of [['<p>a</p><p></p>', 1], ['<p></p><p>c</p>', 1]] as const) {
+      const e = open(html);
+      select(e, at);
+      expect(e.commands.toggleBulletList()).toBe(true);
+      expect(e.state.doc.firstChild!.type.name).toBe('bulletList');
+    }
+  });
+
   it('a list a paragraph joins stays what it was', () => {
     const e = open('<p>more</p><ul data-list-style-name="Named"><li><p>one</p></li></ul>');
     select(e, 2);
