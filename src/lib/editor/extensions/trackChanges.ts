@@ -518,9 +518,10 @@ function removeParagraphMark(tr: Transaction, pos: number, undoing = false): voi
   // Past the lists that hold only it: a list item alone in a cell can go with its list.
   let depth = $pos.depth;
   while (depth > 0 && LIST_NODES.has($pos.node(depth).type.name) && $pos.node(depth).childCount === 1) depth--;
-  // An Enter opens the block right below, with nothing around it to tear.
+  // An Enter opens the block right below, with nothing around it to tear. A record on that
+  // block has to stay with it, as rejecting it brings the format back.
   const nextBlock = next === end + 2 ? tr.doc.resolve(next).parent : null;
-  const halves = undoing && !!nextBlock && (!nextBlock.content.size || splitFrom(block, nextBlock));
+  const halves = undoing && !!nextBlock && !nextBlock.attrs.revFormat && (!nextBlock.content.size || splitFrom(block, nextBlock));
   if (!block.content.size && !halves && (next !== null || $pos.node(depth).childCount > 1)) {
     tr.deleteRange(pos, pos + block.nodeSize);
     return;
