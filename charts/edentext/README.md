@@ -1,5 +1,10 @@
 # EdenText Helm chart
 
+> **Community-maintained.** This chart was contributed by
+> [Blair Hoddinott](https://github.com/blairhoddinott) and is maintained by the
+> community. It is not covered by commercial support. Issues and pull requests
+> are welcome.
+
 This chart deploys [EdenText](https://github.com/stffnb/edentext), a fully client-side
 word processor, to Kubernetes. The server only delivers static application files;
 documents and recovery copies remain in the user's browser. The chart therefore

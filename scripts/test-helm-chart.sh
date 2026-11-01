@@ -23,6 +23,11 @@ assert_not_contains() {
   fi
 }
 
+app_version=$(sed -n 's/^appVersion: "\(.*\)"$/\1/p' "$chart/Chart.yaml")
+package_version=$(sed -n 's/^  "version": "\(.*\)",$/\1/p' "$repo_root/package.json")
+[ "$app_version" = "v$package_version" ] \
+  || fail "Chart.yaml appVersion $app_version does not match package.json version $package_version"
+
 printf '%s\n' 'Linting chart'
 helm lint "$chart" --strict
 
@@ -32,7 +37,7 @@ assert_contains "$workdir/default.yaml" '^kind: Deployment$' 'default render has
 assert_contains "$workdir/default.yaml" '^kind: Service$' 'default render has no Service'
 assert_contains "$workdir/default.yaml" '^kind: ServiceAccount$' 'default render has no ServiceAccount'
 assert_contains "$workdir/default.yaml" '^kind: ConfigMap$' 'default render has no nginx ConfigMap'
-assert_contains "$workdir/default.yaml" 'image: "ghcr.io/stffnb/edentext:v0.12.0"' 'default image does not follow appVersion'
+assert_contains "$workdir/default.yaml" "image: \"ghcr.io/stffnb/edentext:$app_version\"" 'default image does not follow appVersion'
 assert_contains "$workdir/default.yaml" 'automountServiceAccountToken: false' 'service account token is mounted by default'
 assert_contains "$workdir/default.yaml" 'runAsNonRoot: true' 'pod can run as root by default'
 assert_contains "$workdir/default.yaml" 'runAsUser: 101' 'pod does not use the nginx user by default'
@@ -62,7 +67,7 @@ printf '%s\n' 'Rendering an immutable image reference'
 digest="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 helm template edentext "$chart" --namespace edentext \
   --set-string image.digest="$digest" > "$workdir/digest.yaml"
-assert_contains "$workdir/digest.yaml" "image: \"ghcr.io/stffnb/edentext:v0.12.0@$digest\"" 'image digest was not appended to the tagged reference'
+assert_contains "$workdir/digest.yaml" "image: \"ghcr.io/stffnb/edentext:$app_version@$digest\"" 'image digest was not appended to the tagged reference'
 
 printf '%s\n' 'Rejecting invalid values'
 if helm template edentext "$chart" --set replicaCount=0 > /dev/null 2>&1; then
