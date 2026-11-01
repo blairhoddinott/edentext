@@ -8,9 +8,9 @@ import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import { TrackChanges, Insertion, Deletion, revisions } from '../../src/lib/editor/extensions/trackChanges';
-import { Comment } from '../../src/lib/editor/extensions/comment';
+import { Comment, commentIdAt, comments } from '../../src/lib/editor/extensions/comment';
 import { authorColors } from '../../src/lib/editor/authorColors';
-import { filterRevisions, settleRevisions, shownStats } from '../../src/lib/components/reviewItems';
+import { filterRevisions, goToMarkup, selectRange, settleRevisions, shownStats } from '../../src/lib/components/reviewItems';
 import { blockText } from '../../src/lib/editor/extensions/outline';
 import { setMarkupMode, type MarkupMode } from '../../src/lib/storage/markup.svelte';
 
@@ -46,6 +46,35 @@ describe('revisions for the reviewing pane', () => {
     const colors = authorColors(editor.state.doc);
     expect([...colors.keys()]).toEqual(['Ada', 'Grace', 'Edsger', 'Linus']);
     expect(new Set(colors.values()).size).toBe(4);
+    editor.destroy();
+  });
+
+  it('keeps several comments on one text apart', () => {
+    const editor = makeEditor({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'one word here' }] }] });
+    const shown = () => comments(editor.state.doc).map((c) => [c.text, c.quote, c.replies.length]);
+    const add = (from: number, to: number, text: string) =>
+      editor.chain().setTextSelection({ from, to }).addComment({ author: 'Ada', text }).run();
+    add(5, 9, 'first');
+    add(5, 9, 'second');
+    add(1, 14, 'around');
+    expect(shown()).toEqual([['around', 'one word here', 0], ['first', 'word', 0], ['second', 'word', 0]]);
+    const [around, first, second] = comments(editor.state.doc);
+    editor.view.scrollToSelection = () => {}; // jsdom has no layout to scroll by
+
+    // Only a card tells two ranges alike apart; a plain click finds the innermost.
+    editor.commands.setTextSelection(6);
+    expect(commentIdAt(editor.state)).toBe(first.id);
+    selectRange(editor, second.from, second.to, false, second.id);
+    expect(commentIdAt(editor.state)).toBe(second.id);
+    goToMarkup(editor, 'comment', -1);
+    expect(commentIdAt(editor.state)).toBe(first.id);
+    goToMarkup(editor, 'comment', -1);
+    expect(commentIdAt(editor.state)).toBe(around.id);
+
+    editor.commands.replyToComment(first.id, { author: 'Grace', text: 'yes' });
+    expect(shown()).toEqual([['around', 'one word here', 0], ['first', 'word', 1], ['second', 'word', 0]]);
+    editor.commands.removeComment(first.id);
+    expect(shown()).toEqual([['around', 'one word here', 0], ['second', 'word', 0]]);
     editor.destroy();
   });
 

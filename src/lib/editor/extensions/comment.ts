@@ -1,6 +1,6 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import type { Node as PMNode, Mark as PMMark } from '@tiptap/pm/model';
-import { Plugin, PluginKey, type EditorState, type SelectionBookmark } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type EditorState, type SelectionBookmark, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { authorColor, authorColors } from '../authorColors';
 
@@ -8,7 +8,8 @@ import { authorColor, authorColors } from '../authorColors';
 // store a range (ODF office:annotation + office:annotation-end, DOCX
 // w:commentRangeStart/-End) and the pane has to find the text a comment points at.
 // The whole comment rides the mark's attrs, so it needs no store of its own: two runs of
-// the same comment carry identical attrs and merge back together.
+// the same comment carry identical attrs and merge back together. Ranges overlap, so a
+// run carries a mark per comment it lies in.
 
 /** An answer in a comment's thread: ODF's loext:parent-name, Word's w15:paraIdParent. */
 export type CommentReply = { author: string; date: string; text: string };
@@ -44,9 +45,16 @@ export function commentDraft(state: EditorState): CommentDraft | null {
   return sel ? { from: sel.from, to: sel.to, quote: state.doc.textBetween(sel.from, sel.to, ' ', ' ') } : null;
 }
 
-function commentIdOf(marks: readonly PMMark[]): string | null {
-  const id = marks.find((m) => m.type.name === 'comment')?.attrs?.id;
-  return typeof id === 'string' && id ? id : null;
+function commentMarks(marks: readonly PMMark[]): PMMark[] {
+  return marks.filter((m) => m.type.name === 'comment' && typeof m.attrs.id === 'string' && m.attrs.id);
+}
+
+// The card last chosen: comments over one text cannot be told apart by the selection.
+const pickedKey = new PluginKey<string | null>('commentPicked');
+
+/** Makes `id` the active comment for as long as this selection stands. */
+export function pickComment(tr: Transaction, id: string): Transaction {
+  return tr.setMeta(pickedKey, id);
 }
 
 function repliesOf(value: unknown): CommentReply[] {
@@ -63,16 +71,16 @@ function safeParse(json: string): unknown {
   try { return JSON.parse(json); } catch { return []; }
 }
 
-export function commentMarkAt(marks: readonly PMMark[]): PMMark | null {
-  return marks.find((m) => m.type.name === 'comment') ?? null;
-}
-
 /** The comment the selection lies within — what the pane highlights and the bar thickens. */
 export function commentIdAt(state: EditorState, ranges?: CommentRange[]): string | null {
   const { from, to } = state.selection;
   // By range, not by the marks at the caret: the mark is non-inclusive, so a selection
   // over the whole comment — what a click on the pane's card makes — carries none.
-  return (ranges ?? commentRanges(state.doc)).find((c) => c.from <= from && to <= c.to)?.id ?? null;
+  const here = (ranges ?? commentRanges(state.doc)).filter((c) => c.from <= from && to <= c.to);
+  const picked = pickedKey.getState(state);
+  if (picked && here.some((c) => c.id === picked)) return picked;
+  // Else the innermost: a click in a word means the word's comment, not the sentence's.
+  return here.reduce<CommentRange | null>((best, c) => (!best || c.to - c.from < best.to - best.from ? c : best), null)?.id ?? null;
 }
 
 // Every comment range in document order. Adjacent text nodes sharing an id merge into
@@ -84,31 +92,35 @@ export function commentRanges(doc: PMNode): CommentRange[] {
   const known = rangesOf.get(doc);
   if (known) return known;
   const out: CommentRange[] = [];
-  let last: CommentRange | null = null;
+  const last = new Map<string, CommentRange>();
   doc.descendants((node, pos) => {
     if (!node.isText) return true;
-    const mark = commentMarkAt(node.marks);
-    const id = mark ? commentIdOf(node.marks) : null;
-    if (!id || !mark) { last = null; return false; }
-    if (last && last.id === id && last.to === pos) {
-      last.to = pos + node.nodeSize;
-      last.quote += node.text ?? '';
-      return false;
+    for (const mark of commentMarks(node.marks)) {
+      const id = mark.attrs.id as string;
+      const before = last.get(id);
+      if (before?.to === pos) {
+        before.to = pos + node.nodeSize;
+        before.quote += node.text ?? '';
+        continue;
+      }
+      const range: CommentRange = {
+        id,
+        author: String(mark.attrs.author ?? ''),
+        date: String(mark.attrs.date ?? ''),
+        text: String(mark.attrs.text ?? ''),
+        replies: repliesOf(mark.attrs.replies),
+        resolved: mark.attrs.resolved === true,
+        from: pos,
+        to: pos + node.nodeSize,
+        quote: node.text ?? '',
+      };
+      last.set(id, range);
+      out.push(range);
     }
-    last = {
-      id,
-      author: String(mark.attrs.author ?? ''),
-      date: String(mark.attrs.date ?? ''),
-      text: String(mark.attrs.text ?? ''),
-      replies: repliesOf(mark.attrs.replies),
-      resolved: mark.attrs.resolved === true,
-      from: pos,
-      to: pos + node.nodeSize,
-      quote: node.text ?? '',
-    };
-    out.push(last);
     return false;
   });
+  // Oldest first where several start together: an edit reorders a run's marks.
+  out.sort((a, b) => a.from - b.from || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   rangesOf.set(doc, out);
   return out;
 }
@@ -117,6 +129,15 @@ export function commentRanges(doc: PMNode): CommentRange[] {
 export function comments(doc: PMNode): CommentRange[] {
   const seen = new Set<string>();
   return commentRanges(doc).filter((c) => !seen.has(c.id) && seen.add(c.id));
+}
+
+// Takes one comment off its range; a comment over the same text keeps its mark.
+function removeCommentMark(tr: Transaction, doc: PMNode, r: CommentRange): void {
+  doc.nodesBetween(r.from, r.to, (node, pos) => {
+    for (const m of commentMarks(node.marks)) {
+      if (m.attrs.id === r.id) tr.removeMark(Math.max(pos, r.from), Math.min(pos + node.nodeSize, r.to), m);
+    }
+  });
 }
 
 declare module '@tiptap/core' {
@@ -178,11 +199,18 @@ export const Comment = Mark.create({
     return {
       addComment:
         ({ author, text }) =>
-        ({ tr, commands }) => {
+        ({ tr, state, dispatch }) => {
           if (tr.selection.empty) return false;
-          return commands.setMark(this.name, {
-            id: newCommentId(), author, text, replies: [], date: new Date().toISOString(), resolved: false,
-          });
+          if (dispatch) {
+            // tr.addMark, not setMark: that would merge this comment into one already there.
+            const id = newCommentId();
+            const mark = state.schema.marks.comment.create({
+              id, author, text, replies: [], date: new Date().toISOString(), resolved: false,
+            });
+            for (const { $from, $to } of tr.selection.ranges) tr.addMark($from.pos, $to.pos, mark);
+            pickComment(tr, id);
+          }
+          return true;
         },
       updateComment:
         (id, patch) =>
@@ -191,7 +219,7 @@ export const Comment = Mark.create({
           if (!ranges.length) return false;
           if (dispatch) {
             for (const r of ranges) {
-              tr.removeMark(r.from, r.to, state.schema.marks.comment);
+              removeCommentMark(tr, state.doc, r);
               tr.addMark(r.from, r.to, state.schema.marks.comment.create({
                 id: r.id, author: r.author, date: r.date,
                 text: patch.text ?? r.text,
@@ -216,7 +244,7 @@ export const Comment = Mark.create({
         ({ tr, state, dispatch }) => {
           const ranges = commentRanges(state.doc).filter((c) => c.id === id);
           if (!ranges.length) return false;
-          if (dispatch) for (const r of ranges) tr.removeMark(r.from, r.to, state.schema.marks.comment);
+          if (dispatch) for (const r of ranges) removeCommentMark(tr, state.doc, r);
           return true;
         },
       startCommentDraft:
@@ -268,7 +296,12 @@ export const Comment = Mark.create({
           },
         },
       }),
-      new Plugin({
+      new Plugin<string | null>({
+        key: pickedKey,
+        state: {
+          init: () => null,
+          apply: (tr, id) => tr.getMeta(pickedKey) ?? (tr.selectionSet ? null : id),
+        },
         props: {
           // Each open comment tinted in its author's colour, which the mark cannot know;
           // the one the selection lies in heavier, the document half of the pairing the

@@ -273,7 +273,7 @@
     if (!editor || from === undefined || to === undefined) return;
     const i = balloons.indexOf(b);
     if (!b.active && i >= 0) hold = { key: b.key, top: tops[i], from: new Map(balloons.map((x, k) => [x.key, shown[k]])) };
-    selectRange(editor, from, to, false);
+    selectRange(editor, from, to, false, b.comment?.id);
   }
 
   // The leader: along the gap under the anchor's line, then eased into the balloon's own

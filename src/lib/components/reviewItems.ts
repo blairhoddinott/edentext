@@ -1,7 +1,7 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
-import { comments, commentRanges, type CommentRange } from '../editor/extensions/comment';
+import { commentIdAt, comments, commentRanges, pickComment, type CommentRange } from '../editor/extensions/comment';
 import { revisions, settledRange, type Revision, type RevisionKind } from '../editor/extensions/trackChanges';
 import { countText, type TextStats } from '../utils/wordCount';
 import { flushPending } from '../editor/extensions/stateHistory';
@@ -86,10 +86,11 @@ export function filterRevisions(list: Revision[], { author, kind, since }: Revis
 
 /** Select a marked range and scroll it smoothly into view — what a click on any of its
  *  cards does. `scroll: false` for a card beside the page, which stays under the pointer. */
-export function selectRange(editor: Editor, from: number, to: number, scroll = true): void {
+export function selectRange(editor: Editor, from: number, to: number, scroll = true, comment?: string): void {
   const { state, view } = editor;
   // By `between`: a row's change starts between nodes, where a text selection cannot.
   const tr = state.tr.setSelection(TextSelection.between(state.doc.resolve(from), state.doc.resolve(to)));
+  if (comment) pickComment(tr, comment);
   const scroller = (view.dom as HTMLElement).closest('.editor');
   view.dispatch(scroll && !scroller ? tr.scrollIntoView() : tr);
   view.focus();
@@ -131,8 +132,11 @@ export function jumpToRevision(editor: Editor, r: Revision): void {
  *  to jump to. Changes run through the body, then the zones in the pane's order. */
 export function goToMarkup(editor: Editor, kind: 'comment' | 'revision', dir: 1 | -1): void {
   if (kind === 'comment') {
-    const hit = step(visibleComments(editor.state.doc), editor.state.selection.from, dir);
-    if (hit) selectRange(editor, hit.from, hit.to);
+    // By the list from a comment, as the next one may start where it does.
+    const list = visibleComments(editor.state.doc);
+    const at = list.findIndex((c) => c.id === commentIdAt(editor.state));
+    const hit = at >= 0 ? list[(at + dir + list.length) % list.length] : step(list, editor.state.selection.from, dir);
+    if (hit) selectRange(editor, hit.from, hit.to, true, hit.id);
     return;
   }
   const list = listedRevisions((bodyEditor() ?? editor).state.doc);

@@ -2717,8 +2717,7 @@ function convertInline(root: Element, ctx: Ctx, baseProps: PropMap, defaults: Bl
       marks.push({ type: 'bookmark', attrs: { name } });
     }
     ctx.pointBookmarks.clear();
-    const comment = ctx.openComments.values().next().value;
-    if (comment) marks.push({ type: 'comment', attrs: comment });
+    for (const attrs of ctx.openComments.values()) marks.push({ type: 'comment', attrs });
     const insertion = ctx.openInsertions.values().next().value;
     if (insertion) marks.push({ type: 'insertion', attrs: insertion });
     const format = ctx.openFormats.values().next().value;

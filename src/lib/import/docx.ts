@@ -751,10 +751,9 @@ function trackRanges(el: Element, ctx: Ctx): void {
   for (const m of Array.from(el.getElementsByTagNameNS(W, '*'))) if (!trackBookmark(m, ctx)) trackComment(m, ctx);
 }
 
-// A mark can hold one comment, so overlapping ranges collapse to the outermost.
-function openCommentMark(ctx: Ctx): Mark | null {
-  const attrs = ctx.openComments.values().next().value;
-  return attrs ? { type: 'comment', attrs } : null;
+// Every comment the run sits in: ranges overlap, and each is a mark of its own.
+function openCommentMarks(ctx: Ctx): Mark[] {
+  return Array.from(ctx.openComments.values(), (attrs) => ({ type: 'comment', attrs }));
 }
 
 // Every bookmark the run sits in, plus the point bookmarks waiting for a run to land on.
@@ -2083,8 +2082,7 @@ function convertInline(p: Element, ctx: Ctx, baseRun: RunProps, defaults: BlockD
   const pushText = (text: string, marks: Mark[]) => {
     if (!text) return;
     const bookmarks = openBookmarkMarks(ctx);
-    const comment = openCommentMark(ctx);
-    const all = [...marks, ...bookmarks, ...(comment ? [comment] : [])];
+    const all = [...marks, ...bookmarks, ...openCommentMarks(ctx)];
     const node: Node = { type: 'text', text };
     if (all.length) node.marks = all;
     out.push(node);

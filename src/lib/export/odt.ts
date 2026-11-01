@@ -1198,38 +1198,41 @@ type CommentExport = {
 function replaceComments(node: TiptapNode, out: CommentExport[]): TiptapNode {
   if (!node.content?.length) return node;
   const content: TiptapNode[] = [];
-  let openId = '';
-  let openIndex = -1;
-  let lastOfRange = -1;
-  const closeRange = () => {
-    if (!openId) return;
-    const run = content[lastOfRange];
-    content[lastOfRange] = { ...run, text: `${run.text ?? ''}${CME}${openIndex}${CME}` };
-    openId = '';
+  // Ranges overlap, so each comment is bracketed on its own, as replaceBookmarks does.
+  const open = new Map<string, { index: number; last: number }>();
+  const starts: { at: number; index: number }[] = [];
+  const ends: { at: number; index: number }[] = [];
+  const keepOnly = (ids: string[]) => {
+    for (const [id, range] of open) {
+      if (ids.includes(id)) continue;
+      ends.push({ at: range.last, index: range.index });
+      open.delete(id);
+    }
   };
   for (const child of node.content) {
-    const mark = child.type === 'text' ? child.marks?.find(m => m.type === 'comment') : undefined;
-    const id = mark ? String(mark.attrs?.id ?? '') : '';
-    if (id !== openId) closeRange();
-    if (id && !openId) {
-      openId = id;
-      openIndex = out.length;
+    const marks = child.type === 'text' ? (child.marks ?? []).filter(m => m.type === 'comment' && m.attrs?.id) : [];
+    keepOnly(marks.map(m => String(m.attrs?.id)));
+    const at = content.length;
+    content.push(marks.length ? child : replaceComments(child, out));
+    for (const mark of marks) {
+      const id = String(mark.attrs?.id);
+      const range = open.get(id);
+      if (range) { range.last = at; continue; }
+      open.set(id, { index: out.length, last: at });
+      starts.push({ at, index: out.length });
       out.push({
         name: id,
-        author: String(mark!.attrs?.author ?? ''),
-        date: String(mark!.attrs?.date ?? ''),
-        text: String(mark!.attrs?.text ?? ''),
-        resolved: mark!.attrs?.resolved === true,
-        replies: Array.isArray(mark!.attrs?.replies) ? mark!.attrs.replies : [],
+        author: String(mark.attrs?.author ?? ''),
+        date: String(mark.attrs?.date ?? ''),
+        text: String(mark.attrs?.text ?? ''),
+        resolved: mark.attrs?.resolved === true,
+        replies: Array.isArray(mark.attrs?.replies) ? mark.attrs.replies : [],
       });
-      content.push({ ...child, text: `${CMS}${openIndex}${CMS}${child.text ?? ''}` });
-      lastOfRange = content.length - 1;
-      continue;
     }
-    content.push(id ? child : replaceComments(child, out));
-    if (id) lastOfRange = content.length - 1;
   }
-  closeRange();
+  keepOnly([]);
+  for (const s of starts) content[s.at] = { ...content[s.at], text: `${CMS}${s.index}${CMS}${content[s.at].text ?? ''}` };
+  for (const e of ends) content[e.at] = { ...content[e.at], text: `${content[e.at].text ?? ''}${CME}${e.index}${CME}` };
   return { ...node, content };
 }
 

@@ -39,7 +39,7 @@
   });
 
   function jumpTo(c: CommentRange) {
-    if (editor) selectRange(editor, c.from, c.to);
+    if (editor) selectRange(editor, c.from, c.to, true, c.id);
   }
 </script>
 

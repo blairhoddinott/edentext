@@ -257,9 +257,10 @@ let docCommentReplies = new Map<number, number[]>();
 
 function collectComments(node: TiptapNode): void {
   for (const child of node.content ?? []) {
-    const mark = child.type === 'text' ? child.marks?.find(m => m.type === 'comment') : undefined;
-    const id = mark ? String(mark.attrs?.id ?? '') : '';
-    if (id && !docCommentIds.has(id)) {
+    const marks = child.type === 'text' ? (child.marks ?? []).filter(m => m.type === 'comment' && m.attrs?.id) : [];
+    for (const mark of marks) {
+      const id = String(mark.attrs?.id);
+      if (docCommentIds.has(id)) continue;
       const parsed = (raw: string) => {
         const date = new Date(raw);
         return Number.isNaN(date.getTime()) ? new Date() : date;
@@ -268,12 +269,12 @@ function collectComments(node: TiptapNode): void {
       docCommentIds.set(id, parent);
       docComments.push({
         id: parent,
-        author: String(mark!.attrs?.author ?? ''),
-        date: parsed(String(mark!.attrs?.date ?? '')),
-        text: String(mark!.attrs?.text ?? ''),
-        resolved: mark!.attrs?.resolved === true,
+        author: String(mark.attrs?.author ?? ''),
+        date: parsed(String(mark.attrs?.date ?? '')),
+        text: String(mark.attrs?.text ?? ''),
+        resolved: mark.attrs?.resolved === true,
       });
-      const replies = Array.isArray(mark!.attrs?.replies) ? mark!.attrs.replies : [];
+      const replies = Array.isArray(mark.attrs?.replies) ? mark.attrs.replies : [];
       if (replies.length) {
         docCommentReplies.set(parent, replies.map((r: { author?: string; date?: string; text?: string }) => {
           const id = docComments.length;
@@ -288,7 +289,7 @@ function collectComments(node: TiptapNode): void {
         }));
       }
     }
-    if (!id) collectComments(child);
+    if (!marks.length) collectComments(child);
   }
 }
 
@@ -873,12 +874,10 @@ function crossRefField(node: TiptapNode): SimpleField {
   return new SimpleField(crossRefInstr(node.attrs), String(node.attrs?.text ?? ''));
 }
 
-// The Word comment id of a run's comment mark, or null.
-const commentIdOf = (node: TiptapNode): number | null => {
-  const id = node.marks?.find((m) => m.type === 'comment')?.attrs?.id;
-  const n = typeof id === 'string' ? docCommentIds.get(id) : undefined;
-  return n ?? null;
-};
+// The Word ids of every comment on a run: ranges overlap, as bookmarks' do.
+const commentIdsOf = (node: TiptapNode): number[] =>
+  (node.marks ?? []).filter((m) => m.type === 'comment')
+    .map((m) => docCommentIds.get(String(m.attrs?.id ?? ''))).filter((n) => n !== undefined);
 
 // Every bookmark on a node: both formats nest ranges, so one run can carry several.
 const bookmarkNamesOf = (node: TiptapNode): string[] =>
@@ -926,25 +925,27 @@ function inlineToRuns(content: TiptapNode[] = [], force: TextProps = {}): Inline
 
   // A comment's range brackets its runs; the reference run at the end is what Word
   // draws the bubble from.
-  let openComment: number | null = null;
-  const closeComment = () => {
-    if (openComment === null) return;
-    out.push(new CommentRangeEnd(openComment), new TextRun({ children: [new CommentReference(openComment)] }));
-    // An answer needs no range of its own: its reference at the same anchor is what
-    // carries it, and commentsExtended.xml names the comment it belongs to.
-    for (const r of docCommentReplies.get(openComment) ?? []) out.push(new TextRun({ children: [new CommentReference(r)] }));
-    openComment = null;
-  };
-  const openCommentAt = (id: number | null) => {
-    if (id === openComment) return;
-    closeComment();
-    if (id !== null) { out.push(new CommentRangeStart(id)); openComment = id; }
+  const openComments = new Set<number>();
+  const commentsAt = (ids: number[]) => {
+    for (const id of openComments) {
+      if (ids.includes(id)) continue;
+      out.push(new CommentRangeEnd(id), new TextRun({ children: [new CommentReference(id)] }));
+      // An answer needs no range of its own: its reference at the same anchor is what
+      // carries it, and commentsExtended.xml names the comment it belongs to.
+      for (const r of docCommentReplies.get(id) ?? []) out.push(new TextRun({ children: [new CommentReference(r)] }));
+      openComments.delete(id);
+    }
+    for (const id of ids) {
+      if (openComments.has(id)) continue;
+      out.push(new CommentRangeStart(id));
+      openComments.add(id);
+    }
   };
 
   let closeAtom: string | null = null;
   for (const node of content) {
     if (closeAtom) out.push(new TextRun({ text: closeAtom }));
-    openCommentAt(commentIdOf(node));
+    commentsAt(commentIdsOf(node));
     openFor(bookmarkNamesOf(node));
     const atom = atomRevisionMarks(node);
     if (atom) out.push(new TextRun({ text: atom[0] }));
@@ -1039,7 +1040,7 @@ function inlineToRuns(content: TiptapNode[] = [], force: TextProps = {}): Inline
     }
   }
   if (closeAtom) out.push(new TextRun({ text: closeAtom }));
-  closeComment();
+  commentsAt([]);
   flush(); // a bookmark still open at the paragraph's end would drop its runs
   return out;
 }
@@ -1469,12 +1470,19 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
   let runs = '';
   // Comment ranges and bookmarks bracket consecutive runs sharing the mark, as
   // inlineToRuns does for the body; the reference run is what Word draws the bubble from.
-  let openComment: number | null = null;
-  const closeComment = () => {
-    if (openComment === null) return;
-    runs += `<w:commentRangeEnd w:id="${openComment}"/><w:r><w:commentReference w:id="${openComment}"/></w:r>`;
-    for (const r of docCommentReplies.get(openComment) ?? []) runs += `<w:r><w:commentReference w:id="${r}"/></w:r>`;
-    openComment = null;
+  const openComments = new Set<number>();
+  const commentsAt = (ids: number[]) => {
+    for (const id of openComments) {
+      if (ids.includes(id)) continue;
+      runs += `<w:commentRangeEnd w:id="${id}"/><w:r><w:commentReference w:id="${id}"/></w:r>`;
+      for (const r of docCommentReplies.get(id) ?? []) runs += `<w:r><w:commentReference w:id="${r}"/></w:r>`;
+      openComments.delete(id);
+    }
+    for (const id of ids) {
+      if (openComments.has(id)) continue;
+      runs += `<w:commentRangeStart w:id="${id}"/>`;
+      openComments.add(id);
+    }
   };
   const openBookmarks = new Map<string, number>();
   const openBookmarksFor = (names: string[]) => {
@@ -1492,9 +1500,7 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
   };
   const closeBookmark = () => openBookmarksFor([]);
   for (const child of node.content ?? []) {
-    const cid = commentIdOf(child);
-    if (cid !== openComment) closeComment();
-    if (cid !== null && cid !== openComment) { runs += `<w:commentRangeStart w:id="${cid}"/>`; openComment = cid; }
+    commentsAt(commentIdsOf(child));
     openBookmarksFor(bookmarkNamesOf(child));
     const atom = atomRevisionMarks(child);
     if (atom) runs += `<w:r><w:t>${atom[0]}</w:t></w:r>`;
@@ -1585,7 +1591,7 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
     if (atom) runs += `<w:r><w:t>${atom[1]}</w:t></w:r>`;
   }
   closeBookmark();
-  closeComment();
+  commentsAt([]);
   return `<w:p>${pPr.length ? `<w:pPr>${pPr.join('')}</w:pPr>` : ''}${runs}</w:p>`;
 }
 

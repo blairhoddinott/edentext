@@ -176,6 +176,11 @@ export function kitchenSinkDoc(): N {
       date: '2026-03-04T05:06:07', text: 'Check & <this> "here"', resolved: false } }),
       t(' und erledigt', { type: 'comment', attrs: { id: 'c2', author: 'Test Autor',
         date: '2026-03-04T05:06:08', text: 'done', resolved: true } })]),
+    p((() => {
+      const mark = (id: string, text: string) => ({ type: 'comment', attrs: { id, author: 'Test Autor', date: '2026-03-04T05:06:09', text, resolved: false } });
+      const [outer, inner] = [mark('c3', 'outer'), mark('c4', 'inner')];
+      return [t('Kommentare ', outer), t('überlappen', outer, inner), t(' sich', inner)];
+    })()),
     p([t('eingefügt', { type: 'insertion', attrs: { id: 'rv1', author: 'Rev Autor', date: '2026-05-06T07:08:09' } }),
       t(' und '),
       t('gestrichen', { type: 'deletion', attrs: { id: 'rv2', author: 'Rev Autor', date: '2026-05-06T07:08:10' } })]),
