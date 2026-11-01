@@ -3608,12 +3608,12 @@ function tblWidthFraction(tblW: Element | null): number | null {
 function floatTableWidthCm(tbl: Element, contentCm: number): number | null {
   const tblW = fc(fc(tbl, 'tblPr'), 'tblW');
   const pct = tblWidthFraction(tblW);
-  if (pct != null) return round2(contentCm * pct);
+  if (pct != null) return contentCm * pct;
   const declared = tblW && (tblW.getAttributeNS(W, 'type') ?? 'dxa') === 'dxa' ? intAttr(tblW, W, 'w') : null;
   const grid = fc(tbl, 'tblGrid');
   const gridTwip = grid ? fcAll(grid, 'gridCol').reduce((a, g) => a + (intAttr(g, W, 'w') ?? 0), 0) : 0;
   const twip = declared && declared > 0 ? declared : gridTwip;
-  return twip > 0 ? round2(twipToCm(twip)) : null;
+  return twip > 0 ? twipToCm(twip) : null;
 }
 
 function convertTable(tbl: Element, ctx: Ctx): Node | null {

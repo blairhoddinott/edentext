@@ -1273,6 +1273,10 @@ function escapeXml(s: string): string {
 
 // Run properties for the hand-serialized txbxContent, in CT_RPr schema order
 // (rFonts, b, i, strike, color, sz, u, shd, vertAlign). Mirrors runPropsFromMarks.
+function txbxRevAttrs(a: Record<string, unknown>): string {
+  return `w:id="${docRevisionId(String(a.id ?? ''))}" w:author="${escapeXml(String(a.author ?? ''))}" w:date="${escapeXml(String(a.date ?? ''))}"`;
+}
+
 function rFontsXml(font: NonNullable<ReturnType<typeof fontPair>>): string {
   const slots = (['ascii', 'eastAsia', 'hAnsi', 'cs'] as const).filter((k) => font[k]);
   return `<w:rFonts${slots.map((k) => ` w:${k}="${escapeXml(font[k]!)}"`).join('')}/>`;
@@ -1335,6 +1339,8 @@ function txbxRunPropsXml(marks: TiptapNode['marks'] = [], blockLangs: unknown[] 
   // Last in CT_RPr's order, and the only place Word reads a run's language from.
   const lang = langXml(...blockLangs, ts?.attrs?.lang, ts?.attrs?.langAsian);
   if (lang) parts.push(lang);
+  const change = marks.find((m) => m.type === 'formatChange')?.attrs;
+  if (change) parts.push(`<w:rPrChange ${txbxRevAttrs(change)}>${txbxRunPropsXml((change.old ?? []) as TiptapNode['marks'], blockLangs, block) || '<w:rPr/>'}</w:rPrChange>`);
   return parts.length ? `<w:rPr>${parts.join('')}</w:rPr>` : '';
 }
 
@@ -1422,14 +1428,15 @@ function txbxPPrXml(attrs: TiptapNode['attrs'], indentTwip: number, pt: number):
   if (jc) out.push(`<w:jc w:val="${jc}"/>`);
   // w:rPr closes CT_PPr; it formats the paragraph mark and names the block's language.
   const font = fontPair(attrs?.fontFamily, attrs?.fontFamilyAsian, screenToDoc);
-  const mark = [font ? rFontsXml(font) : '', szXml(attrs?.fontSize), langXml(attrs?.lang, attrs?.langAsian)].join('');
+  const revMark = attrs?.revMark as Record<string, Record<string, unknown>> | null | undefined;
+  const revs = (['insertion', 'deletion'] as const).map((k) => (revMark?.[k] ? `<w:${k === 'insertion' ? 'ins' : 'del'} ${txbxRevAttrs(revMark[k])}/>` : ''));
+  const mark = [...revs, font ? rFontsXml(font) : '', szXml(attrs?.fontSize), langXml(attrs?.lang, attrs?.langAsian)].join('');
   if (mark) out.push(`<w:rPr>${mark}</w:rPr>`);
   return out.join('');
 }
 
-// One paragraph/heading of a text box. `numPr` makes it a list item of one of the
-// numbering definitions minted for the box.
-function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, numPr = ''): string {
+// A box block's w:pPr content, in CT_PPr order.
+function txbxBlockPPr(node: TiptapNode, indentTwip: number, numPr: string): string {
   const attrs = node.attrs ?? {};
   const pPr: string[] = [];
   if (node.type === 'heading') {
@@ -1441,6 +1448,23 @@ function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, nu
   if (attrs.keepLines === true) pPr.push('<w:keepLines/>');
   if (attrs.widowControl === false) pPr.push('<w:widowControl w:val="0"/>');
   pPr.push(numPr, txbxPPrXml(attrs, indentTwip, blockPt(node)));
+  return pPr.join('');
+}
+
+// One paragraph/heading of a text box. `numPr` makes it a list item of one of the
+// numbering definitions minted for the box.
+function txbxParagraphXml(node: TiptapNode, parts: TxbxParts, indentTwip = 0, numPr = ''): string {
+  const attrs = node.attrs ?? {};
+  // A list change has a form only where the paragraph was made a list, as in the body.
+  const format = attrs.revFormat as RevFormat | null | undefined;
+  const madeList = format?.old?.list?.length === 0 && !!numPr;
+  const noForm = !!format?.old?.list && !madeList && sameBlockFormat(blockFormat(node.type, attrs), format.old);
+  const pPr = [txbxBlockPPr(node, indentTwip, numPr)];
+  if (format && !noForm) {
+    // CT_PPrBase: the earlier properties have no paragraph mark of their own.
+    const old = txbxBlockPPr({ ...node, ...format.old }, indentTwip, madeList ? '' : numPr).replace(/<w:rPr>.*<\/w:rPr>$/, '');
+    pPr.push(`<w:pPrChange ${txbxRevAttrs(format)}><w:pPr>${old}</w:pPr></w:pPrChange>`);
+  }
   const runProps = (marks: TiptapNode['marks']) => txbxRunPropsXml(marks, [attrs.lang, attrs.langAsian], attrs);
   let runs = '';
   // Comment ranges and bookmarks bracket consecutive runs sharing the mark, as

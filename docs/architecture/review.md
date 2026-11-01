@@ -91,6 +91,8 @@ A merge whose two sides keep text stays two lines on the page: `display: inline`
 
 **Character format:** DOCX `w:rPrChange`; ODF a `text:format-change` region around the run, with no old values, so rejecting after a reload drops the direct formatting, as in LibreOffice (probed: `old` null). A deleted run's format change goes unsaved in ODF.
 
+**Paragraph mark in a list item:** ODF has no form for a struck mark that joins a paragraph of a list item holding several: the merged paragraph would part into two items on reading, so the mark goes unsaved and the blocks stay as they are.
+
 **Paragraph format:** DOCX `w:pPrChange`. The paragraph mark's run and the flags the package cannot write are outside it, so the importer takes those from the current block. Of list changes only a paragraph made a list has a form (no `w:numPr` in the old properties); any other is saved as done, unrecorded. ODF has no form LibreOffice reads back: the new format is saved, the record is not.
 
 **ODF insertion:** the region runs from a `text:change-start` at the end of one paragraph to the `text:change-end` at the start of the next.

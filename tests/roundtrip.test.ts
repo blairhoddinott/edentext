@@ -3130,6 +3130,21 @@ describe('block attrs by context', () => {
   const formats: [string, (d: N) => Promise<Uint8Array>, (b: Uint8Array) => N][] = [['ODT', buildOdt as N, importOdt as N], ['DOCX', buildDocx as N, importDocx as N]];
   const blocksOf = (n: N): N[] => [...(n.type === 'paragraph' || n.type === 'heading' ? [n] : []), ...(n.content ?? []).flatMap(blocksOf)];
 
+  it('keeps the recorded changes of a DOCX box', async () => {
+    const rev = { id: 'r1', author: 'Ann', date: '2026-01-02T03:04:05Z' };
+    const block = (attrs: N, text: string, marks?: N[]) => ({ type: 'paragraph', attrs, content: [{ type: 'text', text, ...(marks ? { marks } : {}) }] });
+    const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'textBox', attrs: { width: 200, height: 100 }, content: [
+      block({ revMark: { insertion: rev } }, 'a'),
+      block({ textAlign: 'center', revFormat: { ...rev, old: { type: 'paragraph', attrs: {}, list: null } } }, 'b', [{ type: 'bold' }, { type: 'formatChange', attrs: { ...rev, old: [] } }]),
+      block({}, 'c'),
+    ] }] }, { type: 'paragraph' }] };
+    const [, a, b] = blocksOf((await importDocx(await buildDocx(doc as N))).content as N);
+    expect(a.attrs.revMark.insertion.author).toBe('Ann');
+    expect(b.attrs.revFormat.old.attrs.textAlign ?? null).toBe(null);
+    expect(b.attrs.textAlign).toBe('center');
+    expect(b.content[0].marks.map((m: N) => m.type)).toContain('formatChange');
+  });
+
   describe.each(formats)('%s', (_name, build, read) => {
     it.each(contexts)('in %s', async (_where, wrap) => {
       for (const type of ['paragraph', 'heading']) for (const content of [[{ type: 'text', text: 'x' }], undefined]) for (const key of Object.keys(attrs)) {
