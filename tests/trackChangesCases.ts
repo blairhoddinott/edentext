@@ -43,6 +43,7 @@ export const cells = (from: number, to: number): Act => (e) => {
 };
 const merge: Act[] = [(e) => e.commands.mergeCells()];
 
+const field: Act = (e) => e.commands.insertContent({ type: 'pageNumber' });
 const table: Act = (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
 const BLANK = '<p>aaaa</p><p></p><p>cccc</p>';
 
@@ -57,6 +58,7 @@ export const TABLE_CASES: [string, string, Act[]][] = [
   ['a column inserted', TABLE, [inCell(14), (e) => e.commands.addColumnBefore()]],
   ['a note inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertNote('footnote')]],
   ['a text box inserted', THREE, [(e) => select(e, 3), (e) => e.commands.insertTextBox()]],
+  ['a field put over one just inserted', THREE, [(e) => select(e, 3), field, (e) => e.commands.setNodeSelection(3), field]],
   ['Enter in a cell', TABLE, [inCell(5), (e) => e.commands.splitBlock()]],
   ['a table inserted', THREE, [(e) => select(e, 7), (e) => e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false })]],
   ['a table in an empty document', '<p></p>', [(e) => select(e, 1), table]],
@@ -73,6 +75,7 @@ const fittedDrop = (from: number, to: number, at: number): Act => (e) => {
 
 /** Blocks taking the place of what was there: its removal is a change of its own. */
 export const REPLACE_CASES: [string, string, Act[]][] = [
+  ['a picture put over a picture', '<p>aa<img src="a.png">bb</p>', [(e) => e.commands.setNodeSelection(3), (e) => e.commands.insertContent({ type: 'image', attrs: { src: 'b.png' } })]],
   ['a table in an empty paragraph', BLANK, [(e) => select(e, 7), table]],
   ['a table over a selected paragraph', THREE, [(e) => select(e, 7, 11), table]],
   ['a table over part of a paragraph', THREE, [(e) => select(e, 8, 10), table]],

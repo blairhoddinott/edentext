@@ -1024,10 +1024,11 @@ function rebuilt(step: Step, doc: PMNode): boolean {
   return !!pair && !pair[0].isTextblock && !pair[0].isLeaf;
 }
 
-// A swap with other attributes only: no content changes hands.
+// A swap with other attributes only: no content changes hands. A node that lost its marks or
+// shows another picture is a new one, however alike: a field put over a selected field.
 function restyled(step: Step, doc: PMNode): boolean {
   const pair = swap(step, doc);
-  return !!pair && pair[0].content.eq(pair[1].content);
+  return !!pair && pair[0].content.eq(pair[1].content) && PMMark.sameSet(pair[0].marks, pair[1].marks) && pair[0].attrs.src === pair[1].attrs.src;
 }
 
 // Whether a transaction takes anything out of the document, restyled nodes aside.
