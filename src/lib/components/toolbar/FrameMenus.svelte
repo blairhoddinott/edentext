@@ -87,4 +87,5 @@
   }
 
   .frame-btn:hover:not(:disabled) { background: var(--color-btn-hover); }
+  .frame-btn:disabled { opacity: 0.5; cursor: default; }
 </style>

@@ -802,7 +802,11 @@
   min-width: 0;
   font-size: 0.72rem;
 }
-.island-menu .im-field:has(input:disabled) { opacity: 0.5; }
+/* These fields carry their own colours, so the browser's grey never shows. A row's bare
+   text stays: there the radio beside the box is what turns it back on. */
+.island-menu .im-field:has(input:disabled),
+.island-menu .im-row:has(input:disabled) > span,
+.island-menu .im-row input:disabled { opacity: 0.5; }
 
 .island-menu :is(.im-field, .im-row) input:is([type='text'], [type='number']) {
   width: 4.5rem;

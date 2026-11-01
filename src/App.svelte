@@ -2846,8 +2846,13 @@
     transition: background 0.1s;
   }
 
-  .theme-option:hover {
+  .theme-option:hover:not(:disabled) {
     background: var(--color-btn-hover);
+  }
+
+  .theme-option:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .theme-option.selected {

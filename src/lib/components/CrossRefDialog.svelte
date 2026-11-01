@@ -235,6 +235,7 @@
   }
 
   .xr-sep { width: 3rem; }
+  .xr-check:not(.xr-off) .xr-sep:disabled { opacity: 0.5; }
   .xr-list { min-height: 9rem; }
   .xr-none { margin: 0; font-size: 0.8rem; opacity: 0.7; }
 

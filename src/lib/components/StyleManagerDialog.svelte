@@ -1206,6 +1206,8 @@
     background: var(--color-surface);
     color: var(--color-text);
   }
+  /* These carry their own colours, so the browser's grey never shows. */
+  label:has(> input:disabled, > select:disabled) { opacity: 0.5; }
   /* A number holds a few digits and "(inherited)", not the width its column offers. */
   input[type='number'] { width: 9rem; max-width: 100%; box-sizing: border-box; }
 

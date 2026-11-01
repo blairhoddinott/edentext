@@ -131,6 +131,7 @@
     padding: 4px 6px;
     font: inherit;
   }
+  input:disabled { opacity: 0.5; }
   .key { flex: 0 0 6rem; }
 
   .actions { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
